@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Imposter</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">🕵️ Imposter</header>
+
+  <main class="app-main">
+    <section id="join-screen" class="screen">
+      <h1>Join the game</h1>
+      <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
+      <button id="join-btn">Join</button>
+      <p id="join-error" class="error"></p>
+    </section>
+
+    <section id="lobby-screen" class="screen hidden">
+      <h1>Lobby</h1>
+      <p id="lobby-count" class="muted">0 joined</p>
+      <ul id="lobby-list" class="player-list"></ul>
+      <button id="start-btn" disabled>Start Game</button>
+      <p id="start-error" class="error"></p>
+    </section>
+
+    <section id="game-screen" class="screen hidden">
+      <p id="theme-label" class="muted"></p>
+      <div id="board" class="board"></div>
+      <div id="role-panel" class="role-panel"></div>
+      <button id="play-again-btn" class="secondary">Play Again</button>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
