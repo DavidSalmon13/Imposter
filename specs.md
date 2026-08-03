@@ -35,9 +35,9 @@ A same-room party word game. Players join a shared room on their phones via one 
 1. Host presses **Start** (still requires **minimum 3 players**) → phase moves to **voting**, not straight into a round.
 2. Every joined player picks a hint difficulty: **easy / medium / hard**. Most votes wins; a **tie is resolved in favor of the easier level** (easy > medium > hard on ties).
 3. Once everyone connected has voted, the server asks **ChatGPT** (OpenAI Chat Completions) for one common word plus a single short hint sentence calibrated to the winning difficulty. The server rejects/retries if the hint would leak the word.
-4. Server randomly picks **exactly 1 imposter** from the joined players.
+4. Server randomly picks the imposter(s): **1 imposter** for 3-4 players, **2 imposters** for 5+ players. The same player(s) can't be the imposter again on the very next round (unless the player pool is too small to avoid it).
 5. Every non-imposter privately receives: "your word: <secret word>" (no hint).
-6. The imposter privately receives: the one hint sentence (no word, no word grid).
+6. Each imposter privately receives: the same one hint sentence (no word, no word grid). Imposters do not know who the other imposter is.
 7. All role delivery is **private per-socket** — no player ever sees another player's role/word/hint.
 8. If the OpenAI call fails, the round is aborted, votes are cleared, everyone returns to the lobby, and the host can press Start again.
 

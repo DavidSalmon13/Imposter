@@ -12,19 +12,40 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const MIN_PLAYERS = 3;
+const TWO_IMPOSTER_THRESHOLD = 5;
 const LEVELS = ['easy', 'medium', 'hard'];
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-const LEVEL_INSTRUCTIONS = {
-  easy: 'The hint should be quite revealing and specific, giving a strong clue toward the word while still not saying it outright.',
-  medium: 'The hint should give a moderate, fairly general clue - enough to work with but requiring some real thought.',
-  hard: 'The hint should be vague and abstract, giving only a subtle clue that requires real deduction.',
+const LEVEL_SPEC = {
+  easy: {
+    instruction:
+      'Write a VERY revealing hint: describe the word\'s single most obvious, well-known use or defining ' +
+      'feature so directly that almost anyone would guess it within a few seconds. It should feel like a ' +
+      'giveaway, short of literally saying the word or an obvious rhyme of it.',
+    example: 'Word: guitar -> Hint: "It has six strings and you strum it to play music."',
+  },
+  medium: {
+    instruction:
+      'Write a MODERATELY challenging hint: give one true clue, but make it partial or indirect - do not ' +
+      'state the word\'s single most obvious defining feature or its most common use. It should take real ' +
+      'thought, not be instant, and not be a giveaway.',
+    example: 'Word: guitar -> Hint: "This needs regular tuning or it will sound wrong."',
+  },
+  hard: {
+    instruction:
+      'Write a DELIBERATELY HARD, vague, or metaphorical hint: reference only one subtle, non-obvious ' +
+      'property, and NEVER name or imply the word\'s broad category (e.g. do not say or hint whether it is ' +
+      'an animal, food, instrument, sport, object, place, job, etc.). It must require real lateral thinking ' +
+      '- it should NOT be quickly guessable.',
+    example: 'Word: guitar -> Hint: "Its hollow body has never once held anything."',
+  },
 };
 
 let phase = 'lobby'; // 'lobby' | 'voting' | 'generating' | 'playing'
 let hostName = null;
 let currentLevel = null;
+let lastImposterNames = [];
 const players = new Map(); // name -> { socketId, connected, role, word, hint, vote }
 const usedWords = [];
 
@@ -74,11 +95,15 @@ async function generateWordAndHint(level) {
   }
 
   const avoid = usedWords.slice(-20);
+  const spec = LEVEL_SPEC[level];
   const prompt =
     `Pick one common, family-friendly word or short phrase (1-2 words) that most adults would instantly ` +
     `recognize - e.g. an everyday object, animal, food, place, sport, or job. Then write ONE short hint ` +
-    `sentence (max ~15 words) about it for a party game, calibrated for a "${level}" difficulty level. ` +
-    `${LEVEL_INSTRUCTIONS[level]} The hint must never contain the word itself or any part of it.` +
+    `sentence (max ~15 words) about it for a party game, calibrated for a "${level.toUpperCase()}" ` +
+    `difficulty level.\n\n${spec.instruction}\n\n` +
+    `Example showing the STYLE and DIFFICULTY to match (pick your own unrelated word, do not reuse this ` +
+    `example's word or hint): ${spec.example}\n\n` +
+    `The hint must never contain the word itself, a rhyme of it, or any part of it.` +
     (avoid.length ? ` Do not reuse any of these previous words: ${avoid.join(', ')}.` : '') +
     ` Respond with ONLY compact JSON in the form {"word": "...", "hint": "..."}.`;
 
@@ -146,9 +171,13 @@ async function finishVoting() {
   usedWords.push(word);
   if (usedWords.length > 50) usedWords.splice(0, usedWords.length - 50);
 
-  const imposterName = names[Math.floor(Math.random() * names.length)];
+  const imposterCount = names.length >= TWO_IMPOSTER_THRESHOLD ? 2 : 1;
+  const fresh = names.filter((n) => !lastImposterNames.includes(n));
+  const candidates = fresh.length >= imposterCount ? fresh : names;
+  const imposterNames = shuffle(candidates).slice(0, imposterCount);
+  lastImposterNames = imposterNames;
   for (const [name, p] of players) {
-    if (name === imposterName) {
+    if (imposterNames.includes(name)) {
       p.role = 'imposter';
       p.word = null;
       p.hint = hint;
