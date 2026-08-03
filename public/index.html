@@ -22,14 +22,32 @@
       <p id="lobby-count" class="muted">0 joined</p>
       <ul id="lobby-list" class="player-list"></ul>
       <button id="start-btn" disabled>Start Game</button>
+      <p id="start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
       <p id="start-error" class="error"></p>
     </section>
 
+    <section id="voting-screen" class="screen hidden">
+      <h1>Pick a hint difficulty</h1>
+      <p class="muted">Most votes wins. A tie goes to the easier level.</p>
+      <div class="level-choices">
+        <button class="level-btn" data-level="easy">Easy</button>
+        <button class="level-btn" data-level="medium">Medium</button>
+        <button class="level-btn" data-level="hard">Hard</button>
+      </div>
+      <p id="vote-count" class="muted">0 of 0 voted</p>
+    </section>
+
+    <section id="generating-screen" class="screen hidden">
+      <h1>Picking a word&hellip;</h1>
+      <p class="muted">Asking ChatGPT to come up with a word and hint.</p>
+      <div class="spinner"></div>
+    </section>
+
     <section id="game-screen" class="screen hidden">
-      <p id="theme-label" class="muted"></p>
-      <div id="board" class="board"></div>
+      <p id="level-label" class="muted"></p>
       <div id="role-panel" class="role-panel"></div>
       <button id="play-again-btn" class="secondary">Play Again</button>
+      <p id="play-again-waiting" class="muted hidden">Waiting for the host to start a new game&hellip;</p>
     </section>
   </main>
 

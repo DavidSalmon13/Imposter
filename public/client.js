@@ -5,6 +5,8 @@ const MIN_PLAYERS = 3;
 const screens = {
   join: document.getElementById('join-screen'),
   lobby: document.getElementById('lobby-screen'),
+  voting: document.getElementById('voting-screen'),
+  generating: document.getElementById('generating-screen'),
   game: document.getElementById('game-screen'),
 };
 
@@ -16,14 +18,30 @@ const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
 const startBtn = document.getElementById('start-btn');
 const startError = document.getElementById('start-error');
+const startWaiting = document.getElementById('start-waiting');
 
-const themeLabel = document.getElementById('theme-label');
-const boardEl = document.getElementById('board');
+const levelButtons = Array.from(document.querySelectorAll('.level-btn'));
+const voteCount = document.getElementById('vote-count');
+
+const levelLabel = document.getElementById('level-label');
 const roleEl = document.getElementById('role-panel');
 const playAgainBtn = document.getElementById('play-again-btn');
+const playAgainWaiting = document.getElementById('play-again-waiting');
 
 let myName = localStorage.getItem('imposterName') || '';
-let pendingRound = null; // { theme, board } while waiting for a private 'role' event
+let isHost = false;
+let currentHostName = null;
+let myVote = null;
+let pendingLevel = null;
+
+function setHost(hostName) {
+  currentHostName = hostName || null;
+  isHost = !!hostName && hostName === myName;
+  startBtn.classList.toggle('hidden', !isHost);
+  startWaiting.classList.toggle('hidden', isHost);
+  playAgainBtn.classList.toggle('hidden', !isHost);
+  playAgainWaiting.classList.toggle('hidden', isHost);
+}
 
 function showScreen(name) {
   Object.values(screens).forEach((el) => el.classList.add('hidden'));
@@ -40,9 +58,17 @@ function attemptJoin(name) {
     myName = name;
     localStorage.setItem('imposterName', name);
 
+    setHost(res.host);
+
     if (res.phase === 'playing') {
-      renderGame(res.theme, res.board, res.role, res.word);
+      renderGame(res.level, res.role, res.word, res.hint);
       showScreen('game');
+    } else if (res.phase === 'generating') {
+      showScreen('generating');
+    } else if (res.phase === 'voting') {
+      myVote = res.vote || null;
+      renderVoting();
+      showScreen('voting');
     } else {
       renderLobby(res.players || []);
       showScreen('lobby');
@@ -72,27 +98,66 @@ startBtn.addEventListener('click', () => {
 });
 
 playAgainBtn.addEventListener('click', () => {
-  socket.emit('newGame');
+  socket.emit('newGame', (res) => {
+    if (res && res.ok === false) startError.textContent = res.error;
+  });
 });
 
-socket.on('lobbyUpdate', ({ players }) => {
-  if (!screens.lobby.classList.contains('hidden')) {
-    renderLobby(players);
-  }
+levelButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const level = btn.dataset.level;
+    socket.emit('vote', level, (res) => {
+      if (res && res.ok === false) return;
+      myVote = level;
+      renderVoting();
+    });
+  });
 });
 
-socket.on('gameStarted', ({ theme, board }) => {
-  pendingRound = { theme, board };
+socket.on('lobbyUpdate', ({ players, host }) => {
+  setHost(host);
+  renderLobby(players);
 });
 
-socket.on('role', ({ role, word }) => {
-  const round = pendingRound || { theme: null, board: [] };
-  renderGame(round.theme, round.board, role, word);
+socket.on('hostUpdate', ({ host }) => {
+  setHost(host);
+});
+
+socket.on('votingStarted', ({ host }) => {
+  setHost(host);
+  myVote = null;
+  startError.textContent = '';
+  renderVoting();
+  showScreen('voting');
+});
+
+socket.on('votingUpdate', ({ total, voted, host }) => {
+  setHost(host);
+  voteCount.textContent = `${voted} of ${total} voted`;
+});
+
+socket.on('generating', () => {
+  showScreen('generating');
+});
+
+socket.on('gameStarted', ({ level }) => {
+  pendingLevel = level;
+});
+
+socket.on('role', ({ role, word, hint }) => {
+  renderGame(pendingLevel, role, word, hint);
   showScreen('game');
 });
 
+socket.on('startFailed', ({ error }) => {
+  startError.textContent = error;
+  showScreen('lobby');
+});
+
 socket.on('reset', () => {
-  pendingRound = null;
+  pendingLevel = null;
+  myVote = null;
+  isHost = false;
   nameInput.value = myName;
   joinError.textContent = '';
   showScreen('join');
@@ -102,7 +167,7 @@ function renderLobby(players) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
-    li.textContent = n;
+    li.textContent = n === currentHostName ? `${n} (host)` : n;
     lobbyList.appendChild(li);
   });
   lobbyCount.textContent = `${players.length} joined`;
@@ -111,19 +176,25 @@ function renderLobby(players) {
     players.length < MIN_PLAYERS ? `Need at least ${MIN_PLAYERS} players to start` : '';
 }
 
-function renderGame(theme, board, role, word) {
-  themeLabel.textContent = theme ? `Theme: ${theme}` : '';
-  boardEl.innerHTML = '';
-  (board || []).forEach((w) => {
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    cell.textContent = w;
-    boardEl.appendChild(cell);
+function renderVoting() {
+  levelButtons.forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.level === myVote);
   });
+}
+
+function renderGame(level, role, word, hint) {
+  levelLabel.textContent = level ? `Difficulty: ${level}` : '';
 
   if (role === 'imposter') {
     roleEl.className = 'role-panel imposter';
-    roleEl.textContent = 'YOU ARE THE IMPOSTER';
+    roleEl.textContent = '';
+    const title = document.createElement('div');
+    title.textContent = 'YOU ARE THE IMPOSTER';
+    const hintEl = document.createElement('div');
+    hintEl.className = 'hint-text';
+    hintEl.textContent = `Hint: ${hint}`;
+    roleEl.appendChild(title);
+    roleEl.appendChild(hintEl);
   } else {
     roleEl.className = 'role-panel crew';
     roleEl.textContent = `Your word: ${word}`;

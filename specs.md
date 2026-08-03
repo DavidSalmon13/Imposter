@@ -1,18 +1,19 @@
 # Imposter — Specs
 
-A same-room party word game. Players join a shared room on their phones via one URL; the app's only job is to sync a shared word board and hand out private roles. Everything else (discussion, accusing, voting) happens verbally in person.
+A same-room party word game. Players join a shared room on their phones via one URL; the app's only job is to vote on a hint difficulty, ask ChatGPT for a secret word + hint, and hand out private roles. Everything else (discussion, accusing, voting on who's the imposter) happens verbally in person.
 
 ## Deployment
 
 - **Repo**: https://github.com/DavidSalmon13/Imposter.git (currently empty)
 - **Host**: Railway, connected to the GitHub repo — push to `main` triggers auto-deploy
 - **Flow**: build & test locally first, get explicit go-ahead, then commit + push
-- **Env**: server must bind to `process.env.PORT` (Railway assigns it); no other env vars needed
+- **Env**: server must bind to `process.env.PORT` (Railway assigns it). Also requires `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`, default `gpt-4o-mini`) — set locally via `.env` (see `.env.example`, loaded with `dotenv`) and in Railway's dashboard for production.
 
 ## Stack
 
 - Node.js + Express (HTTP server, serves static frontend)
-- Socket.io (real-time sync: lobby updates, start, role reveal, reset)
+- Socket.io (real-time sync: lobby updates, voting, generating, role reveal, reset)
+- OpenAI Chat Completions API (`fetch`, no SDK dependency) to generate the secret word + hint each round
 - Plain HTML/CSS/vanilla JS on the client — no framework, no build step
 - No database — all state lives in server memory (single process, single room)
 
@@ -31,13 +32,14 @@ A same-room party word game. Players join a shared room on their phones via one 
 
 ## Round setup (on Start)
 
-1. Server randomly picks one **theme** from: Movies, Animals, Food, Sports, Countries.
-2. Server randomly selects **25 words** from that theme's word list → the 5×5 board, shown identically to all players.
-3. Server randomly picks **exactly 1 imposter** from the joined players.
-4. Server randomly picks **1 secret word** from the 25 board words.
-5. Every non-imposter privately receives: the board + "your word: <secret word>".
-6. The imposter privately receives: the board + "you are the imposter" (no word).
-7. All role delivery is **private per-socket** — no player ever sees another player's role/word.
+1. Host presses **Start** (still requires **minimum 3 players**) → phase moves to **voting**, not straight into a round.
+2. Every joined player picks a hint difficulty: **easy / medium / hard**. Most votes wins; a **tie is resolved in favor of the easier level** (easy > medium > hard on ties).
+3. Once everyone connected has voted, the server asks **ChatGPT** (OpenAI Chat Completions) for one common word plus a single short hint sentence calibrated to the winning difficulty. The server rejects/retries if the hint would leak the word.
+4. Server randomly picks **exactly 1 imposter** from the joined players.
+5. Every non-imposter privately receives: "your word: <secret word>" (no hint).
+6. The imposter privately receives: the one hint sentence (no word, no word grid).
+7. All role delivery is **private per-socket** — no player ever sees another player's role/word/hint.
+8. If the OpenAI call fails, the round is aborted, votes are cleared, everyone returns to the lobby, and the host can press Start again.
 
 ## Reconnect handling
 
@@ -51,17 +53,16 @@ A same-room party word game. Players join a shared room on their phones via one 
 - Once a round has started, a **"New Game" / "Play Again"** button is available.
 - Pressing it resets server state back to an **empty lobby** (clears players, roles, board) — everyone rejoins with names fresh, then a new theme/word/imposter is picked on the next Start.
 
-## Word bank
+## Word source
 
-- Hardcoded JSON, ~30 words per theme, 5 themes: Movies, Animals, Food, Sports, Countries.
-- Easy to hand-edit later to add themes or words.
-- Each round: pick one theme at random, then sample 25 of its words at random for the board.
+- No local word bank — each round's word + hint is generated live by ChatGPT.
+- Server keeps a rolling list of the last ~50 used words (in memory) and asks the model to avoid repeating them.
 
 ## UI
 
 - Mobile-first, plain CSS, no framework.
 - Clean/styled (not bare-bones default HTML) — centered cards, decent spacing/typography, legible on a phone.
-- Screens: Join → Lobby (live player list + Start) → Board/Role (shared 5×5 grid + private role panel) → Play Again resets to Lobby.
+- Screens: Join → Lobby (live player list + Start) → Voting (difficulty choice, live vote count) → Generating (waiting on ChatGPT) → Role panel (word for crew, hint for imposter) → Play Again resets to Lobby.
 
 ## Explicitly out of scope (v1)
 

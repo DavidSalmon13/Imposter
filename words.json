@@ -1,7 +1,0 @@
-{
-  "Movies": ["Titanic", "Avatar", "Inception", "Frozen", "Gladiator", "Jaws", "Rocky", "Matrix", "Shrek", "Grease", "Psycho", "Casablanca", "Alien", "Up", "Cars", "Coco", "Joker", "Split", "Signs", "Contact", "Argo", "Ray", "Elf", "Ghost", "Se7en", "Big", "Twister", "Speed", "Heat", "Crash"],
-  "Animals": ["Lion", "Tiger", "Elephant", "Giraffe", "Zebra", "Panda", "Koala", "Kangaroo", "Dolphin", "Whale", "Shark", "Octopus", "Penguin", "Eagle", "Owl", "Wolf", "Fox", "Bear", "Rabbit", "Deer", "Horse", "Cow", "Pig", "Sheep", "Goat", "Camel", "Cheetah", "Leopard", "Gorilla", "Monkey"],
-  "Food": ["Pizza", "Burger", "Sushi", "Taco", "Pasta", "Salad", "Soup", "Bread", "Cheese", "Rice", "Noodles", "Steak", "Chicken", "Bacon", "Pancake", "Waffle", "Donut", "Cake", "Cookie", "Chocolate", "IceCream", "Popcorn", "Pretzel", "Sandwich", "Burrito", "Curry", "Ramen", "Dumpling", "Pie", "Muffin"],
-  "Sports": ["Soccer", "Basketball", "Tennis", "Baseball", "Hockey", "Golf", "Boxing", "Cricket", "Rugby", "Volleyball", "Swimming", "Running", "Cycling", "Skiing", "Surfing", "Wrestling", "Bowling", "Archery", "Fencing", "Rowing", "Skating", "Climbing", "Diving", "Judo", "Karate", "Badminton", "Snowboarding", "Softball", "Handball", "Lacrosse"],
-  "Countries": ["France", "Japan", "Brazil", "Canada", "Egypt", "India", "Italy", "Mexico", "Kenya", "Spain", "Greece", "Norway", "Peru", "Chile", "Cuba", "China", "Russia", "Turkey", "Poland", "Sweden", "Ireland", "Iceland", "Morocco", "Vietnam", "Thailand", "Jamaica", "Portugal", "Finland", "Austria", "Nigeria"]
-}

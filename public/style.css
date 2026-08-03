@@ -58,6 +58,10 @@ body {
   display: none;
 }
 
+.hidden {
+  display: none;
+}
+
 h1 {
   margin: 0 0 0.25rem;
   font-size: 1.35rem;
@@ -129,21 +133,38 @@ button.secondary {
   padding: 0.55rem 0.75rem;
 }
 
-.board {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.35rem;
+.level-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.cell {
+.level-btn {
   background: #10121a;
   border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.45rem 0.2rem;
-  text-align: center;
-  font-size: 0.72rem;
-  line-height: 1.2;
-  word-break: break-word;
+  color: var(--text);
+}
+
+.level-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0.5rem auto 0;
+  border: 3px solid var(--card-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .role-panel {
@@ -152,6 +173,14 @@ button.secondary {
   border-radius: 10px;
   font-weight: 700;
   font-size: 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.hint-text {
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .role-panel.imposter {
