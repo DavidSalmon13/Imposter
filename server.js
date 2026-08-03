@@ -42,6 +42,29 @@ const LEVEL_SPEC = {
   },
 };
 
+const WORD_CATEGORIES = [
+  'an everyday household object',
+  'an animal',
+  'a food or drink',
+  'a fruit or vegetable',
+  'a sport or hobby',
+  'a job or profession',
+  'a place or type of location',
+  'a piece of clothing',
+  'a vehicle or mode of transport',
+  'a tool or piece of technology',
+  'something found in nature',
+  'a musical instrument',
+  'a body part',
+  'a piece of furniture',
+  'a weather phenomenon',
+  'a school subject',
+  'a kitchen item',
+  'an outdoor activity',
+  'a toy or game',
+  'a building or structure',
+];
+
 let phase = 'lobby'; // 'lobby' | 'voting' | 'generating' | 'playing'
 let hostName = null;
 let currentLevel = null;
@@ -94,17 +117,21 @@ async function generateWordAndHint(level) {
     throw new Error('OPENAI_API_KEY is not configured on the server');
   }
 
-  const avoid = usedWords.slice(-20);
+  const avoid = usedWords.slice(-40);
+  const category = WORD_CATEGORIES[Math.floor(Math.random() * WORD_CATEGORIES.length)];
   const spec = LEVEL_SPEC[level];
   const prompt =
-    `Pick one common, family-friendly word or short phrase (1-2 words) that most adults would instantly ` +
-    `recognize - e.g. an everyday object, animal, food, place, sport, or job. Then write ONE short hint ` +
-    `sentence (max ~15 words) about it for a party game, calibrated for a "${level.toUpperCase()}" ` +
-    `difficulty level.\n\n${spec.instruction}\n\n` +
+    `Pick one common, family-friendly word or short phrase (1-2 words) for ${category} that most adults ` +
+    `would instantly recognize. Pick something specific and a little unexpected within that category, not ` +
+    `just the single most stereotypical example of it. Then write ONE short hint sentence (max ~15 words) ` +
+    `about it for a party game, calibrated for a "${level.toUpperCase()}" difficulty level.\n\n` +
+    `${spec.instruction}\n\n` +
     `Example showing the STYLE and DIFFICULTY to match (pick your own unrelated word, do not reuse this ` +
     `example's word or hint): ${spec.example}\n\n` +
     `The hint must never contain the word itself, a rhyme of it, or any part of it.` +
-    (avoid.length ? ` Do not reuse any of these previous words: ${avoid.join(', ')}.` : '') +
+    (avoid.length
+      ? ` These words were already used recently - you MUST pick something different from all of them: ${avoid.join(', ')}.`
+      : '') +
     ` Respond with ONLY compact JSON in the form {"word": "...", "hint": "..."}.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -117,7 +144,7 @@ async function generateWordAndHint(level) {
       model: OPENAI_MODEL,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      temperature: 1,
+      temperature: 1.2,
     }),
   });
 
@@ -169,7 +196,7 @@ async function finishVoting() {
   }
 
   usedWords.push(word);
-  if (usedWords.length > 50) usedWords.splice(0, usedWords.length - 50);
+  if (usedWords.length > 80) usedWords.splice(0, usedWords.length - 80);
 
   const imposterCount = names.length >= TWO_IMPOSTER_THRESHOLD ? 2 : 1;
   const fresh = names.filter((n) => !lastImposterNames.includes(n));
