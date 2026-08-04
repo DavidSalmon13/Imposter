@@ -9,6 +9,10 @@
   --danger: #ff5b6a;
   --success: #35c98a;
   --radius: 14px;
+  --team-red: #ff5b6a;
+  --team-blue: #4d8bff;
+  --team-neutral: #9497a6;
+  --team-assassin: #f2f2f5;
 }
 
 * {
@@ -193,4 +197,146 @@ button.secondary {
   background: rgba(53, 201, 138, 0.15);
   border: 1px solid var(--success);
   color: var(--success);
+}
+
+.game-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.team-columns {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.team-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.team-column h2 {
+  margin: 0;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.team-red h2 {
+  color: var(--team-red);
+}
+
+.team-blue h2 {
+  color: var(--team-blue);
+}
+
+.team-column .player-list li {
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.cn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cn-turn {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.cn-turn-red {
+  color: var(--team-red);
+}
+
+.cn-turn-blue {
+  color: var(--team-blue);
+}
+
+.cn-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.35rem;
+}
+
+.cn-card {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  padding: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.15;
+  border-radius: 8px;
+  background: #10121a;
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.cn-card:disabled {
+  cursor: default;
+}
+
+.cn-card.cn-leader-hint.cn-red {
+  background: rgba(255, 91, 106, 0.22);
+  border-color: var(--team-red);
+  color: var(--team-red);
+}
+
+.cn-card.cn-leader-hint.cn-blue {
+  background: rgba(77, 139, 255, 0.22);
+  border-color: var(--team-blue);
+  color: var(--team-blue);
+}
+
+.cn-card.cn-leader-hint.cn-neutral {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--card-border);
+  color: var(--muted);
+}
+
+.cn-card.cn-leader-hint.cn-assassin {
+  background: rgba(242, 242, 245, 0.12);
+  border-color: var(--team-assassin);
+  color: var(--team-assassin);
+}
+
+.cn-card.revealed.cn-red {
+  background: var(--team-red);
+  border-color: var(--team-red);
+  color: #170406;
+}
+
+.cn-card.revealed.cn-blue {
+  background: var(--team-blue);
+  border-color: var(--team-blue);
+  color: #04122b;
+}
+
+.cn-card.revealed.cn-neutral {
+  background: #3a3d4a;
+  border-color: #3a3d4a;
+  color: #cfd1da;
+}
+
+.cn-card.revealed.cn-assassin {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+.cn-card.cn-leader-hint.cn-assassin::before,
+.cn-card.revealed.cn-assassin::before {
+  content: "\1F480 ";
 }

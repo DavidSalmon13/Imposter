@@ -17,6 +17,14 @@ const LEVELS = ['easy', 'medium', 'hard'];
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+const CN_MIN_PLAYERS = 4;
+const CN_MIN_TEAM_SIZE = 2;
+const CN_WORD_COUNT = 25;
+const CN_START_COUNT = 7;
+const CN_OTHER_COUNT = 6;
+const CN_ASSASSIN_COUNT = 1;
+const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
+
 const LEVEL_SPEC = {
   easy: {
     instruction:
@@ -65,12 +73,26 @@ const WORD_CATEGORIES = [
   'a building or structure',
 ];
 
-let phase = 'lobby'; // 'lobby' | 'voting' | 'generating' | 'playing'
+// Shared, app-wide state (single room, single game at a time).
+let game = null; // null | 'imposter' | 'codenames'
+let phase = 'lobby';
+// Imposter phases: 'voting' | 'generating' | 'playing'
+// Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
 let hostName = null;
+const players = new Map(); // name -> { socketId, connected, role, word, hint, vote, team, leader }
+
+// Imposter-only state.
 let currentLevel = null;
 let lastImposterNames = [];
-const players = new Map(); // name -> { socketId, connected, role, word, hint, vote }
 const usedWords = [];
+
+// Codenames-only state.
+const cnUsedWords = [];
+let cnBoard = null; // [{ word, color: 'red'|'blue'|'neutral'|'assassin', revealed }]
+let cnActiveTeam = null; // 'red' | 'blue'
+let cnStartingTeam = null; // 'red' | 'blue'
+let cnWinner = null; // 'red' | 'blue' | null
+let cnScores = { red: 0, blue: 0 };
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -91,15 +113,38 @@ function broadcastLobby() {
   io.emit('lobbyUpdate', { players: connectedNames(), host: hostName });
 }
 
+function setHost(name) {
+  hostName = name;
+  io.emit('hostUpdate', { host: hostName });
+}
+
+function resetToLobby() {
+  for (const p of players.values()) {
+    p.vote = null;
+    p.role = null;
+    p.word = null;
+    p.hint = null;
+    p.team = null;
+    p.leader = false;
+  }
+  game = null;
+  phase = 'lobby';
+  currentLevel = null;
+  cnBoard = null;
+  cnActiveTeam = null;
+  cnStartingTeam = null;
+  cnWinner = null;
+  cnScores = { red: 0, blue: 0 };
+  io.emit('backToLobby');
+  broadcastLobby();
+}
+
+// ---------- Imposter ----------
+
 function broadcastVoting() {
   const names = connectedNames();
   const voted = names.filter((n) => players.get(n).vote).length;
   io.emit('votingUpdate', { total: names.length, voted, host: hostName });
-}
-
-function setHost(name) {
-  hostName = name;
-  io.emit('hostUpdate', { host: hostName });
 }
 
 function tallyLevel() {
@@ -168,11 +213,11 @@ async function generateWordAndHint(level) {
   return { word, hint };
 }
 
-function failRound(error) {
-  phase = 'lobby';
+function failImposterRound(error) {
+  phase = 'voting';
   currentLevel = null;
   for (const p of players.values()) p.vote = null;
-  broadcastLobby();
+  io.emit('votingStarted', { players: connectedNames(), host: hostName });
   io.emit('startFailed', { error });
 }
 
@@ -180,19 +225,19 @@ async function finishVoting() {
   const level = tallyLevel();
   currentLevel = level;
   phase = 'generating';
-  io.emit('generating', { level });
+  io.emit('generating', { game: 'imposter', level });
 
   let word, hint;
   try {
     ({ word, hint } = await generateWordAndHint(level));
   } catch (err) {
     console.error('generateWordAndHint failed:', err.message);
-    return failRound('Could not reach ChatGPT to pick a word. Please try starting again.');
+    return failImposterRound('Could not reach ChatGPT to pick a word. Please try starting again.');
   }
 
   const names = connectedNames();
   if (names.length < MIN_PLAYERS) {
-    return failRound(`Not enough players remained connected (need ${MIN_PLAYERS}).`);
+    return failImposterRound(`Not enough players remained connected (need ${MIN_PLAYERS}).`);
   }
 
   usedWords.push(word);
@@ -231,6 +276,172 @@ function maybeFinishVoting() {
   if (allVoted) finishVoting();
 }
 
+// ---------- Codenames ----------
+
+function teamMembers(color) {
+  return connectedNames().filter((n) => players.get(n).team === color);
+}
+
+function teamPlayersInfo(color) {
+  return teamMembers(color).map((n) => ({ name: n, leader: players.get(n).leader }));
+}
+
+function broadcastTeamSelect() {
+  io.emit('teamSelectUpdate', {
+    host: hostName,
+    red: teamPlayersInfo('red'),
+    blue: teamPlayersInfo('blue'),
+    unassigned: connectedNames().filter((n) => !players.get(n).team),
+  });
+}
+
+function cnTeamValid(color) {
+  const members = teamMembers(color);
+  return members.length >= CN_MIN_TEAM_SIZE && members.some((n) => players.get(n).leader);
+}
+
+async function generateWordGrid() {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured on the server');
+  }
+
+  const avoid = cnUsedWords.slice(-100);
+  const prompt =
+    `Generate exactly ${CN_WORD_COUNT} common, family-friendly, single-word nouns suitable for a word-guessing ` +
+    `party game grid. Each must be ONE word (no phrases, no proper nouns), instantly recognizable to most ` +
+    `adults, covering a broad mix of categories (objects, animals, food, places, jobs, nature, sports, tools, ` +
+    `clothing, etc). All ${CN_WORD_COUNT} words must be different from each other.` +
+    (avoid.length
+      ? ` These words were used recently - avoid all of them: ${avoid.join(', ')}.`
+      : '') +
+    ` Respond with ONLY compact JSON in the form {"words": ["...", ...]} with exactly ${CN_WORD_COUNT} items.`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 1.1,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`OpenAI request failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  const raw = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  const parsed = JSON.parse(raw);
+  const rawWords = Array.isArray(parsed.words) ? parsed.words : [];
+  const words = rawWords.map((w) => String(w || '').trim()).filter(Boolean);
+
+  const seen = new Set();
+  const unique = [];
+  for (const w of words) {
+    const key = w.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(w);
+  }
+
+  if (unique.length < CN_WORD_COUNT) {
+    throw new Error('Incomplete word grid from OpenAI');
+  }
+
+  return unique.slice(0, CN_WORD_COUNT);
+}
+
+function buildBoard(words, startingTeam) {
+  const otherTeam = startingTeam === 'red' ? 'blue' : 'red';
+  const colors = shuffle([
+    ...Array(CN_START_COUNT).fill(startingTeam),
+    ...Array(CN_OTHER_COUNT).fill(otherTeam),
+    ...Array(CN_ASSASSIN_COUNT).fill('assassin'),
+    ...Array(CN_NEUTRAL_COUNT).fill('neutral'),
+  ]);
+  return words.map((word, i) => ({ word, color: colors[i], revealed: false }));
+}
+
+function boardForViewer(p) {
+  return cnBoard.map((cell) => {
+    if (cell.revealed || p.leader) {
+      return { word: cell.word, color: cell.color, revealed: cell.revealed };
+    }
+    return { word: cell.word, color: null, revealed: false };
+  });
+}
+
+function broadcastCodenamesState() {
+  for (const [, p] of players) {
+    if (!p.connected) continue;
+    io.to(p.socketId).emit('codenamesState', {
+      phase,
+      activeTeam: cnActiveTeam,
+      winner: cnWinner,
+      scores: cnScores,
+      board: boardForViewer(p),
+      isLeader: p.leader,
+      myTeam: p.team,
+      red: teamPlayersInfo('red'),
+      blue: teamPlayersInfo('blue'),
+      host: hostName,
+    });
+  }
+}
+
+function failCodenamesRound(error) {
+  phase = 'teamSelect';
+  broadcastTeamSelect();
+  io.emit('codenamesStartFailed', { error });
+}
+
+function checkTeamWin() {
+  for (const color of ['red', 'blue']) {
+    const remaining = cnBoard.filter((c) => c.color === color && !c.revealed);
+    if (remaining.length === 0) return color;
+  }
+  return null;
+}
+
+function finishCodenamesGame() {
+  phase = 'gameover';
+  if (cnWinner) cnScores[cnWinner] += 1;
+  broadcastCodenamesState();
+}
+
+async function generateCodenamesRound() {
+  phase = 'generating';
+  io.emit('generating', { game: 'codenames' });
+
+  let words;
+  try {
+    words = await generateWordGrid();
+  } catch (err) {
+    console.error('generateWordGrid failed:', err.message);
+    return failCodenamesRound('Could not reach ChatGPT to build the board. Please try starting again.');
+  }
+
+  if (!cnTeamValid('red') || !cnTeamValid('blue')) {
+    return failCodenamesRound('Not enough players remained on a team.');
+  }
+
+  for (const w of words) cnUsedWords.push(w);
+  if (cnUsedWords.length > 150) cnUsedWords.splice(0, cnUsedWords.length - 150);
+
+  cnBoard = buildBoard(words, cnStartingTeam);
+  cnActiveTeam = cnStartingTeam;
+  cnWinner = null;
+  phase = 'playing';
+  broadcastCodenamesState();
+}
+
+// ---------- Socket handlers ----------
+
 io.on('connection', (socket) => {
   socket.on('join', (data, callback) => {
     callback = callback || (() => {});
@@ -249,66 +460,133 @@ io.on('connection', (socket) => {
       existing.socketId = socket.id;
       socket.data.name = name;
 
-      if (phase === 'playing') {
-        return callback({
-          ok: true,
-          phase,
-          level: currentLevel,
-          role: existing.role,
-          word: existing.word,
-          hint: existing.hint,
-          host: hostName,
-        });
+      if (game === 'imposter') {
+        if (phase === 'playing') {
+          return callback({
+            ok: true,
+            game,
+            phase,
+            level: currentLevel,
+            role: existing.role,
+            word: existing.word,
+            hint: existing.hint,
+            host: hostName,
+          });
+        }
+        if (phase === 'generating') {
+          return callback({ ok: true, game, phase, level: currentLevel, host: hostName });
+        }
+        if (phase === 'voting') {
+          broadcastVoting();
+          return callback({
+            ok: true,
+            game,
+            phase,
+            players: connectedNames(),
+            vote: existing.vote,
+            host: hostName,
+          });
+        }
       }
-      if (phase === 'generating') {
-        return callback({ ok: true, phase, level: currentLevel, host: hostName });
+
+      if (game === 'codenames') {
+        if (phase === 'teamSelect') {
+          broadcastTeamSelect();
+          return callback({
+            ok: true,
+            game,
+            phase,
+            host: hostName,
+            red: teamPlayersInfo('red'),
+            blue: teamPlayersInfo('blue'),
+            unassigned: connectedNames().filter((n) => !players.get(n).team),
+          });
+        }
+        if (phase === 'generating') {
+          return callback({ ok: true, game, phase, host: hostName });
+        }
+        if (phase === 'playing' || phase === 'gameover') {
+          return callback({
+            ok: true,
+            game,
+            phase,
+            host: hostName,
+            activeTeam: cnActiveTeam,
+            winner: cnWinner,
+            scores: cnScores,
+            board: boardForViewer(existing),
+            isLeader: existing.leader,
+            myTeam: existing.team,
+            red: teamPlayersInfo('red'),
+            blue: teamPlayersInfo('blue'),
+          });
+        }
       }
-      if (phase === 'voting') {
-        return callback({
-          ok: true,
-          phase,
-          players: connectedNames(),
-          vote: existing.vote,
-          host: hostName,
-        });
-      }
+
       if (!hostName) setHost(name);
       broadcastLobby();
-      return callback({ ok: true, phase: 'lobby', players: connectedNames(), host: hostName });
+      return callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(), host: hostName });
     }
 
     if (phase !== 'lobby') {
       return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
     }
 
-    players.set(name, { socketId: socket.id, connected: true, role: null, word: null, hint: null, vote: null });
+    players.set(name, {
+      socketId: socket.id,
+      connected: true,
+      role: null,
+      word: null,
+      hint: null,
+      vote: null,
+      team: null,
+      leader: false,
+    });
     socket.data.name = name;
     if (!hostName) setHost(name);
     broadcastLobby();
-    callback({ ok: true, phase: 'lobby', players: connectedNames(), host: hostName });
+    callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(), host: hostName });
   });
 
-  socket.on('start', (callback) => {
+  socket.on('chooseGame', (selectedGame, callback) => {
     callback = callback || (() => {});
-    if (phase !== 'lobby') return callback({ ok: false, error: 'Game already started' });
+    if (phase !== 'lobby') return callback({ ok: false, error: 'Game already chosen' });
     if (socket.data.name !== hostName) {
-      return callback({ ok: false, error: 'Only the host can start the game' });
+      return callback({ ok: false, error: 'Only the host can choose the game' });
+    }
+    if (selectedGame !== 'imposter' && selectedGame !== 'codenames') {
+      return callback({ ok: false, error: 'Invalid game' });
     }
 
     const names = connectedNames();
-    if (names.length < MIN_PLAYERS) {
-      return callback({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
+
+    if (selectedGame === 'imposter') {
+      if (names.length < MIN_PLAYERS) {
+        return callback({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
+      }
+      game = 'imposter';
+      for (const p of players.values()) p.vote = null;
+      phase = 'voting';
+      io.emit('gameChosen', { game });
+      io.emit('votingStarted', { players: connectedNames(), host: hostName });
+      return callback({ ok: true });
     }
 
-    for (const p of players.values()) p.vote = null;
-    phase = 'voting';
-    io.emit('votingStarted', { players: connectedNames(), host: hostName });
+    if (names.length < CN_MIN_PLAYERS) {
+      return callback({ ok: false, error: `Need at least ${CN_MIN_PLAYERS} players` });
+    }
+    game = 'codenames';
+    phase = 'teamSelect';
+    io.emit('gameChosen', { game });
+    broadcastTeamSelect();
     callback({ ok: true });
   });
 
+  // ----- Imposter -----
+
   socket.on('vote', (level, callback) => {
     callback = callback || (() => {});
-    if (phase !== 'voting') return callback({ ok: false, error: 'Voting is not open' });
+    if (game !== 'imposter' || phase !== 'voting') return callback({ ok: false, error: 'Voting is not open' });
     if (!LEVELS.includes(level)) return callback({ ok: false, error: 'Invalid level' });
 
     const name = socket.data.name;
@@ -321,16 +599,149 @@ io.on('connection', (socket) => {
     maybeFinishVoting();
   });
 
-  socket.on('newGame', (callback) => {
+  // ----- Codenames -----
+
+  socket.on('joinTeam', (color, callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+    if (color !== 'red' && color !== 'blue') return callback({ ok: false, error: 'Invalid team' });
+
+    const name = socket.data.name;
+    const p = players.get(name);
+    if (!p) return callback({ ok: false, error: 'Not joined' });
+
+    if (p.team !== color) {
+      p.team = color;
+      p.leader = false;
+    }
+    callback({ ok: true });
+    broadcastTeamSelect();
+  });
+
+  socket.on('claimLeader', (callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+
+    const name = socket.data.name;
+    const p = players.get(name);
+    if (!p || !p.team) return callback({ ok: false, error: 'Join a team first' });
+
+    const currentLeader = teamMembers(p.team).find((n) => players.get(n).leader);
+    if (currentLeader && currentLeader !== name) {
+      return callback({ ok: false, error: 'This team already has a leader' });
+    }
+
+    p.leader = true;
+    callback({ ok: true });
+    broadcastTeamSelect();
+  });
+
+  socket.on('startCodenames', (callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not ready to start' });
+    }
+    if (socket.data.name !== hostName) {
+      return callback({ ok: false, error: 'Only the host can start the game' });
+    }
+    if (!cnTeamValid('red')) {
+      return callback({ ok: false, error: 'Red team needs at least 2 players including a leader' });
+    }
+    if (!cnTeamValid('blue')) {
+      return callback({ ok: false, error: 'Blue team needs at least 2 players including a leader' });
+    }
+
+    cnStartingTeam = Math.random() < 0.5 ? 'red' : 'blue';
+    callback({ ok: true });
+    generateCodenamesRound();
+  });
+
+  socket.on('guessWord', (index, callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+
+    const name = socket.data.name;
+    const p = players.get(name);
+    if (!p) return callback({ ok: false, error: 'Not joined' });
+    if (p.team !== cnActiveTeam) return callback({ ok: false, error: "Not your team's turn" });
+    if (p.leader) return callback({ ok: false, error: 'Leaders cannot guess' });
+    if (!Number.isInteger(index) || index < 0 || index >= CN_WORD_COUNT) {
+      return callback({ ok: false, error: 'Invalid card' });
+    }
+
+    const cell = cnBoard[index];
+    if (!cell || cell.revealed) return callback({ ok: false, error: 'Already revealed' });
+
+    cell.revealed = true;
+    callback({ ok: true });
+
+    if (cell.color === 'assassin') {
+      cnWinner = cnActiveTeam === 'red' ? 'blue' : 'red';
+      return finishCodenamesGame();
+    }
+
+    if (cell.color !== cnActiveTeam) {
+      cnActiveTeam = cnActiveTeam === 'red' ? 'blue' : 'red';
+    }
+
+    const winner = checkTeamWin();
+    if (winner) {
+      cnWinner = winner;
+      return finishCodenamesGame();
+    }
+
+    broadcastCodenamesState();
+  });
+
+  socket.on('endTurn', (callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+
+    const name = socket.data.name;
+    const p = players.get(name);
+    if (!p) return callback({ ok: false, error: 'Not joined' });
+    if (p.team !== cnActiveTeam || p.leader) {
+      return callback({ ok: false, error: 'Only active team guessers can end the turn' });
+    }
+
+    cnActiveTeam = cnActiveTeam === 'red' ? 'blue' : 'red';
+    callback({ ok: true });
+    broadcastCodenamesState();
+  });
+
+  socket.on('playAgainCodenames', (callback) => {
+    callback = callback || (() => {});
+    if (game !== 'codenames' || phase !== 'gameover') {
+      return callback({ ok: false, error: 'Game is not over yet' });
+    }
+
+    const name = socket.data.name;
+    const p = players.get(name);
+    if (!p || !p.leader) {
+      return callback({ ok: false, error: 'Only a team leader can start the next round' });
+    }
+
+    cnStartingTeam = cnStartingTeam === 'red' ? 'blue' : 'red';
+    callback({ ok: true });
+    generateCodenamesRound();
+  });
+
+  // ----- Shared -----
+
+  socket.on('backToLobby', (callback) => {
     callback = callback || (() => {});
     if (socket.data.name !== hostName) {
-      return callback({ ok: false, error: 'Only the host can start a new game' });
+      return callback({ ok: false, error: 'Only the host can return to the lobby' });
     }
-    players.clear();
-    phase = 'lobby';
-    hostName = null;
-    currentLevel = null;
-    io.emit('reset');
+    resetToLobby();
     callback({ ok: true });
   });
 
@@ -340,7 +751,7 @@ io.on('connection', (socket) => {
     const p = players.get(name);
     if (!p) return;
 
-    if (phase === 'lobby' || phase === 'voting') {
+    if (phase === 'lobby' || phase === 'voting' || phase === 'teamSelect') {
       players.delete(name);
       if (name === hostName) {
         const [nextHost] = connectedNames();
@@ -349,6 +760,8 @@ io.on('connection', (socket) => {
       if (phase === 'voting') {
         broadcastVoting();
         maybeFinishVoting();
+      } else if (phase === 'teamSelect') {
+        broadcastTeamSelect();
       } else {
         broadcastLobby();
       }
@@ -359,6 +772,9 @@ io.on('connection', (socket) => {
     if (name === hostName) {
       const [nextHost] = connectedNames();
       setHost(nextHost || null);
+    }
+    if (game === 'codenames' && (phase === 'playing' || phase === 'gameover')) {
+      broadcastCodenamesState();
     }
   });
 });

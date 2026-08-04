@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Imposter</title>
+  <title>Party Games</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="app-header">🕵️ Imposter</header>
+  <header class="app-header">🎉 Party Games</header>
 
   <main class="app-main">
     <section id="join-screen" class="screen">
@@ -21,10 +21,15 @@
       <h1>Lobby</h1>
       <p id="lobby-count" class="muted">0 joined</p>
       <ul id="lobby-list" class="player-list"></ul>
-      <button id="start-btn" disabled>Start Game</button>
-      <p id="start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
-      <p id="start-error" class="error"></p>
+      <div id="game-choice" class="game-choice hidden">
+        <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
+        <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
+      </div>
+      <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
+      <p id="choose-error" class="error"></p>
     </section>
+
+    <!-- Imposter -->
 
     <section id="voting-screen" class="screen hidden">
       <h1>Pick a hint difficulty</h1>
@@ -35,19 +40,63 @@
         <button class="level-btn" data-level="hard">Hard</button>
       </div>
       <p id="vote-count" class="muted">0 of 0 voted</p>
-    </section>
-
-    <section id="generating-screen" class="screen hidden">
-      <h1>Picking a word&hellip;</h1>
-      <p class="muted">Asking ChatGPT to come up with a word and hint.</p>
-      <div class="spinner"></div>
+      <p id="voting-error" class="error"></p>
     </section>
 
     <section id="game-screen" class="screen hidden">
       <p id="level-label" class="muted"></p>
       <div id="role-panel" class="role-panel"></div>
-      <button id="play-again-btn" class="secondary">Play Again</button>
-      <p id="play-again-waiting" class="muted hidden">Waiting for the host to start a new game&hellip;</p>
+      <button id="play-again-btn" class="secondary hidden">Back to Lobby</button>
+      <p id="play-again-waiting" class="muted hidden">Waiting for the host to return to the lobby&hellip;</p>
+    </section>
+
+    <!-- Codenames -->
+
+    <section id="team-select-screen" class="screen hidden">
+      <h1>Pick a team</h1>
+      <div class="team-columns">
+        <div class="team-column team-red">
+          <h2>Red</h2>
+          <ul id="red-list" class="player-list"></ul>
+          <button id="join-red-btn" class="secondary">Join Red</button>
+          <button id="leader-red-btn" class="secondary hidden">Become Leader</button>
+        </div>
+        <div class="team-column team-blue">
+          <h2>Blue</h2>
+          <ul id="blue-list" class="player-list"></ul>
+          <button id="join-blue-btn" class="secondary">Join Blue</button>
+          <button id="leader-blue-btn" class="secondary hidden">Become Leader</button>
+        </div>
+      </div>
+      <button id="cn-start-btn" class="hidden" disabled>Start Game</button>
+      <p id="cn-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+      <p id="cn-team-error" class="error"></p>
+    </section>
+
+    <section id="codenames-screen" class="screen hidden">
+      <div class="cn-header">
+        <p id="cn-turn-label" class="cn-turn"></p>
+        <p id="cn-score" class="muted"></p>
+      </div>
+      <div id="cn-grid" class="cn-grid"></div>
+      <button id="cn-end-turn-btn" class="secondary hidden">End Turn</button>
+    </section>
+
+    <section id="codenames-gameover-screen" class="screen hidden">
+      <h1 id="cn-winner-title"></h1>
+      <p id="cn-final-score" class="muted"></p>
+      <div id="cn-final-grid" class="cn-grid"></div>
+      <button id="cn-play-again-btn" class="hidden">Play Again</button>
+      <p id="cn-play-again-waiting" class="muted hidden">Waiting for a team leader to start the next round&hellip;</p>
+      <button id="cn-back-btn" class="secondary hidden">Back to Lobby</button>
+    </section>
+
+    <!-- Shared -->
+
+    <section id="generating-screen" class="screen hidden">
+      <h1 id="generating-title">Picking a word&hellip;</h1>
+      <p id="generating-subtitle" class="muted">Asking ChatGPT to come up with a word and hint.</p>
+      <div class="spinner"></div>
     </section>
   </main>
 
