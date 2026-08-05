@@ -12,6 +12,13 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+const BACKGROUND_MIME_EXT = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
 const MIN_PLAYERS = 3;
 const TWO_IMPOSTER_THRESHOLD = 5;
 const LEVELS = ['easy', 'medium', 'hard'];
@@ -31,7 +38,43 @@ const ROOM_CODE_LENGTH = 4;
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
+const BACKGROUNDS_DIR = path.join(DATA_DIR, 'backgrounds');
 const SAVE_INTERVAL_MS = 5000;
+
+fs.mkdirSync(BACKGROUNDS_DIR, { recursive: true });
+app.use('/backgrounds', express.static(BACKGROUNDS_DIR));
+
+app.post('/api/rooms/:roomCode/background', express.raw({ type: 'image/*', limit: '8mb' }), (req, res) => {
+  const roomCode = normalizeRoomCode(req.params.roomCode);
+  const room = rooms.get(roomCode);
+  if (!room) return res.status(404).json({ ok: false, error: 'Room not found' });
+
+  const name = String(req.query.name || '').trim();
+  if (!room.players.has(name)) {
+    return res.status(403).json({ ok: false, error: 'Not a player in this room' });
+  }
+
+  const ext = BACKGROUND_MIME_EXT[req.headers['content-type']];
+  if (!ext) return res.status(400).json({ ok: false, error: 'Unsupported image type' });
+  if (!req.body || !req.body.length) return res.status(400).json({ ok: false, error: 'Empty upload' });
+
+  if (room.backgroundImage) {
+    fs.unlink(path.join(BACKGROUNDS_DIR, path.basename(room.backgroundImage)), () => {});
+  }
+
+  const filename = `${roomCode}-${Date.now()}.${ext}`;
+  fs.writeFileSync(path.join(BACKGROUNDS_DIR, filename), req.body);
+  room.backgroundImage = `/backgrounds/${filename}`;
+  roomEmit(roomCode, 'backgroundChanged', { background: room.backgroundImage });
+  saveRoomsToDisk();
+  res.json({ ok: true, background: room.backgroundImage });
+});
+
+app.use((err, req, res, next) => {
+  if (!err) return next();
+  console.error('Upload error:', err.message);
+  res.status(400).json({ ok: false, error: 'Upload failed - try a smaller image' });
+});
 
 const LEVEL_SPEC = {
   easy: {
@@ -101,6 +144,7 @@ function createRoomState() {
     cnStartingTeam: null,
     cnWinner: null,
     cnScores: { red: 0, blue: 0 },
+    backgroundImage: null,
   };
 }
 
@@ -144,6 +188,7 @@ const ROOM_SAVED_FIELDS = [
   'cnStartingTeam',
   'cnWinner',
   'cnScores',
+  'backgroundImage',
 ];
 
 function saveRoomsToDisk() {
@@ -653,6 +698,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
 
     const payload = reconnectPayload(room, existing);
     payload.roomCode = roomCode;
+    payload.background = room.backgroundImage;
     return callback(payload);
   }
 
@@ -673,7 +719,15 @@ function joinExistingRoom(socket, roomCode, name, callback) {
   attachToRoom(socket, roomCode, room, name);
   if (!room.hostName) setHost(roomCode, room, name);
   broadcastLobby(roomCode, room);
-  callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName, roomCode });
+  callback({
+    ok: true,
+    game: null,
+    phase: 'lobby',
+    players: connectedNames(room),
+    host: room.hostName,
+    roomCode,
+    background: room.backgroundImage,
+  });
 }
 
 // ---------- Socket handlers ----------
@@ -707,7 +761,15 @@ io.on('connection', (socket) => {
     attachToRoom(socket, roomCode, room, name);
     setHost(roomCode, room, name);
     broadcastLobby(roomCode, room);
-    callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName, roomCode });
+    callback({
+      ok: true,
+      game: null,
+      phase: 'lobby',
+      players: connectedNames(room),
+      host: room.hostName,
+      roomCode,
+      background: room.backgroundImage,
+    });
   });
 
   socket.on('join', (data, callback) => {
@@ -947,6 +1009,21 @@ io.on('connection', (socket) => {
       return callback({ ok: false, error: 'Only the host can return to the lobby' });
     }
     resetToLobby(roomCode, room);
+    callback({ ok: true });
+  });
+
+  socket.on('clearBackground', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+
+    if (room.backgroundImage) {
+      fs.unlink(path.join(BACKGROUNDS_DIR, path.basename(room.backgroundImage)), () => {});
+      room.backgroundImage = null;
+      roomEmit(roomCode, 'backgroundChanged', { background: null });
+      saveRoomsToDisk();
+    }
     callback({ ok: true });
   });
 

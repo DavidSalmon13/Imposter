@@ -14,6 +14,12 @@ const screens = {
   codenamesGameover: document.getElementById('codenames-gameover-screen'),
 };
 
+const bgControls = document.getElementById('bg-controls');
+const bgChangeBtn = document.getElementById('bg-change-btn');
+const bgClearBtn = document.getElementById('bg-clear-btn');
+const bgFileInput = document.getElementById('bg-file-input');
+const bgError = document.getElementById('bg-error');
+
 const nameInput = document.getElementById('name-input');
 const roomCodeInput = document.getElementById('room-code-input');
 const createRoomBtn = document.getElementById('create-room-btn');
@@ -123,6 +129,39 @@ function setHost(hostName) {
 function showScreen(name) {
   Object.values(screens).forEach((el) => el.classList.add('hidden'));
   screens[name].classList.remove('hidden');
+  bgControls.classList.toggle('hidden', name === 'join');
+}
+
+function applyBackground(url) {
+  document.body.style.backgroundImage = url ? `url("${url}")` : '';
+  bgClearBtn.classList.toggle('hidden', !url);
+}
+
+function resizeImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode image'))),
+          'image/jpeg',
+          quality
+        );
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function showGenerating(game) {
@@ -143,11 +182,13 @@ function handleJoinResult(res, name) {
       localStorage.removeItem('imposterRoom');
       myRoomCode = '';
       setRoomInUrl('');
+      applyBackground(null);
     }
     showScreen('join');
     return;
   }
   rememberSession(name, res.roomCode);
+  applyBackground(res.background || null);
   routeFromJoin(res);
 }
 
@@ -313,6 +354,41 @@ votingBackBtn.addEventListener('click', () => {
 
 cnTeamBackBtn.addEventListener('click', () => {
   socket.emit('backToLobby', () => {});
+});
+
+bgChangeBtn.addEventListener('click', () => {
+  bgFileInput.click();
+});
+
+bgFileInput.addEventListener('change', async () => {
+  const file = bgFileInput.files[0];
+  bgFileInput.value = '';
+  if (!file || !myRoomCode) return;
+
+  bgError.textContent = '';
+  bgError.classList.add('hidden');
+  try {
+    const blob = await resizeImage(file, 1600, 0.82);
+    const res = await fetch(`/api/rooms/${myRoomCode}/background?name=${encodeURIComponent(myName)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type },
+      body: blob,
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    applyBackground(data.background);
+  } catch (err) {
+    bgError.textContent = 'Could not set background - try a smaller or different image.';
+    bgError.classList.remove('hidden');
+  }
+});
+
+bgClearBtn.addEventListener('click', () => {
+  socket.emit('clearBackground', () => {});
+});
+
+socket.on('backgroundChanged', ({ background }) => {
+  applyBackground(background);
 });
 
 socket.on('lobbyUpdate', ({ players, host, roomCode }) => {

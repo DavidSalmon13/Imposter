@@ -7,7 +7,15 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="app-header">🎉 Party Games</header>
+  <header class="app-header">
+    🎉 Party Games
+    <div id="bg-controls" class="bg-controls hidden">
+      <button id="bg-change-btn" class="bg-btn" type="button" title="Change background">🖼️</button>
+      <button id="bg-clear-btn" class="bg-btn hidden" type="button" title="Reset background">✕</button>
+      <input id="bg-file-input" type="file" accept="image/*" class="hidden" />
+    </div>
+  </header>
+  <p id="bg-error" class="error bg-error hidden"></p>
 
   <main class="app-main">
     <section id="join-screen" class="screen">
