@@ -1,6 +1,7 @@
 :root {
   --bg: #14151a;
   --card: #1e2029;
+  --card-2: #282c3a;
   --card-border: #2c2f3a;
   --text: #f2f2f5;
   --muted: #9497a6;
@@ -289,54 +290,63 @@ button.secondary {
   color: var(--team-blue);
 }
 
+#codenames-screen,
+#codenames-gameover-screen {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
 .cn-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .cn-card {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 5;
   width: 100%;
-  padding: 0.25rem;
-  font-size: 0.68rem;
+  padding: 0.3rem 0.2rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
   border-radius: 8px;
-  background: #10121a;
+  background: var(--card-2);
   border: 1px solid var(--card-border);
   color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 
 .cn-card:disabled {
   cursor: default;
+  opacity: 1;
 }
 
 .cn-card.cn-leader-hint.cn-red {
-  background: rgba(255, 91, 106, 0.22);
+  background: rgba(255, 91, 106, 0.3);
   border-color: var(--team-red);
-  color: var(--team-red);
+  color: #ffd4d8;
 }
 
 .cn-card.cn-leader-hint.cn-blue {
-  background: rgba(77, 139, 255, 0.22);
+  background: rgba(77, 139, 255, 0.3);
   border-color: var(--team-blue);
-  color: var(--team-blue);
+  color: #cfe1ff;
 }
 
 .cn-card.cn-leader-hint.cn-neutral {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   border-color: var(--card-border);
-  color: var(--muted);
+  color: var(--text);
 }
 
 .cn-card.cn-leader-hint.cn-assassin {
-  background: rgba(242, 242, 245, 0.12);
+  background: rgba(242, 242, 245, 0.16);
   border-color: var(--team-assassin);
   color: var(--team-assassin);
 }
