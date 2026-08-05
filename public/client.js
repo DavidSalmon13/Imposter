@@ -15,9 +15,12 @@ const screens = {
 };
 
 const nameInput = document.getElementById('name-input');
+const roomCodeInput = document.getElementById('room-code-input');
+const createRoomBtn = document.getElementById('create-room-btn');
 const joinBtn = document.getElementById('join-btn');
 const joinError = document.getElementById('join-error');
 
+const roomCodeDisplay = document.getElementById('room-code-display');
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
 const gameChoice = document.getElementById('game-choice');
@@ -61,6 +64,7 @@ const cnPlayAgainWaiting = document.getElementById('cn-play-again-waiting');
 const cnBackBtn = document.getElementById('cn-back-btn');
 
 let myName = localStorage.getItem('imposterName') || '';
+let myRoomCode = localStorage.getItem('imposterRoom') || '';
 let isHost = false;
 let currentHostName = null;
 let currentGame = null;
@@ -71,6 +75,35 @@ let isLeader = false;
 
 function capitalize(s) {
   return s ? s[0].toUpperCase() + s.slice(1) : '';
+}
+
+function normalizeRoomCode(code) {
+  return String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 4);
+}
+
+function roomCodeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return normalizeRoomCode(params.get('room'));
+}
+
+function setRoomInUrl(roomCode) {
+  const url = new URL(window.location.href);
+  if (roomCode) url.searchParams.set('room', roomCode);
+  else url.searchParams.delete('room');
+  window.history.replaceState({}, '', url);
+}
+
+function rememberSession(name, roomCode) {
+  myName = name;
+  myRoomCode = roomCode;
+  localStorage.setItem('imposterName', name);
+  localStorage.setItem('imposterRoom', roomCode);
+  setRoomInUrl(roomCode);
+  roomCodeDisplay.textContent = roomCode;
 }
 
 function setHost(hostName) {
@@ -99,17 +132,27 @@ function showGenerating(game) {
   showScreen('generating');
 }
 
-function attemptJoin(name) {
-  socket.emit('join', { name }, (res) => {
-    if (!res.ok) {
-      joinError.textContent = res.error;
-      showScreen('join');
-      return;
+function handleJoinResult(res, name) {
+  if (!res.ok) {
+    joinError.textContent = res.error;
+    if (res.error === 'Room not found') {
+      localStorage.removeItem('imposterRoom');
+      myRoomCode = '';
+      setRoomInUrl('');
     }
-    myName = name;
-    localStorage.setItem('imposterName', name);
-    routeFromJoin(res);
-  });
+    showScreen('join');
+    return;
+  }
+  rememberSession(name, res.roomCode);
+  routeFromJoin(res);
+}
+
+function attemptCreate(name) {
+  socket.emit('createRoom', { name }, (res) => handleJoinResult(res, name));
+}
+
+function attemptJoin(name, roomCode) {
+  socket.emit('join', { name, roomCode }, (res) => handleJoinResult(res, name));
 }
 
 function routeFromJoin(res) {
@@ -147,17 +190,44 @@ function routeFromJoin(res) {
   showScreen('lobby');
 }
 
-joinBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim();
+function readName() {
+  return nameInput.value.trim();
+}
+
+createRoomBtn.addEventListener('click', () => {
+  const name = readName();
   joinError.textContent = '';
   if (!name) {
     joinError.textContent = 'Enter a name';
     return;
   }
-  attemptJoin(name);
+  attemptCreate(name);
+});
+
+joinBtn.addEventListener('click', () => {
+  const name = readName();
+  const roomCode = normalizeRoomCode(roomCodeInput.value);
+  joinError.textContent = '';
+  if (!name) {
+    joinError.textContent = 'Enter a name';
+    return;
+  }
+  if (roomCode.length !== 4) {
+    joinError.textContent = 'Enter a 4-character room code';
+    return;
+  }
+  attemptJoin(name, roomCode);
 });
 
 nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinBtn.click();
+});
+
+roomCodeInput.addEventListener('input', () => {
+  roomCodeInput.value = normalizeRoomCode(roomCodeInput.value);
+});
+
+roomCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') joinBtn.click();
 });
 
@@ -233,8 +303,9 @@ cnBackBtn.addEventListener('click', () => {
   socket.emit('backToLobby', () => {});
 });
 
-socket.on('lobbyUpdate', ({ players, host }) => {
+socket.on('lobbyUpdate', ({ players, host, roomCode }) => {
   setHost(host);
+  if (roomCode) roomCodeDisplay.textContent = roomCode;
   renderLobby(players);
 });
 
@@ -437,6 +508,14 @@ function applyCodenamesState(data) {
   }
 }
 
-if (myName) {
-  attemptJoin(myName);
+const urlRoom = roomCodeFromUrl();
+if (urlRoom) {
+  roomCodeInput.value = urlRoom;
+  myRoomCode = urlRoom;
+}
+
+if (myName) nameInput.value = myName;
+
+if (myName && myRoomCode) {
+  attemptJoin(myName, myRoomCode);
 }

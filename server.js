@@ -25,6 +25,9 @@ const CN_OTHER_COUNT = 6;
 const CN_ASSASSIN_COUNT = 1;
 const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
 
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_LENGTH = 4;
+
 const LEVEL_SPEC = {
   easy: {
     instruction:
@@ -73,26 +76,61 @@ const WORD_CATEGORIES = [
   'a building or structure',
 ];
 
-// Shared, app-wide state (single room, single game at a time).
-let game = null; // null | 'imposter' | 'codenames'
-let phase = 'lobby';
-// Imposter phases: 'voting' | 'generating' | 'playing'
-// Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
-let hostName = null;
-const players = new Map(); // name -> { socketId, connected, role, word, hint, vote, team, leader }
+/** @type {Map<string, object>} */
+const rooms = new Map();
 
-// Imposter-only state.
-let currentLevel = null;
-let lastImposterNames = [];
-const usedWords = [];
+function createRoomState() {
+  return {
+    game: null, // null | 'imposter' | 'codenames'
+    phase: 'lobby',
+    // Imposter phases: 'voting' | 'generating' | 'playing'
+    // Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
+    hostName: null,
+    players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader }
+    currentLevel: null,
+    lastImposterNames: [],
+    usedWords: [],
+    cnUsedWords: [],
+    cnBoard: null, // [{ word, color, revealed }]
+    cnActiveTeam: null,
+    cnStartingTeam: null,
+    cnWinner: null,
+    cnScores: { red: 0, blue: 0 },
+  };
+}
 
-// Codenames-only state.
-const cnUsedWords = [];
-let cnBoard = null; // [{ word, color: 'red'|'blue'|'neutral'|'assassin', revealed }]
-let cnActiveTeam = null; // 'red' | 'blue'
-let cnStartingTeam = null; // 'red' | 'blue'
-let cnWinner = null; // 'red' | 'blue' | null
-let cnScores = { red: 0, blue: 0 };
+function normalizeRoomCode(code) {
+  return String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function generateRoomCode() {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    let code = '';
+    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+      code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+    }
+    if (!rooms.has(code)) return code;
+  }
+  throw new Error('Could not allocate a room code');
+}
+
+function getRoom(socket) {
+  const code = socket.data.roomCode;
+  return code ? rooms.get(code) : null;
+}
+
+function roomEmit(roomCode, event, payload) {
+  io.to(roomCode).emit(event, payload);
+}
+
+function maybeDeleteRoom(roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  if (room.players.size === 0) rooms.delete(roomCode);
+}
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -103,23 +141,27 @@ function shuffle(arr) {
   return a;
 }
 
-function connectedNames() {
-  return Array.from(players.entries())
+function connectedNames(room) {
+  return Array.from(room.players.entries())
     .filter(([, p]) => p.connected)
     .map(([name]) => name);
 }
 
-function broadcastLobby() {
-  io.emit('lobbyUpdate', { players: connectedNames(), host: hostName });
+function broadcastLobby(roomCode, room) {
+  roomEmit(roomCode, 'lobbyUpdate', {
+    players: connectedNames(room),
+    host: room.hostName,
+    roomCode,
+  });
 }
 
-function setHost(name) {
-  hostName = name;
-  io.emit('hostUpdate', { host: hostName });
+function setHost(roomCode, room, name) {
+  room.hostName = name;
+  roomEmit(roomCode, 'hostUpdate', { host: room.hostName });
 }
 
-function resetToLobby() {
-  for (const p of players.values()) {
+function resetToLobby(roomCode, room) {
+  for (const p of room.players.values()) {
     p.vote = null;
     p.role = null;
     p.word = null;
@@ -127,42 +169,42 @@ function resetToLobby() {
     p.team = null;
     p.leader = false;
   }
-  game = null;
-  phase = 'lobby';
-  currentLevel = null;
-  cnBoard = null;
-  cnActiveTeam = null;
-  cnStartingTeam = null;
-  cnWinner = null;
-  cnScores = { red: 0, blue: 0 };
-  io.emit('backToLobby');
-  broadcastLobby();
+  room.game = null;
+  room.phase = 'lobby';
+  room.currentLevel = null;
+  room.cnBoard = null;
+  room.cnActiveTeam = null;
+  room.cnStartingTeam = null;
+  room.cnWinner = null;
+  room.cnScores = { red: 0, blue: 0 };
+  roomEmit(roomCode, 'backToLobby');
+  broadcastLobby(roomCode, room);
 }
 
 // ---------- Imposter ----------
 
-function broadcastVoting() {
-  const names = connectedNames();
-  const voted = names.filter((n) => players.get(n).vote).length;
-  io.emit('votingUpdate', { total: names.length, voted, host: hostName });
+function broadcastVoting(roomCode, room) {
+  const names = connectedNames(room);
+  const voted = names.filter((n) => room.players.get(n).vote).length;
+  roomEmit(roomCode, 'votingUpdate', { total: names.length, voted, host: room.hostName });
 }
 
-function tallyLevel() {
+function tallyLevel(room) {
   const counts = { easy: 0, medium: 0, hard: 0 };
-  for (const name of connectedNames()) {
-    const vote = players.get(name).vote;
+  for (const name of connectedNames(room)) {
+    const vote = room.players.get(name).vote;
     if (vote) counts[vote] += 1;
   }
   const maxCount = Math.max(...LEVELS.map((l) => counts[l]));
   return LEVELS.find((l) => counts[l] === maxCount);
 }
 
-async function generateWordAndHint(level) {
+async function generateWordAndHint(room, level) {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured on the server');
   }
 
-  const avoid = usedWords.slice(-40);
+  const avoid = room.usedWords.slice(-40);
   const category = WORD_CATEGORIES[Math.floor(Math.random() * WORD_CATEGORIES.length)];
   const spec = LEVEL_SPEC[level];
   const prompt =
@@ -213,42 +255,45 @@ async function generateWordAndHint(level) {
   return { word, hint };
 }
 
-function failImposterRound(error) {
-  phase = 'voting';
-  currentLevel = null;
-  for (const p of players.values()) p.vote = null;
-  io.emit('votingStarted', { players: connectedNames(), host: hostName });
-  io.emit('startFailed', { error });
+function failImposterRound(roomCode, room, error) {
+  room.phase = 'voting';
+  room.currentLevel = null;
+  for (const p of room.players.values()) p.vote = null;
+  roomEmit(roomCode, 'votingStarted', { players: connectedNames(room), host: room.hostName });
+  roomEmit(roomCode, 'startFailed', { error });
 }
 
-async function finishVoting() {
-  const level = tallyLevel();
-  currentLevel = level;
-  phase = 'generating';
-  io.emit('generating', { game: 'imposter', level });
+async function finishVoting(roomCode, room) {
+  const level = tallyLevel(room);
+  room.currentLevel = level;
+  room.phase = 'generating';
+  roomEmit(roomCode, 'generating', { game: 'imposter', level });
 
   let word, hint;
   try {
-    ({ word, hint } = await generateWordAndHint(level));
+    ({ word, hint } = await generateWordAndHint(room, level));
   } catch (err) {
     console.error('generateWordAndHint failed:', err.message);
-    return failImposterRound('Could not reach ChatGPT to pick a word. Please try starting again.');
+    return failImposterRound(roomCode, room, 'Could not reach ChatGPT to pick a word. Please try starting again.');
   }
 
-  const names = connectedNames();
+  // Room may have been deleted while awaiting OpenAI.
+  if (!rooms.has(roomCode) || rooms.get(roomCode) !== room) return;
+
+  const names = connectedNames(room);
   if (names.length < MIN_PLAYERS) {
-    return failImposterRound(`Not enough players remained connected (need ${MIN_PLAYERS}).`);
+    return failImposterRound(roomCode, room, `Not enough players remained connected (need ${MIN_PLAYERS}).`);
   }
 
-  usedWords.push(word);
-  if (usedWords.length > 80) usedWords.splice(0, usedWords.length - 80);
+  room.usedWords.push(word);
+  if (room.usedWords.length > 80) room.usedWords.splice(0, room.usedWords.length - 80);
 
   const imposterCount = names.length >= TWO_IMPOSTER_THRESHOLD ? 2 : 1;
-  const fresh = names.filter((n) => !lastImposterNames.includes(n));
+  const fresh = names.filter((n) => !room.lastImposterNames.includes(n));
   const candidates = fresh.length >= imposterCount ? fresh : names;
   const imposterNames = shuffle(candidates).slice(0, imposterCount);
-  lastImposterNames = imposterNames;
-  for (const [name, p] of players) {
+  room.lastImposterNames = imposterNames;
+  for (const [name, p] of room.players) {
     if (imposterNames.includes(name)) {
       p.role = 'imposter';
       p.word = null;
@@ -260,52 +305,52 @@ async function finishVoting() {
     }
   }
 
-  phase = 'playing';
-  io.emit('gameStarted', { level });
-  for (const [, p] of players) {
+  room.phase = 'playing';
+  roomEmit(roomCode, 'gameStarted', { level });
+  for (const [, p] of room.players) {
     if (p.connected) {
       io.to(p.socketId).emit('role', { role: p.role, word: p.word, hint: p.hint });
     }
   }
 }
 
-function maybeFinishVoting() {
-  const names = connectedNames();
+function maybeFinishVoting(roomCode, room) {
+  const names = connectedNames(room);
   if (names.length === 0) return;
-  const allVoted = names.every((n) => players.get(n).vote);
-  if (allVoted) finishVoting();
+  const allVoted = names.every((n) => room.players.get(n).vote);
+  if (allVoted) finishVoting(roomCode, room);
 }
 
 // ---------- Codenames ----------
 
-function teamMembers(color) {
-  return connectedNames().filter((n) => players.get(n).team === color);
+function teamMembers(room, color) {
+  return connectedNames(room).filter((n) => room.players.get(n).team === color);
 }
 
-function teamPlayersInfo(color) {
-  return teamMembers(color).map((n) => ({ name: n, leader: players.get(n).leader }));
+function teamPlayersInfo(room, color) {
+  return teamMembers(room, color).map((n) => ({ name: n, leader: room.players.get(n).leader }));
 }
 
-function broadcastTeamSelect() {
-  io.emit('teamSelectUpdate', {
-    host: hostName,
-    red: teamPlayersInfo('red'),
-    blue: teamPlayersInfo('blue'),
-    unassigned: connectedNames().filter((n) => !players.get(n).team),
+function broadcastTeamSelect(roomCode, room) {
+  roomEmit(roomCode, 'teamSelectUpdate', {
+    host: room.hostName,
+    red: teamPlayersInfo(room, 'red'),
+    blue: teamPlayersInfo(room, 'blue'),
+    unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
   });
 }
 
-function cnTeamValid(color) {
-  const members = teamMembers(color);
-  return members.length >= CN_MIN_TEAM_SIZE && members.some((n) => players.get(n).leader);
+function cnTeamValid(room, color) {
+  const members = teamMembers(room, color);
+  return members.length >= CN_MIN_TEAM_SIZE && members.some((n) => room.players.get(n).leader);
 }
 
-async function generateWordGrid() {
+async function generateWordGrid(room) {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured on the server');
   }
 
-  const avoid = cnUsedWords.slice(-100);
+  const avoid = room.cnUsedWords.slice(-100);
   const prompt =
     `Generate exactly ${CN_WORD_COUNT} common, family-friendly, single-word nouns suitable for a word-guessing ` +
     `party game grid. Each must be ONE word (no phrases, no proper nouns), instantly recognizable to most ` +
@@ -367,8 +412,8 @@ function buildBoard(words, startingTeam) {
   return words.map((word, i) => ({ word, color: colors[i], revealed: false }));
 }
 
-function boardForViewer(p) {
-  return cnBoard.map((cell) => {
+function boardForViewer(room, p) {
+  return room.cnBoard.map((cell) => {
     if (cell.revealed || p.leader) {
       return { word: cell.word, color: cell.color, revealed: cell.revealed };
     }
@@ -376,163 +421,217 @@ function boardForViewer(p) {
   });
 }
 
-function broadcastCodenamesState() {
-  for (const [, p] of players) {
+function broadcastCodenamesState(roomCode, room) {
+  for (const [, p] of room.players) {
     if (!p.connected) continue;
     io.to(p.socketId).emit('codenamesState', {
-      phase,
-      activeTeam: cnActiveTeam,
-      winner: cnWinner,
-      scores: cnScores,
-      board: boardForViewer(p),
+      phase: room.phase,
+      activeTeam: room.cnActiveTeam,
+      winner: room.cnWinner,
+      scores: room.cnScores,
+      board: boardForViewer(room, p),
       isLeader: p.leader,
       myTeam: p.team,
-      red: teamPlayersInfo('red'),
-      blue: teamPlayersInfo('blue'),
-      host: hostName,
+      red: teamPlayersInfo(room, 'red'),
+      blue: teamPlayersInfo(room, 'blue'),
+      host: room.hostName,
     });
   }
 }
 
-function failCodenamesRound(error) {
-  phase = 'teamSelect';
-  broadcastTeamSelect();
-  io.emit('codenamesStartFailed', { error });
+function failCodenamesRound(roomCode, room, error) {
+  room.phase = 'teamSelect';
+  broadcastTeamSelect(roomCode, room);
+  roomEmit(roomCode, 'codenamesStartFailed', { error });
 }
 
-function checkTeamWin() {
+function checkTeamWin(room) {
   for (const color of ['red', 'blue']) {
-    const remaining = cnBoard.filter((c) => c.color === color && !c.revealed);
+    const remaining = room.cnBoard.filter((c) => c.color === color && !c.revealed);
     if (remaining.length === 0) return color;
   }
   return null;
 }
 
-function finishCodenamesGame() {
-  phase = 'gameover';
-  if (cnWinner) cnScores[cnWinner] += 1;
-  broadcastCodenamesState();
+function finishCodenamesGame(roomCode, room) {
+  room.phase = 'gameover';
+  if (room.cnWinner) room.cnScores[room.cnWinner] += 1;
+  broadcastCodenamesState(roomCode, room);
 }
 
-async function generateCodenamesRound() {
-  phase = 'generating';
-  io.emit('generating', { game: 'codenames' });
+async function generateCodenamesRound(roomCode, room) {
+  room.phase = 'generating';
+  roomEmit(roomCode, 'generating', { game: 'codenames' });
 
   let words;
   try {
-    words = await generateWordGrid();
+    words = await generateWordGrid(room);
   } catch (err) {
     console.error('generateWordGrid failed:', err.message);
-    return failCodenamesRound('Could not reach ChatGPT to build the board. Please try starting again.');
+    return failCodenamesRound(roomCode, room, 'Could not reach ChatGPT to build the board. Please try starting again.');
   }
 
-  if (!cnTeamValid('red') || !cnTeamValid('blue')) {
-    return failCodenamesRound('Not enough players remained on a team.');
+  if (!rooms.has(roomCode) || rooms.get(roomCode) !== room) return;
+
+  if (!cnTeamValid(room, 'red') || !cnTeamValid(room, 'blue')) {
+    return failCodenamesRound(roomCode, room, 'Not enough players remained on a team.');
   }
 
-  for (const w of words) cnUsedWords.push(w);
-  if (cnUsedWords.length > 150) cnUsedWords.splice(0, cnUsedWords.length - 150);
+  for (const w of words) room.cnUsedWords.push(w);
+  if (room.cnUsedWords.length > 150) room.cnUsedWords.splice(0, room.cnUsedWords.length - 150);
 
-  cnBoard = buildBoard(words, cnStartingTeam);
-  cnActiveTeam = cnStartingTeam;
-  cnWinner = null;
-  phase = 'playing';
-  broadcastCodenamesState();
+  room.cnBoard = buildBoard(words, room.cnStartingTeam);
+  room.cnActiveTeam = room.cnStartingTeam;
+  room.cnWinner = null;
+  room.phase = 'playing';
+  broadcastCodenamesState(roomCode, room);
+}
+
+function validateName(name) {
+  if (!name) return 'Name required';
+  if (name.length > 20) return 'Name too long';
+  return null;
+}
+
+function attachToRoom(socket, roomCode, room, name) {
+  if (socket.data.roomCode && socket.data.roomCode !== roomCode) {
+    socket.leave(socket.data.roomCode);
+  }
+  socket.join(roomCode);
+  socket.data.roomCode = roomCode;
+  socket.data.name = name;
+}
+
+function reconnectPayload(room, existing) {
+  if (room.game === 'imposter') {
+    if (room.phase === 'playing') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        level: room.currentLevel,
+        role: existing.role,
+        word: existing.word,
+        hint: existing.hint,
+        host: room.hostName,
+      };
+    }
+    if (room.phase === 'generating') {
+      return { ok: true, game: room.game, phase: room.phase, level: room.currentLevel, host: room.hostName };
+    }
+    if (room.phase === 'voting') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        players: connectedNames(room),
+        vote: existing.vote,
+        host: room.hostName,
+      };
+    }
+  }
+
+  if (room.game === 'codenames') {
+    if (room.phase === 'teamSelect') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        host: room.hostName,
+        red: teamPlayersInfo(room, 'red'),
+        blue: teamPlayersInfo(room, 'blue'),
+        unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
+      };
+    }
+    if (room.phase === 'generating') {
+      return { ok: true, game: room.game, phase: room.phase, host: room.hostName };
+    }
+    if (room.phase === 'playing' || room.phase === 'gameover') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        host: room.hostName,
+        activeTeam: room.cnActiveTeam,
+        winner: room.cnWinner,
+        scores: room.cnScores,
+        board: boardForViewer(room, existing),
+        isLeader: existing.leader,
+        myTeam: existing.team,
+        red: teamPlayersInfo(room, 'red'),
+        blue: teamPlayersInfo(room, 'blue'),
+      };
+    }
+  }
+
+  return { ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName };
+}
+
+function joinExistingRoom(socket, roomCode, name, callback) {
+  const room = rooms.get(roomCode);
+  if (!room) return callback({ ok: false, error: 'Room not found' });
+
+  const existing = room.players.get(name);
+
+  if (existing) {
+    if (existing.connected) {
+      return callback({ ok: false, error: 'That name is taken' });
+    }
+    existing.connected = true;
+    existing.socketId = socket.id;
+    attachToRoom(socket, roomCode, room, name);
+
+    if (room.phase === 'voting') broadcastVoting(roomCode, room);
+    else if (room.phase === 'teamSelect') broadcastTeamSelect(roomCode, room);
+    else if (room.phase === 'lobby') {
+      if (!room.hostName) setHost(roomCode, room, name);
+      broadcastLobby(roomCode, room);
+    }
+
+    const payload = reconnectPayload(room, existing);
+    payload.roomCode = roomCode;
+    return callback(payload);
+  }
+
+  if (room.phase !== 'lobby') {
+    return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
+  }
+
+  room.players.set(name, {
+    socketId: socket.id,
+    connected: true,
+    role: null,
+    word: null,
+    hint: null,
+    vote: null,
+    team: null,
+    leader: false,
+  });
+  attachToRoom(socket, roomCode, room, name);
+  if (!room.hostName) setHost(roomCode, room, name);
+  broadcastLobby(roomCode, room);
+  callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName, roomCode });
 }
 
 // ---------- Socket handlers ----------
 
 io.on('connection', (socket) => {
-  socket.on('join', (data, callback) => {
+  socket.on('createRoom', (data, callback) => {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
+    const nameError = validateName(name);
+    if (nameError) return callback({ ok: false, error: nameError });
 
-    if (!name) return callback({ ok: false, error: 'Name required' });
-    if (name.length > 20) return callback({ ok: false, error: 'Name too long' });
-
-    const existing = players.get(name);
-
-    if (existing) {
-      if (existing.connected) {
-        return callback({ ok: false, error: 'That name is taken' });
-      }
-      existing.connected = true;
-      existing.socketId = socket.id;
-      socket.data.name = name;
-
-      if (game === 'imposter') {
-        if (phase === 'playing') {
-          return callback({
-            ok: true,
-            game,
-            phase,
-            level: currentLevel,
-            role: existing.role,
-            word: existing.word,
-            hint: existing.hint,
-            host: hostName,
-          });
-        }
-        if (phase === 'generating') {
-          return callback({ ok: true, game, phase, level: currentLevel, host: hostName });
-        }
-        if (phase === 'voting') {
-          broadcastVoting();
-          return callback({
-            ok: true,
-            game,
-            phase,
-            players: connectedNames(),
-            vote: existing.vote,
-            host: hostName,
-          });
-        }
-      }
-
-      if (game === 'codenames') {
-        if (phase === 'teamSelect') {
-          broadcastTeamSelect();
-          return callback({
-            ok: true,
-            game,
-            phase,
-            host: hostName,
-            red: teamPlayersInfo('red'),
-            blue: teamPlayersInfo('blue'),
-            unassigned: connectedNames().filter((n) => !players.get(n).team),
-          });
-        }
-        if (phase === 'generating') {
-          return callback({ ok: true, game, phase, host: hostName });
-        }
-        if (phase === 'playing' || phase === 'gameover') {
-          return callback({
-            ok: true,
-            game,
-            phase,
-            host: hostName,
-            activeTeam: cnActiveTeam,
-            winner: cnWinner,
-            scores: cnScores,
-            board: boardForViewer(existing),
-            isLeader: existing.leader,
-            myTeam: existing.team,
-            red: teamPlayersInfo('red'),
-            blue: teamPlayersInfo('blue'),
-          });
-        }
-      }
-
-      if (!hostName) setHost(name);
-      broadcastLobby();
-      return callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(), host: hostName });
+    let roomCode;
+    try {
+      roomCode = generateRoomCode();
+    } catch (err) {
+      return callback({ ok: false, error: 'Could not create a room. Try again.' });
     }
 
-    if (phase !== 'lobby') {
-      return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
-    }
-
-    players.set(name, {
+    const room = createRoomState();
+    rooms.set(roomCode, room);
+    room.players.set(name, {
       socketId: socket.id,
       connected: true,
       role: null,
@@ -542,43 +641,60 @@ io.on('connection', (socket) => {
       team: null,
       leader: false,
     });
-    socket.data.name = name;
-    if (!hostName) setHost(name);
-    broadcastLobby();
-    callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(), host: hostName });
+    attachToRoom(socket, roomCode, room, name);
+    setHost(roomCode, room, name);
+    broadcastLobby(roomCode, room);
+    callback({ ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName, roomCode });
+  });
+
+  socket.on('join', (data, callback) => {
+    callback = callback || (() => {});
+    const name = ((data && data.name) || '').trim();
+    const roomCode = normalizeRoomCode(data && data.roomCode);
+
+    const nameError = validateName(name);
+    if (nameError) return callback({ ok: false, error: nameError });
+    if (!roomCode || roomCode.length !== ROOM_CODE_LENGTH) {
+      return callback({ ok: false, error: 'Enter a valid room code' });
+    }
+
+    joinExistingRoom(socket, roomCode, name, callback);
   });
 
   socket.on('chooseGame', (selectedGame, callback) => {
     callback = callback || (() => {});
-    if (phase !== 'lobby') return callback({ ok: false, error: 'Game already chosen' });
-    if (socket.data.name !== hostName) {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Game already chosen' });
+    if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can choose the game' });
     }
     if (selectedGame !== 'imposter' && selectedGame !== 'codenames') {
       return callback({ ok: false, error: 'Invalid game' });
     }
 
-    const names = connectedNames();
+    const names = connectedNames(room);
 
     if (selectedGame === 'imposter') {
       if (names.length < MIN_PLAYERS) {
         return callback({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
       }
-      game = 'imposter';
-      for (const p of players.values()) p.vote = null;
-      phase = 'voting';
-      io.emit('gameChosen', { game });
-      io.emit('votingStarted', { players: connectedNames(), host: hostName });
+      room.game = 'imposter';
+      for (const p of room.players.values()) p.vote = null;
+      room.phase = 'voting';
+      roomEmit(roomCode, 'gameChosen', { game: room.game });
+      roomEmit(roomCode, 'votingStarted', { players: connectedNames(room), host: room.hostName });
       return callback({ ok: true });
     }
 
     if (names.length < CN_MIN_PLAYERS) {
       return callback({ ok: false, error: `Need at least ${CN_MIN_PLAYERS} players` });
     }
-    game = 'codenames';
-    phase = 'teamSelect';
-    io.emit('gameChosen', { game });
-    broadcastTeamSelect();
+    room.game = 'codenames';
+    room.phase = 'teamSelect';
+    roomEmit(roomCode, 'gameChosen', { game: room.game });
+    broadcastTeamSelect(roomCode, room);
     callback({ ok: true });
   });
 
@@ -586,30 +702,38 @@ io.on('connection', (socket) => {
 
   socket.on('vote', (level, callback) => {
     callback = callback || (() => {});
-    if (game !== 'imposter' || phase !== 'voting') return callback({ ok: false, error: 'Voting is not open' });
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'imposter' || room.phase !== 'voting') {
+      return callback({ ok: false, error: 'Voting is not open' });
+    }
     if (!LEVELS.includes(level)) return callback({ ok: false, error: 'Invalid level' });
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
 
     p.vote = level;
     callback({ ok: true });
-    broadcastVoting();
-    maybeFinishVoting();
+    broadcastVoting(roomCode, room);
+    maybeFinishVoting(roomCode, room);
   });
 
   // ----- Codenames -----
 
   socket.on('joinTeam', (color, callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'teamSelect') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
       return callback({ ok: false, error: 'Not choosing teams right now' });
     }
     if (color !== 'red' && color !== 'blue') return callback({ ok: false, error: 'Invalid team' });
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
 
     if (p.team !== color) {
@@ -617,164 +741,190 @@ io.on('connection', (socket) => {
       p.leader = false;
     }
     callback({ ok: true });
-    broadcastTeamSelect();
+    broadcastTeamSelect(roomCode, room);
   });
 
   socket.on('claimLeader', (callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'teamSelect') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
       return callback({ ok: false, error: 'Not choosing teams right now' });
     }
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p || !p.team) return callback({ ok: false, error: 'Join a team first' });
 
-    const currentLeader = teamMembers(p.team).find((n) => players.get(n).leader);
+    const currentLeader = teamMembers(room, p.team).find((n) => room.players.get(n).leader);
     if (currentLeader && currentLeader !== name) {
       return callback({ ok: false, error: 'This team already has a leader' });
     }
 
     p.leader = true;
     callback({ ok: true });
-    broadcastTeamSelect();
+    broadcastTeamSelect(roomCode, room);
   });
 
   socket.on('startCodenames', (callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'teamSelect') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
       return callback({ ok: false, error: 'Not ready to start' });
     }
-    if (socket.data.name !== hostName) {
+    if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can start the game' });
     }
-    if (!cnTeamValid('red')) {
+    if (!cnTeamValid(room, 'red')) {
       return callback({ ok: false, error: 'Red team needs at least 2 players including a leader' });
     }
-    if (!cnTeamValid('blue')) {
+    if (!cnTeamValid(room, 'blue')) {
       return callback({ ok: false, error: 'Blue team needs at least 2 players including a leader' });
     }
 
-    cnStartingTeam = Math.random() < 0.5 ? 'red' : 'blue';
+    room.cnStartingTeam = Math.random() < 0.5 ? 'red' : 'blue';
     callback({ ok: true });
-    generateCodenamesRound();
+    generateCodenamesRound(roomCode, room);
   });
 
   socket.on('guessWord', (index, callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'playing') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
-    if (p.team !== cnActiveTeam) return callback({ ok: false, error: "Not your team's turn" });
+    if (p.team !== room.cnActiveTeam) return callback({ ok: false, error: "Not your team's turn" });
     if (p.leader) return callback({ ok: false, error: 'Leaders cannot guess' });
     if (!Number.isInteger(index) || index < 0 || index >= CN_WORD_COUNT) {
       return callback({ ok: false, error: 'Invalid card' });
     }
 
-    const cell = cnBoard[index];
+    const cell = room.cnBoard[index];
     if (!cell || cell.revealed) return callback({ ok: false, error: 'Already revealed' });
 
     cell.revealed = true;
     callback({ ok: true });
 
     if (cell.color === 'assassin') {
-      cnWinner = cnActiveTeam === 'red' ? 'blue' : 'red';
-      return finishCodenamesGame();
+      room.cnWinner = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+      return finishCodenamesGame(roomCode, room);
     }
 
-    if (cell.color !== cnActiveTeam) {
-      cnActiveTeam = cnActiveTeam === 'red' ? 'blue' : 'red';
+    if (cell.color !== room.cnActiveTeam) {
+      room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
     }
 
-    const winner = checkTeamWin();
+    const winner = checkTeamWin(room);
     if (winner) {
-      cnWinner = winner;
-      return finishCodenamesGame();
+      room.cnWinner = winner;
+      return finishCodenamesGame(roomCode, room);
     }
 
-    broadcastCodenamesState();
+    broadcastCodenamesState(roomCode, room);
   });
 
   socket.on('endTurn', (callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'playing') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
-    if (p.team !== cnActiveTeam || p.leader) {
+    if (p.team !== room.cnActiveTeam || p.leader) {
       return callback({ ok: false, error: 'Only active team guessers can end the turn' });
     }
 
-    cnActiveTeam = cnActiveTeam === 'red' ? 'blue' : 'red';
+    room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
     callback({ ok: true });
-    broadcastCodenamesState();
+    broadcastCodenamesState(roomCode, room);
   });
 
   socket.on('playAgainCodenames', (callback) => {
     callback = callback || (() => {});
-    if (game !== 'codenames' || phase !== 'gameover') {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'gameover') {
       return callback({ ok: false, error: 'Game is not over yet' });
     }
 
     const name = socket.data.name;
-    const p = players.get(name);
+    const p = room.players.get(name);
     if (!p || !p.leader) {
       return callback({ ok: false, error: 'Only a team leader can start the next round' });
     }
 
-    cnStartingTeam = cnStartingTeam === 'red' ? 'blue' : 'red';
+    room.cnStartingTeam = room.cnStartingTeam === 'red' ? 'blue' : 'red';
     callback({ ok: true });
-    generateCodenamesRound();
+    generateCodenamesRound(roomCode, room);
   });
 
   // ----- Shared -----
 
   socket.on('backToLobby', (callback) => {
     callback = callback || (() => {});
-    if (socket.data.name !== hostName) {
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can return to the lobby' });
     }
-    resetToLobby();
+    resetToLobby(roomCode, room);
     callback({ ok: true });
   });
 
   socket.on('disconnect', () => {
     const name = socket.data.name;
-    if (!name) return;
-    const p = players.get(name);
+    const roomCode = socket.data.roomCode;
+    if (!name || !roomCode) return;
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    const p = room.players.get(name);
     if (!p) return;
 
-    if (phase === 'lobby' || phase === 'voting' || phase === 'teamSelect') {
-      players.delete(name);
-      if (name === hostName) {
-        const [nextHost] = connectedNames();
-        hostName = nextHost || null;
+    if (room.phase === 'lobby' || room.phase === 'voting' || room.phase === 'teamSelect') {
+      room.players.delete(name);
+      if (name === room.hostName) {
+        const [nextHost] = connectedNames(room);
+        room.hostName = nextHost || null;
+        if (room.hostName) roomEmit(roomCode, 'hostUpdate', { host: room.hostName });
       }
-      if (phase === 'voting') {
-        broadcastVoting();
-        maybeFinishVoting();
-      } else if (phase === 'teamSelect') {
-        broadcastTeamSelect();
+      if (room.players.size === 0) {
+        rooms.delete(roomCode);
+        return;
+      }
+      if (room.phase === 'voting') {
+        broadcastVoting(roomCode, room);
+        maybeFinishVoting(roomCode, room);
+      } else if (room.phase === 'teamSelect') {
+        broadcastTeamSelect(roomCode, room);
       } else {
-        broadcastLobby();
+        broadcastLobby(roomCode, room);
       }
       return;
     }
 
     p.connected = false;
-    if (name === hostName) {
-      const [nextHost] = connectedNames();
-      setHost(nextHost || null);
+    if (name === room.hostName) {
+      const [nextHost] = connectedNames(room);
+      setHost(roomCode, room, nextHost || null);
     }
-    if (game === 'codenames' && (phase === 'playing' || phase === 'gameover')) {
-      broadcastCodenamesState();
+    if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
+      broadcastCodenamesState(roomCode, room);
     }
   });
 });
