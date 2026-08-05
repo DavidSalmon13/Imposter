@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -27,6 +28,10 @@ const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_AS
 
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
+
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
+const SAVE_INTERVAL_MS = 5000;
 
 const LEVEL_SPEC = {
   easy: {
@@ -126,10 +131,68 @@ function roomEmit(roomCode, event, payload) {
   io.to(roomCode).emit(event, payload);
 }
 
-function maybeDeleteRoom(roomCode) {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-  if (room.players.size === 0) rooms.delete(roomCode);
+const ROOM_SAVED_FIELDS = [
+  'game',
+  'phase',
+  'hostName',
+  'currentLevel',
+  'lastImposterNames',
+  'usedWords',
+  'cnUsedWords',
+  'cnBoard',
+  'cnActiveTeam',
+  'cnStartingTeam',
+  'cnWinner',
+  'cnScores',
+];
+
+function saveRoomsToDisk() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const serialized = {};
+    for (const [code, room] of rooms) {
+      const data = { players: Array.from(room.players.entries()) };
+      for (const field of ROOM_SAVED_FIELDS) data[field] = room[field];
+      serialized[code] = data;
+    }
+    const tmpFile = `${ROOMS_FILE}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(serialized));
+    fs.renameSync(tmpFile, ROOMS_FILE);
+  } catch (err) {
+    console.error('Failed to save rooms to disk:', err);
+  }
+}
+
+function loadRoomsFromDisk() {
+  if (!fs.existsSync(ROOMS_FILE)) return;
+  try {
+    const raw = fs.readFileSync(ROOMS_FILE, 'utf8');
+    const serialized = JSON.parse(raw);
+    for (const [code, data] of Object.entries(serialized)) {
+      const room = createRoomState();
+      for (const field of ROOM_SAVED_FIELDS) {
+        if (data[field] !== undefined) room[field] = data[field];
+      }
+      room.players = new Map(
+        (data.players || []).map(([name, p]) => [name, { ...p, connected: false, socketId: null }])
+      );
+      // A round that was mid-generation when the process stopped can't be resumed - drop back
+      // to the nearest safe phase so reconnecting players land somewhere sane.
+      if (room.phase === 'generating') {
+        if (room.game === 'imposter') {
+          room.phase = 'voting';
+          room.currentLevel = null;
+          for (const p of room.players.values()) p.vote = null;
+        } else if (room.game === 'codenames') {
+          room.phase = 'teamSelect';
+        }
+      }
+      rooms.set(code, room);
+    }
+    console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
+  } catch (err) {
+    console.error('Failed to load rooms from disk:', err);
+  }
 }
 
 function shuffle(arr) {
@@ -903,10 +966,6 @@ io.on('connection', (socket) => {
         room.hostName = nextHost || null;
         if (room.hostName) roomEmit(roomCode, 'hostUpdate', { host: room.hostName });
       }
-      if (room.players.size === 0) {
-        rooms.delete(roomCode);
-        return;
-      }
       if (room.phase === 'voting') {
         broadcastVoting(roomCode, room);
         maybeFinishVoting(roomCode, room);
@@ -928,6 +987,16 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+loadRoomsFromDisk();
+setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
+
+function shutdown() {
+  saveRoomsToDisk();
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Imposter listening on ${PORT}`));
