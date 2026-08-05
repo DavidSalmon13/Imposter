@@ -959,30 +959,30 @@ io.on('connection', (socket) => {
     const p = room.players.get(name);
     if (!p) return;
 
-    if (room.phase === 'lobby' || room.phase === 'voting' || room.phase === 'teamSelect') {
+    if (room.phase === 'lobby') {
       room.players.delete(name);
       if (name === room.hostName) {
         const [nextHost] = connectedNames(room);
-        room.hostName = nextHost || null;
-        if (room.hostName) roomEmit(roomCode, 'hostUpdate', { host: room.hostName });
+        setHost(roomCode, room, nextHost || null);
       }
-      if (room.phase === 'voting') {
-        broadcastVoting(roomCode, room);
-        maybeFinishVoting(roomCode, room);
-      } else if (room.phase === 'teamSelect') {
-        broadcastTeamSelect(roomCode, room);
-      } else {
-        broadcastLobby(roomCode, room);
-      }
+      broadcastLobby(roomCode, room);
       return;
     }
 
+    // Past the lobby, a dropped connection (phone locked, WiFi blip, tab backgrounded)
+    // shouldn't erase the player's spot - keep them so a reconnect restores it instead
+    // of being treated as a stranger trying to join a game already in progress.
     p.connected = false;
     if (name === room.hostName) {
       const [nextHost] = connectedNames(room);
       setHost(roomCode, room, nextHost || null);
     }
-    if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
+    if (room.phase === 'voting') {
+      broadcastVoting(roomCode, room);
+      maybeFinishVoting(roomCode, room);
+    } else if (room.phase === 'teamSelect') {
+      broadcastTeamSelect(roomCode, room);
+    } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
       broadcastCodenamesState(roomCode, room);
     }
   });

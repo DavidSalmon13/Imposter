@@ -32,6 +32,7 @@ const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const levelButtons = Array.from(document.querySelectorAll('.level-btn'));
 const voteCount = document.getElementById('vote-count');
 const votingError = document.getElementById('voting-error');
+const votingBackBtn = document.getElementById('voting-back-btn');
 
 const levelLabel = document.getElementById('level-label');
 const roleEl = document.getElementById('role-panel');
@@ -50,6 +51,7 @@ const leaderBlueBtn = document.getElementById('leader-blue-btn');
 const cnStartBtn = document.getElementById('cn-start-btn');
 const cnStartWaiting = document.getElementById('cn-start-waiting');
 const cnTeamError = document.getElementById('cn-team-error');
+const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
 
 const cnTurnLabel = document.getElementById('cn-turn-label');
 const cnScore = document.getElementById('cn-score');
@@ -114,6 +116,8 @@ function setHost(hostName) {
   playAgainBtn.classList.toggle('hidden', !isHost);
   playAgainWaiting.classList.toggle('hidden', isHost);
   cnBackBtn.classList.toggle('hidden', !isHost);
+  votingBackBtn.classList.toggle('hidden', !isHost);
+  cnTeamBackBtn.classList.toggle('hidden', !isHost);
 }
 
 function showScreen(name) {
@@ -300,6 +304,14 @@ cnPlayAgainBtn.addEventListener('click', () => {
 });
 
 cnBackBtn.addEventListener('click', () => {
+  socket.emit('backToLobby', () => {});
+});
+
+votingBackBtn.addEventListener('click', () => {
+  socket.emit('backToLobby', () => {});
+});
+
+cnTeamBackBtn.addEventListener('click', () => {
   socket.emit('backToLobby', () => {});
 });
 
@@ -516,6 +528,9 @@ if (urlRoom) {
 
 if (myName) nameInput.value = myName;
 
-if (myName && myRoomCode) {
-  attemptJoin(myName, myRoomCode);
-}
+// Re-sync on every connect, not just the first one - phones suspend the socket when the
+// screen locks or the tab backgrounds, and on reconnect we need to catch back up to the
+// current phase/screen rather than being stuck on whatever was last rendered.
+socket.on('connect', () => {
+  if (myName && myRoomCode) attemptJoin(myName, myRoomCode);
+});
