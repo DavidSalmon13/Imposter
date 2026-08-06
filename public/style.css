@@ -1,19 +1,32 @@
 :root {
   --bg: #14151a;
+  --bg-gradient: radial-gradient(circle at 15% 0%, #2a2350 0%, transparent 45%),
+    radial-gradient(circle at 85% 10%, #1c3a54 0%, transparent 40%),
+    linear-gradient(160deg, #181a26 0%, #101019 55%, #150f22 100%);
   --card: #1e2029;
   --card-2: #282c3a;
   --card-border: #2c2f3a;
-  --text: #f2f2f5;
-  --muted: #9497a6;
+  --text: #f5f5f9;
+  --muted: #a7aabb;
   --accent: #5b8cff;
-  --accent-text: #0c1220;
-  --danger: #ff5b6a;
-  --success: #35c98a;
-  --radius: 14px;
-  --team-red: #ff5b6a;
-  --team-blue: #4d8bff;
-  --team-neutral: #9497a6;
-  --team-assassin: #f2f2f5;
+  --accent-2: #8f6bff;
+  --accent-text: #0a0f1e;
+  --danger: #ff6b78;
+  --success: #3fd79a;
+  --radius: 18px;
+  --team-red: #ff6b78;
+  --team-blue: #5c93ff;
+  --team-neutral: #a7aabb;
+  --team-assassin: #f5f5f9;
+
+  --glass-bg: rgba(28, 30, 42, 0.86);
+  --glass-bg-strong: rgba(16, 17, 26, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-highlight: rgba(255, 255, 255, 0.1);
+  --glass-blur: 18px;
+  --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.38);
+  --shadow-lift: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -23,7 +36,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background: var(--bg-gradient), var(--bg);
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -38,9 +51,10 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  border-bottom: 1px solid var(--card-border);
-  background: rgba(20, 21, 26, 0.75);
-  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,13 +72,24 @@ body {
 
 .bg-btn {
   width: auto;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.7rem;
   font-size: 1.05rem;
   line-height: 1;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
   color: var(--text);
+  min-height: 40px;
+  transition: transform 0.15s var(--ease), background 0.15s var(--ease);
+}
+
+.bg-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.bg-btn:active {
+  transform: translateY(0) scale(0.96);
 }
 
 .app-main {
@@ -78,13 +103,17 @@ body {
 .screen {
   width: 100%;
   max-width: 420px;
-  background: var(--card);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 var(--glass-highlight);
+  animation: screen-in 0.4s var(--ease);
 }
 
 .screen.hidden {
@@ -95,46 +124,91 @@ body {
   display: none;
 }
 
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 h1 {
   margin: 0 0 0.25rem;
   font-size: 1.35rem;
+  letter-spacing: -0.01em;
 }
 
 input[type="text"] {
   width: 100%;
-  padding: 0.8rem 0.9rem;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: #10121a;
+  padding: 0.85rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(8, 9, 15, 0.75);
   color: var(--text);
   font-size: 1rem;
+  min-height: 48px;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
-input[type="text"]:focus {
-  outline: 2px solid var(--accent);
+input[type="text"]::placeholder {
+  color: var(--muted);
+}
+
+input[type="text"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.35);
 }
 
 button {
   width: 100%;
   padding: 0.85rem 1rem;
-  border-radius: 10px;
+  border-radius: 12px;
   border: none;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
   color: var(--accent-text);
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
+  min-height: 48px;
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), opacity 0.15s var(--ease);
+  box-shadow: 0 4px 16px rgba(91, 140, 255, 0.28);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(91, 140, 255, 0.38);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 10px rgba(91, 140, 255, 0.28);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 button.secondary {
-  background: transparent;
-  border: 1px solid var(--card-border);
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
   color: var(--text);
+  box-shadow: none;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
 }
 
 .btn-row {
@@ -148,10 +222,10 @@ button.secondary {
 
 .room-code-display {
   margin: 0;
-  padding: 0.75rem 0.9rem;
-  border-radius: 10px;
-  background: #10121a;
-  border: 1px dashed var(--card-border);
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(8, 9, 15, 0.75);
+  border: 1px dashed var(--glass-border);
   text-align: center;
   font-size: 1.35rem;
   font-weight: 700;
@@ -194,10 +268,22 @@ button.secondary {
 }
 
 .player-list li {
-  background: #10121a;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.55rem 0.75rem;
+  background: rgba(8, 9, 15, 0.68);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  animation: item-in 0.25s var(--ease);
+}
+
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .level-choices {
@@ -207,22 +293,24 @@ button.secondary {
 }
 
 .level-btn {
-  background: #10121a;
-  border: 1px solid var(--card-border);
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
   color: var(--text);
+  box-shadow: none;
 }
 
 .level-btn.selected {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
   border-color: var(--accent);
   color: var(--accent-text);
+  box-shadow: 0 4px 16px rgba(91, 140, 255, 0.28);
 }
 
 .spinner {
   width: 36px;
   height: 36px;
   margin: 0.5rem auto 0;
-  border: 3px solid var(--card-border);
+  border: 3px solid var(--glass-border);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -236,13 +324,14 @@ button.secondary {
 
 .role-panel {
   text-align: center;
-  padding: 1rem;
-  border-radius: 10px;
+  padding: 1.1rem;
+  border-radius: 12px;
   font-weight: 700;
   font-size: 1.05rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  animation: screen-in 0.35s var(--ease);
 }
 
 .hint-text {
@@ -251,15 +340,15 @@ button.secondary {
 }
 
 .role-panel.imposter {
-  background: rgba(255, 91, 106, 0.15);
+  background: rgba(255, 107, 120, 0.16);
   border: 1px solid var(--danger);
-  color: var(--danger);
+  color: #ffd3d7;
 }
 
 .role-panel.crew {
-  background: rgba(53, 201, 138, 0.15);
+  background: rgba(63, 215, 154, 0.16);
   border: 1px solid var(--success);
-  color: var(--success);
+  color: #bdf5dd;
 }
 
 .game-choice {
@@ -332,7 +421,7 @@ button.secondary {
 .cn-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .cn-card {
@@ -342,9 +431,9 @@ button.secondary {
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.2;
-  border-radius: 8px;
-  background: var(--card-2);
-  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: rgba(40, 44, 58, 0.65);
+  border: 1px solid var(--glass-border);
   color: var(--text);
   display: flex;
   align-items: center;
@@ -353,6 +442,18 @@ button.secondary {
   overflow-wrap: break-word;
   -webkit-hyphens: auto;
   hyphens: auto;
+  min-height: unset;
+  box-shadow: none;
+  transition: transform 0.15s var(--ease), background-color 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.cn-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cn-card:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
 }
 
 .cn-card:disabled {
@@ -361,27 +462,42 @@ button.secondary {
 }
 
 .cn-card.cn-leader-hint.cn-red {
-  background: rgba(255, 91, 106, 0.3);
+  background: rgba(255, 107, 120, 0.3);
   border-color: var(--team-red);
   color: #ffd4d8;
 }
 
 .cn-card.cn-leader-hint.cn-blue {
-  background: rgba(77, 139, 255, 0.3);
+  background: rgba(92, 147, 255, 0.3);
   border-color: var(--team-blue);
   color: #cfe1ff;
 }
 
 .cn-card.cn-leader-hint.cn-neutral {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--card-border);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--glass-border);
   color: var(--text);
 }
 
 .cn-card.cn-leader-hint.cn-assassin {
-  background: rgba(242, 242, 245, 0.16);
+  background: rgba(245, 245, 249, 0.18);
   border-color: var(--team-assassin);
   color: var(--team-assassin);
+}
+
+.cn-card.revealed {
+  animation: card-reveal 0.3s var(--ease);
+}
+
+@keyframes card-reveal {
+  from {
+    transform: scale(0.85);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .cn-card.revealed.cn-red {
@@ -399,7 +515,7 @@ button.secondary {
 .cn-card.revealed.cn-neutral {
   background: #3a3d4a;
   border-color: #3a3d4a;
-  color: #cfd1da;
+  color: #dcdee6;
 }
 
 .cn-card.revealed.cn-assassin {
@@ -411,4 +527,14 @@ button.secondary {
 .cn-card.cn-leader-hint.cn-assassin::before,
 .cn-card.revealed.cn-assassin::before {
   content: "\1F480 ";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
