@@ -10,6 +10,8 @@ const screens = {
   voting: document.getElementById('voting-screen'),
   generating: document.getElementById('generating-screen'),
   game: document.getElementById('game-screen'),
+  imposterReporting: document.getElementById('imposter-reporting-screen'),
+  imposterResults: document.getElementById('imposter-results-screen'),
   teamSelect: document.getElementById('team-select-screen'),
   codenames: document.getElementById('codenames-screen'),
   codenamesGameover: document.getElementById('codenames-gameover-screen'),
@@ -31,6 +33,9 @@ const joinError = document.getElementById('join-error');
 const roomCodeDisplay = document.getElementById('room-code-display');
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
+const scoreboardSection = document.getElementById('scoreboard-section');
+const scoreboardList = document.getElementById('scoreboard-list');
+const resetScoreboardBtn = document.getElementById('reset-scoreboard-btn');
 const gameChoice = document.getElementById('game-choice');
 const chooseWaiting = document.getElementById('choose-waiting');
 const chooseError = document.getElementById('choose-error');
@@ -45,8 +50,21 @@ const votingBackBtn = document.getElementById('voting-back-btn');
 
 const levelLabel = document.getElementById('level-label');
 const roleEl = document.getElementById('role-panel');
+const endRoundBtn = document.getElementById('end-round-btn');
 const playAgainBtn = document.getElementById('play-again-btn');
 const playAgainWaiting = document.getElementById('play-again-waiting');
+
+const reportYesBtn = document.getElementById('report-yes-btn');
+const reportNoBtn = document.getElementById('report-no-btn');
+const reportChoices = document.getElementById('report-choices');
+const reportWaiting = document.getElementById('report-waiting');
+const reportCount = document.getElementById('report-count');
+const reportError = document.getElementById('report-error');
+
+const imposterResultsBody = document.getElementById('imposter-results-body');
+const imposterResultsScoreboard = document.getElementById('imposter-results-scoreboard');
+const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
+const imposterResultsWaiting = document.getElementById('imposter-results-waiting');
 
 const generatingTitle = document.getElementById('generating-title');
 const generatingSubtitle = document.getElementById('generating-subtitle');
@@ -73,6 +91,7 @@ const cnStartTimerBtn = document.getElementById('cn-start-timer-btn');
 const cnWinnerTitle = document.getElementById('cn-winner-title');
 const cnFinalScore = document.getElementById('cn-final-score');
 const cnFinalGrid = document.getElementById('cn-final-grid');
+const cnScoreboard = document.getElementById('cn-scoreboard');
 const cnPlayAgainBtn = document.getElementById('cn-play-again-btn');
 const cnPlayAgainWaiting = document.getElementById('cn-play-again-waiting');
 const cnBackBtn = document.getElementById('cn-back-btn');
@@ -98,11 +117,11 @@ const tsContinueWaiting = document.getElementById('ts-continue-waiting');
 const tsGameoverPanel = document.getElementById('ts-gameover-panel');
 const tsChampion = document.getElementById('ts-champion');
 const tsStandings = document.getElementById('ts-standings');
+const tsScoreboard = document.getElementById('ts-scoreboard');
 const tsPlayAgainBtn = document.getElementById('ts-play-again-btn');
 const tsPlayAgainWaiting = document.getElementById('ts-play-again-waiting');
 const tsBackBtn = document.getElementById('ts-back-btn');
 const tsError = document.getElementById('ts-error');
-
 let myName = localStorage.getItem('imposterName') || '';
 let myRoomCode = localStorage.getItem('imposterRoom') || '';
 let isHost = false;
@@ -159,11 +178,15 @@ function setHost(hostName) {
   gameChoice.classList.toggle('hidden', !isHost);
   chooseWaiting.classList.toggle('hidden', isHost);
   playAgainBtn.classList.toggle('hidden', !isHost);
+  endRoundBtn.classList.toggle('hidden', !isHost);
   playAgainWaiting.classList.toggle('hidden', isHost);
   cnBackBtn.classList.toggle('hidden', !isHost);
   votingBackBtn.classList.toggle('hidden', !isHost);
   cnTeamBackBtn.classList.toggle('hidden', !isHost);
   tsBackBtn.classList.toggle('hidden', !isHost);
+  imposterResultsBackBtn.classList.toggle('hidden', !isHost);
+  imposterResultsWaiting.classList.toggle('hidden', isHost);
+  resetScoreboardBtn.classList.toggle('hidden', !isHost);
 }
 
 function showScreen(name) {
@@ -275,6 +298,12 @@ function routeFromJoin(res) {
     if (res.phase === 'playing') {
       renderGame(res.level, res.role, res.word, res.hint);
       showScreen('game');
+    } else if (res.phase === 'reporting') {
+      renderImposterReporting(res);
+      showScreen('imposterReporting');
+    } else if (res.phase === 'roundResults') {
+      renderImposterResults(res);
+      showScreen('imposterResults');
     } else if (res.phase === 'generating') {
       showGenerating('imposter');
     } else if (res.phase === 'voting') {
@@ -304,7 +333,7 @@ function routeFromJoin(res) {
     return;
   }
 
-  renderLobby(res.players || []);
+  renderLobby(res.players || [], res.scoreboard || []);
   showScreen('lobby');
 }
 
@@ -372,6 +401,37 @@ chooseTensSecondsBtn.addEventListener('click', () => {
 
 playAgainBtn.addEventListener('click', () => {
   socket.emit('backToLobby', () => {});
+});
+
+endRoundBtn.addEventListener('click', () => {
+  socket.emit('endImposterRound', (res) => {
+    if (res && !res.ok) {
+      // Stay on game screen; host can retry.
+    }
+  });
+});
+
+reportYesBtn.addEventListener('click', () => {
+  reportError.textContent = '';
+  socket.emit('reportEliminated', true, (res) => {
+    if (res && !res.ok) reportError.textContent = res.error;
+  });
+});
+
+reportNoBtn.addEventListener('click', () => {
+  reportError.textContent = '';
+  socket.emit('reportEliminated', false, (res) => {
+    if (res && !res.ok) reportError.textContent = res.error;
+  });
+});
+
+imposterResultsBackBtn.addEventListener('click', () => {
+  socket.emit('backToLobby', () => {});
+});
+
+resetScoreboardBtn.addEventListener('click', () => {
+  if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
+  socket.emit('resetScoreboard', () => {});
 });
 
 levelButtons.forEach((btn) => {
@@ -525,10 +585,10 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, roomCode }) => {
+socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard }) => {
   setHost(host);
   if (roomCode) roomCodeDisplay.textContent = roomCode;
-  renderLobby(players);
+  renderLobby(players, scoreboard);
 });
 
 socket.on('hostUpdate', ({ host }) => {
@@ -563,6 +623,16 @@ socket.on('gameStarted', ({ level }) => {
 socket.on('role', ({ role, word, hint }) => {
   renderGame(pendingLevel, role, word, hint);
   showScreen('game');
+});
+
+socket.on('imposterReporting', (data) => {
+  renderImposterReporting(data);
+  showScreen('imposterReporting');
+});
+
+socket.on('imposterResults', (data) => {
+  renderImposterResults(data);
+  showScreen('imposterResults');
 });
 
 socket.on('startFailed', ({ error }) => {
@@ -606,10 +676,26 @@ socket.on('backToLobby', () => {
   cnTeamError.textContent = '';
   chooseError.textContent = '';
   tsError.textContent = '';
+  reportError.textContent = '';
   showScreen('lobby');
 });
 
-function renderLobby(players) {
+function renderScoreboard(listEl, entries) {
+  listEl.innerHTML = '';
+  (entries || []).forEach(({ name, points }) => {
+    const li = document.createElement('li');
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = name;
+    const ptsSpan = document.createElement('span');
+    ptsSpan.className = 'sb-points' + (points < 0 ? ' negative' : '');
+    ptsSpan.textContent = points > 0 ? `+${points}` : String(points);
+    li.appendChild(nameSpan);
+    li.appendChild(ptsSpan);
+    listEl.appendChild(li);
+  });
+}
+
+function renderLobby(players, scoreboard) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
@@ -627,6 +713,11 @@ function renderLobby(players) {
   } else {
     chooseError.textContent = '';
   }
+
+  const entries = scoreboard || [];
+  scoreboardSection.classList.toggle('hidden', entries.length === 0);
+  renderScoreboard(scoreboardList, entries);
+  resetScoreboardBtn.classList.toggle('hidden', !isHost || entries.length === 0);
 }
 
 function renderVoting() {
@@ -654,6 +745,30 @@ function renderGame(level, role, word, hint) {
   }
 }
 
+function renderImposterReporting(data) {
+  setHost(data.host);
+  reportError.textContent = '';
+  reportCount.textContent = `${data.answered || 0} of ${data.total || 0} answered`;
+  const answered = data.myAnswer !== null && data.myAnswer !== undefined;
+  reportChoices.classList.toggle('hidden', answered);
+  reportWaiting.classList.toggle('hidden', !answered);
+}
+
+function renderImposterResults(data) {
+  setHost(data.host);
+  imposterResultsBody.innerHTML = '';
+  (data.results || []).forEach((row) => {
+    const tr = document.createElement('tr');
+    const ptsClass =
+      row.points > 0 ? 'pts-positive' : row.points < 0 ? 'pts-negative' : '';
+    const ptsText = row.points > 0 ? `+${row.points}` : String(row.points);
+    tr.innerHTML = `<td>${row.name}</td><td>${row.role === 'imposter' ? 'Imposter' : 'Crew'}</td><td>${row.eliminated ? 'Eliminated' : 'Survived'}</td><td class="${ptsClass}">${ptsText}</td>`;
+    imposterResultsBody.appendChild(tr);
+  });
+  renderScoreboard(imposterResultsScoreboard, data.scoreboard || []);
+  imposterResultsBackBtn.classList.toggle('hidden', !isHost);
+  imposterResultsWaiting.classList.toggle('hidden', isHost);
+}
 function renderTeamMembers(el, members) {
   el.innerHTML = '';
   members.forEach((m) => {
@@ -738,6 +853,7 @@ function applyCodenamesState(data) {
     cnWinnerTitle.className = `cn-turn-${data.winner}`;
     cnFinalScore.textContent = `Red ${data.scores.red} — Blue ${data.scores.blue}`;
     renderGrid(cnFinalGrid, data.board, false, null);
+    renderScoreboard(cnScoreboard, data.scoreboard || []);
     cnPlayAgainBtn.classList.toggle('hidden', !isLeader);
     cnPlayAgainWaiting.classList.toggle('hidden', isLeader);
   } else {
@@ -948,6 +1064,7 @@ function applyTensSecondsState(data) {
       if (i === 0) li.classList.add('ts-champion-row');
       tsStandings.appendChild(li);
     });
+    renderScoreboard(tsScoreboard, data.scoreboard || []);
     tsPlayAgainBtn.classList.toggle('hidden', !isHost);
     tsPlayAgainWaiting.classList.toggle('hidden', isHost);
   }

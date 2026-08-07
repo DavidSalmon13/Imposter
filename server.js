@@ -137,11 +137,11 @@ function createRoomState() {
   return {
     game: null, // null | 'imposter' | 'codenames' | 'tenseconds'
     phase: 'lobby',
-    // Imposter phases: 'voting' | 'generating' | 'playing'
+    // Imposter phases: 'voting' | 'generating' | 'playing' | 'reporting' | 'roundResults'
     // Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
     // 10 Seconds phases: 'ready' | 'running' | 'roundResults' | 'gameover'
     hostName: null,
-    players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader }
+    players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
     currentLevel: null,
     lastImposterNames: [],
     usedWords: [],
@@ -161,6 +161,11 @@ function createRoomState() {
     tsRoundResults: {}, // name -> { elapsedMs, distanceMs, dnf }
     tsRoundNumber: 0,
     tsSuddenDeath: false,
+    tsEliminationWaves: [], // each entry = names eliminated together in one resolution step
+    // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
+    scoreboard: {},
+    // Imposter reporting/results (ephemeral for the round being scored)
+    imposterRoundResults: null, // [{ name, role, eliminated, points }]
     backgroundImage: null,
   };
 }
@@ -192,6 +197,7 @@ function clearTsState(room, roomCode) {
   room.tsRoundResults = {};
   room.tsRoundNumber = 0;
   room.tsSuddenDeath = false;
+  room.tsEliminationWaves = [];
 }
 
 // Starts (or restarts) the countdown for the room's current turn. Call this whenever the
@@ -263,6 +269,9 @@ const ROOM_SAVED_FIELDS = [
   'tsRoundResults',
   'tsRoundNumber',
   'tsSuddenDeath',
+  'tsEliminationWaves',
+  'scoreboard',
+  'imposterRoundResults',
   'backgroundImage',
 ];
 
@@ -307,6 +316,18 @@ function loadRoomsFromDisk() {
           room.phase = 'teamSelect';
         }
       }
+      if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
+      if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
+      // After restart everyone is disconnected; default unanswered Imposter reports so
+      // reporting can't hang forever waiting for answers that will never arrive.
+      if (room.game === 'imposter' && room.phase === 'reporting') {
+        for (const name of playersInImposterRound(room)) {
+          const p = room.players.get(name);
+          if (p && (p.eliminatedReport === null || p.eliminatedReport === undefined)) {
+            p.eliminatedReport = true;
+          }
+        }
+      }
       rooms.set(code, room);
       // Live setTimeout handles don't survive a restart. A saved deadline is an absolute
       // timestamp though, so we can just pick back up from it (or expire it immediately
@@ -321,6 +342,18 @@ function loadRoomsFromDisk() {
       }
       if (room.game === 'tenseconds' && room.phase === 'running' && room.tsRoundStartAt) {
         scheduleTsForceStop(code, room);
+      }
+      // If reporting was fully defaulted on restart, resolve it once everyone reconnects —
+      // or immediately if all answers are already filled.
+      if (room.game === 'imposter' && room.phase === 'reporting') {
+        const names = playersInImposterRound(room);
+        const allAnswered =
+          names.length > 0 &&
+          names.every((n) => {
+            const p = room.players.get(n);
+            return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
+          });
+        if (allAnswered) finishImposterReporting(code, room);
       }
     }
     console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
@@ -344,11 +377,24 @@ function connectedNames(room) {
     .map(([name]) => name);
 }
 
+function scoreboardEntries(room) {
+  return Object.entries(room.scoreboard || {})
+    .map(([name, points]) => ({ name, points: Number(points) || 0 }))
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+}
+
+function addScore(room, name, delta) {
+  if (!name || !delta) return;
+  if (!room.scoreboard) room.scoreboard = {};
+  room.scoreboard[name] = (Number(room.scoreboard[name]) || 0) + delta;
+}
+
 function broadcastLobby(roomCode, room) {
   roomEmit(roomCode, 'lobbyUpdate', {
     players: connectedNames(room),
     host: room.hostName,
     roomCode,
+    scoreboard: scoreboardEntries(room),
   });
 }
 
@@ -378,6 +424,8 @@ function resetToLobby(roomCode, room) {
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
   clearTsState(room, roomCode);
+  room.imposterRoundResults = null;
+  for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
 }
@@ -504,8 +552,10 @@ async function finishVoting(roomCode, room) {
       p.word = word;
       p.hint = null;
     }
+    p.eliminatedReport = null;
   }
 
+  room.imposterRoundResults = null;
   room.phase = 'playing';
   roomEmit(roomCode, 'gameStarted', { level });
   for (const [, p] of room.players) {
@@ -520,6 +570,82 @@ function maybeFinishVoting(roomCode, room) {
   if (names.length === 0) return;
   const allVoted = names.every((n) => room.players.get(n).vote);
   if (allVoted) finishVoting(roomCode, room);
+}
+
+function imposterPointsFor(role, eliminated) {
+  if (role === 'imposter') return eliminated ? 0 : 3;
+  return eliminated ? -1 : 1;
+}
+
+function playersInImposterRound(room) {
+  // Everyone who was dealt a role at game start — includes disconnected players still on the roster.
+  return Array.from(room.players.entries())
+    .filter(([, p]) => p.role === 'imposter' || p.role === 'crew')
+    .map(([name]) => name);
+}
+
+function broadcastImposterReporting(roomCode, room) {
+  const names = playersInImposterRound(room);
+  const answered = names.filter((n) => {
+    const p = room.players.get(n);
+    return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
+  }).length;
+  for (const [name, p] of room.players.entries()) {
+    if (!p.connected || !p.socketId) continue;
+    io.to(p.socketId).emit('imposterReporting', {
+      host: room.hostName,
+      total: names.length,
+      answered,
+      myAnswer:
+        p.eliminatedReport === null || p.eliminatedReport === undefined
+          ? null
+          : !!p.eliminatedReport,
+    });
+  }
+}
+
+function broadcastImposterResults(roomCode, room) {
+  roomEmit(roomCode, 'imposterResults', {
+    host: room.hostName,
+    results: room.imposterRoundResults || [],
+    scoreboard: scoreboardEntries(room),
+  });
+}
+
+function finishImposterReporting(roomCode, room) {
+  const names = playersInImposterRound(room);
+  const results = [];
+  for (const name of names) {
+    const p = room.players.get(name);
+    if (!p) continue;
+    // Disconnect before answering defaults to eliminated.
+    const eliminated =
+      p.eliminatedReport === null || p.eliminatedReport === undefined
+        ? true
+        : !!p.eliminatedReport;
+    const points = imposterPointsFor(p.role, eliminated);
+    addScore(room, name, points);
+    results.push({
+      name,
+      role: p.role,
+      eliminated,
+      points,
+    });
+  }
+  room.imposterRoundResults = results;
+  room.phase = 'roundResults';
+  broadcastImposterResults(roomCode, room);
+}
+
+function maybeFinishImposterReporting(roomCode, room) {
+  if (room.game !== 'imposter' || room.phase !== 'reporting') return;
+  const names = playersInImposterRound(room);
+  if (names.length === 0) return;
+  const allAnswered = names.every((n) => {
+    const p = room.players.get(n);
+    return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
+  });
+  if (allAnswered) finishImposterReporting(roomCode, room);
 }
 
 // ---------- Codenames ----------
@@ -639,6 +765,7 @@ function broadcastCodenamesState(roomCode, room) {
       host: room.hostName,
       timerSeconds: room.cnTimerSeconds || 0,
       turnEndsAt: room.cnTurnEndsAt,
+      scoreboard: room.phase === 'gameover' ? scoreboardEntries(room) : undefined,
     });
   }
 }
@@ -659,9 +786,19 @@ function checkTeamWin(room) {
   return null;
 }
 
+function awardCodenamesScores(room) {
+  if (!room.cnWinner) return;
+  for (const [name, p] of room.players.entries()) {
+    if (!p.team) continue;
+    if (p.team === room.cnWinner) addScore(room, name, 2);
+    // Losing team gets 0 — no scoreboard write needed.
+  }
+}
+
 function finishCodenamesGame(roomCode, room) {
   room.phase = 'gameover';
   if (room.cnWinner) room.cnScores[room.cnWinner] += 1;
+  awardCodenamesScores(room);
   clearCnTimerHandle(roomCode);
   room.cnTurnEndsAt = null;
   broadcastCodenamesState(roomCode, room);
@@ -754,6 +891,7 @@ function tensSecondsStatePayload(room, viewerName) {
       room.phase === 'ready' &&
       disconnected.length === 0 &&
       room.tsActivePlayers.length >= TS_MIN_PLAYERS,
+    scoreboard: room.phase === 'gameover' ? scoreboardEntries(room) : undefined,
   };
 }
 
@@ -773,6 +911,7 @@ function initTensSecondsGame(roomCode, room, playerNames) {
   room.tsRoundResults = {};
   room.tsRoundNumber = 0;
   room.tsSuddenDeath = false;
+  room.tsEliminationWaves = [];
   room.phase = 'ready';
   broadcastTensSeconds(roomCode, room);
 }
@@ -903,10 +1042,18 @@ function resolveTsRound(roomCode, room) {
 }
 
 function eliminateTsPlayers(room, names) {
+  const wave = [];
   for (const name of names) {
     if (!room.tsActivePlayers.includes(name)) continue;
     room.tsActivePlayers = room.tsActivePlayers.filter((n) => n !== name);
-    if (!room.tsEliminatedOrder.includes(name)) room.tsEliminatedOrder.push(name);
+    if (!room.tsEliminatedOrder.includes(name)) {
+      room.tsEliminatedOrder.push(name);
+      wave.push(name);
+    }
+  }
+  if (wave.length) {
+    if (!room.tsEliminationWaves) room.tsEliminationWaves = [];
+    room.tsEliminationWaves.push(wave);
   }
 }
 
@@ -917,10 +1064,33 @@ function finishTsRoundResolution(roomCode, room) {
   broadcastTensSeconds(roomCode, room);
 }
 
+function awardTensSecondsScores(room) {
+  const champion = room.tsActivePlayers[0];
+  if (!champion) return;
+
+  addScore(room, champion, 2);
+
+  const waves = room.tsEliminationWaves || [];
+  if (waves.length === 0) return;
+
+  // Only one elimination wave (includes the 2-player case): that group is last place.
+  if (waves.length === 1) {
+    for (const name of waves[0]) addScore(room, name, -1);
+    return;
+  }
+
+  // Last wave = most recently eliminated = second place (+1).
+  for (const name of waves[waves.length - 1]) addScore(room, name, 1);
+  // First wave = earliest eliminated = last place (-1).
+  for (const name of waves[0]) addScore(room, name, -1);
+  // Middle waves get 0.
+}
+
 function continueTsAfterResults(roomCode, room) {
   if (room.tsActivePlayers.length <= 1) {
     room.phase = 'gameover';
     room.tsContenders = [];
+    awardTensSecondsScores(room);
     broadcastTensSeconds(roomCode, room);
     return;
   }
@@ -942,6 +1112,33 @@ function reconnectPayload(room, existing) {
         word: existing.word,
         hint: existing.hint,
         host: room.hostName,
+      };
+    }
+    if (room.phase === 'reporting') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        host: room.hostName,
+        myAnswer:
+          existing.eliminatedReport === null || existing.eliminatedReport === undefined
+            ? null
+            : !!existing.eliminatedReport,
+        total: playersInImposterRound(room).length,
+        answered: playersInImposterRound(room).filter((n) => {
+          const p = room.players.get(n);
+          return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
+        }).length,
+      };
+    }
+    if (room.phase === 'roundResults') {
+      return {
+        ok: true,
+        game: room.game,
+        phase: room.phase,
+        host: room.hostName,
+        results: room.imposterRoundResults || [],
+        scoreboard: scoreboardEntries(room),
       };
     }
     if (room.phase === 'generating') {
@@ -991,6 +1188,7 @@ function reconnectPayload(room, existing) {
         blue: teamPlayersInfo(room, 'blue'),
         timerSeconds: room.cnTimerSeconds || 0,
         turnEndsAt: room.cnTurnEndsAt,
+        scoreboard: room.phase === 'gameover' ? scoreboardEntries(room) : undefined,
       };
     }
   }
@@ -1006,7 +1204,14 @@ function reconnectPayload(room, existing) {
     return { ok: true, ...tensSecondsStatePayload(room, viewerName) };
   }
 
-  return { ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName };
+  return {
+    ok: true,
+    game: null,
+    phase: 'lobby',
+    players: connectedNames(room),
+    host: room.hostName,
+    scoreboard: scoreboardEntries(room),
+  };
 }
 
 function joinExistingRoom(socket, roomCode, name, callback) {
@@ -1025,7 +1230,10 @@ function joinExistingRoom(socket, roomCode, name, callback) {
 
     if (room.phase === 'voting') broadcastVoting(roomCode, room);
     else if (room.phase === 'teamSelect') broadcastTeamSelect(roomCode, room);
-    else if (room.game === 'tenseconds') {
+    else if (room.phase === 'reporting') broadcastImposterReporting(roomCode, room);
+    else if (room.game === 'imposter' && room.phase === 'roundResults') {
+      broadcastImposterResults(roomCode, room);
+    } else if (room.game === 'tenseconds') {
       // Clear a mid-round DNF so a reconnecting player can still submit a live stop.
       if (
         room.phase === 'running' &&
@@ -1060,6 +1268,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     vote: null,
     team: null,
     leader: false,
+    eliminatedReport: null,
   });
   attachToRoom(socket, roomCode, room, name);
   if (!room.hostName) setHost(roomCode, room, name);
@@ -1072,6 +1281,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     host: room.hostName,
     roomCode,
     background: room.backgroundImage,
+    scoreboard: scoreboardEntries(room),
   });
 }
 
@@ -1102,6 +1312,7 @@ io.on('connection', (socket) => {
       vote: null,
       team: null,
       leader: false,
+      eliminatedReport: null,
     });
     attachToRoom(socket, roomCode, room, name);
     setHost(roomCode, room, name);
@@ -1114,6 +1325,7 @@ io.on('connection', (socket) => {
       host: room.hostName,
       roomCode,
       background: room.backgroundImage,
+      scoreboard: scoreboardEntries(room),
     });
   });
 
@@ -1198,6 +1410,72 @@ io.on('connection', (socket) => {
     callback({ ok: true });
     broadcastVoting(roomCode, room);
     maybeFinishVoting(roomCode, room);
+  });
+
+  socket.on('endImposterRound', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'imposter' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Round is not in progress' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can end the round' });
+    }
+
+    for (const p of room.players.values()) p.eliminatedReport = null;
+    room.imposterRoundResults = null;
+    room.phase = 'reporting';
+
+    // Anyone already disconnected defaults to eliminated so the round can't hang.
+    for (const name of playersInImposterRound(room)) {
+      const p = room.players.get(name);
+      if (p && !p.connected) p.eliminatedReport = true;
+    }
+
+    callback({ ok: true });
+    broadcastImposterReporting(roomCode, room);
+    maybeFinishImposterReporting(roomCode, room);
+  });
+
+  socket.on('reportEliminated', (eliminated, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'imposter' || room.phase !== 'reporting') {
+      return callback({ ok: false, error: 'Not reporting right now' });
+    }
+
+    const name = socket.data.name;
+    const p = room.players.get(name);
+    if (!p || (p.role !== 'imposter' && p.role !== 'crew')) {
+      return callback({ ok: false, error: 'Not in this round' });
+    }
+    if (p.eliminatedReport !== null && p.eliminatedReport !== undefined) {
+      return callback({ ok: false, error: 'Already reported' });
+    }
+
+    p.eliminatedReport = !!eliminated;
+    callback({ ok: true });
+    broadcastImposterReporting(roomCode, room);
+    maybeFinishImposterReporting(roomCode, room);
+  });
+
+  socket.on('resetScoreboard', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can reset the scoreboard' });
+    }
+
+    room.scoreboard = {};
+    callback({ ok: true });
+    broadcastLobby(roomCode, room);
   });
 
   // ----- Codenames -----
@@ -1542,6 +1820,13 @@ io.on('connection', (socket) => {
     if (room.phase === 'voting') {
       broadcastVoting(roomCode, room);
       maybeFinishVoting(roomCode, room);
+    } else if (room.phase === 'reporting') {
+      // Disconnect before answering defaults to eliminated.
+      if (p.eliminatedReport === null || p.eliminatedReport === undefined) {
+        p.eliminatedReport = true;
+      }
+      broadcastImposterReporting(roomCode, room);
+      maybeFinishImposterReporting(roomCode, room);
     } else if (room.phase === 'teamSelect') {
       broadcastTeamSelect(roomCode, room);
     } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {

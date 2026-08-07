@@ -35,6 +35,11 @@
       <p id="room-code-display" class="room-code-display"></p>
       <p id="lobby-count" class="muted">0 joined</p>
       <ul id="lobby-list" class="player-list"></ul>
+      <div id="scoreboard-section" class="scoreboard-section hidden">
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="scoreboard-list" class="scoreboard-list"></ol>
+        <button id="reset-scoreboard-btn" class="secondary hidden" type="button">Reset Scoreboard</button>
+      </div>
       <div id="game-choice" class="game-choice hidden">
         <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
         <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
@@ -62,10 +67,38 @@
     <section id="game-screen" class="screen hidden">
       <p id="level-label" class="muted"></p>
       <div id="role-panel" class="role-panel"></div>
-      <button id="play-again-btn" class="secondary hidden">Back to Lobby</button>
-      <p id="play-again-waiting" class="muted hidden">Waiting for the host to return to the lobby&hellip;</p>
+      <div id="imposter-host-actions" class="btn-row">
+        <button id="end-round-btn" class="hidden" type="button">End Round</button>
+        <button id="play-again-btn" class="secondary hidden" type="button">Back to Lobby</button>
+      </div>
+      <p id="play-again-waiting" class="muted hidden">Waiting for the host to end the round or return to the lobby&hellip;</p>
     </section>
 
+    <section id="imposter-reporting-screen" class="screen hidden">
+      <h1>Were you eliminated?</h1>
+      <p class="muted">Report your outcome for scoring.</p>
+      <div id="report-choices" class="btn-row">
+        <button id="report-yes-btn" type="button">Yes</button>
+        <button id="report-no-btn" class="secondary" type="button">No</button>
+      </div>
+      <p id="report-waiting" class="muted hidden">Answer submitted. Waiting for others&hellip;</p>
+      <p id="report-count" class="muted">0 of 0 answered</p>
+      <p id="report-error" class="error"></p>
+    </section>
+
+    <section id="imposter-results-screen" class="screen hidden">
+      <h1>Round Results</h1>
+      <table class="sb-results-table">
+        <thead>
+          <tr><th>Player</th><th>Role</th><th>Outcome</th><th>Pts</th></tr>
+        </thead>
+        <tbody id="imposter-results-body"></tbody>
+      </table>
+      <h2 class="scoreboard-heading">Scoreboard</h2>
+      <ol id="imposter-results-scoreboard" class="scoreboard-list"></ol>
+      <button id="imposter-results-back-btn" class="secondary hidden" type="button">Back to Lobby</button>
+      <p id="imposter-results-waiting" class="muted hidden">Waiting for the host to return to the lobby&hellip;</p>
+    </section>
     <!-- Codenames -->
 
     <section id="team-select-screen" class="screen hidden">
@@ -113,11 +146,12 @@
       <h1 id="cn-winner-title"></h1>
       <p id="cn-final-score" class="muted"></p>
       <div id="cn-final-grid" class="cn-grid"></div>
+      <h2 class="scoreboard-heading">Scoreboard</h2>
+      <ol id="cn-scoreboard" class="scoreboard-list"></ol>
       <button id="cn-play-again-btn" class="hidden">Play Again</button>
       <p id="cn-play-again-waiting" class="muted hidden">Waiting for a team leader to start the next round&hellip;</p>
       <button id="cn-back-btn" class="secondary hidden">Back to Lobby</button>
     </section>
-
     <!-- 10 Seconds -->
 
     <section id="ts-screen" class="screen hidden">
@@ -154,10 +188,11 @@
       <div id="ts-gameover-panel" class="hidden">
         <h2 id="ts-champion" class="ts-champion"></h2>
         <ol id="ts-standings" class="ts-standings"></ol>
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="ts-scoreboard" class="scoreboard-list"></ol>
         <button id="ts-play-again-btn" class="hidden">Play Again</button>
         <p id="ts-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
       </div>
-
       <button id="ts-back-btn" class="secondary hidden">Back to Lobby</button>
       <p id="ts-error" class="error"></p>
     </section>
