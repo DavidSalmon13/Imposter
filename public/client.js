@@ -33,7 +33,6 @@ const joinError = document.getElementById('join-error');
 const roomCodeDisplay = document.getElementById('room-code-display');
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
-const scoreboardSection = document.getElementById('scoreboard-section');
 const scoreboardList = document.getElementById('scoreboard-list');
 const resetScoreboardBtn = document.getElementById('reset-scoreboard-btn');
 const gameChoice = document.getElementById('game-choice');
@@ -714,10 +713,14 @@ function renderLobby(players, scoreboard) {
     chooseError.textContent = '';
   }
 
-  const entries = scoreboard || [];
-  scoreboardSection.classList.toggle('hidden', entries.length === 0);
+  const scoreMap = new Map((scoreboard || []).map((e) => [e.name, e.points]));
+  const names = new Set(players);
+  (scoreboard || []).forEach((e) => names.add(e.name));
+  const entries = Array.from(names)
+    .map((name) => ({ name, points: scoreMap.get(name) || 0 }))
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   renderScoreboard(scoreboardList, entries);
-  resetScoreboardBtn.classList.toggle('hidden', !isHost || entries.length === 0);
+  resetScoreboardBtn.classList.toggle('hidden', !isHost);
 }
 
 function renderVoting() {
