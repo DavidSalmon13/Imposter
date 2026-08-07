@@ -398,6 +398,37 @@ button.secondary:hover:not(:disabled) {
   gap: 0.5rem;
 }
 
+.cn-timer-section {
+  margin-bottom: 0.75rem;
+}
+
+.cn-timer-choices {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cn-timer-btn {
+  flex: 1;
+  padding: 0.6rem 0.4rem;
+  font-size: 0.9rem;
+}
+
+.cn-timer-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.cn-timer-display {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+}
+
+.cn-timer-display.cn-timer-low {
+  color: var(--danger);
+}
+
 .cn-turn {
   margin: 0;
   font-weight: 700;

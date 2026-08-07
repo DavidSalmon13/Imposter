@@ -58,11 +58,14 @@ const cnStartBtn = document.getElementById('cn-start-btn');
 const cnStartWaiting = document.getElementById('cn-start-waiting');
 const cnTeamError = document.getElementById('cn-team-error');
 const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
+const cnTimerBtns = Array.from(document.querySelectorAll('.cn-timer-btn'));
 
 const cnTurnLabel = document.getElementById('cn-turn-label');
 const cnScore = document.getElementById('cn-score');
 const cnGrid = document.getElementById('cn-grid');
 const cnEndTurnBtn = document.getElementById('cn-end-turn-btn');
+const cnTimerDisplay = document.getElementById('cn-timer-display');
+const cnStartTimerBtn = document.getElementById('cn-start-timer-btn');
 
 const cnWinnerTitle = document.getElementById('cn-winner-title');
 const cnFinalScore = document.getElementById('cn-final-score');
@@ -80,6 +83,9 @@ let myVote = null;
 let pendingLevel = null;
 let myTeam = null;
 let isLeader = false;
+let cnTimerSeconds = 0;
+let cnTurnEndsAt = null;
+let cnTimerTickHandle = null;
 
 function capitalize(s) {
   return s ? s[0].toUpperCase() + s.slice(1) : '';
@@ -162,6 +168,33 @@ function resizeImage(file, maxDim, quality) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+function formatCnTimer(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function tickCnTimer() {
+  if (!cnTurnEndsAt) return;
+  const remaining = cnTurnEndsAt - Date.now();
+  cnTimerDisplay.textContent = formatCnTimer(remaining);
+  cnTimerDisplay.classList.toggle('cn-timer-low', remaining <= 10000);
+}
+
+function stopCnTimerTick() {
+  if (cnTimerTickHandle) {
+    clearInterval(cnTimerTickHandle);
+    cnTimerTickHandle = null;
+  }
+}
+
+function startCnTimerTick() {
+  stopCnTimerTick();
+  tickCnTimer();
+  cnTimerTickHandle = setInterval(tickCnTimer, 250);
 }
 
 function showGenerating(game) {
@@ -329,11 +362,25 @@ leaderBlueBtn.addEventListener('click', () => {
   });
 });
 
+cnTimerBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (!isHost) return;
+    const seconds = Number(btn.dataset.seconds);
+    socket.emit('setCnTimer', seconds, (res) => {
+      if (res && !res.ok) cnTeamError.textContent = res.error;
+    });
+  });
+});
+
 cnStartBtn.addEventListener('click', () => {
   cnTeamError.textContent = '';
   socket.emit('startCodenames', (res) => {
     if (!res.ok) cnTeamError.textContent = res.error;
   });
+});
+
+cnStartTimerBtn.addEventListener('click', () => {
+  socket.emit('startCnTurnTimer', () => {});
 });
 
 cnEndTurnBtn.addEventListener('click', () => {
@@ -457,6 +504,9 @@ socket.on('backToLobby', () => {
   pendingLevel = null;
   myTeam = null;
   isLeader = false;
+  cnTimerSeconds = 0;
+  cnTurnEndsAt = null;
+  stopCnTimerTick();
   cnTeamError.textContent = '';
   chooseError.textContent = '';
   showScreen('lobby');
@@ -548,6 +598,12 @@ function renderTeamSelect(data) {
   cnStartWaiting.classList.toggle('hidden', isHost);
 
   cnTeamError.textContent = ready ? '' : 'Each team needs at least 2 players including a leader';
+
+  cnTimerSeconds = data.timerSeconds || 0;
+  cnTimerBtns.forEach((btn) => {
+    btn.classList.toggle('selected', Number(btn.dataset.seconds) === cnTimerSeconds);
+    btn.disabled = !isHost;
+  });
 }
 
 function renderGrid(container, board, interactive, onClick) {
@@ -574,8 +630,13 @@ function applyCodenamesState(data) {
   setHost(data.host);
   myTeam = data.myTeam;
   isLeader = data.isLeader;
+  cnTimerSeconds = data.timerSeconds || 0;
+  cnTurnEndsAt = data.turnEndsAt || null;
 
   if (data.phase === 'gameover') {
+    stopCnTimerTick();
+    cnTimerDisplay.classList.add('hidden');
+    cnStartTimerBtn.classList.add('hidden');
     cnWinnerTitle.textContent = `${capitalize(data.winner)} Wins!`;
     cnWinnerTitle.className = `cn-turn-${data.winner}`;
     cnFinalScore.textContent = `Red ${data.scores.red} — Blue ${data.scores.blue}`;
@@ -590,9 +651,19 @@ function applyCodenamesState(data) {
     cnTurnLabel.className = `cn-turn cn-turn-${data.activeTeam}`;
     cnScore.textContent = `Red ${data.scores.red} — Blue ${data.scores.blue}`;
 
-    const interactive = mine && !isLeader;
+    const waitingToStart = cnTimerSeconds > 0 && !cnTurnEndsAt;
+    const interactive = mine && !isLeader && !waitingToStart;
     renderGrid(cnGrid, data.board, interactive, (i) => socket.emit('guessWord', i, () => {}));
     cnEndTurnBtn.classList.toggle('hidden', !interactive);
+    cnStartTimerBtn.classList.toggle('hidden', !(waitingToStart && mine));
+
+    if (cnTimerSeconds > 0 && cnTurnEndsAt) {
+      cnTimerDisplay.classList.remove('hidden');
+      startCnTimerTick();
+    } else {
+      stopCnTimerTick();
+      cnTimerDisplay.classList.add('hidden');
+    }
   }
 }
 

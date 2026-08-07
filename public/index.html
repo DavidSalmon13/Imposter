@@ -83,6 +83,14 @@
           <button id="leader-blue-btn" class="secondary hidden">Become Leader</button>
         </div>
       </div>
+      <div class="cn-timer-section">
+        <p class="muted">Turn timer</p>
+        <div id="cn-timer-choices" class="cn-timer-choices">
+          <button class="level-btn cn-timer-btn" data-seconds="0">No timer</button>
+          <button class="level-btn cn-timer-btn" data-seconds="60">1 min</button>
+          <button class="level-btn cn-timer-btn" data-seconds="120">2 min</button>
+        </div>
+      </div>
       <button id="cn-start-btn" class="hidden" disabled>Start Game</button>
       <p id="cn-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
       <p id="cn-team-error" class="error"></p>
@@ -92,9 +100,11 @@
     <section id="codenames-screen" class="screen hidden">
       <div class="cn-header">
         <p id="cn-turn-label" class="cn-turn"></p>
+        <p id="cn-timer-display" class="cn-timer-display hidden"></p>
         <p id="cn-score" class="muted"></p>
       </div>
       <div id="cn-grid" class="cn-grid"></div>
+      <button id="cn-start-timer-btn" class="hidden">Start Timer</button>
       <button id="cn-end-turn-btn" class="secondary hidden">End Turn</button>
     </section>
 

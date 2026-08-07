@@ -32,6 +32,7 @@ const CN_START_COUNT = 7;
 const CN_OTHER_COUNT = 6;
 const CN_ASSASSIN_COUNT = 1;
 const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
+const CN_TIMER_OPTIONS = [0, 60, 120]; // seconds; 0 = no timer
 
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
@@ -144,8 +145,39 @@ function createRoomState() {
     cnStartingTeam: null,
     cnWinner: null,
     cnScores: { red: 0, blue: 0 },
+    cnTimerSeconds: null, // null | 60 | 120
+    cnTurnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
     backgroundImage: null,
   };
+}
+
+/** @type {Map<string, NodeJS.Timeout>} */
+const cnTimerHandles = new Map();
+
+function clearCnTimerHandle(roomCode) {
+  const handle = cnTimerHandles.get(roomCode);
+  if (handle) clearTimeout(handle);
+  cnTimerHandles.delete(roomCode);
+}
+
+// Starts (or restarts) the countdown for the room's current turn. Call this whenever the
+// active team changes. If no timer is configured, this just makes sure nothing is running.
+function startCnTimer(roomCode, room) {
+  clearCnTimerHandle(roomCode);
+  if (!room.cnTimerSeconds) {
+    room.cnTurnEndsAt = null;
+    return;
+  }
+  room.cnTurnEndsAt = Date.now() + room.cnTimerSeconds * 1000;
+  cnTimerHandles.set(roomCode, setTimeout(() => cnTimerExpired(roomCode), room.cnTimerSeconds * 1000));
+}
+
+function cnTimerExpired(roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room || room.game !== 'codenames' || room.phase !== 'playing') return;
+  room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+  startCnTimer(roomCode, room); // subsequent turns start automatically
+  broadcastCodenamesState(roomCode, room);
 }
 
 function normalizeRoomCode(code) {
@@ -188,6 +220,8 @@ const ROOM_SAVED_FIELDS = [
   'cnStartingTeam',
   'cnWinner',
   'cnScores',
+  'cnTimerSeconds',
+  'cnTurnEndsAt',
   'backgroundImage',
 ];
 
@@ -233,6 +267,17 @@ function loadRoomsFromDisk() {
         }
       }
       rooms.set(code, room);
+      // Live setTimeout handles don't survive a restart. A saved deadline is an absolute
+      // timestamp though, so we can just pick back up from it (or expire it immediately
+      // if the process was down past the deadline).
+      if (room.game === 'codenames' && room.phase === 'playing' && room.cnTimerSeconds && room.cnTurnEndsAt) {
+        const remaining = room.cnTurnEndsAt - Date.now();
+        if (remaining <= 0) {
+          cnTimerExpired(code);
+        } else {
+          cnTimerHandles.set(code, setTimeout(() => cnTimerExpired(code), remaining));
+        }
+      }
     }
     console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
   } catch (err) {
@@ -285,6 +330,9 @@ function resetToLobby(roomCode, room) {
   room.cnStartingTeam = null;
   room.cnWinner = null;
   room.cnScores = { red: 0, blue: 0 };
+  clearCnTimerHandle(roomCode);
+  room.cnTimerSeconds = null;
+  room.cnTurnEndsAt = null;
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
 }
@@ -445,6 +493,7 @@ function broadcastTeamSelect(roomCode, room) {
     red: teamPlayersInfo(room, 'red'),
     blue: teamPlayersInfo(room, 'blue'),
     unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
+    timerSeconds: room.cnTimerSeconds || 0,
   });
 }
 
@@ -543,12 +592,16 @@ function broadcastCodenamesState(roomCode, room) {
       red: teamPlayersInfo(room, 'red'),
       blue: teamPlayersInfo(room, 'blue'),
       host: room.hostName,
+      timerSeconds: room.cnTimerSeconds || 0,
+      turnEndsAt: room.cnTurnEndsAt,
     });
   }
 }
 
 function failCodenamesRound(roomCode, room, error) {
   room.phase = 'teamSelect';
+  clearCnTimerHandle(roomCode);
+  room.cnTurnEndsAt = null;
   broadcastTeamSelect(roomCode, room);
   roomEmit(roomCode, 'codenamesStartFailed', { error });
 }
@@ -564,6 +617,8 @@ function checkTeamWin(room) {
 function finishCodenamesGame(roomCode, room) {
   room.phase = 'gameover';
   if (room.cnWinner) room.cnScores[room.cnWinner] += 1;
+  clearCnTimerHandle(roomCode);
+  room.cnTurnEndsAt = null;
   broadcastCodenamesState(roomCode, room);
 }
 
@@ -592,6 +647,10 @@ async function generateCodenamesRound(roomCode, room) {
   room.cnActiveTeam = room.cnStartingTeam;
   room.cnWinner = null;
   room.phase = 'playing';
+  // The first turn of a round waits for the active team to press "Start Timer" so
+  // the leader has time to study the board before the clock starts.
+  clearCnTimerHandle(roomCode);
+  room.cnTurnEndsAt = null;
   broadcastCodenamesState(roomCode, room);
 }
 
@@ -649,6 +708,7 @@ function reconnectPayload(room, existing) {
         red: teamPlayersInfo(room, 'red'),
         blue: teamPlayersInfo(room, 'blue'),
         unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
+        timerSeconds: room.cnTimerSeconds || 0,
       };
     }
     if (room.phase === 'generating') {
@@ -668,6 +728,8 @@ function reconnectPayload(room, existing) {
         myTeam: existing.team,
         red: teamPlayersInfo(room, 'red'),
         blue: teamPlayersInfo(room, 'blue'),
+        timerSeconds: room.cnTimerSeconds || 0,
+        turnEndsAt: room.cnTurnEndsAt,
       };
     }
   }
@@ -892,6 +954,25 @@ io.on('connection', (socket) => {
     broadcastTeamSelect(roomCode, room);
   });
 
+  socket.on('setCnTimer', (seconds, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can set the timer' });
+    }
+    const value = Number(seconds);
+    if (!CN_TIMER_OPTIONS.includes(value)) return callback({ ok: false, error: 'Invalid timer option' });
+
+    room.cnTimerSeconds = value || null;
+    callback({ ok: true });
+    broadcastTeamSelect(roomCode, room);
+  });
+
   socket.on('startCodenames', (callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -915,6 +996,28 @@ io.on('connection', (socket) => {
     generateCodenamesRound(roomCode, room);
   });
 
+  socket.on('startCnTurnTimer', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (!room.cnTimerSeconds) return callback({ ok: false, error: 'No timer set for this game' });
+    if (room.cnTurnEndsAt) return callback({ ok: false, error: 'Timer already running' });
+
+    const name = socket.data.name;
+    const p = room.players.get(name);
+    if (!p || p.team !== room.cnActiveTeam) {
+      return callback({ ok: false, error: "Only the active team can start the timer" });
+    }
+
+    startCnTimer(roomCode, room);
+    callback({ ok: true });
+    broadcastCodenamesState(roomCode, room);
+  });
+
   socket.on('guessWord', (index, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -922,6 +1025,9 @@ io.on('connection', (socket) => {
     if (!room) return callback({ ok: false, error: 'Not in a room' });
     if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (room.cnTimerSeconds && !room.cnTurnEndsAt) {
+      return callback({ ok: false, error: 'Waiting for the timer to start' });
     }
 
     const name = socket.data.name;
@@ -946,6 +1052,7 @@ io.on('connection', (socket) => {
 
     if (cell.color !== room.cnActiveTeam) {
       room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+      startCnTimer(roomCode, room);
     }
 
     const winner = checkTeamWin(room);
@@ -965,6 +1072,9 @@ io.on('connection', (socket) => {
     if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
+    if (room.cnTimerSeconds && !room.cnTurnEndsAt) {
+      return callback({ ok: false, error: 'Waiting for the timer to start' });
+    }
 
     const name = socket.data.name;
     const p = room.players.get(name);
@@ -974,6 +1084,7 @@ io.on('connection', (socket) => {
     }
 
     room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+    startCnTimer(roomCode, room);
     callback({ ok: true });
     broadcastCodenamesState(roomCode, room);
   });
