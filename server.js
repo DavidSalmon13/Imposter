@@ -34,6 +34,11 @@ const CN_ASSASSIN_COUNT = 1;
 const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
 const CN_TIMER_OPTIONS = [0, 60, 120]; // seconds; 0 = no timer
 
+const TS_MIN_PLAYERS = 2;
+const TS_TARGET_MS = 10000;
+const TS_COUNTDOWN_MS = 3000;
+const TS_FORCE_STOP_MS = 30000; // 3x target — distracted players get a real (non-DNF) result
+
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
 
@@ -130,10 +135,11 @@ const rooms = new Map();
 
 function createRoomState() {
   return {
-    game: null, // null | 'imposter' | 'codenames'
+    game: null, // null | 'imposter' | 'codenames' | 'tenseconds'
     phase: 'lobby',
     // Imposter phases: 'voting' | 'generating' | 'playing'
     // Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
+    // 10 Seconds phases: 'ready' | 'running' | 'roundResults' | 'gameover'
     hostName: null,
     players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader }
     currentLevel: null,
@@ -147,6 +153,14 @@ function createRoomState() {
     cnScores: { red: 0, blue: 0 },
     cnTimerSeconds: null, // null | 60 | 120
     cnTurnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
+    // 10 Seconds
+    tsActivePlayers: [], // names still in the bracket
+    tsContenders: [], // names racing the current round (subset during sudden death)
+    tsEliminatedOrder: [], // elimination order (reversed for final standings)
+    tsRoundStartAt: null, // epoch ms when stopwatches start (after 3s countdown)
+    tsRoundResults: {}, // name -> { elapsedMs, distanceMs, dnf }
+    tsRoundNumber: 0,
+    tsSuddenDeath: false,
     backgroundImage: null,
   };
 }
@@ -154,10 +168,30 @@ function createRoomState() {
 /** @type {Map<string, NodeJS.Timeout>} */
 const cnTimerHandles = new Map();
 
+/** @type {Map<string, NodeJS.Timeout>} */
+const tsForceStopHandles = new Map();
+
 function clearCnTimerHandle(roomCode) {
   const handle = cnTimerHandles.get(roomCode);
   if (handle) clearTimeout(handle);
   cnTimerHandles.delete(roomCode);
+}
+
+function clearTsForceStopHandle(roomCode) {
+  const handle = tsForceStopHandles.get(roomCode);
+  if (handle) clearTimeout(handle);
+  tsForceStopHandles.delete(roomCode);
+}
+
+function clearTsState(room, roomCode) {
+  clearTsForceStopHandle(roomCode);
+  room.tsActivePlayers = [];
+  room.tsContenders = [];
+  room.tsEliminatedOrder = [];
+  room.tsRoundStartAt = null;
+  room.tsRoundResults = {};
+  room.tsRoundNumber = 0;
+  room.tsSuddenDeath = false;
 }
 
 // Starts (or restarts) the countdown for the room's current turn. Call this whenever the
@@ -222,6 +256,13 @@ const ROOM_SAVED_FIELDS = [
   'cnScores',
   'cnTimerSeconds',
   'cnTurnEndsAt',
+  'tsActivePlayers',
+  'tsContenders',
+  'tsEliminatedOrder',
+  'tsRoundStartAt',
+  'tsRoundResults',
+  'tsRoundNumber',
+  'tsSuddenDeath',
   'backgroundImage',
 ];
 
@@ -278,6 +319,9 @@ function loadRoomsFromDisk() {
           cnTimerHandles.set(code, setTimeout(() => cnTimerExpired(code), remaining));
         }
       }
+      if (room.game === 'tenseconds' && room.phase === 'running' && room.tsRoundStartAt) {
+        scheduleTsForceStop(code, room);
+      }
     }
     console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
   } catch (err) {
@@ -333,6 +377,7 @@ function resetToLobby(roomCode, room) {
   clearCnTimerHandle(roomCode);
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
+  clearTsState(room, roomCode);
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
 }
@@ -669,6 +714,222 @@ function attachToRoom(socket, roomCode, room, name) {
   socket.data.name = name;
 }
 
+// ---------- 10 Seconds ----------
+
+function tsDisconnectedActive(room) {
+  return room.tsActivePlayers.filter((n) => {
+    const p = room.players.get(n);
+    return !p || !p.connected;
+  });
+}
+
+function tensSecondsStatePayload(room, viewerName) {
+  const eliminated = room.tsEliminatedOrder.includes(viewerName);
+  const isContender = room.tsContenders.includes(viewerName);
+  const myResult = room.tsRoundResults[viewerName] || null;
+  const disconnected = tsDisconnectedActive(room);
+
+  const standings =
+    room.phase === 'gameover'
+      ? [...room.tsActivePlayers, ...[...room.tsEliminatedOrder].reverse()]
+      : null;
+
+  return {
+    game: 'tenseconds',
+    phase: room.phase,
+    host: room.hostName,
+    roundNumber: room.tsRoundNumber,
+    suddenDeath: room.tsSuddenDeath,
+    activePlayers: room.tsActivePlayers.slice(),
+    contenders: room.tsContenders.slice(),
+    eliminatedOrder: room.tsEliminatedOrder.slice(),
+    roundStartAt: room.tsRoundStartAt,
+    results: room.tsRoundResults,
+    standings,
+    eliminated,
+    isContender,
+    myResult,
+    waitingOn: disconnected,
+    canStart:
+      room.phase === 'ready' &&
+      disconnected.length === 0 &&
+      room.tsActivePlayers.length >= TS_MIN_PLAYERS,
+  };
+}
+
+function broadcastTensSeconds(roomCode, room) {
+  for (const [name, p] of room.players.entries()) {
+    if (!p.connected || !p.socketId) continue;
+    io.to(p.socketId).emit('tensSecondsState', tensSecondsStatePayload(room, name));
+  }
+}
+
+function initTensSecondsGame(roomCode, room, playerNames) {
+  clearTsForceStopHandle(roomCode);
+  room.tsActivePlayers = (playerNames || connectedNames(room)).slice();
+  room.tsContenders = [];
+  room.tsEliminatedOrder = [];
+  room.tsRoundStartAt = null;
+  room.tsRoundResults = {};
+  room.tsRoundNumber = 0;
+  room.tsSuddenDeath = false;
+  room.phase = 'ready';
+  broadcastTensSeconds(roomCode, room);
+}
+
+function startTensSecondsRound(roomCode, room, { suddenDeath = false, contenders = null } = {}) {
+  const racers = contenders || room.tsActivePlayers.slice();
+  if (racers.length < 1) return;
+
+  clearTsForceStopHandle(roomCode);
+  room.tsSuddenDeath = suddenDeath;
+  if (!suddenDeath) room.tsRoundNumber += 1;
+  room.tsContenders = racers.slice();
+  room.tsRoundResults = {};
+  room.tsRoundStartAt = Date.now() + TS_COUNTDOWN_MS;
+  room.phase = 'running';
+  scheduleTsForceStop(roomCode, room);
+  broadcastTensSeconds(roomCode, room);
+}
+
+function scheduleTsForceStop(roomCode, room) {
+  clearTsForceStopHandle(roomCode);
+  if (!room.tsRoundStartAt) return;
+  const delay = room.tsRoundStartAt + TS_FORCE_STOP_MS - Date.now();
+  if (delay <= 0) {
+    applyTsForceStops(roomCode);
+    return;
+  }
+  tsForceStopHandles.set(
+    roomCode,
+    setTimeout(() => applyTsForceStops(roomCode), delay)
+  );
+}
+
+function applyTsForceStops(roomCode) {
+  const room = rooms.get(roomCode);
+  if (!room || room.game !== 'tenseconds' || room.phase !== 'running') return;
+
+  let changed = false;
+  for (const name of room.tsContenders) {
+    if (room.tsRoundResults[name]) continue;
+    room.tsRoundResults[name] = {
+      elapsedMs: TS_FORCE_STOP_MS,
+      distanceMs: Math.abs(TS_FORCE_STOP_MS - TS_TARGET_MS),
+      dnf: false,
+    };
+    changed = true;
+  }
+  if (changed) maybeResolveTsRound(roomCode, room);
+}
+
+function assignTsDnf(room, name) {
+  if (!room.tsContenders.includes(name)) return false;
+  if (room.tsRoundResults[name] && !room.tsRoundResults[name].dnf) return false;
+  room.tsRoundResults[name] = { elapsedMs: null, distanceMs: Number.POSITIVE_INFINITY, dnf: true };
+  return true;
+}
+
+function submitTsStop(room, name, elapsedMs) {
+  if (!room.tsContenders.includes(name)) return { ok: false, error: 'Not racing this round' };
+  if (room.tsRoundResults[name] && !room.tsRoundResults[name].dnf) {
+    return { ok: false, error: 'Already stopped' };
+  }
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    return { ok: false, error: 'Invalid time' };
+  }
+  const clamped = Math.min(elapsedMs, TS_FORCE_STOP_MS * 2);
+  room.tsRoundResults[name] = {
+    elapsedMs: clamped,
+    distanceMs: Math.abs(clamped - TS_TARGET_MS),
+    dnf: false,
+  };
+  return { ok: true };
+}
+
+function allTsContendersIn(room) {
+  return room.tsContenders.every((n) => !!room.tsRoundResults[n]);
+}
+
+function maybeResolveTsRound(roomCode, room) {
+  if (!allTsContendersIn(room)) return;
+  clearTsForceStopHandle(roomCode);
+  resolveTsRound(roomCode, room);
+}
+
+function resolveTsRound(roomCode, room) {
+  const contenders = room.tsContenders.slice();
+  const dnfNames = contenders.filter((n) => room.tsRoundResults[n] && room.tsRoundResults[n].dnf);
+  const finished = contenders.filter((n) => room.tsRoundResults[n] && !room.tsRoundResults[n].dnf);
+
+  // All remaining racers DNF → void the round, retry from ready with same active set.
+  if (dnfNames.length === contenders.length) {
+    room.tsSuddenDeath = false;
+    room.tsContenders = [];
+    room.tsRoundStartAt = null;
+    room.tsRoundResults = {};
+    room.phase = 'ready';
+    broadcastTensSeconds(roomCode, room);
+    return;
+  }
+
+  // Multiple DNFs: eliminate all of them together (exception to one-elimination rule).
+  if (dnfNames.length >= 2) {
+    eliminateTsPlayers(room, dnfNames);
+    finishTsRoundResolution(roomCode, room);
+    return;
+  }
+
+  if (dnfNames.length === 1) {
+    eliminateTsPlayers(room, dnfNames);
+    finishTsRoundResolution(roomCode, room);
+    return;
+  }
+
+  let worstDistance = -1;
+  for (const name of finished) {
+    const d = room.tsRoundResults[name].distanceMs;
+    if (d > worstDistance) worstDistance = d;
+  }
+  const worst = finished.filter((n) => room.tsRoundResults[n].distanceMs === worstDistance);
+
+  if (worst.length >= 2) {
+    startTensSecondsRound(roomCode, room, { suddenDeath: true, contenders: worst });
+    return;
+  }
+
+  eliminateTsPlayers(room, worst);
+  finishTsRoundResolution(roomCode, room);
+}
+
+function eliminateTsPlayers(room, names) {
+  for (const name of names) {
+    if (!room.tsActivePlayers.includes(name)) continue;
+    room.tsActivePlayers = room.tsActivePlayers.filter((n) => n !== name);
+    if (!room.tsEliminatedOrder.includes(name)) room.tsEliminatedOrder.push(name);
+  }
+}
+
+function finishTsRoundResolution(roomCode, room) {
+  room.tsSuddenDeath = false;
+  room.tsRoundStartAt = null;
+  room.phase = 'roundResults';
+  broadcastTensSeconds(roomCode, room);
+}
+
+function continueTsAfterResults(roomCode, room) {
+  if (room.tsActivePlayers.length <= 1) {
+    room.phase = 'gameover';
+    room.tsContenders = [];
+    broadcastTensSeconds(roomCode, room);
+    return;
+  }
+  room.phase = 'ready';
+  room.tsContenders = [];
+  room.tsRoundResults = {};
+  broadcastTensSeconds(roomCode, room);
+}
+
 function reconnectPayload(room, existing) {
   if (room.game === 'imposter') {
     if (room.phase === 'playing') {
@@ -734,6 +995,17 @@ function reconnectPayload(room, existing) {
     }
   }
 
+  if (room.game === 'tenseconds') {
+    let viewerName = null;
+    for (const [n, p] of room.players.entries()) {
+      if (p === existing) {
+        viewerName = n;
+        break;
+      }
+    }
+    return { ok: true, ...tensSecondsStatePayload(room, viewerName) };
+  }
+
   return { ok: true, game: null, phase: 'lobby', players: connectedNames(room), host: room.hostName };
 }
 
@@ -753,7 +1025,18 @@ function joinExistingRoom(socket, roomCode, name, callback) {
 
     if (room.phase === 'voting') broadcastVoting(roomCode, room);
     else if (room.phase === 'teamSelect') broadcastTeamSelect(roomCode, room);
-    else if (room.phase === 'lobby') {
+    else if (room.game === 'tenseconds') {
+      // Clear a mid-round DNF so a reconnecting player can still submit a live stop.
+      if (
+        room.phase === 'running' &&
+        room.tsContenders.includes(name) &&
+        room.tsRoundResults[name] &&
+        room.tsRoundResults[name].dnf
+      ) {
+        delete room.tsRoundResults[name];
+      }
+      broadcastTensSeconds(roomCode, room);
+    } else if (room.phase === 'lobby') {
       if (!room.hostName) setHost(roomCode, room, name);
       broadcastLobby(roomCode, room);
     }
@@ -857,7 +1140,7 @@ io.on('connection', (socket) => {
     if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can choose the game' });
     }
-    if (selectedGame !== 'imposter' && selectedGame !== 'codenames') {
+    if (selectedGame !== 'imposter' && selectedGame !== 'codenames' && selectedGame !== 'tenseconds') {
       return callback({ ok: false, error: 'Invalid game' });
     }
 
@@ -872,6 +1155,16 @@ io.on('connection', (socket) => {
       room.phase = 'voting';
       roomEmit(roomCode, 'gameChosen', { game: room.game });
       roomEmit(roomCode, 'votingStarted', { players: connectedNames(room), host: room.hostName });
+      return callback({ ok: true });
+    }
+
+    if (selectedGame === 'tenseconds') {
+      if (names.length < TS_MIN_PLAYERS) {
+        return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
+      }
+      room.game = 'tenseconds';
+      roomEmit(roomCode, 'gameChosen', { game: room.game });
+      initTensSecondsGame(roomCode, room);
       return callback({ ok: true });
     }
 
@@ -1109,6 +1402,87 @@ io.on('connection', (socket) => {
     generateCodenamesRound(roomCode, room);
   });
 
+  // ----- 10 Seconds -----
+
+  socket.on('startTensSeconds', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'tenseconds' || room.phase !== 'ready') {
+      return callback({ ok: false, error: 'Not ready to start' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can start the round' });
+    }
+    if (room.tsActivePlayers.length < TS_MIN_PLAYERS) {
+      return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
+    }
+    const waiting = tsDisconnectedActive(room);
+    if (waiting.length > 0) {
+      return callback({ ok: false, error: `Waiting for ${waiting.join(', ')} to reconnect` });
+    }
+
+    callback({ ok: true });
+    startTensSecondsRound(roomCode, room);
+  });
+
+  socket.on('tsStop', (elapsedMs, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'tenseconds' || room.phase !== 'running') {
+      return callback({ ok: false, error: 'Round is not running' });
+    }
+    if (!room.tsRoundStartAt || Date.now() < room.tsRoundStartAt) {
+      return callback({ ok: false, error: 'Countdown still in progress' });
+    }
+
+    const name = socket.data.name;
+    const result = submitTsStop(room, name, Number(elapsedMs));
+    if (!result.ok) return callback(result);
+
+    callback({ ok: true });
+    broadcastTensSeconds(roomCode, room);
+    maybeResolveTsRound(roomCode, room);
+  });
+
+  socket.on('tsContinue', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'tenseconds' || room.phase !== 'roundResults') {
+      return callback({ ok: false, error: 'No results to continue from' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can continue' });
+    }
+
+    callback({ ok: true });
+    continueTsAfterResults(roomCode, room);
+  });
+
+  socket.on('playAgainTensSeconds', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'tenseconds' || room.phase !== 'gameover') {
+      return callback({ ok: false, error: 'Game is not over yet' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can play again' });
+    }
+    if (connectedNames(room).length < TS_MIN_PLAYERS) {
+      return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
+    }
+
+    callback({ ok: true });
+    initTensSecondsGame(roomCode, room, Array.from(room.players.keys()));
+  });
+
   // ----- Shared -----
 
   socket.on('backToLobby', (callback) => {
@@ -1172,6 +1546,18 @@ io.on('connection', (socket) => {
       broadcastTeamSelect(roomCode, room);
     } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
       broadcastCodenamesState(roomCode, room);
+    } else if (room.game === 'tenseconds') {
+      if (
+        room.phase === 'running' &&
+        room.tsContenders.includes(name) &&
+        !room.tsRoundResults[name]
+      ) {
+        assignTsDnf(room, name);
+        broadcastTensSeconds(roomCode, room);
+        maybeResolveTsRound(roomCode, room);
+      } else {
+        broadcastTensSeconds(roomCode, room);
+      }
     }
   });
 });

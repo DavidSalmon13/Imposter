@@ -560,6 +560,137 @@ button.secondary:hover:not(:disabled) {
   content: "\1F480 ";
 }
 
+/* ---------- 10 Seconds ---------- */
+
+.ts-badge {
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 107, 120, 0.18);
+  border: 1px solid rgba(255, 107, 120, 0.45);
+  color: #ffb4bb;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.ts-countdown {
+  margin: 1.5rem 0;
+  font-size: 5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1;
+  animation: ts-pulse 0.45s var(--ease);
+}
+
+.ts-countdown.ts-go {
+  color: var(--success);
+  font-size: 4.2rem;
+}
+
+.ts-stopwatch {
+  margin: 1.25rem 0 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 3.4rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ts-stop-btn {
+  width: 100%;
+  min-height: 72px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  background: linear-gradient(135deg, #ff6b78 0%, #ff8f5b 100%);
+  color: #1a0a0c;
+  border: none;
+  box-shadow: 0 8px 28px rgba(255, 107, 120, 0.35);
+}
+
+.ts-stop-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.ts-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-results-table th,
+.ts-results-table td {
+  text-align: left;
+  padding: 0.55rem 0.4rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.ts-results-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ts-eliminated-row {
+  color: var(--danger);
+  background: rgba(255, 107, 120, 0.08);
+}
+
+.ts-eliminated-row td {
+  font-weight: 600;
+}
+
+.ts-champion {
+  margin: 0.5rem 0 1rem;
+  text-align: center;
+  color: var(--success);
+  font-size: 1.35rem;
+}
+
+.ts-standings {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ts-standings li {
+  background: rgba(8, 9, 15, 0.68);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+}
+
+.ts-standings li.ts-champion-row {
+  border-color: rgba(63, 215, 154, 0.55);
+  background: rgba(63, 215, 154, 0.12);
+  font-weight: 700;
+}
+
+.player-list li.ts-disconnected {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+@keyframes ts-pulse {
+  from {
+    transform: scale(0.82);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

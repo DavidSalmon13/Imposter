@@ -38,6 +38,7 @@
       <div id="game-choice" class="game-choice hidden">
         <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
         <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
+        <button id="choose-tenseconds-btn" class="secondary">⏱️ Play 10 Seconds</button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
@@ -115,6 +116,50 @@
       <button id="cn-play-again-btn" class="hidden">Play Again</button>
       <p id="cn-play-again-waiting" class="muted hidden">Waiting for a team leader to start the next round&hellip;</p>
       <button id="cn-back-btn" class="secondary hidden">Back to Lobby</button>
+    </section>
+
+    <!-- 10 Seconds -->
+
+    <section id="ts-screen" class="screen hidden">
+      <p id="ts-badge" class="ts-badge hidden">You&apos;re eliminated — spectating</p>
+      <h1 id="ts-title">10 Seconds</h1>
+      <p id="ts-subtitle" class="muted"></p>
+
+      <div id="ts-ready-panel" class="hidden">
+        <ul id="ts-player-list" class="player-list"></ul>
+        <button id="ts-start-btn" class="hidden" disabled>Start</button>
+        <p id="ts-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+        <p id="ts-ready-error" class="error"></p>
+      </div>
+
+      <div id="ts-running-panel" class="hidden">
+        <p id="ts-countdown" class="ts-countdown hidden"></p>
+        <p id="ts-stopwatch" class="ts-stopwatch hidden">0.000</p>
+        <button id="ts-stop-btn" class="ts-stop-btn hidden" disabled>STOP</button>
+        <p id="ts-waiting-stops" class="muted hidden">Waiting for others&hellip;</p>
+        <p id="ts-spectate-hint" class="muted hidden">Spectating this round</p>
+      </div>
+
+      <div id="ts-results-panel" class="hidden">
+        <table id="ts-results-table" class="ts-results-table">
+          <thead>
+            <tr><th>Player</th><th>Time</th><th>Off by</th></tr>
+          </thead>
+          <tbody id="ts-results-body"></tbody>
+        </table>
+        <button id="ts-continue-btn" class="hidden">Continue</button>
+        <p id="ts-continue-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <div id="ts-gameover-panel" class="hidden">
+        <h2 id="ts-champion" class="ts-champion"></h2>
+        <ol id="ts-standings" class="ts-standings"></ol>
+        <button id="ts-play-again-btn" class="hidden">Play Again</button>
+        <p id="ts-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <button id="ts-back-btn" class="secondary hidden">Back to Lobby</button>
+      <p id="ts-error" class="error"></p>
     </section>
 
     <!-- Shared -->
