@@ -285,7 +285,7 @@ add one).
   `loadRoomsFromDisk`. Keep `ROOM_SAVED_FIELDS` as a plain hardcoded array for
   now (see §6, point 1). Verify: restart the server mid-game for each of the 4
   games and confirm state survives, same as today.
-- [ ] **Step 5 — Extract `server/lobby.js`.** Move join/create/scoreboard/
+- [x] **Step 5 — Extract `server/lobby.js`.** Move join/create/scoreboard/
   background upload/`backToLobby`/`disconnect` shell/`reconnectPayload` shell.
   `server.js` should now be just bootstrap + requires + the four games' logic
   still inline. Verify: full lobby flow (create, join, name conflicts),

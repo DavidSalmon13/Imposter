@@ -7,17 +7,12 @@ const fs = require('fs');
 const { Server } = require('socket.io');
 const { buildDeck, rankBoard } = require('./menifot-eval');
 const { shuffle } = require('./server/lib/shuffle');
-const { validateName } = require('./server/lib/validateName');
 const { chatCompletionJson } = require('./server/lib/openai');
 const {
   rooms,
   initRoomStore,
-  createRoomState,
-  normalizeRoomCode,
-  generateRoomCode,
   getRoom,
   roomEmit,
-  ROOM_CODE_LENGTH,
 } = require('./server/roomStore');
 const {
   DATA_DIR,
@@ -25,6 +20,14 @@ const {
   saveRoomsToDisk,
   loadRoomsFromDisk,
 } = require('./server/persistence');
+const {
+  initLobby,
+  connectedNames,
+  scoreboardEntries,
+  addScore,
+  registerBackgroundRoutes,
+  registerLobbyHandlers,
+} = require('./server/lobby');
 
 const app = express();
 const server = http.createServer(app);
@@ -67,38 +70,7 @@ const BACKGROUNDS_DIR = path.join(DATA_DIR, 'backgrounds');
 
 fs.mkdirSync(BACKGROUNDS_DIR, { recursive: true });
 app.use('/backgrounds', express.static(BACKGROUNDS_DIR));
-
-app.post('/api/rooms/:roomCode/background', express.raw({ type: 'image/*', limit: '8mb' }), (req, res) => {
-  const roomCode = normalizeRoomCode(req.params.roomCode);
-  const room = rooms.get(roomCode);
-  if (!room) return res.status(404).json({ ok: false, error: 'Room not found' });
-
-  const name = String(req.query.name || '').trim();
-  if (!room.players.has(name)) {
-    return res.status(403).json({ ok: false, error: 'Not a player in this room' });
-  }
-
-  const ext = BACKGROUND_MIME_EXT[req.headers['content-type']];
-  if (!ext) return res.status(400).json({ ok: false, error: 'Unsupported image type' });
-  if (!req.body || !req.body.length) return res.status(400).json({ ok: false, error: 'Empty upload' });
-
-  if (room.backgroundImage) {
-    fs.unlink(path.join(BACKGROUNDS_DIR, path.basename(room.backgroundImage)), () => {});
-  }
-
-  const filename = `${roomCode}-${Date.now()}.${ext}`;
-  fs.writeFileSync(path.join(BACKGROUNDS_DIR, filename), req.body);
-  room.backgroundImage = `/backgrounds/${filename}`;
-  roomEmit(roomCode, 'backgroundChanged', { background: room.backgroundImage });
-  saveRoomsToDisk();
-  res.json({ ok: true, background: room.backgroundImage });
-});
-
-app.use((err, req, res, next) => {
-  if (!err) return next();
-  console.error('Upload error:', err.message);
-  res.status(400).json({ ok: false, error: 'Upload failed - try a smaller image' });
-});
+registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT });
 
 const LEVEL_SPEC = {
   easy: {
@@ -208,66 +180,6 @@ function cnTimerExpired(roomCode) {
   room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
   startCnTimer(roomCode, room); // subsequent turns start automatically
   broadcastCodenamesState(roomCode, room);
-}
-
-function connectedNames(room) {
-  return Array.from(room.players.entries())
-    .filter(([, p]) => p.connected)
-    .map(([name]) => name);
-}
-
-function scoreboardEntries(room) {
-  return Object.entries(room.scoreboard || {})
-    .map(([name, points]) => ({ name, points: Number(points) || 0 }))
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
-}
-
-function addScore(room, name, delta) {
-  if (!name || !delta) return;
-  if (!room.scoreboard) room.scoreboard = {};
-  room.scoreboard[name] = (Number(room.scoreboard[name]) || 0) + delta;
-}
-
-function broadcastLobby(roomCode, room) {
-  roomEmit(roomCode, 'lobbyUpdate', {
-    players: connectedNames(room),
-    host: room.hostName,
-    roomCode,
-    scoreboard: scoreboardEntries(room),
-  });
-}
-
-function setHost(roomCode, room, name) {
-  room.hostName = name;
-  roomEmit(roomCode, 'hostUpdate', { host: room.hostName });
-}
-
-function resetToLobby(roomCode, room) {
-  for (const p of room.players.values()) {
-    p.vote = null;
-    p.role = null;
-    p.word = null;
-    p.hint = null;
-    p.team = null;
-    p.leader = false;
-  }
-  room.game = null;
-  room.phase = 'lobby';
-  room.currentLevel = null;
-  room.cnBoard = null;
-  room.cnActiveTeam = null;
-  room.cnStartingTeam = null;
-  room.cnWinner = null;
-  room.cnScores = { red: 0, blue: 0 };
-  clearCnTimerHandle(roomCode);
-  room.cnTimerSeconds = null;
-  room.cnTurnEndsAt = null;
-  clearTsState(room, roomCode);
-  clearMfState(room);
-  room.imposterRoundResults = null;
-  for (const p of room.players.values()) p.eliminatedReport = null;
-  roomEmit(roomCode, 'backToLobby');
-  broadcastLobby(roomCode, room);
 }
 
 // ---------- Imposter ----------
@@ -626,15 +538,6 @@ async function generateCodenamesRound(roomCode, room) {
   clearCnTimerHandle(roomCode);
   room.cnTurnEndsAt = null;
   broadcastCodenamesState(roomCode, room);
-}
-
-function attachToRoom(socket, roomCode, room, name) {
-  if (socket.data.roomCode && socket.data.roomCode !== roomCode) {
-    socket.leave(socket.data.roomCode);
-  }
-  socket.join(roomCode);
-  socket.data.roomCode = roomCode;
-  socket.data.name = name;
 }
 
 // ---------- 10 Seconds ----------
@@ -1258,321 +1161,42 @@ function awardMenifotScoreboard(room) {
   }
 }
 
-function reconnectPayload(room, existing) {
-  if (room.game === 'imposter') {
-    if (room.phase === 'playing') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        level: room.currentLevel,
-        role: existing.role,
-        word: existing.word,
-        hint: existing.hint,
-        host: room.hostName,
-      };
-    }
-    if (room.phase === 'reporting') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        myAnswer:
-          existing.eliminatedReport === null || existing.eliminatedReport === undefined
-            ? null
-            : !!existing.eliminatedReport,
-        total: playersInImposterRound(room).length,
-        answered: playersInImposterRound(room).filter((n) => {
-          const p = room.players.get(n);
-          return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
-        }).length,
-      };
-    }
-    if (room.phase === 'roundResults') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        results: room.imposterRoundResults || [],
-        scoreboard: scoreboardEntries(room),
-      };
-    }
-    if (room.phase === 'generating') {
-      return { ok: true, game: room.game, phase: room.phase, level: room.currentLevel, host: room.hostName };
-    }
-    if (room.phase === 'voting') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        players: connectedNames(room),
-        vote: existing.vote,
-        host: room.hostName,
-      };
-    }
-  }
 
-  if (room.game === 'codenames') {
-    if (room.phase === 'teamSelect') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        red: teamPlayersInfo(room, 'red'),
-        blue: teamPlayersInfo(room, 'blue'),
-        unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
-        timerSeconds: room.cnTimerSeconds || 0,
-      };
-    }
-    if (room.phase === 'generating') {
-      return { ok: true, game: room.game, phase: room.phase, host: room.hostName };
-    }
-    if (room.phase === 'playing' || room.phase === 'gameover') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        activeTeam: room.cnActiveTeam,
-        winner: room.cnWinner,
-        scores: room.cnScores,
-        board: boardForViewer(room, existing),
-        isLeader: existing.leader,
-        myTeam: existing.team,
-        red: teamPlayersInfo(room, 'red'),
-        blue: teamPlayersInfo(room, 'blue'),
-        timerSeconds: room.cnTimerSeconds || 0,
-        turnEndsAt: room.cnTurnEndsAt,
-        scoreboard: room.phase === 'gameover' ? scoreboardEntries(room) : undefined,
-      };
-    }
-  }
-
-  if (room.game === 'tenseconds') {
-    let viewerName = null;
-    for (const [n, p] of room.players.entries()) {
-      if (p === existing) {
-        viewerName = n;
-        break;
-      }
-    }
-    return { ok: true, ...tensSecondsStatePayload(room, viewerName) };
-  }
-
-  if (room.game === 'menifot') {
-    let viewerName = null;
-    for (const [n, p] of room.players.entries()) {
-      if (p === existing) {
-        viewerName = n;
-        break;
-      }
-    }
-    return { ok: true, ...menifotStatePayload(room, viewerName) };
-  }
-
-  return {
-    ok: true,
-    game: null,
-    phase: 'lobby',
-    players: connectedNames(room),
-    host: room.hostName,
-    scoreboard: scoreboardEntries(room),
-  };
-}
-
-function joinExistingRoom(socket, roomCode, name, callback) {
-  const room = rooms.get(roomCode);
-  if (!room) return callback({ ok: false, error: 'Room not found' });
-
-  const existing = room.players.get(name);
-
-  if (existing) {
-    if (existing.connected) {
-      return callback({ ok: false, error: 'That name is taken' });
-    }
-    existing.connected = true;
-    existing.socketId = socket.id;
-    attachToRoom(socket, roomCode, room, name);
-
-    if (room.phase === 'voting') broadcastVoting(roomCode, room);
-    else if (room.phase === 'teamSelect') broadcastTeamSelect(roomCode, room);
-    else if (room.phase === 'reporting') broadcastImposterReporting(roomCode, room);
-    else if (room.game === 'imposter' && room.phase === 'roundResults') {
-      broadcastImposterResults(roomCode, room);
-    } else if (room.game === 'tenseconds') {
-      // Clear a mid-round DNF so a reconnecting player can still submit a live stop.
-      if (
-        room.phase === 'running' &&
-        room.tsContenders.includes(name) &&
-        room.tsRoundResults[name] &&
-        room.tsRoundResults[name].dnf
-      ) {
-        delete room.tsRoundResults[name];
-      }
-      broadcastTensSeconds(roomCode, room);
-    } else if (room.game === 'menifot') {
-      broadcastMenifot(roomCode, room);
-    } else if (room.phase === 'lobby') {
-      if (!room.hostName) setHost(roomCode, room, name);
-      broadcastLobby(roomCode, room);
-    }
-
-    const payload = reconnectPayload(room, existing);
-    payload.roomCode = roomCode;
-    payload.background = room.backgroundImage;
-    return callback(payload);
-  }
-
-  if (room.phase !== 'lobby') {
-    return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
-  }
-
-  room.players.set(name, {
-    socketId: socket.id,
-    connected: true,
-    role: null,
-    word: null,
-    hint: null,
-    vote: null,
-    team: null,
-    leader: false,
-    eliminatedReport: null,
-  });
-  attachToRoom(socket, roomCode, room, name);
-  if (!room.hostName) setHost(roomCode, room, name);
-  broadcastLobby(roomCode, room);
-  callback({
-    ok: true,
-    game: null,
-    phase: 'lobby',
-    players: connectedNames(room),
-    host: room.hostName,
-    roomCode,
-    background: room.backgroundImage,
-    scoreboard: scoreboardEntries(room),
-  });
-}
+initLobby({
+  MIN_PLAYERS,
+  CN_MIN_PLAYERS,
+  TS_MIN_PLAYERS,
+  MF_MIN_PLAYERS,
+  MF_MAX_PLAYERS,
+  BACKGROUNDS_DIR,
+  clearCnTimerHandle,
+  clearTsState,
+  clearMfState,
+  playersInImposterRound,
+  teamPlayersInfo,
+  boardForViewer,
+  tensSecondsStatePayload,
+  menifotStatePayload,
+  broadcastVoting,
+  maybeFinishVoting,
+  broadcastImposterReporting,
+  maybeFinishImposterReporting,
+  broadcastImposterResults,
+  broadcastTeamSelect,
+  broadcastCodenamesState,
+  initTensSecondsGame,
+  broadcastTensSeconds,
+  assignTsDnf,
+  maybeResolveTsRound,
+  initMenifotGame,
+  broadcastMenifot,
+  autoLockEvenSplit,
+});
 
 // ---------- Socket handlers ----------
 
 io.on('connection', (socket) => {
-  socket.on('createRoom', (data, callback) => {
-    callback = callback || (() => {});
-    const name = ((data && data.name) || '').trim();
-    const nameError = validateName(name);
-    if (nameError) return callback({ ok: false, error: nameError });
-
-    let roomCode;
-    try {
-      roomCode = generateRoomCode();
-    } catch (err) {
-      return callback({ ok: false, error: 'Could not create a room. Try again.' });
-    }
-
-    const room = createRoomState();
-    rooms.set(roomCode, room);
-    room.players.set(name, {
-      socketId: socket.id,
-      connected: true,
-      role: null,
-      word: null,
-      hint: null,
-      vote: null,
-      team: null,
-      leader: false,
-      eliminatedReport: null,
-    });
-    attachToRoom(socket, roomCode, room, name);
-    setHost(roomCode, room, name);
-    broadcastLobby(roomCode, room);
-    callback({
-      ok: true,
-      game: null,
-      phase: 'lobby',
-      players: connectedNames(room),
-      host: room.hostName,
-      roomCode,
-      background: room.backgroundImage,
-      scoreboard: scoreboardEntries(room),
-    });
-  });
-
-  socket.on('join', (data, callback) => {
-    callback = callback || (() => {});
-    const name = ((data && data.name) || '').trim();
-    const roomCode = normalizeRoomCode(data && data.roomCode);
-
-    const nameError = validateName(name);
-    if (nameError) return callback({ ok: false, error: nameError });
-    if (!roomCode || roomCode.length !== ROOM_CODE_LENGTH) {
-      return callback({ ok: false, error: 'Enter a valid room code' });
-    }
-
-    joinExistingRoom(socket, roomCode, name, callback);
-  });
-
-  socket.on('chooseGame', (selectedGame, callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Game already chosen' });
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can choose the game' });
-    }
-    if (selectedGame !== 'imposter' && selectedGame !== 'codenames' && selectedGame !== 'tenseconds' && selectedGame !== 'menifot') {
-      return callback({ ok: false, error: 'Invalid game' });
-    }
-
-    const names = connectedNames(room);
-
-    if (selectedGame === 'imposter') {
-      if (names.length < MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
-      }
-      room.game = 'imposter';
-      for (const p of room.players.values()) p.vote = null;
-      room.phase = 'voting';
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      roomEmit(roomCode, 'votingStarted', { players: connectedNames(room), host: room.hostName });
-      return callback({ ok: true });
-    }
-
-    if (selectedGame === 'tenseconds') {
-      if (names.length < TS_MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
-      }
-      room.game = 'tenseconds';
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      initTensSecondsGame(roomCode, room);
-      return callback({ ok: true });
-    }
-
-    if (selectedGame === 'menifot') {
-      if (names.length < MF_MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${MF_MIN_PLAYERS} players` });
-      }
-      if (names.length > MF_MAX_PLAYERS) {
-        return callback({ ok: false, error: `Menifot supports at most ${MF_MAX_PLAYERS} players` });
-      }
-      room.game = 'menifot';
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      initMenifotGame(roomCode, room);
-      return callback({ ok: true });
-    }
-
-    if (names.length < CN_MIN_PLAYERS) {
-      return callback({ ok: false, error: `Need at least ${CN_MIN_PLAYERS} players` });
-    }
-    room.game = 'codenames';
-    room.phase = 'teamSelect';
-    roomEmit(roomCode, 'gameChosen', { game: room.game });
-    broadcastTeamSelect(roomCode, room);
-    callback({ ok: true });
-  });
+  registerLobbyHandlers(socket);
 
   // ----- Imposter -----
 
@@ -1645,21 +1269,6 @@ io.on('connection', (socket) => {
     callback({ ok: true });
     broadcastImposterReporting(roomCode, room);
     maybeFinishImposterReporting(roomCode, room);
-  });
-
-  socket.on('resetScoreboard', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can reset the scoreboard' });
-    }
-
-    room.scoreboard = {};
-    callback({ ok: true });
-    broadcastLobby(roomCode, room);
   });
 
   // ----- Codenames -----
@@ -2081,95 +1690,6 @@ io.on('connection', (socket) => {
     startMenifotMatch(roomCode, room, names);
   });
 
-  // ----- Shared -----
-
-  socket.on('backToLobby', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can return to the lobby' });
-    }
-    resetToLobby(roomCode, room);
-    callback({ ok: true });
-  });
-
-  socket.on('clearBackground', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-
-    if (room.backgroundImage) {
-      fs.unlink(path.join(BACKGROUNDS_DIR, path.basename(room.backgroundImage)), () => {});
-      room.backgroundImage = null;
-      roomEmit(roomCode, 'backgroundChanged', { background: null });
-      saveRoomsToDisk();
-    }
-    callback({ ok: true });
-  });
-
-  socket.on('disconnect', () => {
-    const name = socket.data.name;
-    const roomCode = socket.data.roomCode;
-    if (!name || !roomCode) return;
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    const p = room.players.get(name);
-    if (!p) return;
-
-    if (room.phase === 'lobby') {
-      room.players.delete(name);
-      if (name === room.hostName) {
-        const [nextHost] = connectedNames(room);
-        setHost(roomCode, room, nextHost || null);
-      }
-      broadcastLobby(roomCode, room);
-      return;
-    }
-
-    // Past the lobby, a dropped connection (phone locked, WiFi blip, tab backgrounded)
-    // shouldn't erase the player's spot - keep them so a reconnect restores it instead
-    // of being treated as a stranger trying to join a game already in progress.
-    p.connected = false;
-    if (name === room.hostName) {
-      const [nextHost] = connectedNames(room);
-      setHost(roomCode, room, nextHost || null);
-    }
-    if (room.phase === 'voting') {
-      broadcastVoting(roomCode, room);
-      maybeFinishVoting(roomCode, room);
-    } else if (room.phase === 'reporting') {
-      // Disconnect before answering defaults to eliminated.
-      if (p.eliminatedReport === null || p.eliminatedReport === undefined) {
-        p.eliminatedReport = true;
-      }
-      broadcastImposterReporting(roomCode, room);
-      maybeFinishImposterReporting(roomCode, room);
-    } else if (room.phase === 'teamSelect') {
-      broadcastTeamSelect(roomCode, room);
-    } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
-      broadcastCodenamesState(roomCode, room);
-    } else if (room.game === 'tenseconds') {
-      if (
-        room.phase === 'running' &&
-        room.tsContenders.includes(name) &&
-        !room.tsRoundResults[name]
-      ) {
-        assignTsDnf(room, name);
-        broadcastTensSeconds(roomCode, room);
-        maybeResolveTsRound(roomCode, room);
-      } else {
-        broadcastTensSeconds(roomCode, room);
-      }
-    } else if (room.game === 'menifot') {
-      if (room.phase === 'allocating' && room.mfHands[name] && !room.mfHands[name].locked) {
-        autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
-      }
-      broadcastMenifot(roomCode, room);
-    }
-  });
 });
 
 loadRoomsFromDisk({
