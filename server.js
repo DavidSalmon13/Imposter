@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const { buildDeck, rankBoard } = require('./menifot-eval');
 const { shuffle } = require('./server/lib/shuffle');
 const { validateName } = require('./server/lib/validateName');
+const { chatCompletionJson } = require('./server/lib/openai');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,8 +26,6 @@ const BACKGROUND_MIME_EXT = {
 const MIN_PLAYERS = 3;
 const TWO_IMPOSTER_THRESHOLD = 5;
 const LEVELS = ['easy', 'medium', 'hard'];
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 const CN_MIN_PLAYERS = 4;
 const CN_MIN_TEAM_SIZE = 2;
@@ -494,10 +493,6 @@ function tallyLevel(room) {
 }
 
 async function generateWordAndHint(room, level) {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured on the server');
-  }
-
   const avoid = room.usedWords.slice(-40);
   const category = WORD_CATEGORIES[Math.floor(Math.random() * WORD_CATEGORIES.length)];
   const spec = LEVEL_SPEC[level];
@@ -515,27 +510,7 @@ async function generateWordAndHint(room, level) {
       : '') +
     ` Respond with ONLY compact JSON in the form {"word": "...", "hint": "..."}.`;
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 1.2,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`OpenAI request failed (${res.status})`);
-  }
-
-  const data = await res.json();
-  const raw = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  const parsed = JSON.parse(raw);
+  const parsed = await chatCompletionJson(prompt, { temperature: 1.2 });
   const word = String(parsed.word || '').trim();
   const hint = String(parsed.hint || '').trim();
 
@@ -719,10 +694,6 @@ function cnTeamValid(room, color) {
 }
 
 async function generateWordGrid(room) {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured on the server');
-  }
-
   const avoid = room.cnUsedWords.slice(-100);
   const prompt =
     `Generate exactly ${CN_WORD_COUNT} common, family-friendly, single-word nouns suitable for a word-guessing ` +
@@ -734,27 +705,7 @@ async function generateWordGrid(room) {
       : '') +
     ` Respond with ONLY compact JSON in the form {"words": ["...", ...]} with exactly ${CN_WORD_COUNT} items.`;
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 1.1,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`OpenAI request failed (${res.status})`);
-  }
-
-  const data = await res.json();
-  const raw = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  const parsed = JSON.parse(raw);
+  const parsed = await chatCompletionJson(prompt, { temperature: 1.1 });
   const rawWords = Array.isArray(parsed.words) ? parsed.words : [];
   const words = rawWords.map((w) => String(w || '').trim()).filter(Boolean);
 

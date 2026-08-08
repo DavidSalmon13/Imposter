@@ -274,7 +274,7 @@ add one).
   `server/lib/shuffle.js`, `validateName` → `server/lib/validateName.js`. Pure
   functions, no state, mechanical `require` swap. Verify: server starts clean,
   spot-check one game still loads.
-- [ ] **Step 3 — Extract `server/lib/openai.js`.** Isolate the shared OpenAI
+- [x] **Step 3 — Extract `server/lib/openai.js`.** Isolate the shared OpenAI
   `fetch` call used by both `generateWordAndHint` (Imposter) and
   `generateWordGrid` (Codenames) into one function; each game keeps its own
   prompt-building. Verify: start an Imposter round and a Codenames round,
