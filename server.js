@@ -44,6 +44,7 @@ const MF_MIN_PLAYERS = 2;
 const MF_MAX_PLAYERS = 8;
 const MF_THREE_BOARD_MAX_PLAYERS = 3;
 const MF_TARGET_SCORE = 10;
+const MF_REVEAL_STEP_MS = 1400; // pacing between each board's turn/river reveal
 
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
@@ -193,6 +194,9 @@ const cnTimerHandles = new Map();
 /** @type {Map<string, NodeJS.Timeout>} */
 const tsForceStopHandles = new Map();
 
+/** @type {Map<string, NodeJS.Timeout>} */
+const mfRevealHandles = new Map();
+
 function clearCnTimerHandle(roomCode) {
   const handle = cnTimerHandles.get(roomCode);
   if (handle) clearTimeout(handle);
@@ -203,6 +207,12 @@ function clearTsForceStopHandle(roomCode) {
   const handle = tsForceStopHandles.get(roomCode);
   if (handle) clearTimeout(handle);
   tsForceStopHandles.delete(roomCode);
+}
+
+function clearMfRevealHandle(roomCode) {
+  const handle = mfRevealHandles.get(roomCode);
+  if (handle) clearTimeout(handle);
+  mfRevealHandles.delete(roomCode);
 }
 
 function clearTsState(room, roomCode) {
@@ -217,7 +227,8 @@ function clearTsState(room, roomCode) {
   room.tsEliminationWaves = [];
 }
 
-function clearMfState(room) {
+function clearMfState(room, roomCode) {
+  if (roomCode) clearMfRevealHandle(roomCode);
   room.mfPlayers = [];
   room.mfBoardCount = 0;
   room.mfBoards = [];
@@ -475,7 +486,7 @@ function resetToLobby(roomCode, room) {
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
   clearTsState(room, roomCode);
-  clearMfState(room);
+  clearMfState(room, roomCode);
   room.imposterRoundResults = null;
   for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
@@ -1351,7 +1362,7 @@ function broadcastMenifot(roomCode, room) {
 }
 
 function initMenifotGame(roomCode, room) {
-  clearMfState(room);
+  clearMfState(room, roomCode);
   room.phase = 'ready';
   broadcastMenifot(roomCode, room);
 }
@@ -1439,8 +1450,8 @@ function allMfLocked(room) {
   return room.mfPlayers.every((name) => room.mfHands[name] && room.mfHands[name].locked);
 }
 
-function resolveMenifotRound(room) {
-  for (const board of room.mfBoards) board.revealed = true;
+function finalizeMenifotRound(roomCode, room) {
+  clearMfRevealHandle(roomCode);
 
   const boardResults = [];
   const pointsAwarded = {};
@@ -1485,13 +1496,39 @@ function resolveMenifotRound(room) {
   } else {
     room.phase = 'roundResults';
   }
+
+  broadcastMenifot(roomCode, room);
+}
+
+// Reveals each board's turn/river one at a time (instead of all at once) so the table
+// watches boards flip in sequence before landing on the round-results screen. Stays in
+// the 'allocating' phase throughout — every hand is already locked, so no further
+// allocation moves are possible, and the client renders locked boards read-only.
+function revealNextMfBoard(roomCode, room, boardIndex) {
+  if (!rooms.has(roomCode) || rooms.get(roomCode) !== room) return;
+  if (room.game !== 'menifot' || room.phase !== 'allocating') return;
+
+  if (boardIndex >= room.mfBoards.length) {
+    finalizeMenifotRound(roomCode, room);
+    return;
+  }
+
+  room.mfBoards[boardIndex].revealed = true;
+  broadcastMenifot(roomCode, room);
+  mfRevealHandles.set(
+    roomCode,
+    setTimeout(() => revealNextMfBoard(roomCode, room, boardIndex + 1), MF_REVEAL_STEP_MS)
+  );
 }
 
 function maybeRevealMenifot(roomCode, room) {
   if (room.game !== 'menifot' || room.phase !== 'allocating') return;
   if (!allMfLocked(room)) return;
-  resolveMenifotRound(room);
-  broadcastMenifot(roomCode, room);
+  clearMfRevealHandle(roomCode);
+  mfRevealHandles.set(
+    roomCode,
+    setTimeout(() => revealNextMfBoard(roomCode, room, 0), MF_REVEAL_STEP_MS)
+  );
 }
 
 function awardMenifotScoreboard(room) {

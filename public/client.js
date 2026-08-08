@@ -1419,7 +1419,9 @@ function renderMfAllocating(data) {
     'hidden',
     locked || !inMatch || !mfSelectedCard || selectedAssigned < 0
   );
+  const revealing = mfAllLocked(data);
   mfLockedBadge.classList.toggle('hidden', !(inMatch && locked));
+  mfLockedBadge.textContent = revealing ? 'Locked — revealing boards' : 'Locked — waiting for others';
 
   mfLockStatus.innerHTML = '';
   (data.lockStatus || []).forEach((row) => {
@@ -1441,6 +1443,7 @@ function renderMfAllocating(data) {
   mfLockBtn.classList.toggle('hidden', !inMatch || locked);
   mfLockBtn.disabled = !allAssigned;
   mfLockWaiting.classList.toggle('hidden', !(inMatch && locked));
+  mfLockWaiting.textContent = revealing ? 'Revealing the boards…' : 'Waiting for everyone to lock…';
 }
 
 function applyMenifotState(data) {
@@ -1540,7 +1543,12 @@ function applyMenifotState(data) {
   }
 }
 
+function mfAllLocked(data) {
+  return !!(data.lockStatus && data.lockStatus.length > 0 && data.lockStatus.every((r) => r.locked));
+}
+
 function lockedSubtitle(data) {
+  if (mfAllLocked(data)) return 'Everyone is locked — revealing the boards…';
   if (data.myHand && data.myHand.locked) {
     return 'Your hand is locked — waiting for the rest of the table';
   }

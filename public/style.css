@@ -771,28 +771,34 @@ button.secondary:hover:not(:disabled) {
 
 /* ---------- Menifot ---------- */
 
+#mf-screen {
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
 .mf-scores {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.4rem;
   font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
 }
 
 .mf-section-heading {
-  margin: 1rem 0 0.5rem;
-  font-size: 1rem;
+  margin: 0.5rem 0 0.3rem;
+  font-size: 0.85rem;
 }
 
 .mf-boards {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  margin-bottom: 0.75rem;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
 }
 
 .mf-board {
   background: rgba(8, 9, 15, 0.68);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 0.75rem;
+  border-radius: 10px;
+  padding: 0.4rem 0.5rem;
   transition: border-color 0.15s var(--ease), opacity 0.15s var(--ease), background 0.15s var(--ease);
 }
 
@@ -807,8 +813,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .mf-board-title {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
+  margin: 0 0 0.3rem;
+  font-size: 0.68rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -817,7 +823,7 @@ button.secondary:hover:not(:disabled) {
 .mf-card-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.22rem;
   align-items: center;
 }
 
@@ -825,16 +831,19 @@ button.secondary:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.6rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 8px;
+  width: auto;
+  min-width: 1.7rem;
+  min-height: 0;
+  padding: 0.16rem 0.28rem;
+  border-radius: 5px;
   background: #f4f1ea;
   color: #1a1a1a;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   border: 1px solid rgba(0, 0, 0, 0.12);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .mf-card.red {
@@ -851,7 +860,8 @@ button.secondary:hover:not(:disabled) {
   cursor: pointer;
   appearance: none;
   font: inherit;
-  line-height: 1;
+  line-height: 1.1;
+  box-shadow: none;
 }
 
 .mf-card-btn:hover {
@@ -865,32 +875,41 @@ button.secondary:hover:not(:disabled) {
 }
 
 .mf-hole-label {
-  margin: 0.65rem 0 0.35rem;
-  font-size: 0.75rem;
+  margin: 0.3rem 0 0.2rem;
+  font-size: 0.62rem;
   color: var(--muted);
 }
 
 .mf-hole-empty {
-  font-size: 0.85rem;
+  font-size: 0.7rem;
 }
 
 .mf-hand {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.4rem;
 }
 
 .mf-hand-tap {
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
 }
 
 .mf-locked-badge {
-  margin: 0.5rem 0 0.75rem;
-  padding: 0.45rem 0.75rem;
+  margin: 0.3rem 0 0.4rem;
+  padding: 0.3rem 0.6rem;
   border-radius: 999px;
   background: rgba(63, 215, 154, 0.14);
   border: 1px solid rgba(63, 215, 154, 0.4);
   color: #9aecc8;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   text-align: center;
+}
+
+#mf-lock-status.player-list {
+  gap: 0.2rem;
+}
+
+#mf-lock-status.player-list li {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.72rem;
 }
 
 .player-list li.mf-me-locked {
