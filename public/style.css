@@ -124,6 +124,16 @@ body {
   display: none;
 }
 
+.mf-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: linear-gradient(to bottom, transparent, var(--glass-bg-strong) 22%);
+}
+
 @keyframes screen-in {
   from {
     opacity: 0;
@@ -494,6 +504,12 @@ button.secondary:hover:not(:disabled) {
 .cn-timer-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.word-lang-btn {
+  flex: 1;
+  padding: 0.6rem 0.4rem;
+  font-size: 0.9rem;
 }
 
 .cn-timer-display {

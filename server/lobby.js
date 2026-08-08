@@ -51,6 +51,7 @@ function broadcastLobby(roomCode, room) {
     host: room.hostName,
     roomCode,
     scoreboard: scoreboardEntries(room),
+    wordLanguage: room.wordLanguage || 'english',
   });
 }
 
@@ -98,6 +99,7 @@ function reconnectPayload(room, existing) {
     players: connectedNames(room),
     host: room.hostName,
     scoreboard: scoreboardEntries(room),
+    wordLanguage: room.wordLanguage || 'english',
   };
 }
 
@@ -156,6 +158,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     roomCode,
     background: room.backgroundImage,
     scoreboard: scoreboardEntries(room),
+    wordLanguage: room.wordLanguage || 'english',
   });
 }
 
@@ -238,6 +241,7 @@ function registerLobbyHandlers(socket) {
       roomCode,
       background: room.backgroundImage,
       scoreboard: scoreboardEntries(room),
+      wordLanguage: room.wordLanguage || 'english',
     });
   });
 
@@ -283,6 +287,24 @@ function registerLobbyHandlers(socket) {
     roomEmit(roomCode, 'gameChosen', { game: game.id });
     game.onChoose(ctx, roomCode, room);
     return callback({ ok: true });
+  });
+
+  socket.on('setWordLanguage', (language, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can set the word language' });
+    }
+    if (language !== 'english' && language !== 'hebrew') {
+      return callback({ ok: false, error: 'Invalid language' });
+    }
+
+    room.wordLanguage = language;
+    callback({ ok: true });
+    broadcastLobby(roomCode, room);
   });
 
   socket.on('resetScoreboard', (callback) => {

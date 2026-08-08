@@ -87,11 +87,15 @@ async function generateWordAndHint(room, level) {
   const avoid = room.usedWords.slice(-40);
   const category = WORD_CATEGORIES[Math.floor(Math.random() * WORD_CATEGORIES.length)];
   const spec = LEVEL_SPEC[level];
+  const languageInstruction =
+    room.wordLanguage === 'hebrew'
+      ? ' Write the word and the hint in Hebrew.'
+      : '';
   const prompt =
     `Pick one common, family-friendly word or short phrase (1-2 words) for ${category} that most adults ` +
     `would instantly recognize. Pick something specific and a little unexpected within that category, not ` +
     `just the single most stereotypical example of it. Then write ONE short hint sentence (max ~15 words) ` +
-    `about it for a party game, calibrated for a "${level.toUpperCase()}" difficulty level.\n\n` +
+    `about it for a party game, calibrated for a "${level.toUpperCase()}" difficulty level.${languageInstruction}\n\n` +
     `${spec.instruction}\n\n` +
     `Example showing the STYLE and DIFFICULTY to match (pick your own unrelated word, do not reuse this ` +
     `example's word or hint): ${spec.example}\n\n` +

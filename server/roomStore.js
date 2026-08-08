@@ -21,6 +21,7 @@ function createRoomState() {
     // Menifot phases: 'ready' | 'allocating' | 'roundResults' | 'gameover'
     hostName: null,
     players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
+    wordLanguage: 'english', // 'english' | 'hebrew' - language for ChatGPT-generated words/hints
     currentLevel: null,
     lastImposterNames: [],
     usedWords: [],

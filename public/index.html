@@ -40,6 +40,13 @@
         <ol id="scoreboard-list" class="scoreboard-list"></ol>
         <button id="reset-scoreboard-btn" class="secondary hidden" type="button">Reset Scoreboard</button>
       </div>
+      <div id="word-language-section" class="cn-timer-section hidden">
+        <p class="muted">ChatGPT word language (Imposter &amp; Codenames)</p>
+        <div id="word-language-choices" class="cn-timer-choices">
+          <button class="level-btn word-lang-btn" data-lang="english">English</button>
+          <button class="level-btn word-lang-btn" data-lang="hebrew">Hebrew</button>
+        </div>
+      </div>
       <div id="game-choice" class="game-choice hidden">
         <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
         <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
@@ -228,8 +235,6 @@
 
       <div id="mf-results-panel" class="hidden">
         <div id="mf-results-body"></div>
-        <button id="mf-next-btn" class="hidden">Next Round</button>
-        <p id="mf-next-waiting" class="muted hidden">Waiting for the host&hellip;</p>
       </div>
 
       <div id="mf-gameover-panel" class="hidden">
@@ -238,11 +243,15 @@
         <div id="mf-final-round" class="mf-last-round"></div>
         <h2 class="scoreboard-heading">Scoreboard</h2>
         <ol id="mf-scoreboard" class="scoreboard-list"></ol>
-        <button id="mf-play-again-btn" class="hidden">Play Again</button>
-        <p id="mf-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
       </div>
 
-      <button id="mf-back-btn" class="secondary hidden">Back to Lobby</button>
+      <div id="mf-footer-actions" class="mf-sticky-footer">
+        <button id="mf-next-btn" class="hidden">Next Round</button>
+        <p id="mf-next-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+        <button id="mf-play-again-btn" class="hidden">Play Again</button>
+        <p id="mf-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+        <button id="mf-back-btn" class="secondary hidden">Back to Lobby</button>
+      </div>
       <p id="mf-error" class="error"></p>
     </section>
 

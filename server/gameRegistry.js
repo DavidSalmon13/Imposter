@@ -17,6 +17,7 @@ const SHARED_SAVED_FIELDS = [
   'hostName',
   'scoreboard',
   'backgroundImage',
+  'wordLanguage',
 ];
 
 const ROOM_SAVED_FIELDS = [

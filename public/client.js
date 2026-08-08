@@ -45,8 +45,12 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
+const wordLanguageSection = document.getElementById('word-language-section');
+const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
 
-const levelButtons = Array.from(document.querySelectorAll('.level-btn:not(.cn-timer-btn)'));
+const levelButtons = Array.from(
+  document.querySelectorAll('.level-btn:not(.cn-timer-btn):not(.word-lang-btn)')
+);
 const voteCount = document.getElementById('vote-count');
 const votingError = document.getElementById('voting-error');
 const votingBackBtn = document.getElementById('voting-back-btn');
@@ -168,6 +172,7 @@ let pendingLevel = null;
 let myTeam = null;
 let isLeader = false;
 let cnTimerSeconds = 0;
+let wordLanguage = 'english';
 let cnTurnEndsAt = null;
 let cnTimerTickHandle = null;
 let tsRoundStartAt = null;
@@ -226,6 +231,7 @@ function setHost(hostName) {
   imposterResultsBackBtn.classList.toggle('hidden', !isHost);
   imposterResultsWaiting.classList.toggle('hidden', isHost);
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
+  wordLanguageSection.classList.toggle('hidden', !isHost);
 }
 
 function showScreen(name) {
@@ -378,6 +384,7 @@ function routeFromJoin(res) {
     return;
   }
 
+  applyWordLanguage(res.wordLanguage);
   renderLobby(res.players || [], res.scoreboard || []);
   showScreen('lobby');
 }
@@ -484,6 +491,13 @@ imposterResultsBackBtn.addEventListener('click', () => {
 resetScoreboardBtn.addEventListener('click', () => {
   if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
   socket.emit('resetScoreboard', () => {});
+});
+
+wordLanguageBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (!isHost) return;
+    socket.emit('setWordLanguage', btn.dataset.lang, () => {});
+  });
 });
 
 levelButtons.forEach((btn) => {
@@ -677,9 +691,10 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard }) => {
+socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard, wordLanguage: lang }) => {
   setHost(host);
   if (roomCode) roomCodeDisplay.textContent = roomCode;
+  applyWordLanguage(lang);
   renderLobby(players, scoreboard);
 });
 
@@ -793,6 +808,13 @@ function renderScoreboard(listEl, entries) {
     li.appendChild(nameSpan);
     li.appendChild(ptsSpan);
     listEl.appendChild(li);
+  });
+}
+
+function applyWordLanguage(lang) {
+  wordLanguage = lang === 'hebrew' ? 'hebrew' : 'english';
+  wordLanguageBtns.forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.lang === wordLanguage);
   });
 }
 
@@ -1508,6 +1530,10 @@ function applyMenifotState(data) {
   mfAllocPanel.classList.add('hidden');
   mfResultsPanel.classList.add('hidden');
   mfGameoverPanel.classList.add('hidden');
+  mfNextBtn.classList.add('hidden');
+  mfNextWaiting.classList.add('hidden');
+  mfPlayAgainBtn.classList.add('hidden');
+  mfPlayAgainWaiting.classList.add('hidden');
 
   if (data.phase !== 'allocating') {
     mfSelectedCard = null;
