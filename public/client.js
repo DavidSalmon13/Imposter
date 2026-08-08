@@ -942,6 +942,7 @@ function renderTeamMembers(el, members) {
 
 function renderTeamSelect(data) {
   setHost(data.host);
+  applyWordTheme(data.wordTheme);
   myTeam = null;
   isLeader = false;
   [...data.red, ...data.blue].forEach((m) => {

@@ -47,10 +47,6 @@
           <button class="level-btn word-lang-btn" data-lang="hebrew">Hebrew</button>
         </div>
       </div>
-      <div id="word-theme-section" class="cn-timer-section hidden">
-        <p class="muted">Word theme for Codenames (optional)</p>
-        <input id="word-theme-input" type="text" placeholder="e.g. soccer, Harry Potter&hellip; leave blank for general words" maxlength="100" autocomplete="off" />
-      </div>
       <div id="game-choice" class="game-choice hidden">
         <button id="choose-imposter-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🕵️</span>
@@ -152,6 +148,10 @@
           <button class="level-btn cn-timer-btn" data-seconds="60">1 min</button>
           <button class="level-btn cn-timer-btn" data-seconds="120">2 min</button>
         </div>
+      </div>
+      <div id="word-theme-section" class="cn-timer-section hidden">
+        <p class="muted">Word theme (optional)</p>
+        <input id="word-theme-input" type="text" placeholder="e.g. soccer, Harry Potter&hellip; leave blank for general words" maxlength="100" autocomplete="off" />
       </div>
       <button id="cn-start-btn" class="hidden" disabled>Start Game</button>
       <p id="cn-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>

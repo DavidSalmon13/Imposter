@@ -82,6 +82,7 @@ function broadcastTeamSelect(ctx, roomCode, room) {
     blue: teamPlayersInfo(ctx, room, 'blue'),
     unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
     timerSeconds: room.cnTimerSeconds || 0,
+    wordTheme: room.wordTheme || '',
   });
 }
 
@@ -257,6 +258,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       blue: teamPlayersInfo(ctx, room, 'blue'),
       unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
       timerSeconds: room.cnTimerSeconds || 0,
+      wordTheme: room.wordTheme || '',
     };
   }
   if (room.phase === 'generating') {
@@ -394,6 +396,24 @@ function registerHandlers(ctx, io, socket) {
     if (!CN_TIMER_OPTIONS.includes(value)) return callback({ ok: false, error: 'Invalid timer option' });
 
     room.cnTimerSeconds = value || null;
+    callback({ ok: true });
+    broadcastTeamSelect(ctx, roomCode, room);
+  });
+
+  socket.on('setWordTheme', (theme, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can set the word theme' });
+    }
+    if (typeof theme !== 'string') return callback({ ok: false, error: 'Invalid theme' });
+
+    room.wordTheme = theme.replace(/\s+/g, ' ').trim().slice(0, 100);
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
   });
