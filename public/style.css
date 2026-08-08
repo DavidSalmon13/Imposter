@@ -938,11 +938,30 @@ button.secondary:hover:not(:disabled) {
 .mf-rankings li {
   font-size: 0.85rem;
   color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .mf-rankings li.mf-rank-win {
   color: inherit;
   font-weight: 600;
+}
+
+.mf-rank-cards {
+  gap: 0.22rem;
+}
+
+.mf-card.mf-card-win {
+  background: rgba(63, 215, 154, 0.85);
+  border-color: rgba(63, 215, 154, 0.9);
+  box-shadow: 0 0 0 2px rgba(63, 215, 154, 0.35);
+}
+
+.mf-card.mf-card-lose {
+  background: rgba(255, 107, 120, 0.35);
+  border-color: rgba(255, 107, 120, 0.7);
+  opacity: 0.85;
 }
 
 .mf-burn-row {

@@ -52,7 +52,7 @@ function bestOmahaHand(holeCards, boardCards) {
 
 /**
  * Rank players on one board. Tied hands all win (split).
- * @returns {{ winners: string[], rankings: Array<{ name: string, descr: string, cards: string[] }> }}
+ * @returns {{ winners: string[], rankings: Array<{ name: string, descr: string, holeUsed: string[], boardUsed: string[] }> }}
  */
 function rankBoard(playersOnBoard) {
   // playersOnBoard: [{ name, holeCards, boardCards }]
@@ -64,7 +64,8 @@ function rankBoard(playersOnBoard) {
       name: p.name,
       hand: best.hand,
       descr: best.hand.descr,
-      cards: best.hand.cards.map((c) => c.toString()),
+      holeUsed: best.holeUsed,
+      boardUsed: best.boardUsed,
     });
   }
 
@@ -79,7 +80,7 @@ function rankBoard(playersOnBoard) {
   const rankings = evaluated
     .slice()
     .sort((a, b) => a.hand.compare(b.hand))
-    .map(({ name, descr, cards }) => ({ name, descr, cards }));
+    .map(({ name, descr, holeUsed, boardUsed }) => ({ name, descr, holeUsed, boardUsed }));
 
   return { winners, rankings };
 }
