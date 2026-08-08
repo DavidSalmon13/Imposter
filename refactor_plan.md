@@ -301,7 +301,7 @@ add one).
 - [x] **Step 6c — Extract `server/games/codenames.js`.** Same approach. Verify:
   full Codenames game including the turn timer and a disconnect during
   `playing`.
-- [ ] **Step 6d — Extract `server/games/imposter.js`.** Same approach. Verify:
+- [x] **Step 6d — Extract `server/games/imposter.js`.** Same approach. Verify:
   full Imposter round including the reporting phase and a disconnect during
   `voting`.
 - [ ] **Step 7 — Build `server/gameRegistry.js`.** Replace the hand-wired

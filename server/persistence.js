@@ -4,6 +4,7 @@ const { rooms, createRoomState } = require('./roomStore');
 const menifot = require('./games/menifot');
 const tenseconds = require('./games/tenseconds');
 const codenames = require('./games/codenames');
+const imposter = require('./games/imposter');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
@@ -66,16 +67,11 @@ function saveRoomsToDisk() {
 }
 
 /**
- * Load rooms from disk. Game-specific mid-round repair still lives here for now
- * but calls into helpers that remain in server.js (injected as hooks) until each
- * game module owns repairOnLoad.
+ * Load rooms from disk. Per-game mid-round repair delegates to each module's
+ * repairOnLoad (shared ctx supplies rooms/io helpers when needed).
  */
 function loadRoomsFromDisk(hooks = {}) {
-  const {
-    playersInImposterRound,
-    finishImposterReporting,
-    ctx,
-  } = hooks;
+  const { ctx } = hooks;
 
   if (!fs.existsSync(ROOMS_FILE)) return;
   try {
@@ -89,28 +85,12 @@ function loadRoomsFromDisk(hooks = {}) {
       room.players = new Map(
         (data.players || []).map(([name, p]) => [name, { ...p, connected: false, socketId: null }])
       );
-      // A round that was mid-generation when the process stopped can't be resumed - drop back
-      // to the nearest safe phase so reconnecting players land somewhere sane.
-      if (room.phase === 'generating') {
-        if (room.game === 'imposter') {
-          room.phase = 'voting';
-          room.currentLevel = null;
-          for (const p of room.players.values()) p.vote = null;
-        }
-      }
       if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
       if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
-      // After restart everyone is disconnected; default unanswered Imposter reports so
-      // reporting can't hang forever waiting for answers that will never arrive.
-      if (room.game === 'imposter' && room.phase === 'reporting') {
-        for (const name of playersInImposterRound(room)) {
-          const p = room.players.get(name);
-          if (p && (p.eliminatedReport === null || p.eliminatedReport === undefined)) {
-            p.eliminatedReport = true;
-          }
-        }
-      }
       rooms.set(code, room);
+      if (room.game === 'imposter') {
+        imposter.repairOnLoad(ctx || { rooms }, room);
+      }
       if (room.game === 'codenames') {
         codenames.repairOnLoad(ctx || { rooms }, room);
       }
@@ -119,18 +99,6 @@ function loadRoomsFromDisk(hooks = {}) {
       }
       if (room.game === 'menifot') {
         menifot.repairOnLoad(null, room);
-      }
-      // If reporting was fully defaulted on restart, resolve it once everyone reconnects —
-      // or immediately if all answers are already filled.
-      if (room.game === 'imposter' && room.phase === 'reporting') {
-        const names = playersInImposterRound(room);
-        const allAnswered =
-          names.length > 0 &&
-          names.every((n) => {
-            const p = room.players.get(n);
-            return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
-          });
-        if (allAnswered) finishImposterReporting(code, room);
       }
     }
     console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);

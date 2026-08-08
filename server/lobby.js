@@ -15,6 +15,7 @@ const { saveRoomsToDisk } = require('./persistence');
 const menifot = require('./games/menifot');
 const tenseconds = require('./games/tenseconds');
 const codenames = require('./games/codenames');
+const imposter = require('./games/imposter');
 
 /** @type {object | null} */
 let hooks = null;
@@ -22,9 +23,8 @@ let hooks = null;
 let ctx = null;
 
 /**
- * Game-specific helpers still live in server.js until each game module is
- * extracted (Steps 6a–6d). Lobby shells call through these hooks.
- * Menifot (Step 6a) is already a module — call its contract methods with ctx.
+ * Shared helpers still live here; game modules are extracted (Steps 6a–6d).
+ * Lobby shells call game contract methods with ctx until Step 7 builds the registry.
  */
 function initLobby(gameHooks) {
   hooks = gameHooks;
@@ -74,11 +74,10 @@ function resetToLobby(roomCode, room) {
   }
   room.game = null;
   room.phase = 'lobby';
-  room.currentLevel = null;
+  imposter.clearState(room);
   codenames.clearState(room, roomCode);
   tenseconds.clearState(room, roomCode);
   menifot.clearState(room);
-  room.imposterRoundResults = null;
   for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
@@ -96,58 +95,7 @@ function attachToRoom(socket, roomCode, room, name) {
 // Shell: per-game branches stay until Steps 6/7 replace them with GAMES[room.game].reconnectPayload.
 function reconnectPayload(room, existing) {
   if (room.game === 'imposter') {
-    if (room.phase === 'playing') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        level: room.currentLevel,
-        role: existing.role,
-        word: existing.word,
-        hint: existing.hint,
-        host: room.hostName,
-      };
-    }
-    if (room.phase === 'reporting') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        myAnswer:
-          existing.eliminatedReport === null || existing.eliminatedReport === undefined
-            ? null
-            : !!existing.eliminatedReport,
-        total: hooks.playersInImposterRound(room).length,
-        answered: hooks.playersInImposterRound(room).filter((n) => {
-          const p = room.players.get(n);
-          return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
-        }).length,
-      };
-    }
-    if (room.phase === 'roundResults') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        results: room.imposterRoundResults || [],
-        scoreboard: scoreboardEntries(room),
-      };
-    }
-    if (room.phase === 'generating') {
-      return { ok: true, game: room.game, phase: room.phase, level: room.currentLevel, host: room.hostName };
-    }
-    if (room.phase === 'voting') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        players: connectedNames(room),
-        vote: existing.vote,
-        host: room.hostName,
-      };
-    }
+    return imposter.reconnectPayload(ctx, room, existing);
   }
 
   if (room.game === 'codenames') {
@@ -186,10 +134,8 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     existing.socketId = socket.id;
     attachToRoom(socket, roomCode, room, name);
 
-    if (room.phase === 'voting') hooks.broadcastVoting(roomCode, room);
-    else if (room.phase === 'reporting') hooks.broadcastImposterReporting(roomCode, room);
-    else if (room.game === 'imposter' && room.phase === 'roundResults') {
-      hooks.broadcastImposterResults(roomCode, room);
+    if (room.game === 'imposter') {
+      imposter.onReconnectBroadcast(ctx, roomCode, room);
     } else if (room.game === 'codenames') {
       codenames.onReconnectBroadcast(ctx, roomCode, room);
     } else if (room.game === 'tenseconds') {
@@ -276,10 +222,7 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
 }
 
 function registerLobbyHandlers(socket) {
-  const {
-    MIN_PLAYERS,
-    BACKGROUNDS_DIR,
-  } = hooks;
+  const { BACKGROUNDS_DIR } = hooks;
 
   socket.on('createRoom', (data, callback) => {
     callback = callback || (() => {});
@@ -358,14 +301,12 @@ function registerLobbyHandlers(socket) {
     const names = connectedNames(room);
 
     if (selectedGame === 'imposter') {
-      if (names.length < MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${MIN_PLAYERS} players` });
+      if (names.length < imposter.minPlayers) {
+        return callback({ ok: false, error: `Need at least ${imposter.minPlayers} players` });
       }
-      room.game = 'imposter';
-      for (const p of room.players.values()) p.vote = null;
-      room.phase = 'voting';
+      room.game = imposter.id;
       roomEmit(roomCode, 'gameChosen', { game: room.game });
-      roomEmit(roomCode, 'votingStarted', { players: connectedNames(room), host: room.hostName });
+      imposter.onChoose(ctx, roomCode, room);
       return callback({ ok: true });
     }
 
@@ -478,16 +419,8 @@ function registerLobbyHandlers(socket) {
       const [nextHost] = connectedNames(room);
       setHost(roomCode, room, nextHost || null);
     }
-    if (room.phase === 'voting') {
-      hooks.broadcastVoting(roomCode, room);
-      hooks.maybeFinishVoting(roomCode, room);
-    } else if (room.phase === 'reporting') {
-      // Disconnect before answering defaults to eliminated.
-      if (p.eliminatedReport === null || p.eliminatedReport === undefined) {
-        p.eliminatedReport = true;
-      }
-      hooks.broadcastImposterReporting(roomCode, room);
-      hooks.maybeFinishImposterReporting(roomCode, room);
+    if (room.game === 'imposter') {
+      imposter.onDisconnect(ctx, roomCode, room, name);
     } else if (room.game === 'codenames') {
       codenames.onDisconnect(ctx, roomCode, room, name);
     } else if (room.game === 'tenseconds') {
