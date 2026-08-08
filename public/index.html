@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Party Games</title>
+  <title>Shorot</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="app-header">
-    🎉 Party Games
+    🎉 Shorot
     <div id="bg-controls" class="bg-controls hidden">
       <button id="bg-change-btn" class="bg-btn" type="button" title="Change background">🖼️</button>
       <button id="bg-clear-btn" class="bg-btn hidden" type="button" title="Reset background">✕</button>
@@ -19,7 +19,7 @@
 
   <main class="app-main">
     <section id="join-screen" class="screen">
-      <h1>Party Games</h1>
+      <h1>Shorot</h1>
       <p class="muted">Create a room and share the code, or join a friend's room.</p>
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
       <input id="room-code-input" type="text" placeholder="Room code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" />
@@ -59,6 +59,7 @@
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
+      <button id="exit-lobby-btn" class="secondary" type="button">Exit Lobby</button>
     </section>
 
     <!-- Imposter -->
@@ -83,7 +84,7 @@
         <button id="end-round-btn" class="hidden" type="button">End Round</button>
         <button id="play-again-btn" class="secondary hidden" type="button">Back to Lobby</button>
       </div>
-      <p id="play-again-waiting" class="muted hidden">Waiting for the host to end the round or return to the lobby&hellip;</p>
+      <p id="play-again-waiting" class="muted hidden">Waiting for the host to end the round&hellip;</p>
     </section>
 
     <section id="imposter-reporting-screen" class="screen hidden">
@@ -109,7 +110,6 @@
       <h2 class="scoreboard-heading">Scoreboard</h2>
       <ol id="imposter-results-scoreboard" class="scoreboard-list"></ol>
       <button id="imposter-results-back-btn" class="secondary hidden" type="button">Back to Lobby</button>
-      <p id="imposter-results-waiting" class="muted hidden">Waiting for the host to return to the lobby&hellip;</p>
     </section>
     <!-- Codenames -->
 

@@ -347,10 +347,27 @@ function registerLobbyHandlers(socket) {
     const roomCode = socket.data.roomCode;
     const room = getRoom(socket);
     if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can return to the lobby' });
-    }
     resetToLobby(roomCode, room);
+    callback({ ok: true });
+  });
+
+  socket.on('leaveLobby', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
+
+    const name = socket.data.name;
+    room.players.delete(name);
+    if (name === room.hostName) {
+      const [nextHost] = connectedNames(room);
+      setHost(roomCode, room, nextHost || null);
+    }
+    socket.leave(roomCode);
+    socket.data.roomCode = null;
+    socket.data.name = null;
+    broadcastLobby(roomCode, room);
     callback({ ok: true });
   });
 

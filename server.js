@@ -83,4 +83,4 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Imposter listening on ${PORT}`));
+server.listen(PORT, () => console.log(`Shorot listening on ${PORT}`));

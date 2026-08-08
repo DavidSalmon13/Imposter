@@ -45,6 +45,7 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
+const exitLobbyBtn = document.getElementById('exit-lobby-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
 const wordThemeSection = document.getElementById('word-theme-section');
@@ -73,7 +74,6 @@ const reportError = document.getElementById('report-error');
 const imposterResultsBody = document.getElementById('imposter-results-body');
 const imposterResultsScoreboard = document.getElementById('imposter-results-scoreboard');
 const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
-const imposterResultsWaiting = document.getElementById('imposter-results-waiting');
 
 const generatingTitle = document.getElementById('generating-title');
 const generatingSubtitle = document.getElementById('generating-subtitle');
@@ -223,16 +223,16 @@ function setHost(hostName) {
   isHost = !!hostName && hostName === myName;
   gameChoice.classList.toggle('hidden', !isHost);
   chooseWaiting.classList.toggle('hidden', isHost);
-  playAgainBtn.classList.toggle('hidden', !isHost);
   endRoundBtn.classList.toggle('hidden', !isHost);
   playAgainWaiting.classList.toggle('hidden', isHost);
-  cnBackBtn.classList.toggle('hidden', !isHost);
-  votingBackBtn.classList.toggle('hidden', !isHost);
-  cnTeamBackBtn.classList.toggle('hidden', !isHost);
-  tsBackBtn.classList.toggle('hidden', !isHost);
-  mfBackBtn.classList.toggle('hidden', !isHost);
-  imposterResultsBackBtn.classList.toggle('hidden', !isHost);
-  imposterResultsWaiting.classList.toggle('hidden', isHost);
+  // Returning to the lobby is available to every player, not just the host.
+  playAgainBtn.classList.remove('hidden');
+  cnBackBtn.classList.remove('hidden');
+  votingBackBtn.classList.remove('hidden');
+  cnTeamBackBtn.classList.remove('hidden');
+  tsBackBtn.classList.remove('hidden');
+  mfBackBtn.classList.remove('hidden');
+  imposterResultsBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
   wordThemeSection.classList.toggle('hidden', !isHost);
@@ -496,6 +496,21 @@ imposterResultsBackBtn.addEventListener('click', () => {
 resetScoreboardBtn.addEventListener('click', () => {
   if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
   socket.emit('resetScoreboard', () => {});
+});
+
+exitLobbyBtn.addEventListener('click', () => {
+  if (!confirm('Leave this room?')) return;
+  socket.emit('leaveLobby', (res) => {
+    if (!res || !res.ok) return;
+    localStorage.removeItem('imposterRoom');
+    myRoomCode = '';
+    setRoomInUrl('');
+    applyBackground(null);
+    currentHostName = null;
+    isHost = false;
+    currentGame = null;
+    showScreen('join');
+  });
 });
 
 wordLanguageBtns.forEach((btn) => {
@@ -915,8 +930,6 @@ function renderImposterResults(data) {
     imposterResultsBody.appendChild(tr);
   });
   renderScoreboard(imposterResultsScoreboard, data.scoreboard || []);
-  imposterResultsBackBtn.classList.toggle('hidden', !isHost);
-  imposterResultsWaiting.classList.toggle('hidden', isHost);
 }
 function renderTeamMembers(el, members) {
   el.innerHTML = '';
