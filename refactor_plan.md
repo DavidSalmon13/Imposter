@@ -279,7 +279,7 @@ add one).
   `generateWordGrid` (Codenames) into one function; each game keeps its own
   prompt-building. Verify: start an Imposter round and a Codenames round,
   confirm word/hint and board generation still work.
-- [ ] **Step 4 — Extract `server/roomStore.js` + `server/persistence.js`.** Move
+- [x] **Step 4 — Extract `server/roomStore.js` + `server/persistence.js`.** Move
   `createRoomState`, the `rooms` Map, `normalizeRoomCode`, `generateRoomCode`,
   `getRoom`, `roomEmit`, `ROOM_SAVED_FIELDS`, `saveRoomsToDisk`,
   `loadRoomsFromDisk`. Keep `ROOM_SAVED_FIELDS` as a plain hardcoded array for

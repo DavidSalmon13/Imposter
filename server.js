@@ -9,10 +9,27 @@ const { buildDeck, rankBoard } = require('./menifot-eval');
 const { shuffle } = require('./server/lib/shuffle');
 const { validateName } = require('./server/lib/validateName');
 const { chatCompletionJson } = require('./server/lib/openai');
+const {
+  rooms,
+  initRoomStore,
+  createRoomState,
+  normalizeRoomCode,
+  generateRoomCode,
+  getRoom,
+  roomEmit,
+  ROOM_CODE_LENGTH,
+} = require('./server/roomStore');
+const {
+  DATA_DIR,
+  SAVE_INTERVAL_MS,
+  saveRoomsToDisk,
+  loadRoomsFromDisk,
+} = require('./server/persistence');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+initRoomStore(io);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -46,13 +63,7 @@ const MF_MAX_PLAYERS = 8;
 const MF_THREE_BOARD_MAX_PLAYERS = 3;
 const MF_TARGET_SCORE = 10;
 
-const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROOM_CODE_LENGTH = 4;
-
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
 const BACKGROUNDS_DIR = path.join(DATA_DIR, 'backgrounds');
-const SAVE_INTERVAL_MS = 5000;
 
 fs.mkdirSync(BACKGROUNDS_DIR, { recursive: true });
 app.use('/backgrounds', express.static(BACKGROUNDS_DIR));
@@ -137,57 +148,6 @@ const WORD_CATEGORIES = [
   'a building or structure',
 ];
 
-/** @type {Map<string, object>} */
-const rooms = new Map();
-
-function createRoomState() {
-  return {
-    game: null, // null | 'imposter' | 'codenames' | 'tenseconds' | 'menifot'
-    phase: 'lobby',
-    // Imposter phases: 'voting' | 'generating' | 'playing' | 'reporting' | 'roundResults'
-    // Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
-    // 10 Seconds phases: 'ready' | 'running' | 'roundResults' | 'gameover'
-    // Menifot phases: 'ready' | 'allocating' | 'roundResults' | 'gameover'
-    hostName: null,
-    players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
-    currentLevel: null,
-    lastImposterNames: [],
-    usedWords: [],
-    cnUsedWords: [],
-    cnBoard: null, // [{ word, color, revealed }]
-    cnActiveTeam: null,
-    cnStartingTeam: null,
-    cnWinner: null,
-    cnScores: { red: 0, blue: 0 },
-    cnTimerSeconds: null, // null | 60 | 120
-    cnTurnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
-    // 10 Seconds
-    tsActivePlayers: [], // names still in the bracket
-    tsContenders: [], // names racing the current round (subset during sudden death)
-    tsEliminatedOrder: [], // elimination order (reversed for final standings)
-    tsRoundStartAt: null, // epoch ms when stopwatches start (after 3s countdown)
-    tsRoundResults: {}, // name -> { elapsedMs, distanceMs, dnf }
-    tsRoundNumber: 0,
-    tsSuddenDeath: false,
-    tsEliminationWaves: [], // each entry = names eliminated together in one resolution step
-    // Menifot
-    mfPlayers: [], // frozen match roster
-    mfBoardCount: 0, // 2 or 3, frozen at Start
-    mfBoards: [], // [{ flop, turn, river, revealed }]
-    mfHands: {}, // name -> { cards, allocation: { [boardIndex]: cards[] }, locked }
-    mfBurned: [],
-    mfScores: {}, // name -> cumulative board-win points this match
-    mfRoundNumber: 0,
-    mfRoundResults: null, // populated at reveal
-    mfMatchWinners: [],
-    // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
-    scoreboard: {},
-    // Imposter reporting/results (ephemeral for the round being scored)
-    imposterRoundResults: null, // [{ name, role, eliminated, points }]
-    backgroundImage: null,
-  };
-}
-
 /** @type {Map<string, NodeJS.Timeout>} */
 const cnTimerHandles = new Map();
 
@@ -248,170 +208,6 @@ function cnTimerExpired(roomCode) {
   room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
   startCnTimer(roomCode, room); // subsequent turns start automatically
   broadcastCodenamesState(roomCode, room);
-}
-
-function normalizeRoomCode(code) {
-  return String(code || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
-}
-
-function generateRoomCode() {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    let code = '';
-    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-      code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
-    }
-    if (!rooms.has(code)) return code;
-  }
-  throw new Error('Could not allocate a room code');
-}
-
-function getRoom(socket) {
-  const code = socket.data.roomCode;
-  return code ? rooms.get(code) : null;
-}
-
-function roomEmit(roomCode, event, payload) {
-  io.to(roomCode).emit(event, payload);
-}
-
-const ROOM_SAVED_FIELDS = [
-  'game',
-  'phase',
-  'hostName',
-  'currentLevel',
-  'lastImposterNames',
-  'usedWords',
-  'cnUsedWords',
-  'cnBoard',
-  'cnActiveTeam',
-  'cnStartingTeam',
-  'cnWinner',
-  'cnScores',
-  'cnTimerSeconds',
-  'cnTurnEndsAt',
-  'tsActivePlayers',
-  'tsContenders',
-  'tsEliminatedOrder',
-  'tsRoundStartAt',
-  'tsRoundResults',
-  'tsRoundNumber',
-  'tsSuddenDeath',
-  'tsEliminationWaves',
-  'mfPlayers',
-  'mfBoardCount',
-  'mfBoards',
-  'mfHands',
-  'mfBurned',
-  'mfScores',
-  'mfRoundNumber',
-  'mfRoundResults',
-  'mfMatchWinners',
-  'scoreboard',
-  'imposterRoundResults',
-  'backgroundImage',
-];
-
-function saveRoomsToDisk() {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const serialized = {};
-    for (const [code, room] of rooms) {
-      const data = { players: Array.from(room.players.entries()) };
-      for (const field of ROOM_SAVED_FIELDS) data[field] = room[field];
-      serialized[code] = data;
-    }
-    const tmpFile = `${ROOMS_FILE}.tmp`;
-    fs.writeFileSync(tmpFile, JSON.stringify(serialized));
-    fs.renameSync(tmpFile, ROOMS_FILE);
-  } catch (err) {
-    console.error('Failed to save rooms to disk:', err);
-  }
-}
-
-function loadRoomsFromDisk() {
-  if (!fs.existsSync(ROOMS_FILE)) return;
-  try {
-    const raw = fs.readFileSync(ROOMS_FILE, 'utf8');
-    const serialized = JSON.parse(raw);
-    for (const [code, data] of Object.entries(serialized)) {
-      const room = createRoomState();
-      for (const field of ROOM_SAVED_FIELDS) {
-        if (data[field] !== undefined) room[field] = data[field];
-      }
-      room.players = new Map(
-        (data.players || []).map(([name, p]) => [name, { ...p, connected: false, socketId: null }])
-      );
-      // A round that was mid-generation when the process stopped can't be resumed - drop back
-      // to the nearest safe phase so reconnecting players land somewhere sane.
-      if (room.phase === 'generating') {
-        if (room.game === 'imposter') {
-          room.phase = 'voting';
-          room.currentLevel = null;
-          for (const p of room.players.values()) p.vote = null;
-        } else if (room.game === 'codenames') {
-          room.phase = 'teamSelect';
-        }
-      }
-      if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
-      if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
-      // After restart everyone is disconnected; default unanswered Imposter reports so
-      // reporting can't hang forever waiting for answers that will never arrive.
-      if (room.game === 'imposter' && room.phase === 'reporting') {
-        for (const name of playersInImposterRound(room)) {
-          const p = room.players.get(name);
-          if (p && (p.eliminatedReport === null || p.eliminatedReport === undefined)) {
-            p.eliminatedReport = true;
-          }
-        }
-      }
-      rooms.set(code, room);
-      // Live setTimeout handles don't survive a restart. A saved deadline is an absolute
-      // timestamp though, so we can just pick back up from it (or expire it immediately
-      // if the process was down past the deadline).
-      if (room.game === 'codenames' && room.phase === 'playing' && room.cnTimerSeconds && room.cnTurnEndsAt) {
-        const remaining = room.cnTurnEndsAt - Date.now();
-        if (remaining <= 0) {
-          cnTimerExpired(code);
-        } else {
-          cnTimerHandles.set(code, setTimeout(() => cnTimerExpired(code), remaining));
-        }
-      }
-      if (room.game === 'tenseconds' && room.phase === 'running' && room.tsRoundStartAt) {
-        scheduleTsForceStop(code, room);
-      }
-      // Menifot mid-allocation / mid-reveal can't safely resume — drop to ready-for-next-round
-      // (or pre-Start ready) with match scores / roster preserved.
-      if (room.game === 'menifot' && (room.phase === 'allocating' || room.phase === 'roundResults')) {
-        if (room.phase === 'allocating') {
-          room.mfBoards = [];
-          room.mfHands = {};
-          room.mfBurned = [];
-          room.mfRoundResults = null;
-          room.phase = 'ready';
-        }
-      }
-      if (!room.mfScores || typeof room.mfScores !== 'object') room.mfScores = {};
-      if (!Array.isArray(room.mfPlayers)) room.mfPlayers = [];
-      // If reporting was fully defaulted on restart, resolve it once everyone reconnects —
-      // or immediately if all answers are already filled.
-      if (room.game === 'imposter' && room.phase === 'reporting') {
-        const names = playersInImposterRound(room);
-        const allAnswered =
-          names.length > 0 &&
-          names.every((n) => {
-            const p = room.players.get(n);
-            return p && p.eliminatedReport !== null && p.eliminatedReport !== undefined;
-          });
-        if (allAnswered) finishImposterReporting(code, room);
-      }
-    }
-    console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
-  } catch (err) {
-    console.error('Failed to load rooms from disk:', err);
-  }
 }
 
 function connectedNames(room) {
@@ -2376,7 +2172,13 @@ io.on('connection', (socket) => {
   });
 });
 
-loadRoomsFromDisk();
+loadRoomsFromDisk({
+  playersInImposterRound,
+  finishImposterReporting,
+  cnTimerExpired,
+  cnTimerHandles,
+  scheduleTsForceStop,
+});
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 
 function shutdown() {
