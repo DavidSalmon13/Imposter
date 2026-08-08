@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const { Server } = require('socket.io');
 const { buildDeck, rankBoard } = require('./menifot-eval');
+const { shuffle } = require('./server/lib/shuffle');
+const { validateName } = require('./server/lib/validateName');
 
 const app = express();
 const server = http.createServer(app);
@@ -411,15 +413,6 @@ function loadRoomsFromDisk() {
   } catch (err) {
     console.error('Failed to load rooms from disk:', err);
   }
-}
-
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 function connectedNames(room) {
@@ -886,12 +879,6 @@ async function generateCodenamesRound(roomCode, room) {
   clearCnTimerHandle(roomCode);
   room.cnTurnEndsAt = null;
   broadcastCodenamesState(roomCode, room);
-}
-
-function validateName(name) {
-  if (!name) return 'Name required';
-  if (name.length > 20) return 'Name too long';
-  return null;
 }
 
 function attachToRoom(socket, roomCode, room, name) {

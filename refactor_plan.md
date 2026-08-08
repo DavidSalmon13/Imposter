@@ -270,7 +270,7 @@ add one).
 - [x] **Step 1 — Branch + baseline.** Create a branch for this refactor. Don't
   touch `main` until the split is verified working end-to-end. *(One-time setup;
   only needs doing once, first.)*
-- [ ] **Step 2 — Extract zero-risk leaves.** Move `shuffle` →
+- [x] **Step 2 — Extract zero-risk leaves.** Move `shuffle` →
   `server/lib/shuffle.js`, `validateName` → `server/lib/validateName.js`. Pure
   functions, no state, mechanical `require` swap. Verify: server starts clean,
   spot-check one game still loads.
