@@ -44,6 +44,7 @@
         <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
         <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
         <button id="choose-tenseconds-btn" class="secondary">⏱️ Play 10 Seconds</button>
+        <button id="choose-menifot-btn" class="secondary">🃏 Play Menifot</button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
@@ -195,6 +196,54 @@
       </div>
       <button id="ts-back-btn" class="secondary hidden">Back to Lobby</button>
       <p id="ts-error" class="error"></p>
+    </section>
+
+    <!-- Menifot -->
+
+    <section id="mf-screen" class="screen hidden">
+      <h1 id="mf-title">Menifot</h1>
+      <p id="mf-subtitle" class="muted"></p>
+      <p id="mf-scores" class="mf-scores muted"></p>
+
+      <div id="mf-ready-panel" class="hidden">
+        <p class="muted">Split your hand across community boards. First to 10 board wins takes the match.</p>
+        <ul id="mf-player-list" class="player-list"></ul>
+        <button id="mf-start-btn" class="hidden" disabled>Start</button>
+        <p id="mf-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+        <p id="mf-ready-error" class="error"></p>
+      </div>
+
+      <div id="mf-alloc-panel" class="hidden">
+        <p id="mf-alloc-hint" class="muted">Tap a card, then tap a board. Tap Unassign to pull it back.</p>
+        <div id="mf-boards" class="mf-boards"></div>
+        <h2 class="mf-section-heading">Your hand</h2>
+        <div id="mf-hand" class="mf-hand"></div>
+        <button id="mf-unassign-btn" class="secondary hidden" type="button">Unassign</button>
+        <p id="mf-locked-badge" class="mf-locked-badge hidden">Locked — waiting for others</p>
+        <ul id="mf-lock-status" class="player-list"></ul>
+        <button id="mf-lock-btn" class="hidden">Lock</button>
+        <p id="mf-lock-waiting" class="muted hidden">Waiting for everyone to lock&hellip;</p>
+        <p id="mf-alloc-error" class="error"></p>
+      </div>
+
+      <div id="mf-results-panel" class="hidden">
+        <div id="mf-results-body"></div>
+        <button id="mf-next-btn" class="hidden">Next Round</button>
+        <p id="mf-next-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <div id="mf-gameover-panel" class="hidden">
+        <h2 id="mf-champion" class="ts-champion"></h2>
+        <ol id="mf-standings" class="ts-standings"></ol>
+        <div id="mf-final-round" class="mf-last-round"></div>
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="mf-scoreboard" class="scoreboard-list"></ol>
+        <button id="mf-play-again-btn" class="hidden">Play Again</button>
+        <p id="mf-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <button id="mf-back-btn" class="secondary hidden">Back to Lobby</button>
+      <p id="mf-error" class="error"></p>
     </section>
 
     <!-- Shared -->
