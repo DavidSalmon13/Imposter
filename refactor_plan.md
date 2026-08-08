@@ -290,7 +290,7 @@ add one).
   `server.js` should now be just bootstrap + requires + the four games' logic
   still inline. Verify: full lobby flow (create, join, name conflicts),
   background image upload/clear.
-- [ ] **Step 6a — Extract `server/games/menifot.js`.** Move per §5 mapping.
+- [x] **Step 6a — Extract `server/games/menifot.js`.** Move per §5 mapping.
   Wire into the existing `chooseGame`/`disconnect`/`reconnectPayload` if/else
   **by hand** (call `menifot.onChoose(...)` etc. from the existing branches) —
   don't build the registry yet. Verify: full Menifot match including reconnect

@@ -12,16 +12,21 @@ const {
   ROOM_CODE_LENGTH,
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
+const menifot = require('./games/menifot');
 
 /** @type {object | null} */
 let hooks = null;
+/** @type {object | null} */
+let ctx = null;
 
 /**
  * Game-specific helpers still live in server.js until each game module is
  * extracted (Steps 6a–6d). Lobby shells call through these hooks.
+ * Menifot (Step 6a) is already a module — call its contract methods with ctx.
  */
 function initLobby(gameHooks) {
   hooks = gameHooks;
+  ctx = gameHooks.ctx;
 }
 
 function connectedNames(room) {
@@ -77,7 +82,7 @@ function resetToLobby(roomCode, room) {
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
   hooks.clearTsState(room, roomCode);
-  hooks.clearMfState(room);
+  menifot.clearState(room);
   room.imposterRoundResults = null;
   for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
@@ -199,14 +204,7 @@ function reconnectPayload(room, existing) {
   }
 
   if (room.game === 'menifot') {
-    let viewerName = null;
-    for (const [n, p] of room.players.entries()) {
-      if (p === existing) {
-        viewerName = n;
-        break;
-      }
-    }
-    return { ok: true, ...hooks.menifotStatePayload(room, viewerName) };
+    return menifot.reconnectPayload(ctx, room, existing);
   }
 
   return {
@@ -250,7 +248,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
       }
       hooks.broadcastTensSeconds(roomCode, room);
     } else if (room.game === 'menifot') {
-      hooks.broadcastMenifot(roomCode, room);
+      menifot.onReconnectBroadcast(ctx, roomCode, room);
     } else if (room.phase === 'lobby') {
       if (!room.hostName) setHost(roomCode, room, name);
       broadcastLobby(roomCode, room);
@@ -335,8 +333,6 @@ function registerLobbyHandlers(socket) {
     MIN_PLAYERS,
     CN_MIN_PLAYERS,
     TS_MIN_PLAYERS,
-    MF_MIN_PLAYERS,
-    MF_MAX_PLAYERS,
     BACKGROUNDS_DIR,
   } = hooks;
 
@@ -439,15 +435,18 @@ function registerLobbyHandlers(socket) {
     }
 
     if (selectedGame === 'menifot') {
-      if (names.length < MF_MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${MF_MIN_PLAYERS} players` });
+      if (names.length < menifot.minPlayers) {
+        return callback({ ok: false, error: `Need at least ${menifot.minPlayers} players` });
       }
-      if (names.length > MF_MAX_PLAYERS) {
-        return callback({ ok: false, error: `Menifot supports at most ${MF_MAX_PLAYERS} players` });
+      if (names.length > menifot.maxPlayers) {
+        return callback({
+          ok: false,
+          error: `Menifot supports at most ${menifot.maxPlayers} players`,
+        });
       }
-      room.game = 'menifot';
+      room.game = menifot.id;
       roomEmit(roomCode, 'gameChosen', { game: room.game });
-      hooks.initMenifotGame(roomCode, room);
+      menifot.onChoose(ctx, roomCode, room);
       return callback({ ok: true });
     }
 
@@ -558,10 +557,7 @@ function registerLobbyHandlers(socket) {
         hooks.broadcastTensSeconds(roomCode, room);
       }
     } else if (room.game === 'menifot') {
-      if (room.phase === 'allocating' && room.mfHands[name] && !room.mfHands[name].locked) {
-        hooks.autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
-      }
-      hooks.broadcastMenifot(roomCode, room);
+      menifot.onDisconnect(ctx, roomCode, room, name);
     }
   });
 }

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
+const menifot = require('./games/menifot');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
@@ -126,19 +127,9 @@ function loadRoomsFromDisk(hooks = {}) {
       if (room.game === 'tenseconds' && room.phase === 'running' && room.tsRoundStartAt) {
         scheduleTsForceStop(code, room);
       }
-      // Menifot mid-allocation / mid-reveal can't safely resume — drop to ready-for-next-round
-      // (or pre-Start ready) with match scores / roster preserved.
-      if (room.game === 'menifot' && (room.phase === 'allocating' || room.phase === 'roundResults')) {
-        if (room.phase === 'allocating') {
-          room.mfBoards = [];
-          room.mfHands = {};
-          room.mfBurned = [];
-          room.mfRoundResults = null;
-          room.phase = 'ready';
-        }
+      if (room.game === 'menifot') {
+        menifot.repairOnLoad(null, room);
       }
-      if (!room.mfScores || typeof room.mfScores !== 'object') room.mfScores = {};
-      if (!Array.isArray(room.mfPlayers)) room.mfPlayers = [];
       // If reporting was fully defaulted on restart, resolve it once everyone reconnects —
       // or immediately if all answers are already filled.
       if (room.game === 'imposter' && room.phase === 'reporting') {
