@@ -304,7 +304,7 @@ add one).
 - [x] **Step 6d — Extract `server/games/imposter.js`.** Same approach. Verify:
   full Imposter round including the reporting phase and a disconnect during
   `voting`.
-- [ ] **Step 7 — Build `server/gameRegistry.js`.** Replace the hand-wired
+- [x] **Step 7 — Build `server/gameRegistry.js`.** Replace the hand-wired
   if/else chains from step 6 with the `GAMES[...]` dispatch from §4. Derive
   `ROOM_SAVED_FIELDS` from each module's `savedFields`. Verify: all four games
   again, full regression pass, since this step touches every game's dispatch at

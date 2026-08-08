@@ -27,10 +27,7 @@ const {
   registerBackgroundRoutes,
   registerLobbyHandlers,
 } = require('./server/lobby');
-const menifot = require('./server/games/menifot');
-const tenseconds = require('./server/games/tenseconds');
-const codenames = require('./server/games/codenames');
-const imposter = require('./server/games/imposter');
+const { registerAllHandlers } = require('./server/gameRegistry');
 
 const app = express();
 const server = http.createServer(app);
@@ -72,10 +69,7 @@ initLobby({
 
 io.on('connection', (socket) => {
   registerLobbyHandlers(socket);
-  menifot.registerHandlers(ctx, io, socket);
-  tenseconds.registerHandlers(ctx, io, socket);
-  codenames.registerHandlers(ctx, io, socket);
-  imposter.registerHandlers(ctx, io, socket);
+  registerAllHandlers(ctx, io, socket);
 });
 
 loadRoomsFromDisk({ ctx });

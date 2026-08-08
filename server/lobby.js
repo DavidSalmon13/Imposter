@@ -12,10 +12,7 @@ const {
   ROOM_CODE_LENGTH,
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
-const menifot = require('./games/menifot');
-const tenseconds = require('./games/tenseconds');
-const codenames = require('./games/codenames');
-const imposter = require('./games/imposter');
+const { getGame, clearAllGameState } = require('./gameRegistry');
 
 /** @type {object | null} */
 let hooks = null;
@@ -23,8 +20,7 @@ let hooks = null;
 let ctx = null;
 
 /**
- * Shared helpers still live here; game modules are extracted (Steps 6a–6d).
- * Lobby shells call game contract methods with ctx until Step 7 builds the registry.
+ * Shared helpers still live here; per-game dispatch goes through gameRegistry.
  */
 function initLobby(gameHooks) {
   hooks = gameHooks;
@@ -74,10 +70,7 @@ function resetToLobby(roomCode, room) {
   }
   room.game = null;
   room.phase = 'lobby';
-  imposter.clearState(room);
-  codenames.clearState(room, roomCode);
-  tenseconds.clearState(room, roomCode);
-  menifot.clearState(room);
+  clearAllGameState(room, roomCode);
   for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
@@ -92,22 +85,10 @@ function attachToRoom(socket, roomCode, room, name) {
   socket.data.name = name;
 }
 
-// Shell: per-game branches stay until Steps 6/7 replace them with GAMES[room.game].reconnectPayload.
 function reconnectPayload(room, existing) {
-  if (room.game === 'imposter') {
-    return imposter.reconnectPayload(ctx, room, existing);
-  }
-
-  if (room.game === 'codenames') {
-    return codenames.reconnectPayload(ctx, room, existing);
-  }
-
-  if (room.game === 'tenseconds') {
-    return tenseconds.reconnectPayload(ctx, room, existing);
-  }
-
-  if (room.game === 'menifot') {
-    return menifot.reconnectPayload(ctx, room, existing);
+  const game = getGame(room.game);
+  if (game) {
+    return game.reconnectPayload(ctx, room, existing);
   }
 
   return {
@@ -134,14 +115,9 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     existing.socketId = socket.id;
     attachToRoom(socket, roomCode, room, name);
 
-    if (room.game === 'imposter') {
-      imposter.onReconnectBroadcast(ctx, roomCode, room);
-    } else if (room.game === 'codenames') {
-      codenames.onReconnectBroadcast(ctx, roomCode, room);
-    } else if (room.game === 'tenseconds') {
-      tenseconds.onReconnectBroadcast(ctx, roomCode, room, name);
-    } else if (room.game === 'menifot') {
-      menifot.onReconnectBroadcast(ctx, roomCode, room, name);
+    const game = getGame(room.game);
+    if (game && typeof game.onReconnectBroadcast === 'function') {
+      game.onReconnectBroadcast(ctx, roomCode, room, name);
     } else if (room.phase === 'lobby') {
       if (!room.hostName) setHost(roomCode, room, name);
       broadcastLobby(roomCode, room);
@@ -279,7 +255,6 @@ function registerLobbyHandlers(socket) {
     joinExistingRoom(socket, roomCode, name, callback);
   });
 
-  // Shell: per-game branches until Steps 6/7 replace them with GAMES[selectedGame].onChoose.
   socket.on('chooseGame', (selectedGame, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -289,64 +264,25 @@ function registerLobbyHandlers(socket) {
     if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can choose the game' });
     }
-    if (
-      selectedGame !== 'imposter' &&
-      selectedGame !== 'codenames' &&
-      selectedGame !== 'tenseconds' &&
-      selectedGame !== 'menifot'
-    ) {
-      return callback({ ok: false, error: 'Invalid game' });
-    }
+
+    const game = getGame(selectedGame);
+    if (!game) return callback({ ok: false, error: 'Invalid game' });
 
     const names = connectedNames(room);
-
-    if (selectedGame === 'imposter') {
-      if (names.length < imposter.minPlayers) {
-        return callback({ ok: false, error: `Need at least ${imposter.minPlayers} players` });
-      }
-      room.game = imposter.id;
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      imposter.onChoose(ctx, roomCode, room);
-      return callback({ ok: true });
+    if (names.length < game.minPlayers) {
+      return callback({ ok: false, error: `Need at least ${game.minPlayers} players` });
+    }
+    if (game.maxPlayers != null && names.length > game.maxPlayers) {
+      return callback({
+        ok: false,
+        error: `${game.id} supports at most ${game.maxPlayers} players`,
+      });
     }
 
-    if (selectedGame === 'tenseconds') {
-      if (names.length < tenseconds.minPlayers) {
-        return callback({ ok: false, error: `Need at least ${tenseconds.minPlayers} players` });
-      }
-      room.game = tenseconds.id;
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      tenseconds.onChoose(ctx, roomCode, room);
-      return callback({ ok: true });
-    }
-
-    if (selectedGame === 'menifot') {
-      if (names.length < menifot.minPlayers) {
-        return callback({ ok: false, error: `Need at least ${menifot.minPlayers} players` });
-      }
-      if (names.length > menifot.maxPlayers) {
-        return callback({
-          ok: false,
-          error: `Menifot supports at most ${menifot.maxPlayers} players`,
-        });
-      }
-      room.game = menifot.id;
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      menifot.onChoose(ctx, roomCode, room);
-      return callback({ ok: true });
-    }
-
-    if (selectedGame === 'codenames') {
-      if (names.length < codenames.minPlayers) {
-        return callback({ ok: false, error: `Need at least ${codenames.minPlayers} players` });
-      }
-      room.game = codenames.id;
-      roomEmit(roomCode, 'gameChosen', { game: room.game });
-      codenames.onChoose(ctx, roomCode, room);
-      return callback({ ok: true });
-    }
-
-    return callback({ ok: false, error: 'Invalid game' });
+    room.game = game.id;
+    roomEmit(roomCode, 'gameChosen', { game: game.id });
+    game.onChoose(ctx, roomCode, room);
+    return callback({ ok: true });
   });
 
   socket.on('resetScoreboard', (callback) => {
@@ -391,7 +327,6 @@ function registerLobbyHandlers(socket) {
     callback({ ok: true });
   });
 
-  // Shell: per-game branches until Steps 6/7 replace them with GAMES[room.game].onDisconnect.
   socket.on('disconnect', () => {
     const name = socket.data.name;
     const roomCode = socket.data.roomCode;
@@ -419,14 +354,9 @@ function registerLobbyHandlers(socket) {
       const [nextHost] = connectedNames(room);
       setHost(roomCode, room, nextHost || null);
     }
-    if (room.game === 'imposter') {
-      imposter.onDisconnect(ctx, roomCode, room, name);
-    } else if (room.game === 'codenames') {
-      codenames.onDisconnect(ctx, roomCode, room, name);
-    } else if (room.game === 'tenseconds') {
-      tenseconds.onDisconnect(ctx, roomCode, room, name);
-    } else if (room.game === 'menifot') {
-      menifot.onDisconnect(ctx, roomCode, room, name);
+    const game = getGame(room.game);
+    if (game) {
+      game.onDisconnect(ctx, roomCode, room, name);
     }
   });
 }

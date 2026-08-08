@@ -1,53 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
-const menifot = require('./games/menifot');
-const tenseconds = require('./games/tenseconds');
-const codenames = require('./games/codenames');
-const imposter = require('./games/imposter');
+const { ROOM_SAVED_FIELDS, repairRoomOnLoad } = require('./gameRegistry');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
 const SAVE_INTERVAL_MS = 5000;
-
-// Kept as a plain hardcoded array for now (see refactor_plan §6 point 1 / Step 4).
-// Later derived from each game module's savedFields via the registry.
-const ROOM_SAVED_FIELDS = [
-  'game',
-  'phase',
-  'hostName',
-  'currentLevel',
-  'lastImposterNames',
-  'usedWords',
-  'cnUsedWords',
-  'cnBoard',
-  'cnActiveTeam',
-  'cnStartingTeam',
-  'cnWinner',
-  'cnScores',
-  'cnTimerSeconds',
-  'cnTurnEndsAt',
-  'tsActivePlayers',
-  'tsContenders',
-  'tsEliminatedOrder',
-  'tsRoundStartAt',
-  'tsRoundResults',
-  'tsRoundNumber',
-  'tsSuddenDeath',
-  'tsEliminationWaves',
-  'mfPlayers',
-  'mfBoardCount',
-  'mfBoards',
-  'mfHands',
-  'mfBurned',
-  'mfScores',
-  'mfRoundNumber',
-  'mfRoundResults',
-  'mfMatchWinners',
-  'scoreboard',
-  'imposterRoundResults',
-  'backgroundImage',
-];
 
 function saveRoomsToDisk() {
   try {
@@ -68,7 +26,7 @@ function saveRoomsToDisk() {
 
 /**
  * Load rooms from disk. Per-game mid-round repair delegates to each module's
- * repairOnLoad (shared ctx supplies rooms/io helpers when needed).
+ * repairOnLoad via the registry.
  */
 function loadRoomsFromDisk(hooks = {}) {
   const { ctx } = hooks;
@@ -88,18 +46,7 @@ function loadRoomsFromDisk(hooks = {}) {
       if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
       if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
       rooms.set(code, room);
-      if (room.game === 'imposter') {
-        imposter.repairOnLoad(ctx || { rooms }, room);
-      }
-      if (room.game === 'codenames') {
-        codenames.repairOnLoad(ctx || { rooms }, room);
-      }
-      if (room.game === 'tenseconds') {
-        tenseconds.repairOnLoad(ctx || { rooms }, room);
-      }
-      if (room.game === 'menifot') {
-        menifot.repairOnLoad(null, room);
-      }
+      repairRoomOnLoad(ctx || { rooms }, room);
     }
     console.log(`Loaded ${rooms.size} room(s) from ${ROOMS_FILE}`);
   } catch (err) {
