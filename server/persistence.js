@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
 const menifot = require('./games/menifot');
+const tenseconds = require('./games/tenseconds');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
@@ -74,7 +75,7 @@ function loadRoomsFromDisk(hooks = {}) {
     finishImposterReporting,
     cnTimerExpired,
     cnTimerHandles,
-    scheduleTsForceStop,
+    ctx,
   } = hooks;
 
   if (!fs.existsSync(ROOMS_FILE)) return;
@@ -124,8 +125,8 @@ function loadRoomsFromDisk(hooks = {}) {
           cnTimerHandles.set(code, setTimeout(() => cnTimerExpired(code), remaining));
         }
       }
-      if (room.game === 'tenseconds' && room.phase === 'running' && room.tsRoundStartAt) {
-        scheduleTsForceStop(code, room);
+      if (room.game === 'tenseconds') {
+        tenseconds.repairOnLoad(ctx || { rooms }, room);
       }
       if (room.game === 'menifot') {
         menifot.repairOnLoad(null, room);

@@ -13,6 +13,7 @@ const {
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
 const menifot = require('./games/menifot');
+const tenseconds = require('./games/tenseconds');
 
 /** @type {object | null} */
 let hooks = null;
@@ -81,7 +82,7 @@ function resetToLobby(roomCode, room) {
   hooks.clearCnTimerHandle(roomCode);
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
-  hooks.clearTsState(room, roomCode);
+  tenseconds.clearState(room, roomCode);
   menifot.clearState(room);
   room.imposterRoundResults = null;
   for (const p of room.players.values()) p.eliminatedReport = null;
@@ -193,14 +194,7 @@ function reconnectPayload(room, existing) {
   }
 
   if (room.game === 'tenseconds') {
-    let viewerName = null;
-    for (const [n, p] of room.players.entries()) {
-      if (p === existing) {
-        viewerName = n;
-        break;
-      }
-    }
-    return { ok: true, ...hooks.tensSecondsStatePayload(room, viewerName) };
+    return tenseconds.reconnectPayload(ctx, room, existing);
   }
 
   if (room.game === 'menifot') {
@@ -237,18 +231,9 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     else if (room.game === 'imposter' && room.phase === 'roundResults') {
       hooks.broadcastImposterResults(roomCode, room);
     } else if (room.game === 'tenseconds') {
-      // Clear a mid-round DNF so a reconnecting player can still submit a live stop.
-      if (
-        room.phase === 'running' &&
-        room.tsContenders.includes(name) &&
-        room.tsRoundResults[name] &&
-        room.tsRoundResults[name].dnf
-      ) {
-        delete room.tsRoundResults[name];
-      }
-      hooks.broadcastTensSeconds(roomCode, room);
+      tenseconds.onReconnectBroadcast(ctx, roomCode, room, name);
     } else if (room.game === 'menifot') {
-      menifot.onReconnectBroadcast(ctx, roomCode, room);
+      menifot.onReconnectBroadcast(ctx, roomCode, room, name);
     } else if (room.phase === 'lobby') {
       if (!room.hostName) setHost(roomCode, room, name);
       broadcastLobby(roomCode, room);
@@ -332,7 +317,6 @@ function registerLobbyHandlers(socket) {
   const {
     MIN_PLAYERS,
     CN_MIN_PLAYERS,
-    TS_MIN_PLAYERS,
     BACKGROUNDS_DIR,
   } = hooks;
 
@@ -425,12 +409,12 @@ function registerLobbyHandlers(socket) {
     }
 
     if (selectedGame === 'tenseconds') {
-      if (names.length < TS_MIN_PLAYERS) {
-        return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
+      if (names.length < tenseconds.minPlayers) {
+        return callback({ ok: false, error: `Need at least ${tenseconds.minPlayers} players` });
       }
-      room.game = 'tenseconds';
+      room.game = tenseconds.id;
       roomEmit(roomCode, 'gameChosen', { game: room.game });
-      hooks.initTensSecondsGame(roomCode, room);
+      tenseconds.onChoose(ctx, roomCode, room);
       return callback({ ok: true });
     }
 
@@ -545,17 +529,7 @@ function registerLobbyHandlers(socket) {
     } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
       hooks.broadcastCodenamesState(roomCode, room);
     } else if (room.game === 'tenseconds') {
-      if (
-        room.phase === 'running' &&
-        room.tsContenders.includes(name) &&
-        !room.tsRoundResults[name]
-      ) {
-        hooks.assignTsDnf(room, name);
-        hooks.broadcastTensSeconds(roomCode, room);
-        hooks.maybeResolveTsRound(roomCode, room);
-      } else {
-        hooks.broadcastTensSeconds(roomCode, room);
-      }
+      tenseconds.onDisconnect(ctx, roomCode, room, name);
     } else if (room.game === 'menifot') {
       menifot.onDisconnect(ctx, roomCode, room, name);
     }

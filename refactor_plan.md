@@ -295,7 +295,7 @@ add one).
   **by hand** (call `menifot.onChoose(...)` etc. from the existing branches) —
   don't build the registry yet. Verify: full Menifot match including reconnect
   mid-allocation.
-- [ ] **Step 6b — Extract `server/games/tenseconds.js`.** Same approach as 6a.
+- [x] **Step 6b — Extract `server/games/tenseconds.js`.** Same approach as 6a.
   Verify: full 10 Seconds game including a disconnect during a running round
   (DNF path).
 - [ ] **Step 6c — Extract `server/games/codenames.js`.** Same approach. Verify:
