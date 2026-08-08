@@ -18,6 +18,7 @@ const SHARED_SAVED_FIELDS = [
   'scoreboard',
   'backgroundImage',
   'wordLanguage',
+  'wordTheme',
 ];
 
 const ROOM_SAVED_FIELDS = [

@@ -22,6 +22,7 @@ function createRoomState() {
     hostName: null,
     players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
     wordLanguage: 'english', // 'english' | 'hebrew' - language for ChatGPT-generated words/hints
+    wordTheme: '', // optional free-text theme/topic injected into ChatGPT word-generation prompts
     currentLevel: null,
     lastImposterNames: [],
     usedWords: [],

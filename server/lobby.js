@@ -52,6 +52,7 @@ function broadcastLobby(roomCode, room) {
     roomCode,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
+    wordTheme: room.wordTheme || '',
   });
 }
 
@@ -100,6 +101,7 @@ function reconnectPayload(room, existing) {
     host: room.hostName,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
+    wordTheme: room.wordTheme || '',
   };
 }
 
@@ -159,6 +161,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     background: room.backgroundImage,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
+    wordTheme: room.wordTheme || '',
   });
 }
 
@@ -242,6 +245,7 @@ function registerLobbyHandlers(socket) {
       background: room.backgroundImage,
       scoreboard: scoreboardEntries(room),
       wordLanguage: room.wordLanguage || 'english',
+      wordTheme: room.wordTheme || '',
     });
   });
 
@@ -303,6 +307,22 @@ function registerLobbyHandlers(socket) {
     }
 
     room.wordLanguage = language;
+    callback({ ok: true });
+    broadcastLobby(roomCode, room);
+  });
+
+  socket.on('setWordTheme', (theme, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can set the word theme' });
+    }
+    if (typeof theme !== 'string') return callback({ ok: false, error: 'Invalid theme' });
+
+    room.wordTheme = theme.replace(/\s+/g, ' ').trim().slice(0, 100);
     callback({ ok: true });
     broadcastLobby(roomCode, room);
   });

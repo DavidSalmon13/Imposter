@@ -47,6 +47,8 @@ const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
+const wordThemeSection = document.getElementById('word-theme-section');
+const wordThemeInput = document.getElementById('word-theme-input');
 
 const levelButtons = Array.from(
   document.querySelectorAll('.level-btn:not(.cn-timer-btn):not(.word-lang-btn)')
@@ -173,6 +175,7 @@ let myTeam = null;
 let isLeader = false;
 let cnTimerSeconds = 0;
 let wordLanguage = 'english';
+let wordTheme = '';
 let cnTurnEndsAt = null;
 let cnTimerTickHandle = null;
 let tsRoundStartAt = null;
@@ -232,6 +235,7 @@ function setHost(hostName) {
   imposterResultsWaiting.classList.toggle('hidden', isHost);
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
+  wordThemeSection.classList.toggle('hidden', !isHost);
 }
 
 function showScreen(name) {
@@ -385,6 +389,7 @@ function routeFromJoin(res) {
   }
 
   applyWordLanguage(res.wordLanguage);
+  applyWordTheme(res.wordTheme);
   renderLobby(res.players || [], res.scoreboard || []);
   showScreen('lobby');
 }
@@ -498,6 +503,15 @@ wordLanguageBtns.forEach((btn) => {
     if (!isHost) return;
     socket.emit('setWordLanguage', btn.dataset.lang, () => {});
   });
+});
+
+wordThemeInput.addEventListener('change', () => {
+  if (!isHost) return;
+  socket.emit('setWordTheme', wordThemeInput.value, () => {});
+});
+
+wordThemeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') wordThemeInput.blur();
 });
 
 levelButtons.forEach((btn) => {
@@ -691,10 +705,11 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard, wordLanguage: lang }) => {
+socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard, wordLanguage: lang, wordTheme: theme }) => {
   setHost(host);
   if (roomCode) roomCodeDisplay.textContent = roomCode;
   applyWordLanguage(lang);
+  applyWordTheme(theme);
   renderLobby(players, scoreboard);
 });
 
@@ -816,6 +831,13 @@ function applyWordLanguage(lang) {
   wordLanguageBtns.forEach((btn) => {
     btn.classList.toggle('selected', btn.dataset.lang === wordLanguage);
   });
+}
+
+function applyWordTheme(theme) {
+  wordTheme = theme || '';
+  if (document.activeElement !== wordThemeInput) {
+    wordThemeInput.value = wordTheme;
+  }
 }
 
 function renderLobby(players, scoreboard) {

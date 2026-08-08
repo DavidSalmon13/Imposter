@@ -94,11 +94,16 @@ async function generateWordGrid(room) {
   const avoid = room.cnUsedWords.slice(-100);
   const languageInstruction =
     room.wordLanguage === 'hebrew' ? ' Write every word in Hebrew.' : '';
+  const theme = (room.wordTheme || '').trim();
+  const themeInstruction = theme
+    ? ` All words must be related or loosely related to this theme: "${theme}". Mix directly obvious words ` +
+      `with more loosely-associated ones - not every word should be the single most obvious item for the theme.`
+    : ` Covering a broad mix of categories (objects, animals, food, places, jobs, nature, sports, tools, ` +
+      `clothing, etc).`;
   const prompt =
     `Generate exactly ${CN_WORD_COUNT} common, family-friendly, single-word nouns suitable for a word-guessing ` +
     `party game grid. Each must be ONE word (no phrases, no proper nouns), instantly recognizable to most ` +
-    `adults, covering a broad mix of categories (objects, animals, food, places, jobs, nature, sports, tools, ` +
-    `clothing, etc). All ${CN_WORD_COUNT} words must be different from each other.${languageInstruction}` +
+    `adults.${themeInstruction} All ${CN_WORD_COUNT} words must be different from each other.${languageInstruction}` +
     (avoid.length
       ? ` These words were used recently - avoid all of them: ${avoid.join(', ')}.`
       : '') +
