@@ -14,6 +14,7 @@ const {
 const { saveRoomsToDisk } = require('./persistence');
 const menifot = require('./games/menifot');
 const tenseconds = require('./games/tenseconds');
+const codenames = require('./games/codenames');
 
 /** @type {object | null} */
 let hooks = null;
@@ -74,14 +75,7 @@ function resetToLobby(roomCode, room) {
   room.game = null;
   room.phase = 'lobby';
   room.currentLevel = null;
-  room.cnBoard = null;
-  room.cnActiveTeam = null;
-  room.cnStartingTeam = null;
-  room.cnWinner = null;
-  room.cnScores = { red: 0, blue: 0 };
-  hooks.clearCnTimerHandle(roomCode);
-  room.cnTimerSeconds = null;
-  room.cnTurnEndsAt = null;
+  codenames.clearState(room, roomCode);
   tenseconds.clearState(room, roomCode);
   menifot.clearState(room);
   room.imposterRoundResults = null;
@@ -157,40 +151,7 @@ function reconnectPayload(room, existing) {
   }
 
   if (room.game === 'codenames') {
-    if (room.phase === 'teamSelect') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        red: hooks.teamPlayersInfo(room, 'red'),
-        blue: hooks.teamPlayersInfo(room, 'blue'),
-        unassigned: connectedNames(room).filter((n) => !room.players.get(n).team),
-        timerSeconds: room.cnTimerSeconds || 0,
-      };
-    }
-    if (room.phase === 'generating') {
-      return { ok: true, game: room.game, phase: room.phase, host: room.hostName };
-    }
-    if (room.phase === 'playing' || room.phase === 'gameover') {
-      return {
-        ok: true,
-        game: room.game,
-        phase: room.phase,
-        host: room.hostName,
-        activeTeam: room.cnActiveTeam,
-        winner: room.cnWinner,
-        scores: room.cnScores,
-        board: hooks.boardForViewer(room, existing),
-        isLeader: existing.leader,
-        myTeam: existing.team,
-        red: hooks.teamPlayersInfo(room, 'red'),
-        blue: hooks.teamPlayersInfo(room, 'blue'),
-        timerSeconds: room.cnTimerSeconds || 0,
-        turnEndsAt: room.cnTurnEndsAt,
-        scoreboard: room.phase === 'gameover' ? scoreboardEntries(room) : undefined,
-      };
-    }
+    return codenames.reconnectPayload(ctx, room, existing);
   }
 
   if (room.game === 'tenseconds') {
@@ -226,10 +187,11 @@ function joinExistingRoom(socket, roomCode, name, callback) {
     attachToRoom(socket, roomCode, room, name);
 
     if (room.phase === 'voting') hooks.broadcastVoting(roomCode, room);
-    else if (room.phase === 'teamSelect') hooks.broadcastTeamSelect(roomCode, room);
     else if (room.phase === 'reporting') hooks.broadcastImposterReporting(roomCode, room);
     else if (room.game === 'imposter' && room.phase === 'roundResults') {
       hooks.broadcastImposterResults(roomCode, room);
+    } else if (room.game === 'codenames') {
+      codenames.onReconnectBroadcast(ctx, roomCode, room);
     } else if (room.game === 'tenseconds') {
       tenseconds.onReconnectBroadcast(ctx, roomCode, room, name);
     } else if (room.game === 'menifot') {
@@ -316,7 +278,6 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
 function registerLobbyHandlers(socket) {
   const {
     MIN_PLAYERS,
-    CN_MIN_PLAYERS,
     BACKGROUNDS_DIR,
   } = hooks;
 
@@ -434,14 +395,17 @@ function registerLobbyHandlers(socket) {
       return callback({ ok: true });
     }
 
-    if (names.length < CN_MIN_PLAYERS) {
-      return callback({ ok: false, error: `Need at least ${CN_MIN_PLAYERS} players` });
+    if (selectedGame === 'codenames') {
+      if (names.length < codenames.minPlayers) {
+        return callback({ ok: false, error: `Need at least ${codenames.minPlayers} players` });
+      }
+      room.game = codenames.id;
+      roomEmit(roomCode, 'gameChosen', { game: room.game });
+      codenames.onChoose(ctx, roomCode, room);
+      return callback({ ok: true });
     }
-    room.game = 'codenames';
-    room.phase = 'teamSelect';
-    roomEmit(roomCode, 'gameChosen', { game: room.game });
-    hooks.broadcastTeamSelect(roomCode, room);
-    callback({ ok: true });
+
+    return callback({ ok: false, error: 'Invalid game' });
   });
 
   socket.on('resetScoreboard', (callback) => {
@@ -524,10 +488,8 @@ function registerLobbyHandlers(socket) {
       }
       hooks.broadcastImposterReporting(roomCode, room);
       hooks.maybeFinishImposterReporting(roomCode, room);
-    } else if (room.phase === 'teamSelect') {
-      hooks.broadcastTeamSelect(roomCode, room);
-    } else if (room.game === 'codenames' && (room.phase === 'playing' || room.phase === 'gameover')) {
-      hooks.broadcastCodenamesState(roomCode, room);
+    } else if (room.game === 'codenames') {
+      codenames.onDisconnect(ctx, roomCode, room, name);
     } else if (room.game === 'tenseconds') {
       tenseconds.onDisconnect(ctx, roomCode, room, name);
     } else if (room.game === 'menifot') {

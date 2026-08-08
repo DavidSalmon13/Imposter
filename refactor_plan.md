@@ -298,7 +298,7 @@ add one).
 - [x] **Step 6b — Extract `server/games/tenseconds.js`.** Same approach as 6a.
   Verify: full 10 Seconds game including a disconnect during a running round
   (DNF path).
-- [ ] **Step 6c — Extract `server/games/codenames.js`.** Same approach. Verify:
+- [x] **Step 6c — Extract `server/games/codenames.js`.** Same approach. Verify:
   full Codenames game including the turn timer and a disconnect during
   `playing`.
 - [ ] **Step 6d — Extract `server/games/imposter.js`.** Same approach. Verify:

@@ -3,6 +3,7 @@ const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
 const menifot = require('./games/menifot');
 const tenseconds = require('./games/tenseconds');
+const codenames = require('./games/codenames');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
@@ -73,8 +74,6 @@ function loadRoomsFromDisk(hooks = {}) {
   const {
     playersInImposterRound,
     finishImposterReporting,
-    cnTimerExpired,
-    cnTimerHandles,
     ctx,
   } = hooks;
 
@@ -97,8 +96,6 @@ function loadRoomsFromDisk(hooks = {}) {
           room.phase = 'voting';
           room.currentLevel = null;
           for (const p of room.players.values()) p.vote = null;
-        } else if (room.game === 'codenames') {
-          room.phase = 'teamSelect';
         }
       }
       if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
@@ -114,16 +111,8 @@ function loadRoomsFromDisk(hooks = {}) {
         }
       }
       rooms.set(code, room);
-      // Live setTimeout handles don't survive a restart. A saved deadline is an absolute
-      // timestamp though, so we can just pick back up from it (or expire it immediately
-      // if the process was down past the deadline).
-      if (room.game === 'codenames' && room.phase === 'playing' && room.cnTimerSeconds && room.cnTurnEndsAt) {
-        const remaining = room.cnTurnEndsAt - Date.now();
-        if (remaining <= 0) {
-          cnTimerExpired(code);
-        } else {
-          cnTimerHandles.set(code, setTimeout(() => cnTimerExpired(code), remaining));
-        }
+      if (room.game === 'codenames') {
+        codenames.repairOnLoad(ctx || { rooms }, room);
       }
       if (room.game === 'tenseconds') {
         tenseconds.repairOnLoad(ctx || { rooms }, room);
