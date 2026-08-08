@@ -52,10 +52,26 @@
         <input id="word-theme-input" type="text" placeholder="e.g. soccer, Harry Potter&hellip; leave blank for general words" maxlength="100" autocomplete="off" />
       </div>
       <div id="game-choice" class="game-choice hidden">
-        <button id="choose-imposter-btn" class="secondary">🕵️ Play Imposter</button>
-        <button id="choose-codenames-btn">🔴🔵 Play Codenames</button>
-        <button id="choose-tenseconds-btn" class="secondary">⏱️ Play 10 Seconds</button>
-        <button id="choose-menifot-btn" class="secondary">🃏 Play Menifot</button>
+        <button id="choose-imposter-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🕵️</span>
+          <span class="game-tile-name">Imposter</span>
+          <span class="game-tile-sub">Spot who's faking it</span>
+        </button>
+        <button id="choose-codenames-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🔴🔵</span>
+          <span class="game-tile-name">Codenames</span>
+          <span class="game-tile-sub">Team word-guessing duel</span>
+        </button>
+        <button id="choose-tenseconds-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">⏱️</span>
+          <span class="game-tile-name">10 Seconds</span>
+          <span class="game-tile-sub">Stop the clock exactly</span>
+        </button>
+        <button id="choose-menifot-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🃏</span>
+          <span class="game-tile-name">Menifot</span>
+          <span class="game-tile-sub">Split your hand, win boards</span>
+        </button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
