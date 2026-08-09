@@ -913,9 +913,9 @@ button.secondary:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   width: auto;
-  min-width: 1.7rem;
+  min-width: 2rem;
   min-height: 0;
-  padding: 0.16rem 0.28rem;
+  padding: 0.22rem 0.36rem;
   border-radius: 5px;
   background: #f4f1ea;
   color: #1a1a1a;
@@ -923,12 +923,24 @@ button.secondary:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
   border: 1px solid rgba(0, 0, 0, 0.12);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   line-height: 1.1;
 }
 
-.mf-card.red {
-  color: #b42318;
+.mf-card.mf-suit-h {
+  color: #c0272b;
+}
+
+.mf-card.mf-suit-d {
+  color: #8b2fc9;
+}
+
+.mf-card.mf-suit-c {
+  color: #1a1a1a;
+}
+
+.mf-card.mf-suit-s {
+  color: #9a7300;
 }
 
 .mf-card.hidden-card {

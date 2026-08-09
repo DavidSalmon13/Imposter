@@ -1234,6 +1234,11 @@ function applyTensSecondsState(data) {
 }
 
 const MF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
+const MF_SUIT_CLASS = { s: 'mf-suit-s', h: 'mf-suit-h', d: 'mf-suit-d', c: 'mf-suit-c' };
+const MF_RANK_ORDER = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  T: 10, J: 11, Q: 12, K: 13, A: 14,
+};
 
 function formatMfCard(code) {
   if (!code) return '?';
@@ -1243,9 +1248,18 @@ function formatMfCard(code) {
   return `${displayRank}${MF_SUIT_SYMBOL[suit] || suit}`;
 }
 
-function mfCardIsRed(code) {
+function mfCardSuitClass(code) {
   const suit = code && code.slice(-1);
-  return suit === 'h' || suit === 'd';
+  return MF_SUIT_CLASS[suit] || '';
+}
+
+function mfCardRankValue(code) {
+  const rank = code && code.slice(0, -1);
+  return MF_RANK_ORDER[rank] || 0;
+}
+
+function mfSortCards(cards) {
+  return (cards || []).slice().sort((a, b) => mfCardRankValue(a) - mfCardRankValue(b));
 }
 
 function makeMfCardEl(code, { hidden = false, selected = false, interactive = false, outcome = null } = {}) {
@@ -1261,7 +1275,8 @@ function makeMfCardEl(code, { hidden = false, selected = false, interactive = fa
     el.textContent = '??';
   } else {
     el.textContent = formatMfCard(code);
-    if (mfCardIsRed(code)) el.classList.add('red');
+    const suitClass = mfCardSuitClass(code);
+    if (suitClass) el.classList.add(suitClass);
   }
   if (selected) el.classList.add('selected');
   if (outcome === 'win') el.classList.add('mf-card-win');
@@ -1466,7 +1481,7 @@ function renderMfAllocating(data) {
       empty.textContent = '—';
       holeRow.appendChild(empty);
     } else {
-      hole.forEach((card) => {
+      mfSortCards(hole).forEach((card) => {
         const el = makeMfCardEl(card, {
           selected: mfSelectedCard === card,
           interactive: inMatch && !locked,
@@ -1507,7 +1522,7 @@ function renderMfAllocating(data) {
     } else {
       const row = document.createElement('div');
       row.className = 'mf-card-row mf-hand-tap';
-      unassigned.forEach((card) => {
+      mfSortCards(unassigned).forEach((card) => {
         const el = makeMfCardEl(card, {
           selected: mfSelectedCard === card,
           interactive: !locked,
