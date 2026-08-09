@@ -2,12 +2,14 @@ const imposter = require('./games/imposter');
 const codenames = require('./games/codenames');
 const tenseconds = require('./games/tenseconds');
 const menifot = require('./games/menifot');
+const kartrace = require('./games/kartRace');
 
 const GAMES = {
   imposter,
   codenames,
   tenseconds,
   menifot,
+  kartrace,
 };
 
 /** Shared room fields persisted alongside each game module's savedFields. */

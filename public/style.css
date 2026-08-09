@@ -850,6 +850,63 @@ button.secondary:hover:not(:disabled) {
   }
 }
 
+/* ---------- Kart Race ---------- */
+
+#kart-race-screen {
+  max-width: 480px;
+}
+
+#kr-race-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+#kr-race-panel.hidden {
+  display: none;
+}
+
+#kr-canvas {
+  width: 100%;
+  height: 260px;
+  display: block;
+  border-radius: 10px;
+  background: #2a3340;
+  touch-action: none;
+}
+
+#kr-countdown {
+  margin: 0;
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+#kr-hud {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+#kr-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 0.45rem;
+}
+
+#kr-controls button {
+  min-height: 3rem;
+  font-size: 1rem;
+  user-select: none;
+  touch-action: none;
+}
+
+#kr-item-btn {
+  grid-column: 1 / -1;
+}
+
 /* ---------- Menifot ---------- */
 
 #mf-screen {

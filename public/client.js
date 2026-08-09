@@ -1,10 +1,14 @@
+import { KartRace } from './js/games/kartRace.js';
+
 const socket = io();
+KartRace.init(socket);
 
 const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
 const MF_MIN_PLAYERS = 2;
 const MF_MAX_PLAYERS = 8;
+const KR_MIN_PLAYERS = 2;
 
 const screens = {
   join: document.getElementById('join-screen'),
@@ -19,6 +23,7 @@ const screens = {
   codenamesGameover: document.getElementById('codenames-gameover-screen'),
   tensSeconds: document.getElementById('ts-screen'),
   menifot: document.getElementById('mf-screen'),
+  kartRace: document.getElementById('kart-race-screen'),
 };
 
 const bgControls = document.getElementById('bg-controls');
@@ -45,7 +50,9 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
+const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
+const krBackBtn = document.getElementById('kr-back-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
 const wordThemeSection = document.getElementById('word-theme-section');
@@ -232,6 +239,7 @@ function setHost(hostName) {
   cnTeamBackBtn.classList.remove('hidden');
   tsBackBtn.classList.remove('hidden');
   mfBackBtn.classList.remove('hidden');
+  krBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
@@ -388,6 +396,12 @@ function routeFromJoin(res) {
     return;
   }
 
+  if (res.game === 'kartrace') {
+    KartRace.applyState(res);
+    showScreen('kartRace');
+    return;
+  }
+
   applyWordLanguage(res.wordLanguage);
   applyWordTheme(res.wordTheme);
   renderLobby(res.players || [], res.scoreboard || []);
@@ -459,6 +473,13 @@ chooseTensSecondsBtn.addEventListener('click', () => {
 chooseMenifotBtn.addEventListener('click', () => {
   chooseError.textContent = '';
   socket.emit('chooseGame', 'menifot', (res) => {
+    if (!res.ok) chooseError.textContent = res.error;
+  });
+});
+
+chooseKartRaceBtn.addEventListener('click', () => {
+  chooseError.textContent = '';
+  socket.emit('chooseGame', 'kartrace', (res) => {
     if (!res.ok) chooseError.textContent = res.error;
   });
 });
@@ -802,6 +823,11 @@ socket.on('menifotState', (data) => {
   showScreen('menifot');
 });
 
+socket.on('krState', (data) => {
+  KartRace.applyState(data);
+  showScreen('kartRace');
+});
+
 socket.on('backToLobby', () => {
   currentGame = null;
   myVote = null;
@@ -812,6 +838,7 @@ socket.on('backToLobby', () => {
   cnTurnEndsAt = null;
   stopCnTimerTick();
   stopTsTick();
+  KartRace.stop();
   tsRoundStartAt = null;
   tsHasStopped = false;
   tsIsContender = false;
@@ -866,8 +893,9 @@ function renderLobby(players, scoreboard) {
   chooseImposterBtn.disabled = players.length < MIN_PLAYERS;
   chooseCodenamesBtn.disabled = players.length < CN_MIN_PLAYERS;
   chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
+  chooseKartRaceBtn.disabled = players.length < KR_MIN_PLAYERS;
   if (players.length < MIN_PLAYERS) {
-    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
+    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds / Kart Race, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
   } else if (players.length < CN_MIN_PLAYERS) {
     chooseError.textContent = `Need at least ${CN_MIN_PLAYERS} players for Codenames`;
   } else {
