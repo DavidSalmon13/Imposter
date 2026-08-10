@@ -1304,6 +1304,20 @@ function mfSortCards(cards) {
   return (cards || []).slice().sort((a, b) => mfCardRankValue(a) - mfCardRankValue(b));
 }
 
+function mfCornerEl(rank, pip, position) {
+  const corner = document.createElement('span');
+  corner.className = `mf-card-corner mf-card-corner-${position}`;
+  const rankEl = document.createElement('span');
+  rankEl.className = 'mf-card-rank';
+  rankEl.textContent = rank;
+  const pipEl = document.createElement('span');
+  pipEl.className = 'mf-card-pip';
+  pipEl.textContent = pip;
+  corner.appendChild(rankEl);
+  corner.appendChild(pipEl);
+  return corner;
+}
+
 function makeMfCardEl(code, { hidden = false, selected = false, interactive = false, outcome = null } = {}) {
   const el = document.createElement(interactive ? 'button' : 'span');
   if (interactive) {
@@ -1314,11 +1328,19 @@ function makeMfCardEl(code, { hidden = false, selected = false, interactive = fa
   }
   if (hidden) {
     el.classList.add('hidden-card');
-    el.textContent = '??';
   } else {
-    el.textContent = formatMfCard(code);
+    const rank = code ? (code.slice(0, -1) === 'T' ? '10' : code.slice(0, -1)) : '?';
+    const suit = code ? code.slice(-1) : '';
+    const pip = MF_SUIT_SYMBOL[suit] || suit;
     const suitClass = mfCardSuitClass(code);
     if (suitClass) el.classList.add(suitClass);
+    el.appendChild(mfCornerEl(rank, pip, 'tl'));
+    const center = document.createElement('span');
+    center.className = 'mf-card-center';
+    center.textContent = pip;
+    el.appendChild(center);
+    el.appendChild(mfCornerEl(rank, pip, 'br'));
+    el.setAttribute('aria-label', formatMfCard(code));
   }
   if (selected) el.classList.add('selected');
   if (outcome === 'win') el.classList.add('mf-card-win');
