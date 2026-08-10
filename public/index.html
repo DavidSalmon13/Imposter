@@ -5,9 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Shorot</title>
   <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/vendor/three/three.module.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <header class="app-header">
+    <div id="sound-controls" class="bg-controls sound-controls">
+      <button id="mute-btn" class="bg-btn" type="button" title="Mute sound">🔊</button>
+    </div>
     🎉 Shorot
     <div id="bg-controls" class="bg-controls hidden">
       <button id="bg-change-btn" class="bg-btn" type="button" title="Change background">🖼️</button>
@@ -67,6 +77,11 @@
           <span class="game-tile-icon">🃏</span>
           <span class="game-tile-name">Menifot</span>
           <span class="game-tile-sub">Split your hand, win boards</span>
+        </button>
+        <button id="choose-kartrace-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🏎️</span>
+          <span class="game-tile-name">Kart Race</span>
+          <span class="game-tile-sub">Race the shared track</span>
         </button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
@@ -275,6 +290,40 @@
       <p id="mf-error" class="error"></p>
     </section>
 
+    <!-- Kart Race -->
+
+    <section id="kart-race-screen" class="screen hidden">
+      <div id="kr-ready-panel" class="hidden">
+        <ul id="kr-player-list" class="player-list"></ul>
+        <button id="kr-start-btn" class="hidden" disabled>Start Race</button>
+        <p id="kr-ready-error" class="error"></p>
+      </div>
+
+      <div id="kr-race-panel" class="hidden">
+        <canvas id="kr-canvas"></canvas>
+        <p id="kr-countdown" class="hidden"></p>
+        <div id="kr-hud">
+          <span id="kr-lap-display"></span>
+          <span id="kr-rank-display"></span>
+        </div>
+        <div id="kr-controls">
+          <button id="kr-left-btn">◀</button>
+          <button id="kr-right-btn">▶</button>
+          <button id="kr-brake-btn">BRAKE</button>
+          <button id="kr-item-btn" class="hidden"></button>
+        </div>
+        <button id="kr-end-race-btn" class="hidden">End Race</button>
+      </div>
+
+      <div id="kr-results-panel" class="hidden">
+        <ol id="kr-results-list"></ol>
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="kr-scoreboard" class="scoreboard-list"></ol>
+        <button id="kr-play-again-btn" class="hidden">Play Again</button>
+      </div>
+      <button id="kr-back-btn" class="secondary hidden">Back to Lobby</button>
+    </section>
+
     <!-- Shared -->
 
     <section id="generating-screen" class="screen hidden">
@@ -285,6 +334,6 @@
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+  <script type="module" src="client.js"></script>
 </body>
 </html>

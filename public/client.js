@@ -1,10 +1,15 @@
+import { KartRace } from './js/games/kartRace.js';
+import { sfx, haptics, isMuted, toggleMuted, renderScoreboardFx } from './js/fx.js';
+
 const socket = io();
+KartRace.init(socket);
 
 const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
 const MF_MIN_PLAYERS = 2;
 const MF_MAX_PLAYERS = 8;
+const KR_MIN_PLAYERS = 2;
 
 const screens = {
   join: document.getElementById('join-screen'),
@@ -19,6 +24,7 @@ const screens = {
   codenamesGameover: document.getElementById('codenames-gameover-screen'),
   tensSeconds: document.getElementById('ts-screen'),
   menifot: document.getElementById('mf-screen'),
+  kartRace: document.getElementById('kart-race-screen'),
 };
 
 const bgControls = document.getElementById('bg-controls');
@@ -26,6 +32,28 @@ const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
 const bgFileInput = document.getElementById('bg-file-input');
 const bgError = document.getElementById('bg-error');
+const muteBtn = document.getElementById('mute-btn');
+
+function refreshMuteBtn() {
+  const muted = isMuted();
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.title = muted ? 'Unmute sound' : 'Mute sound';
+}
+
+muteBtn.addEventListener('click', () => {
+  toggleMuted();
+  refreshMuteBtn();
+});
+refreshMuteBtn();
+
+// Light tap feedback on every button press, except held racing controls
+// (accelerate/steer/brake), which fire far too rapidly for a per-tap cue.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || btn.disabled || btn.closest('#kr-controls')) return;
+  sfx.click();
+  haptics.tap();
+});
 
 const nameInput = document.getElementById('name-input');
 const roomCodeInput = document.getElementById('room-code-input');
@@ -45,7 +73,9 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
+const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
+const krBackBtn = document.getElementById('kr-back-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
 const wordThemeSection = document.getElementById('word-theme-section');
@@ -232,6 +262,7 @@ function setHost(hostName) {
   cnTeamBackBtn.classList.remove('hidden');
   tsBackBtn.classList.remove('hidden');
   mfBackBtn.classList.remove('hidden');
+  krBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
@@ -316,6 +347,8 @@ function showGenerating(game) {
 
 function handleJoinResult(res, name) {
   if (!res.ok) {
+    sfx.error();
+    haptics.warn();
     joinError.textContent = res.error;
     if (res.error === 'Room not found') {
       localStorage.removeItem('imposterRoom');
@@ -326,6 +359,8 @@ function handleJoinResult(res, name) {
     showScreen('join');
     return;
   }
+  sfx.join();
+  haptics.success();
   rememberSession(name, res.roomCode);
   applyBackground(res.background || null);
   routeFromJoin(res);
@@ -385,6 +420,12 @@ function routeFromJoin(res) {
   if (res.game === 'menifot') {
     applyMenifotState(res);
     showScreen('menifot');
+    return;
+  }
+
+  if (res.game === 'kartrace') {
+    KartRace.applyState(res);
+    showScreen('kartRace');
     return;
   }
 
@@ -459,6 +500,13 @@ chooseTensSecondsBtn.addEventListener('click', () => {
 chooseMenifotBtn.addEventListener('click', () => {
   chooseError.textContent = '';
   socket.emit('chooseGame', 'menifot', (res) => {
+    if (!res.ok) chooseError.textContent = res.error;
+  });
+});
+
+chooseKartRaceBtn.addEventListener('click', () => {
+  chooseError.textContent = '';
+  socket.emit('chooseGame', 'kartrace', (res) => {
     if (!res.ok) chooseError.textContent = res.error;
   });
 });
@@ -802,6 +850,11 @@ socket.on('menifotState', (data) => {
   showScreen('menifot');
 });
 
+socket.on('krState', (data) => {
+  KartRace.applyState(data);
+  showScreen('kartRace');
+});
+
 socket.on('backToLobby', () => {
   currentGame = null;
   myVote = null;
@@ -812,6 +865,7 @@ socket.on('backToLobby', () => {
   cnTurnEndsAt = null;
   stopCnTimerTick();
   stopTsTick();
+  KartRace.stop();
   tsRoundStartAt = null;
   tsHasStopped = false;
   tsIsContender = false;
@@ -826,20 +880,7 @@ socket.on('backToLobby', () => {
   showScreen('lobby');
 });
 
-function renderScoreboard(listEl, entries) {
-  listEl.innerHTML = '';
-  (entries || []).forEach(({ name, points }) => {
-    const li = document.createElement('li');
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = name;
-    const ptsSpan = document.createElement('span');
-    ptsSpan.className = 'sb-points' + (points < 0 ? ' negative' : '');
-    ptsSpan.textContent = points > 0 ? `+${points}` : String(points);
-    li.appendChild(nameSpan);
-    li.appendChild(ptsSpan);
-    listEl.appendChild(li);
-  });
-}
+const renderScoreboard = renderScoreboardFx;
 
 function applyWordLanguage(lang) {
   wordLanguage = lang === 'hebrew' ? 'hebrew' : 'english';
@@ -866,8 +907,9 @@ function renderLobby(players, scoreboard) {
   chooseImposterBtn.disabled = players.length < MIN_PLAYERS;
   chooseCodenamesBtn.disabled = players.length < CN_MIN_PLAYERS;
   chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
+  chooseKartRaceBtn.disabled = players.length < KR_MIN_PLAYERS;
   if (players.length < MIN_PLAYERS) {
-    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
+    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds / Kart Race, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
   } else if (players.length < CN_MIN_PLAYERS) {
     chooseError.textContent = `Need at least ${CN_MIN_PLAYERS} players for Codenames`;
   } else {

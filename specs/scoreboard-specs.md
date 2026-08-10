@@ -1,6 +1,9 @@
 # Global Scoreboard — Specs
 
-A running points leaderboard shown on the shared lobby screen, fed by all three games (Imposter, Codenames, 10 Seconds). Scoped **per room**, not global across the server — "global" means "shared across every game type within this room," not cross-room identity.
+A running points leaderboard shown on the shared lobby screen, fed by all games in the
+room (Imposter, Codenames, 10 Seconds, Menifot, Kart Race). Scoped **per room**, not global
+across the server — "global" means "shared across every game type within this room," not
+cross-room identity.
 
 ## Relationship to existing games / shared app changes
 
@@ -35,6 +38,10 @@ A running points leaderboard shown on the shared lobby screen, fed by all three 
 | 10 Seconds | Second place (most recently eliminated before champion) | **+1** |
 | 10 Seconds | Everyone else (middle placements) | **0** |
 | 10 Seconds | Last place (first eliminated) | **-1** |
+| Kart Race | 1st place | **+3** |
+| Kart Race | 2nd place | **+2** |
+| Kart Race | 3rd place | **+1** |
+| Kart Race | Everyone else (4th and below, including non-finishers) | **0** |
 
 Points are added to `room.scoreboard[name]` once per resolved game/round, per the flows below.
 
