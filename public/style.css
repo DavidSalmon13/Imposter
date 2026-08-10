@@ -71,6 +71,11 @@ body {
   gap: 0.4rem;
 }
 
+.sound-controls {
+  right: auto;
+  left: 1rem;
+}
+
 .bg-btn {
   width: auto;
   padding: 0.5rem 0.7rem;
@@ -476,6 +481,44 @@ button.secondary:hover:not(:disabled) {
 
 .scoreboard-list .sb-points.negative {
   color: var(--danger);
+}
+
+.scoreboard-list li.sb-flash-up,
+.scoreboard-list li.sb-flash-down {
+  animation: sb-flash 0.9s var(--ease);
+}
+
+@keyframes sb-flash {
+  0% {
+    background: rgba(63, 215, 154, 0.35);
+    transform: scale(1.03);
+  }
+  100% {
+    background: rgba(8, 9, 15, 0.68);
+    transform: scale(1);
+  }
+}
+
+.scoreboard-list li.sb-flash-down {
+  animation-name: sb-flash-down;
+}
+
+@keyframes sb-flash-down {
+  0% {
+    background: rgba(255, 107, 120, 0.32);
+    transform: scale(1.03);
+  }
+  100% {
+    background: rgba(8, 9, 15, 0.68);
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard-list li.sb-flash-up,
+  .scoreboard-list li.sb-flash-down {
+    animation: none;
+  }
 }
 
 .sb-results-table {

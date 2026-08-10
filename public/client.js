@@ -1,4 +1,5 @@
 import { KartRace } from './js/games/kartRace.js';
+import { sfx, haptics, isMuted, toggleMuted, renderScoreboardFx } from './js/fx.js';
 
 const socket = io();
 KartRace.init(socket);
@@ -31,6 +32,28 @@ const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
 const bgFileInput = document.getElementById('bg-file-input');
 const bgError = document.getElementById('bg-error');
+const muteBtn = document.getElementById('mute-btn');
+
+function refreshMuteBtn() {
+  const muted = isMuted();
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.title = muted ? 'Unmute sound' : 'Mute sound';
+}
+
+muteBtn.addEventListener('click', () => {
+  toggleMuted();
+  refreshMuteBtn();
+});
+refreshMuteBtn();
+
+// Light tap feedback on every button press, except held racing controls
+// (accelerate/steer/brake), which fire far too rapidly for a per-tap cue.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || btn.disabled || btn.closest('#kr-controls')) return;
+  sfx.click();
+  haptics.tap();
+});
 
 const nameInput = document.getElementById('name-input');
 const roomCodeInput = document.getElementById('room-code-input');
@@ -324,6 +347,8 @@ function showGenerating(game) {
 
 function handleJoinResult(res, name) {
   if (!res.ok) {
+    sfx.error();
+    haptics.warn();
     joinError.textContent = res.error;
     if (res.error === 'Room not found') {
       localStorage.removeItem('imposterRoom');
@@ -334,6 +359,8 @@ function handleJoinResult(res, name) {
     showScreen('join');
     return;
   }
+  sfx.join();
+  haptics.success();
   rememberSession(name, res.roomCode);
   applyBackground(res.background || null);
   routeFromJoin(res);
@@ -853,20 +880,7 @@ socket.on('backToLobby', () => {
   showScreen('lobby');
 });
 
-function renderScoreboard(listEl, entries) {
-  listEl.innerHTML = '';
-  (entries || []).forEach(({ name, points }) => {
-    const li = document.createElement('li');
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = name;
-    const ptsSpan = document.createElement('span');
-    ptsSpan.className = 'sb-points' + (points < 0 ? ' negative' : '');
-    ptsSpan.textContent = points > 0 ? `+${points}` : String(points);
-    li.appendChild(nameSpan);
-    li.appendChild(ptsSpan);
-    listEl.appendChild(li);
-  });
-}
+const renderScoreboard = renderScoreboardFx;
 
 function applyWordLanguage(lang) {
   wordLanguage = lang === 'hebrew' ? 'hebrew' : 'english';

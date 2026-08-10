@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { renderScoreboardFx } from '../fx.js';
 
 const ITEM_LABELS = {
   boost: 'Boost',
@@ -122,22 +123,6 @@ function bindHoldButton(btn, onDown, onUp) {
   btn.addEventListener('pointerleave', up);
 }
 
-function renderScoreboard(listEl, entries) {
-  if (!listEl) return;
-  listEl.innerHTML = '';
-  (entries || []).forEach(({ name, points }) => {
-    const li = document.createElement('li');
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = name;
-    const ptsSpan = document.createElement('span');
-    ptsSpan.className = 'sb-points' + (points < 0 ? ' negative' : '');
-    ptsSpan.textContent = points > 0 ? `+${points}` : String(points);
-    li.appendChild(nameSpan);
-    li.appendChild(ptsSpan);
-    listEl.appendChild(li);
-  });
-}
-
 function applyReady(data) {
   const readyPanel = el('kr-ready-panel');
   const playerList = el('kr-player-list');
@@ -231,7 +216,7 @@ function applyResults(data) {
     resultsList.appendChild(li);
   });
 
-  renderScoreboard(el('kr-scoreboard'), data.scoreboard);
+  renderScoreboardFx(el('kr-scoreboard'), data.scoreboard);
   playAgainBtn.classList.toggle('hidden', !isViewerHost(data));
 }
 
