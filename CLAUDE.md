@@ -61,12 +61,10 @@ handoff, scoreboard, background image upload, back-to-lobby, and the
 disconnect/reconnect socket handlers that delegate into the active game via
 `gameRegistry`.
 
-**Frontend** (`public/`): `index.html` + `style.css` + a single monolithic
-`client.js` (DOM refs, render logic, and socket listeners for all four games
-in one file). Splitting this into per-game ES modules is planned but not yet
-done — see `refactor_plan.md` §3/§7 (steps 8a onward) for the target
-structure and migration order before making large frontend changes, so new
-work lands in the right place once the split happens.
+**Frontend** (`public/`): `index.html` + `style.css` + ES modules under `public/js/`
+(`main.js` bootstrap/lobby, `shared/` helpers, `games/<name>.js` per game). Entry is
+`<script type="module" src="js/main.js">`. Each game module exports
+`init` / `applyState` (or `applyJoin`) / `stop`, matching the Kart Race client pattern.
 
 ## Testing
 

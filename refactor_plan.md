@@ -309,20 +309,20 @@ add one).
   `ROOM_SAVED_FIELDS` from each module's `savedFields`. Verify: all four games
   again, full regression pass, since this step touches every game's dispatch at
   once.
-- [ ] **Step 8a — Frontend shared modules.** Extract `public/js/shared/dom.js`,
+- [x] **Step 8a — Frontend shared modules.** Extract `public/js/shared/dom.js`,
   `shared/scoreboard.js`, `shared/format.js`. Switch the `<script>` tag to
   `type="module"`. Verify in an actual browser: app loads, lobby renders,
   scoreboard renders.
-- [ ] **Step 8b — Frontend `public/js/games/menifot.js`.** Verify in-browser:
+- [x] **Step 8b — Frontend `public/js/games/menifot.js`.** Verify in-browser:
   full Menifot match.
-- [ ] **Step 8c — Frontend `public/js/games/tenseconds.js`.** Verify
+- [x] **Step 8c — Frontend `public/js/games/tenseconds.js`.** Verify
   in-browser: full 10 Seconds game.
-- [ ] **Step 8d — Frontend `public/js/games/codenames.js`.** Verify in-browser:
+- [x] **Step 8d — Frontend `public/js/games/codenames.js`.** Verify in-browser:
   full Codenames game.
-- [ ] **Step 8e — Frontend `public/js/games/imposter.js` + assemble
+- [x] **Step 8e — Frontend `public/js/games/imposter.js` + assemble
   `main.js`.** Verify in-browser: full Imposter round, then a full pass through
   all four games back-to-back.
-- [ ] **Step 9 — Cleanup.** Delete dead code left in `server.js`/`client.js`,
+- [x] **Step 9 — Cleanup.** Delete dead code left in `server.js`/`client.js`,
   update `package.json` `main` if needed. Final full pass through all four
   games in a real browser before merging.
 
