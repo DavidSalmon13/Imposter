@@ -34,6 +34,8 @@ const SAVED_FIELDS = [
   'mtUsedSongs',
   'mtRoundNumber',
   'mtMatchWinners',
+  'mtTurnCollected',
+  'mtTurnOver',
 ];
 
 function clearState(room) {
@@ -49,6 +51,8 @@ function clearState(room) {
   room.mtUsedSongs = [];
   room.mtRoundNumber = 0;
   room.mtMatchWinners = [];
+  room.mtTurnCollected = [];
+  room.mtTurnOver = false;
 }
 
 /** Team ids currently configured (pre-start slot list, in formation order A→D). */
@@ -166,15 +170,6 @@ async function generateMusicTimelineSong(room, difficulty) {
   return { title, artist, releaseYear };
 }
 
-/** One starting card per team, sequential so each call's avoid-list includes the prior picks. */
-async function dealStartingCards(room) {
-  for (const teamId of Object.keys(room.mtTeams)) {
-    const song = await generateMusicTimelineSong(room, room.mtDifficulty);
-    room.mtTeams[teamId].timeline = [song];
-    room.mtUsedSongs.push({ title: song.title, artist: song.artist });
-  }
-}
-
 function mtCanStart(ctx, room) {
   if (room.mtMode === 'solo') {
     return ctx.connectedNames(room).length >= MT_MIN_PLAYERS;
@@ -214,11 +209,45 @@ function mtActiveTeamId(room) {
   return ids[room.mtActiveTeamIndex] || null;
 }
 
+/**
+ * The team that gets to see (and play) the current song - always the next team after the active
+ * one in turn order, skipping any team with zero connected members. Never the active team itself
+ * (they're the ones guessing), so with >=2 teams this always finds someone other than whoever's
+ * up, as long as at least one other team still has a connected player.
+ */
+function mtDjTeamId(ctx, room) {
+  const ids = mtTeamIds(room);
+  if (ids.length < 2) return null;
+  for (let step = 1; step < ids.length; step++) {
+    const idx = (room.mtActiveTeamIndex + step) % ids.length;
+    if (mtTeamMembers(ctx, room, ids[idx]).length >= 1) return ids[idx];
+  }
+  return null;
+}
+
+function mtYoutubeSearchUrl(song) {
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${song.title} ${song.artist}`)}`;
+}
+
+/**
+ * The active team's timeline plus whatever they've collected (but not yet banked) so far this
+ * turn, merged into chronological order - what the team actually plays against while their turn
+ * is still going. Every other team's timeline is just their own committed cards.
+ */
+function mtEffectiveTimeline(room, teamId) {
+  const team = room.mtTeams[teamId];
+  const committed = (team && team.timeline) || [];
+  if (teamId !== mtActiveTeamId(room)) return committed;
+  return (room.mtTurnCollected || []).reduce((acc, s) => insertIntoTimeline(acc, s), committed);
+}
+
 function mtTeamsForDisplay(room) {
+  const activeTeamId = mtActiveTeamId(room);
   return Object.entries(room.mtTeams || {}).map(([id, team]) => ({
     id,
     name: team.name,
-    timeline: team.timeline || [],
+    timeline: mtEffectiveTimeline(room, id),
+    pendingCount: id === activeTeamId ? (room.mtTurnCollected || []).length : 0,
     tokens: team.tokens,
   }));
 }
@@ -231,13 +260,24 @@ function mtStatePayload(ctx, room, viewerName) {
   const activeTeam = activeTeamId ? room.mtTeams[activeTeamId] : null;
   const activeTokens = activeTeam ? activeTeam.tokens || 0 : 0;
   const myTeam = myTeamId ? room.mtTeams[myTeamId] : null;
+  const djTeamId = mtDjTeamId(ctx, room);
   const canChallenge =
     room.phase === 'locked' &&
     !room.mtCurrentChallenge &&
     !!myTeamId &&
     myTeamId !== activeTeamId &&
+    myTeamId !== djTeamId &&
     !!myTeam &&
     (myTeam.tokens || 0) >= MT_CHALLENGE_COST;
+  const turnDecisionPending =
+    room.phase === 'revealed' && !!room.mtRevealResult && room.mtRevealResult.correct && !room.mtTurnOver;
+  const canDecideTurn = turnDecisionPending && !!myTeamId && myTeamId === activeTeamId;
+  // The pending song (and a YouTube search link for it) only ever goes to the DJ team - the team
+  // right after the active one in turn order - so the guessing team can't see it. If every other
+  // team has fully disconnected, the host sees it instead as a last resort so the round isn't
+  // stuck with nobody able to play the song at all. Once revealed, everyone sees it.
+  const canSeeSong =
+    room.phase === 'revealed' || (djTeamId ? myTeamId === djTeamId : isHost);
   return {
     game: 'musictimeline',
     phase: room.phase,
@@ -248,10 +288,10 @@ function mtStatePayload(ctx, room, viewerName) {
     difficulty: room.mtDifficulty,
     teams: mtTeamsForDisplay(room),
     activeTeamId,
+    djTeamId,
     roundNumber: room.mtRoundNumber,
-    // The pending song is only ever sent to the host, regardless of team, before it's revealed -
-    // the host is the one who plays it out loud. Once revealed, everyone gets to see it.
-    currentSong: isHost || room.phase === 'revealed' ? room.mtCurrentSong : null,
+    currentSong: canSeeSong ? room.mtCurrentSong : null,
+    currentSongUrl: canSeeSong && room.mtCurrentSong ? mtYoutubeSearchUrl(room.mtCurrentSong) : null,
     pendingSlotIndex: room.mtPendingPlacement ? room.mtPendingPlacement.slotIndex : null,
     revealResult: room.phase === 'revealed' ? room.mtRevealResult : null,
     idConfirmed: room.mtIdConfirmed,
@@ -259,6 +299,10 @@ function mtStatePayload(ctx, room, viewerName) {
     canAutoCard: room.phase === 'placing' && activeTokens >= MT_AUTO_CARD_COST,
     canChallenge,
     currentChallenge: room.mtCurrentChallenge,
+    turnOver: room.mtTurnOver,
+    turnCollectedCount: (room.mtTurnCollected || []).length,
+    canContinueTurn: canDecideTurn,
+    canStopTurn: canDecideTurn,
     matchWinners: (room.mtMatchWinners || []).slice(),
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
   };
@@ -271,13 +315,6 @@ function broadcastMt(ctx, roomCode, room) {
   }
 }
 
-/** Reverts a failed OpenAI call made while still in team-select (dealing starting cards). */
-function failMtStart(ctx, roomCode, room, error) {
-  room.phase = 'teamSelect';
-  broadcastMtTeamSelect(ctx, roomCode, room);
-  ctx.roomEmit(roomCode, 'mtStartFailed', { error });
-}
-
 /** Reverts a failed OpenAI call made mid-match (picking the next turn's song). */
 function failMtRound(ctx, roomCode, room, error) {
   room.phase = 'ready';
@@ -287,32 +324,16 @@ function failMtRound(ctx, roomCode, room, error) {
   ctx.roomEmit(roomCode, 'mtStartFailed', { error });
 }
 
-async function finishStartingMusicTimeline(ctx, roomCode, room, mtTeams) {
+function finishStartingMusicTimeline(ctx, roomCode, room, mtTeams) {
   room.mtTeams = mtTeams;
   room.mtActiveTeamIndex = 0;
   room.mtRoundNumber = 0;
   room.mtUsedSongs = [];
   room.mtCurrentSong = null;
   room.mtCurrentChallenge = null;
+  room.mtTurnCollected = [];
+  room.mtTurnOver = false;
   room.mtMatchWinners = [];
-  room.phase = 'generating';
-  ctx.roomEmit(roomCode, 'generating', { game: 'musictimeline' });
-
-  try {
-    await dealStartingCards(room);
-  } catch (err) {
-    console.error('dealStartingCards failed:', err.message);
-    return failMtStart(
-      ctx,
-      roomCode,
-      room,
-      'Could not reach ChatGPT to deal starting cards. Please try starting again.'
-    );
-  }
-
-  // Room may have been reset while awaiting OpenAI.
-  if (!ctx.rooms.has(roomCode) || ctx.rooms.get(roomCode) !== room) return;
-
   room.phase = 'ready';
   broadcastMt(ctx, roomCode, room);
 }
@@ -346,16 +367,22 @@ async function mtNextTurn(ctx, roomCode, room) {
  * - the active team is scored for display purposes but does not receive the card even if their
  * own placement was also correct. A failed challenge costs the challenger a token and leaves the
  * active team's own result untouched.
+ *
+ * The active team's own card is never committed straight to their timeline here - a correct
+ * placement is only added to `mtTurnCollected`, the team's push-your-luck pile for this turn.
+ * They keep it only if they later choose to stop (see mtStopTurn); a wrong guess on any later
+ * song in the same turn discards the whole pile.
  */
 function revealMtPlacement(ctx, room) {
   const activeTeamId = mtActiveTeamId(room);
-  const activeTeam = room.mtTeams[activeTeamId];
   const song = room.mtCurrentSong;
   const slotIndex = room.mtPendingPlacement ? room.mtPendingPlacement.slotIndex : 0;
-  const activeCorrect = checkPlacement(activeTeam.timeline, song.releaseYear, slotIndex);
+  const effectiveTimeline = mtEffectiveTimeline(room, activeTeamId);
+  const activeCorrect = checkPlacement(effectiveTimeline, song.releaseYear, slotIndex);
 
   const challenge = room.mtCurrentChallenge;
   let challengeResult = null;
+  let challengeWon = false;
 
   if (challenge && challenge.slotIndex != null) {
     const challengerTeam = room.mtTeams[challenge.team];
@@ -364,21 +391,45 @@ function revealMtPlacement(ctx, room) {
 
     if (challengerCorrect) {
       challengerTeam.timeline = insertIntoTimeline(challengerTeam.timeline, song);
+      challengeWon = true;
     } else {
       challengerTeam.tokens = Math.max(0, (challengerTeam.tokens || 0) - MT_CHALLENGE_COST);
-      if (activeCorrect) {
-        activeTeam.timeline = insertIntoTimeline(activeTeam.timeline, song);
-      }
     }
-  } else if (activeCorrect) {
-    activeTeam.timeline = insertIntoTimeline(activeTeam.timeline, song);
+  }
+
+  if (activeCorrect && !challengeWon) {
+    room.mtTurnCollected.push(song);
+  }
+  if (!activeCorrect) {
+    room.mtTurnCollected = [];
   }
 
   room.mtRevealResult = { teamId: activeTeamId, correct: activeCorrect, challenge: challengeResult };
   room.mtPendingPlacement = null;
   room.mtCurrentChallenge = null;
   room.mtIdConfirmed = false;
+  // A wrong guess ends the turn on the spot; a correct one waits on the team's own decision to
+  // draw another song or stop and bank what they've collected (see mtContinueTurn/mtStopTurn).
+  room.mtTurnOver = !activeCorrect;
   room.phase = 'revealed';
+
+  const winners = checkMtWin(room);
+  if (winners.length) {
+    room.mtMatchWinners = winners;
+    room.phase = 'gameover';
+    awardMtScoreboard(ctx, room);
+  }
+}
+
+/** Banks the active team's `mtTurnCollected` pile into their real timeline and ends the turn. */
+function bankMtTurn(ctx, room) {
+  const activeTeamId = mtActiveTeamId(room);
+  const activeTeam = room.mtTeams[activeTeamId];
+  let timeline = activeTeam.timeline || [];
+  for (const s of room.mtTurnCollected || []) timeline = insertIntoTimeline(timeline, s);
+  activeTeam.timeline = timeline;
+  room.mtTurnCollected = [];
+  room.mtTurnOver = true;
 
   const winners = checkMtWin(room);
   if (winners.length) {
@@ -526,7 +577,8 @@ function registerHandlers(ctx, io, socket) {
     const roomCode = socket.data.roomCode;
     const room = ctx.getRoom(socket);
     if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'musictimeline' || (room.phase !== 'ready' && room.phase !== 'revealed')) {
+    const turnFinished = room.phase === 'ready' || (room.phase === 'revealed' && room.mtTurnOver);
+    if (room.game !== 'musictimeline' || !turnFinished) {
       return callback({ ok: false, error: 'Not ready for the next turn' });
     }
     if (socket.data.name !== room.hostName) {
@@ -538,6 +590,8 @@ function registerHandlers(ctx, io, socket) {
       advanceTurn(ctx, room);
       room.mtRoundNumber += 1;
     }
+    room.mtTurnCollected = [];
+    room.mtTurnOver = false;
 
     callback({ ok: true });
     mtNextTurn(ctx, roomCode, room);
@@ -556,6 +610,53 @@ function registerHandlers(ctx, io, socket) {
     }
 
     revealMtPlacement(ctx, room);
+    callback({ ok: true });
+    broadcastMt(ctx, roomCode, room);
+  });
+
+  socket.on('mtContinueTurn', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'musictimeline' || room.phase !== 'revealed') {
+      return callback({ ok: false, error: 'Nothing to continue right now' });
+    }
+    if (!room.mtRevealResult || !room.mtRevealResult.correct || room.mtTurnOver) {
+      return callback({ ok: false, error: "Turn isn't waiting on a decision" });
+    }
+
+    const name = socket.data.name;
+    const p = room.players.get(name);
+    const activeTeamId = mtActiveTeamId(room);
+    if (!p || !activeTeamId || p.team !== activeTeamId) {
+      return callback({ ok: false, error: "Not your team's turn" });
+    }
+
+    callback({ ok: true });
+    mtNextTurn(ctx, roomCode, room);
+  });
+
+  socket.on('mtStopTurn', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'musictimeline' || room.phase !== 'revealed') {
+      return callback({ ok: false, error: 'Nothing to stop right now' });
+    }
+    if (!room.mtRevealResult || !room.mtRevealResult.correct || room.mtTurnOver) {
+      return callback({ ok: false, error: "Turn isn't waiting on a decision" });
+    }
+
+    const name = socket.data.name;
+    const p = room.players.get(name);
+    const activeTeamId = mtActiveTeamId(room);
+    if (!p || !activeTeamId || p.team !== activeTeamId) {
+      return callback({ ok: false, error: "Not your team's turn" });
+    }
+
+    bankMtTurn(ctx, room);
     callback({ ok: true });
     broadcastMt(ctx, roomCode, room);
   });
@@ -599,8 +700,7 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: "Not your team's turn" });
     }
 
-    const activeTeam = room.mtTeams[activeTeamId];
-    const slotCount = (activeTeam.timeline || []).length + 1;
+    const slotCount = mtEffectiveTimeline(room, activeTeamId).length + 1;
     const slotIndex = Number(data && data.slotIndex);
     if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= slotCount) {
       return callback({ ok: false, error: 'Invalid slot' });
@@ -665,18 +765,15 @@ function registerHandlers(ctx, io, socket) {
 
     activeTeam.tokens -= MT_AUTO_CARD_COST;
     const song = room.mtCurrentSong;
-    activeTeam.timeline = insertIntoTimeline(activeTeam.timeline, song);
+    room.mtTurnCollected.push(song);
     room.mtRevealResult = { teamId: activeTeamId, correct: true };
     room.mtPendingPlacement = null;
     room.mtIdConfirmed = false;
     room.phase = 'revealed';
 
-    const winners = checkMtWin(room);
-    if (winners.length) {
-      room.mtMatchWinners = winners;
-      room.phase = 'gameover';
-      awardMtScoreboard(ctx, room);
-    }
+    // Auto Card is a guaranteed, forced stop - it banks this card plus anything already
+    // collected earlier in the turn, rather than leaving the team another decision to make.
+    bankMtTurn(ctx, room);
 
     callback({ ok: true });
     broadcastMt(ctx, roomCode, room);
@@ -699,6 +796,9 @@ function registerHandlers(ctx, io, socket) {
     }
     if (p.team === activeTeamId) {
       return callback({ ok: false, error: "Can't challenge your own team" });
+    }
+    if (p.team === mtDjTeamId(ctx, room)) {
+      return callback({ ok: false, error: "The DJ team already knows the song and can't challenge" });
     }
     if (room.mtCurrentChallenge) {
       return callback({ ok: false, error: 'Another team already claimed the challenge' });
@@ -806,13 +906,16 @@ function onDisconnect(ctx, roomCode, room, name) {
   if (room.phase === 'placing' || room.phase === 'locked') {
     const activeTeamId = mtActiveTeamId(room);
     if (activeTeamId && mtTeamMembers(ctx, room, activeTeamId).length === 0) {
-      // Active team is now fully disconnected - the pending song can never be placed. Discard
-      // it, advance to whoever's next, and immediately start generating their turn.
+      // Active team is now fully disconnected - the pending song can never be placed, and
+      // anything they collected earlier this turn is lost along with it. Discard both, advance
+      // to whoever's next, and immediately start generating their turn.
       const song = room.mtCurrentSong;
       if (song) room.mtUsedSongs.push({ title: song.title, artist: song.artist });
       room.mtCurrentSong = null;
       room.mtPendingPlacement = null;
       room.mtCurrentChallenge = null;
+      room.mtTurnCollected = [];
+      room.mtTurnOver = false;
       advanceTurn(ctx, room);
 
       if (ctx.connectedNames(room).length > 0) {
@@ -820,6 +923,19 @@ function onDisconnect(ctx, roomCode, room, name) {
         return;
       }
       room.phase = 'ready';
+    }
+  } else if (
+    room.phase === 'revealed' &&
+    room.mtRevealResult &&
+    room.mtRevealResult.correct &&
+    !room.mtTurnOver
+  ) {
+    // Active team is mid-decision (draw again vs. stop) and just lost its last connected member.
+    // Nobody left who can make that call - auto-bank what they've collected so the host's "Next
+    // Turn" button can free up the room instead of stalling forever.
+    const activeTeamId = mtActiveTeamId(room);
+    if (activeTeamId && mtTeamMembers(ctx, room, activeTeamId).length === 0) {
+      bankMtTurn(ctx, room);
     }
   }
 
@@ -837,12 +953,10 @@ function onReconnectBroadcast(ctx, roomCode, room) {
 /** An in-flight OpenAI call can't be resumed after a restart - roll back to the last safe phase. */
 function repairOnLoad(ctx, room) {
   if (room.phase !== 'generating') return;
-  const ids = mtTeamIds(room);
-  const dealComplete = ids.length > 0 && ids.every((id) => (room.mtTeams[id].timeline || []).length > 0);
   room.mtCurrentSong = null;
   room.mtPendingPlacement = null;
   room.mtCurrentChallenge = null;
-  room.phase = dealComplete ? 'ready' : 'teamSelect';
+  room.phase = 'ready';
 }
 
 module.exports = {

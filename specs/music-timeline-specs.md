@@ -2,11 +2,14 @@
 
 A same-room party music game inspired by HITSTER, sixth game in this app alongside Imposter,
 Codenames, 10 Seconds, Menifot, and Kart Race. Teams (or solo players) each build their own
-chronological timeline of songs. Each turn, the server asks ChatGPT for one song (title +
-artist + release year, kept secret from everyone but the host); the host plays it out loud
-from their own Spotify/YouTube, and the active team places it into their timeline by era, not
-exact year. Correct placements grow the team's timeline; incorrect ones discard the card. First
-team to a target card count wins.
+chronological timeline of songs, starting from nothing. Each turn is push-your-luck: the server
+asks ChatGPT for one song (title + artist + release year, kept secret from everyone except the
+DJ team for that turn - the next team up in turn order); a DJ team member plays it out loud from
+a YouTube search link on their own device, and the active team places it into their timeline by
+era, not exact year. A correct placement doesn't bank immediately - the
+team chooses whether to draw another song (risking everything collected so far) or stop and keep
+what they've collected. A single wrong placement anywhere in the turn loses everything collected
+that turn. First team to a target card count wins.
 
 ## Relationship to Imposter / Codenames / 10 Seconds / Menifot / Kart Race / shared app changes
 
@@ -89,64 +92,129 @@ The exact prompt wording is an implementation detail; the difficulty tier is pas
   `MT_USED_SONGS_AVOID_WINDOW` songs already used this match (`room.mtUsedSongs`, sent in the
   prompt as an avoid-list — same shape as Imposter's `avoid` array). Expected JSON response
   shape: `{ title, artist, releaseYear }`.
-- **The app never plays audio itself.** The generated song is sent to the **host's socket
-  only** (per-viewer payload, same pattern as Codenames' leader-only board colors); the host
-  searches for it themselves on their own Spotify/YouTube/speaker and plays it out loud for the
-  room. The host taps "Ready" once the room has heard enough to guess.
-- No `spotifyTrackId`/`audioReference` field — ChatGPT can't reliably produce a real, resolvable
-  track ID, so the host relies on title + artist to search manually. This is a deliberate
-  simplification versus the original HITSTER-inspired spec.
-- **Starting card per team**: at match start, one ChatGPT call per team (same avoid-list,
-  results added to `room.mtUsedSongs` as they're generated so teams can't get duplicate starting
-  cards) produces each team's first, face-up timeline card — title, artist, and year all shown
-  immediately, matching the "establishes the team's first known point" framing.
+- **The app never plays audio itself.** The generated song (plus a `youtube.com/results?search_
+  query=` link built from title + artist, no API key required) is sent only to the **DJ team**
+  for the turn — see "DJ team & song visibility" below — whose members search/play it themselves
+  on their own device and play it out loud for the room. The guessing (active) team never sees
+  the title, artist, or link before the reveal.
+- No `spotifyTrackId`/`audioReference` field, and no exact video resolution — ChatGPT can't
+  reliably produce a real, resolvable track ID, and the app doesn't call the YouTube Data API, so
+  the DJ team gets a search-results link and picks the right video themselves. This is a
+  deliberate simplification versus the original HITSTER-inspired spec.
+
+## DJ team & song visibility
+
+- The team that sees the pending song each turn is **the next team after the active one in turn
+  order** (`mtDjTeamId()`; wraps around, e.g. with teams A/B/C: A's turn → B is DJ, B's turn → C
+  is DJ, C's turn → A is DJ). This naturally rotates DJ duty across every non-active team over the
+  course of a match without any separate scheduling. It is never the active team itself.
+- If that team has zero connected members (skipped over just like `advanceTurn`'s connected-member
+  requirement), the search continues around the cycle to the next team that does have one. If
+  *no* other team has any connected member at all (last-resort edge case), the host sees the song
+  instead so the round isn't stuck with nobody able to play it.
+- **Any connected member of the DJ team** may view the song and link, same "any teammate can act"
+  authorization pattern as placing a card — no separate DJ/leader role to set up.
+- Once a placement is revealed (`revealed` phase), the true title/artist/year is shown to
+  **everyone**, DJ team or not, same as before.
+- **The DJ team cannot challenge on a turn they're DJing** (`mtChallenge` rejects it): they
+  already know the real answer, which would make a challenge a sure thing rather than a guess.
+  This is a deliberate fairness carve-out from this app's usual honor-system/trust-based model. In
+  a 2-team match this makes Challenge effectively unusable — the DJ team is always the only other
+  team — which is an accepted trade-off, not a bug: with more than 2 teams, challenge remains
+  available to every team except whoever's DJing that turn.
+- **No starting cards.** Every team (including solo "teams") begins a match with an empty
+  timeline (`room.mtTeams[id].timeline = []`). Placing into an empty timeline always succeeds
+  (there's nothing yet to be out of order with), so a team's very first card of the match is
+  effectively free — it's the second and later cards, placed relative to what's already on the
+  board, where correctness starts to matter.
 
 ## Phases
 
 ```
-lobby (shared) → teamSelect (Team mode only) → ready → generating → placing → locked → revealed → (generating again | gameover)
+lobby (shared) → teamSelect (Team mode only) → ready → generating → placing → locked → revealed → (generating again | ready | gameover)
 ```
 
 - **teamSelect** (Team mode only; skipped entirely in Solo mode): players claim teams; host
   presses Start once every chosen team has ≥1 connected player.
-- **ready**: starting cards have been dealt to every team; host presses "Start Match" /
-  "Next Turn" to begin the first turn.
-- **generating**: server is asking ChatGPT for the active team's song. Mirrors Imposter's
-  `generating` phase and `failImposterRound` pattern exactly — on failure, revert to `ready`,
-  emit an error, let the host retry. No song is revealed to anyone during this phase.
-- **placing**: the song has been sent to the host only; the active team sees their timeline and
-  the BEFORE/BETWEEN/AFTER placement buttons. Non-active teams (with a Challenge token
-  available) see a "Challenge" option once a placement is locked, not before.
+- **ready**: no turn is in progress; host presses "Start Match" / "Next Turn" to begin a turn for
+  whoever's up.
+- **generating**: server is asking ChatGPT for a song for the active team's turn — either their
+  first song of the turn, or another one after they chose to keep drawing (see "Turn loop"
+  below). Mirrors Imposter's `generating` phase and `failImposterRound` pattern exactly — on
+  failure, revert to `ready`, emit an error, let the host retry. No song is revealed to anyone
+  during this phase.
+- **placing**: the song (and a YouTube search link) has been sent to the DJ team only (see "DJ
+  team & song visibility" below); the active team sees their timeline (plus anything they've
+  already collected but not yet banked this turn, see "Turn loop") and the BEFORE/BETWEEN/AFTER
+  placement buttons, with no visibility into the song itself. Non-DJ, non-active teams (with a
+  Challenge token available) see a "Challenge" option once a placement is locked, not before.
 - **locked**: active team has tapped a placement slot. Placement is stored server-side,
   immutable. Non-active teams with a Challenge token available may challenge here (see
   "Challenge token" below); the host sees a "Reveal" button.
 - **revealed**: host has tapped Reveal. True title/artist/year shown to everyone, correctness
-  computed, card kept or discarded, host checks the artist/title honor-system box if earned,
-  scores/token changes applied. Host presses "Next Turn" to go back to `generating`, or the
-  match ends here if a team just hit `MT_TARGET_CARDS`.
+  computed, host checks the artist/title honor-system box if earned. What happens next depends on
+  the outcome (see "Turn loop"): a wrong placement ends the turn immediately (discarding
+  everything collected this turn) and shows "Next Turn"; a correct placement instead shows the
+  active team a choice between drawing another song or stopping to bank what they've collected,
+  and "Next Turn" only appears once that choice has been made. The match can end here if banking
+  pushes a team to `MT_TARGET_CARDS`.
 - **gameover**: final standings shown (teams ranked by card count), scoreboard updated. Host
   can press Play Again (→ fresh `ready`, same roster/teams) or Back to Lobby.
 
 ## Turn order
 
 - Turn order cycles through teams in the order they were formed (Team A → B → C → D → A → ...),
-  repeating indefinitely regardless of correct/incorrect outcomes — matches real HITSTER, where
-  every team gets a turn each cycle whether or not their last placement succeeded.
-- `room.mtActiveTeamIndex` tracks whose turn it is; advances by one (wrapping) every time a turn
-  resolves (`revealed` → next `generating`), including turns discarded via team-dropout
-  auto-skip (see "Disconnect handling").
+  repeating indefinitely regardless of a turn's outcome — matches real HITSTER, where every team
+  gets a turn each cycle whether or not their last turn went well.
+- `room.mtActiveTeamIndex` tracks whose turn it is; advances by one (wrapping) only once a turn is
+  actually **over** — i.e. the team got a placement wrong, or chose to stop and bank (see "Turn
+  loop") — not after every individual correct placement, since a team can keep drawing within the
+  same turn. Also advances past turns discarded via team-dropout auto-skip (see "Disconnect
+  handling").
+
+## Turn loop (push-your-luck)
+
+A team's turn is not "one song, then done" — it keeps going, song after song, until the team
+themselves decides to stop or they place one wrong:
+
+- On a **correct** placement, the song is added to `room.mtTurnCollected`, a pending pile for the
+  team's *current turn only* — not yet part of their real `timeline`, and not yet counted toward
+  `MT_TARGET_CARDS`. The active team (any connected member, same authorization as placing) is
+  then offered two choices:
+  - **Draw Another Song** (`mtContinueTurn`): immediately triggers a new `generating` call for
+    the same team, same turn. All previously-collected-but-unbanked cards for this turn stay in
+    `mtTurnCollected` and are shown alongside the team's real timeline (marked as not yet banked)
+    for the purposes of placing the next song, so slot choices stay consistent with what they've
+    "seen" so far this turn.
+  - **Stop & Keep Cards** (`mtStopTurn`): merges everything in `mtTurnCollected` into the team's
+    real `timeline` (chronologically, same insertion logic as before), clears the pile, and ends
+    the turn. This is the only way collected-but-unbanked cards become permanent.
+- On an **incorrect** placement, the turn ends immediately: `mtTurnCollected` is discarded in
+  full (including anything collected earlier in the same turn), the team's real `timeline` is
+  untouched, and only "Next Turn" is available — there's no draw/stop choice on a miss.
+- `room.mtTurnOver` (boolean) tracks whether the turn has reached one of its end states (wrong
+  guess, or an explicit Stop) — the host's "Next Turn" button is only shown once it's `true`;
+  while a correct-but-undecided turn is pending, only the active team's Draw/Stop choice is shown
+  instead.
+- If the active team fully disconnects while a draw/stop decision is pending (nobody left able to
+  make the call), the server auto-stops on their behalf — banking whatever they'd collected so
+  far rather than stalling the room (mirrors the existing team-dropout handling below).
 
 ## Turn actions
 
-- **Any connected member of the active team** may tap a placement slot — first tap locks it in
-  for the whole team, no captain/leader role, no confirmation step from other members. Mirrors
-  the party-game reality of a team huddled around one phone.
+- **Any connected member of the active team** may tap a placement slot, and later, tap
+  Draw-Another-Song or Stop-and-Keep — first tap wins for the whole team, no captain/leader role,
+  no confirmation step from other members. Mirrors the party-game reality of a team huddled
+  around one phone.
 - The server authorizes by checking `socket.data.name`'s `player.team === room.mtActiveTeam`,
   same inline per-handler check pattern used everywhere else in this app (no shared middleware).
 
 ## Placement & correctness
 
-Same algorithm as the original spec, computed server-side, never trusting the client:
+Same algorithm as the original spec, computed server-side, never trusting the client — but
+checked against the team's **effective timeline**: their real, banked `timeline` merged with
+whatever's still sitting unbanked in `mtTurnCollected` for the current turn (see "Turn loop"), not
+just the banked timeline alone:
 
 ```
 newSong.year < firstTimelineSong.year
@@ -154,15 +222,18 @@ newSong.year < firstTimelineSong.year
   OR timeline[i].year <= newSong.year <= timeline[i+1].year
 ```
 
-- The team is shown their existing timeline as a sequence of years and chooses one of
-  `timeline.length + 1` slots (BEFORE first, BETWEEN each adjacent pair, AFTER last) — never
-  told the exact year needed, only their own timeline's known years.
+- The team is shown their effective timeline as a sequence of years and chooses one of
+  `effectiveTimeline.length + 1` slots (BEFORE first, BETWEEN each adjacent pair, AFTER last) —
+  never told the exact year needed, only their own timeline's known years.
 - Songs with the **same year** as an existing timeline card may be placed on either side of it;
   both are treated as correct.
-- **Correct**: song is inserted into `room.mtTeams[team].timeline` at the true chronological
-  position (not necessarily the slot boundary the team tapped, if a same-year tie made either
-  side valid), card count increments.
-- **Incorrect**: song is discarded, not added to the timeline, card count unchanged.
+- **Correct**: song is added to the turn's pending pile (`mtTurnCollected`), at the true
+  chronological position within the effective timeline (not necessarily the slot boundary the
+  team tapped, if a same-year tie made either side valid). It only reaches the team's real
+  `timeline`, and only then counts toward `MT_TARGET_CARDS`, once the team stops (see "Turn
+  loop").
+- **Incorrect**: the song is discarded, and so is everything else the team collected this turn —
+  none of it reaches the real timeline.
 - Placement correctness is **always position-only**, at every difficulty — difficulty affects
   song obscurity (see above), never the correctness check.
 
@@ -183,21 +254,29 @@ Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, ca
 
 ### Challenge token
 
-- Available to **any non-active team** with a token balance ≥ `MT_CHALLENGE_COST`, only during
-  the `locked` phase (placement locked, not yet revealed by the host).
+- Available to **any non-active, non-DJ team** with a token balance ≥ `MT_CHALLENGE_COST`, only
+  during the `locked` phase (placement locked, not yet revealed by the host) — the DJ team is
+  excluded because they already know the real song (see "DJ team & song visibility" above).
+  In a 2-team match this means Challenge is never available (the only non-active team is always
+  the DJ team that turn).
 - **First team to tap "Challenge" claims it** — other teams' Challenge buttons disable
   immediately once one team has claimed the slot for this placement. No host adjudication, no
   simultaneous multi-team challenges.
 - The challenging team then picks their own placement slot (same BEFORE/BETWEEN/AFTER UI,
   applied to *their own* timeline, not the active team's).
 - On reveal: the server checks both the original active team's placement AND the challenger's
-  placement for correctness (each against their own respective timeline).
-  - **Challenger correct**: the challenger claims the card into their own timeline (card count
-    +1 for them), no token cost — the original active team does not get the card even if their
-    own placement also happened to be correct (challenge success takes the card).
+  placement for correctness (each against their own respective timeline — the challenger's own
+  *banked* timeline, not the active team's in-progress pile).
+  - **Challenger correct**: the challenger claims the card straight into their own real timeline
+    (card count +1 for them immediately, not added to any pending pile), no token cost — the
+    original active team does not get the card even if their own placement also happened to be
+    correct (challenge success takes the card). The active team's own turn otherwise proceeds
+    normally off their own correctness — a successful challenge costs them this specific card,
+    not their standing in the draw/stop decision.
   - **Challenger incorrect**: `MT_CHALLENGE_COST` is deducted from the challenger's tokens; the
     original active team's placement is scored normally (correct/incorrect against their own
-    timeline, independent of the failed challenge).
+    effective timeline, independent of the failed challenge) and, if correct, still goes to their
+    pending pile as usual.
 
 ### Automatic Card token
 
@@ -205,8 +284,11 @@ Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, ca
   replaces the normal placement step entirely for that turn).
 - Costs `MT_AUTO_CARD_COST` tokens. On use, no placement UI is shown for that turn — the server
   reveals the song and **auto-inserts it at the mathematically correct chronological position**
-  in that team's timeline (server already knows the true year), card count +1, guaranteed
-  success.
+  in that team's effective timeline (server already knows the true year), guaranteed success. This
+  forces an immediate stop: it banks the auto-card plus anything already sitting in
+  `mtTurnCollected` from earlier in the same turn straight into the team's real timeline (card
+  count +1 for the auto card, plus however many were already pending), and ends the turn — there
+  is no draw/stop decision after an Auto Card.
 - Cannot be combined with a Skip or a placement attempt on the same song — it's an alternative
   to placing, not a modifier of it.
 
@@ -223,16 +305,24 @@ Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, ca
 
 - After a placement is locked (`locked` phase), the host taps a **"Reveal"** button — not
   automatic. This is the same window in which non-active teams can challenge (see above), so the
-  host controls the pacing of both the suspense and the challenge opportunity.
+  host controls the pacing of both the suspense and the challenge opportunity. The host doesn't
+  need to know the song themselves to do this (they usually won't, unless their team happens to be
+  DJing that turn) — they're trusted to reveal once the room verbally signals it's heard enough,
+  same trust-based pacing model the rest of the app already uses.
 - On Reveal: true title/artist/year broadcast to everyone, correctness computed for the active
-  team (and the challenger, if any), timelines updated, host's artist/title checkbox becomes
-  available, and the updated timeline + card count is shown to the whole room.
+  team (and the challenger, if any), host's artist/title checkbox becomes available. A correct
+  placement adds the card to the active team's pending pile and hands them the draw/stop
+  decision; an incorrect one discards the pending pile outright. Either way the room sees the
+  updated pending pile / real timeline reflected immediately.
 
 ## Winning
 
-- The moment any team's card count reaches `MT_TARGET_CARDS`, the match ends immediately (even
-  mid-cycle — a team doesn't need to "finish the round," reaching the target ends it the instant
-  it happens, matching Menifot's immediate-end-on-target philosophy).
+- The moment any team's **real, banked** card count reaches `MT_TARGET_CARDS`, the match ends
+  immediately. Because cards from the current turn only become real when a team stops (see "Turn
+  loop"), this check happens at the point of banking — an explicit Stop, an Automatic Card, or a
+  forced auto-stop from disconnection — not at every individual correct placement. A team sitting
+  on an unbanked pile that would put them over the target if kept doesn't end the match until they
+  actually choose to stop (or until they lose it all on a wrong guess first).
 - If a challenge and the resulting card gain would push **two teams** to the target
   simultaneously (challenger claims a card that pushes them to target in the same reveal where,
   hypothetically, another team was already sitting at target-minus-one — not actually possible
@@ -262,16 +352,21 @@ When the match ends:
   is not cleared on disconnect, matching Codenames' precedent.
 - **The entire active team disconnects mid-turn** (0 connected players on the team currently up,
   song already generated and sitting with the host): the server auto-skips — discards the
-  pending song (added to `room.mtUsedSongs` so it's never re-offered), advances
-  `room.mtActiveTeamIndex` to the next team with ≥1 connected player, and immediately starts a
-  new `generating` call for that team. No host intervention needed, mirrors this app's existing
-  "disconnected players never block the room" philosophy (Menifot's auto-lock, 10 Seconds'
-  auto-DNF).
-- **The host disconnects mid-turn** (song already generated, sitting with the old host's socket
-  only): host handoff already reassigns `room.hostName` via the existing shared lobby mechanism.
-  Because the current song is stored in room state (`room.mtCurrentSong`, not only pushed
-  client-side to one socket), the next per-viewer state broadcast simply includes it for
-  whoever the new host is — no re-fetch, no lost turn.
+  pending song (added to `room.mtUsedSongs` so it's never re-offered) *and* discards
+  `mtTurnCollected` (anything they'd collected but not yet banked this turn is lost along with
+  it), advances `room.mtActiveTeamIndex` to the next team with ≥1 connected player, and
+  immediately starts a new `generating` call for that team. No host intervention needed, mirrors
+  this app's existing "disconnected players never block the room" philosophy (Menifot's
+  auto-lock, 10 Seconds' auto-DNF).
+- **The entire active team disconnects while their draw/stop decision is pending** (a correct
+  placement was just revealed and nobody's left to choose): the server auto-stops on their
+  behalf — banking `mtTurnCollected` into their real timeline exactly as if they'd tapped "Stop &
+  Keep Cards" themselves — so the host's "Next Turn" button becomes available instead of the room
+  stalling on a decision nobody can make.
+- **The host disconnects mid-turn**: host handoff already reassigns `room.hostName` via the
+  existing shared lobby mechanism. The pending song is unaffected either way, since visibility is
+  computed per-viewer from `room.mtCurrentSong` and the current DJ team, not tied to whichever
+  socket happens to be the host at the time.
 - **A permanently-gone team** (all members disconnected for the rest of the match): stays in
   turn order; every time it's their turn, the team-dropout auto-skip above fires again. This
   matches Menifot's "ghost roster member" precedent of not reshuffling match structure around a
@@ -291,8 +386,14 @@ because of *who it's broadcast to*, not because it can't be stored:
   progress. This only requires `repairOnLoad` to be a no-op for Music Timeline (no rollback
   needed), unlike Menifot's forced rollback to `ready`.
 - If the room was mid-`generating` (an in-flight ChatGPT call was never resolved, e.g. process
-  died before the response came back), `repairOnLoad` rolls back that one case to `ready` — an
-  in-flight HTTP call genuinely cannot be resumed, but this is the only phase requiring rollback.
+  died before the response came back), `repairOnLoad` rolls back that one case to `ready` and
+  clears `mtCurrentSong`/`mtPendingPlacement`/`mtCurrentChallenge` — an in-flight HTTP call
+  genuinely cannot be resumed, but this is the only phase requiring rollback. `mtTurnCollected`
+  is deliberately left untouched by this rollback: if the in-flight call was a mid-turn "draw
+  another song" (the team had already banked nothing, chosen to continue), rolling back to
+  `ready` without touching turn index or `mtTurnCollected` means the next "Next Turn" press
+  resumes the *same* team's turn with their pending pile intact, rather than skipping to the next
+  team or losing progress.
 
 ## Play Again / Back to Lobby
 
@@ -301,8 +402,8 @@ because of *who it's broadcast to*, not because it can't be stored:
 - **Play Again** (host-only, from the gameover screen): re-snapshots whoever is currently
   connected as the new match roster, keeps existing team assignments where still valid (any
   team that's now empty is dropped, matching the team-select minimum), resets every team's
-  timeline/card count/tokens to a fresh `MT_STARTING_TOKENS`, clears `room.mtUsedSongs`, deals
-  fresh starting cards, and returns to `ready`. No cross-match score carryover on the internal
+  timeline/card count/tokens to a fresh `MT_STARTING_TOKENS` and an empty timeline, clears
+  `room.mtUsedSongs`, and returns to `ready`. No cross-match score carryover on the internal
   0–`MT_TARGET_CARDS` race (the cross-game `room.scoreboard` is untouched by a Play Again, same
   as every other game).
 
@@ -322,15 +423,25 @@ because of *who it's broadcast to*, not because it can't be stored:
 - `room.mtRoundNumber`: increments each resolved turn, for display/debugging.
 - `room.mtMatchWinners`: array of team id(s), populated once the match ends (supports
   co-champions, see "Winning").
+- `room.mtTurnCollected`: array of `{ title, artist, releaseYear }` — the active team's
+  push-your-luck pile for the *current turn only* (see "Turn loop"); merged into the team's real
+  `timeline` on Stop/Auto Card, discarded on a wrong guess or team dropout, always reset to `[]`
+  when a new team's turn begins.
+- `room.mtTurnOver`: boolean — whether the current turn has reached an end state (wrong guess, or
+  an explicit/forced Stop) and is just waiting on the host's "Next Turn". `false` while a
+  draw/stop decision is pending after a correct placement.
 
 `savedFields` for this module: at minimum `mtMode`, `mtDifficulty`, `mtTeams`,
-`mtActiveTeamIndex`, `mtCurrentSong`, `mtUsedSongs`, `mtRoundNumber` — everything needed to
-resume a match exactly, per the restart-recovery design above.
+`mtActiveTeamIndex`, `mtCurrentSong`, `mtUsedSongs`, `mtRoundNumber`, `mtTurnCollected`,
+`mtTurnOver` — everything needed to resume a match exactly, per the restart-recovery design
+above.
 
 ## Explicitly out of scope (v1)
 
-- No in-app audio playback of any kind — the host always plays music through their own
-  separate app/device. No Spotify/YouTube API integration, no OAuth, no `<audio>` element.
+- No in-app audio playback of any kind — the DJ team always plays music through their own
+  separate device, following a plain YouTube search-results link. No YouTube Data API
+  integration (no exact-video resolution), no Spotify integration, no OAuth, no `<audio>`
+  element, no embedded player.
 - No local/static song database — every song is a live ChatGPT call; no fallback source if
   `OPENAI_API_KEY` is missing or the API is down beyond the existing retry-on-failure UX.
 - No free-text artist/title guessing or fuzzy string matching — artist/title identification is

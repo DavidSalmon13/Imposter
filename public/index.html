@@ -377,11 +377,11 @@
         <button id="mt-challenge-btn" class="secondary hidden">Challenge!</button>
 
         <div id="mt-song-panel" class="hidden">
-          <h2 class="mf-section-heading">Now playing (host only)</h2>
+          <h2 class="mf-section-heading">You're on DJ duty — don't say the name out loud!</h2>
           <p id="mt-song-display"></p>
-          <p class="muted">Play this from your own Spotify/YouTube for the room.</p>
+          <a id="mt-song-link" target="_blank" rel="noopener">Search on YouTube</a>
         </div>
-        <p id="mt-waiting-song" class="muted hidden">Listen up - waiting for the host&hellip;</p>
+        <p id="mt-waiting-song" class="muted hidden"></p>
 
         <div id="mt-token-actions" class="btn-row hidden">
           <button id="mt-skip-btn" class="secondary">Skip song</button>
@@ -399,6 +399,14 @@
             Team correctly named the artist and title (said out loud)
           </label>
         </div>
+
+        <div id="mt-turn-decision" class="btn-row hidden">
+          <button id="mt-continue-turn-btn">Draw Another Song</button>
+          <button id="mt-stop-turn-btn" class="secondary">Stop &amp; Keep Cards</button>
+        </div>
+        <p id="mt-turn-decision-waiting" class="muted hidden">
+          Waiting for the team to decide: draw again or stop&hellip;
+        </p>
 
         <button id="mt-next-turn-btn" class="hidden">Next Turn</button>
         <p id="mt-next-turn-waiting" class="muted hidden">Waiting for the host&hellip;</p>

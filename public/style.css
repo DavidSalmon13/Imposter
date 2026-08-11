@@ -621,6 +621,26 @@ button.secondary:hover:not(:disabled) {
   color: var(--danger);
 }
 
+.mt-pending-card {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+#mt-song-link {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-highlight);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 .cn-header {
   display: flex;
   align-items: center;

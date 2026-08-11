@@ -1,7 +1,4 @@
-/**
- * Music Timeline client module. Team-select/setup and the start of the match loop (starting
- * cards + song generation) are real; placement/reveal/tokens land in later steps.
- */
+/** Music Timeline client module: team-select/setup and the full match loop. */
 
 import { renderScoreboard } from '../shared/scoreboard.js';
 
@@ -22,6 +19,7 @@ const mtLockedBadge = document.getElementById('mt-locked-badge');
 const mtChallengeBtn = document.getElementById('mt-challenge-btn');
 const mtSongPanel = document.getElementById('mt-song-panel');
 const mtSongDisplay = document.getElementById('mt-song-display');
+const mtSongLink = document.getElementById('mt-song-link');
 const mtWaitingSong = document.getElementById('mt-waiting-song');
 const mtTokenActions = document.getElementById('mt-token-actions');
 const mtSkipBtn = document.getElementById('mt-skip-btn');
@@ -33,6 +31,10 @@ const mtRevealChallenge = document.getElementById('mt-reveal-challenge');
 const mtRevealSong = document.getElementById('mt-reveal-song');
 const mtConfirmIdLabel = document.getElementById('mt-confirm-id-label');
 const mtConfirmIdCheckbox = document.getElementById('mt-confirm-id-checkbox');
+const mtTurnDecision = document.getElementById('mt-turn-decision');
+const mtContinueTurnBtn = document.getElementById('mt-continue-turn-btn');
+const mtStopTurnBtn = document.getElementById('mt-stop-turn-btn');
+const mtTurnDecisionWaiting = document.getElementById('mt-turn-decision-waiting');
 const mtNextTurnBtn = document.getElementById('mt-next-turn-btn');
 const mtNextTurnWaiting = document.getElementById('mt-next-turn-waiting');
 
@@ -217,9 +219,12 @@ function renderMatch(data) {
       const ul = document.createElement('ul');
       ul.className = 'player-list';
       if (timeline.length) {
-        timeline.forEach((song) => {
+        const pendingCount = team.pendingCount || 0;
+        const pendingFrom = timeline.length - pendingCount;
+        timeline.forEach((song, i) => {
           const li = document.createElement('li');
-          li.textContent = formatMtSong(song);
+          li.textContent = i >= pendingFrom ? `${formatMtSong(song)} (not banked yet)` : formatMtSong(song);
+          if (i >= pendingFrom) li.classList.add('mt-pending-card');
           ul.appendChild(li);
         });
       } else {
@@ -240,6 +245,8 @@ function renderMatch(data) {
   mtChallengeBtn.classList.add('hidden');
   mtRevealBtn.classList.add('hidden');
   mtRevealPanel.classList.add('hidden');
+  mtTurnDecision.classList.add('hidden');
+  mtTurnDecisionWaiting.classList.add('hidden');
   mtNextTurnBtn.classList.add('hidden');
   mtNextTurnWaiting.classList.add('hidden');
   mtGameoverPanel.classList.add('hidden');
@@ -250,11 +257,17 @@ function renderMatch(data) {
     mtNextTurnBtn.classList.toggle('hidden', !isHost);
     mtNextTurnWaiting.classList.toggle('hidden', isHost);
   } else if (data.phase === 'placing' || data.phase === 'locked') {
-    if (isHost && data.currentSong) {
+    const isDj = data.myTeam != null && data.myTeam === data.djTeamId;
+    if (isDj && data.currentSong) {
       mtSongPanel.classList.remove('hidden');
       mtSongDisplay.textContent = formatMtSong(data.currentSong);
+      mtSongLink.href = data.currentSongUrl || '#';
     } else {
       mtWaitingSong.classList.remove('hidden');
+      const djTeam = teams.find((t) => t.id === data.djTeamId);
+      mtWaitingSong.textContent = djTeam
+        ? `Listen up - ${djTeam.name} has the song queued up…`
+        : 'Listen up - waiting on the song…';
     }
 
     const isActiveTeamMember = data.myTeam === data.activeTeamId;
@@ -270,10 +283,12 @@ function renderMatch(data) {
     const result = data.revealResult;
     const resultTeam = teams.find((t) => t.id === (result && result.teamId));
     const correct = !!(result && result.correct);
+    const decisionPending = correct && !data.turnOver;
     mtRevealResult.textContent = result
       ? correct
-        ? `✅ Correct! ${resultTeam ? resultTeam.name : 'The team'}'s timeline grew.`
-        : `❌ Incorrect — the card is discarded.`
+        ? `✅ Correct! ${resultTeam ? resultTeam.name : 'The team'} collected this card` +
+          (decisionPending ? ' — keep guessing or stop here?' : '.')
+        : `❌ Incorrect — ${resultTeam ? resultTeam.name : 'the team'} loses everything collected this turn.`
       : '';
     mtRevealResult.classList.toggle('correct', correct);
     mtRevealResult.classList.toggle('incorrect', !!result && !correct);
@@ -295,8 +310,14 @@ function renderMatch(data) {
     mtConfirmIdCheckbox.checked = !!data.idConfirmed;
     mtConfirmIdCheckbox.disabled = !!data.idConfirmed;
 
-    mtNextTurnBtn.classList.toggle('hidden', !isHost);
-    mtNextTurnWaiting.classList.toggle('hidden', isHost);
+    if (decisionPending) {
+      const isActiveTeamMember = data.myTeam === data.activeTeamId;
+      mtTurnDecision.classList.toggle('hidden', !isActiveTeamMember);
+      mtTurnDecisionWaiting.classList.toggle('hidden', isActiveTeamMember);
+    } else {
+      mtNextTurnBtn.classList.toggle('hidden', !isHost);
+      mtNextTurnWaiting.classList.toggle('hidden', isHost);
+    }
   } else if (data.phase === 'gameover') {
     mtGameoverPanel.classList.remove('hidden');
 
@@ -426,6 +447,20 @@ export const MusicTimeline = {
     mtRevealBtn.addEventListener('click', () => {
       mtMatchError.textContent = '';
       socket.emit('mtReveal', (res) => {
+        if (res && !res.ok) mtMatchError.textContent = res.error;
+      });
+    });
+
+    mtContinueTurnBtn.addEventListener('click', () => {
+      mtMatchError.textContent = '';
+      socket.emit('mtContinueTurn', (res) => {
+        if (res && !res.ok) mtMatchError.textContent = res.error;
+      });
+    });
+
+    mtStopTurnBtn.addEventListener('click', () => {
+      mtMatchError.textContent = '';
+      socket.emit('mtStopTurn', (res) => {
         if (res && !res.ok) mtMatchError.textContent = res.error;
       });
     });
