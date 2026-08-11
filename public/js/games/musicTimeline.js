@@ -21,16 +21,11 @@ const mtSongPanel = document.getElementById('mt-song-panel');
 const mtSongDisplay = document.getElementById('mt-song-display');
 const mtSongLink = document.getElementById('mt-song-link');
 const mtWaitingSong = document.getElementById('mt-waiting-song');
-const mtTokenActions = document.getElementById('mt-token-actions');
-const mtSkipBtn = document.getElementById('mt-skip-btn');
-const mtAutoCardBtn = document.getElementById('mt-auto-card-btn');
 const mtRevealBtn = document.getElementById('mt-reveal-btn');
 const mtRevealPanel = document.getElementById('mt-reveal-panel');
 const mtRevealResult = document.getElementById('mt-reveal-result');
 const mtRevealChallenge = document.getElementById('mt-reveal-challenge');
 const mtRevealSong = document.getElementById('mt-reveal-song');
-const mtConfirmIdLabel = document.getElementById('mt-confirm-id-label');
-const mtConfirmIdCheckbox = document.getElementById('mt-confirm-id-checkbox');
 const mtTurnDecision = document.getElementById('mt-turn-decision');
 const mtContinueTurnBtn = document.getElementById('mt-continue-turn-btn');
 const mtStopTurnBtn = document.getElementById('mt-stop-turn-btn');
@@ -55,34 +50,68 @@ function formatMtSong(song) {
   return `"${song.title}" — ${song.artist} (${song.releaseYear})`;
 }
 
-/** Renders a timeline as BEFORE / BETWEEN×N / AFTER slot buttons around each known year. */
-function renderTimelineSlots(container, timeline, { interactive, locked, pendingSlotIndex, onPick }) {
-  container.innerHTML = '';
-  const row = document.createElement('div');
-  row.className = 'mt-timeline-row';
+const MT_TEAM_COLORS = ['var(--team-red)', 'var(--team-blue)', 'var(--success)', 'var(--accent-2)'];
 
-  const addSlot = (index, label) => {
+/**
+ * Renders a team's timeline as a horizontal strip of song cards. When `interactive` or `locked`
+ * is set, a round slot button is drawn before/between/after every card so the active (or
+ * challenging) team can tap where the new song goes; otherwise it's just the cards. The last
+ * `pendingCount` cards are marked as not yet banked (see the push-your-luck turn loop).
+ */
+function renderTimeline(container, timeline, opts = {}) {
+  const { pendingCount = 0, interactive = false, locked = false, pendingSlotIndex = null, onPick = null } = opts;
+  container.className = 'mt-timeline';
+  container.innerHTML = '';
+
+  if (!timeline.length && !interactive && !locked) {
+    const empty = document.createElement('span');
+    empty.className = 'mt-card-empty';
+    empty.textContent = 'No cards yet';
+    container.appendChild(empty);
+    return;
+  }
+
+  const showSlots = interactive || locked;
+  const pendingFrom = timeline.length - pendingCount;
+
+  const addSlot = (index) => {
+    if (!showSlots) return;
     const btn = document.createElement('button');
-    btn.className = 'level-btn mt-slot-btn';
-    btn.textContent = label;
+    btn.className = 'mt-slot';
+    btn.textContent = '+';
+    btn.title = 'Place here';
     btn.classList.toggle('selected', locked && pendingSlotIndex === index);
     btn.disabled = locked || !interactive;
     if (!btn.disabled) {
       btn.addEventListener('click', () => onPick(index));
     }
-    row.appendChild(btn);
+    container.appendChild(btn);
   };
 
-  addSlot(0, 'BEFORE');
+  addSlot(0);
   timeline.forEach((song, i) => {
-    const chip = document.createElement('span');
-    chip.className = 'mt-song-chip';
-    chip.textContent = song.releaseYear;
-    row.appendChild(chip);
-    addSlot(i + 1, i === timeline.length - 1 ? 'AFTER' : 'BETWEEN');
-  });
+    const card = document.createElement('div');
+    card.className = 'mt-card';
+    if (i >= pendingFrom) card.classList.add('mt-card-pending');
 
-  container.appendChild(row);
+    const year = document.createElement('div');
+    year.className = 'mt-card-year';
+    year.textContent = song.releaseYear;
+    card.appendChild(year);
+
+    const title = document.createElement('div');
+    title.className = 'mt-card-title';
+    title.textContent = song.title;
+    card.appendChild(title);
+
+    const artist = document.createElement('div');
+    artist.className = 'mt-card-artist';
+    artist.textContent = song.artist;
+    card.appendChild(artist);
+
+    container.appendChild(card);
+    addSlot(i + 1);
+  });
 }
 
 function renderTeamSelect(data) {
@@ -175,21 +204,52 @@ function renderMatch(data) {
   const challenge = data.currentChallenge;
 
   mtTeamsPanel.innerHTML = '';
-  teams.forEach((team) => {
+  teams.forEach((team, i) => {
     const col = document.createElement('div');
-    col.className = 'team-column';
+    col.className = 'team-column mt-team-column';
+    col.style.setProperty('--mt-team-color', MT_TEAM_COLORS[i % MT_TEAM_COLORS.length]);
 
-    const h2 = document.createElement('h2');
-    let label = team.id === data.activeTeamId ? `${team.name} (active)` : team.name;
-    if (challenge && challenge.team === team.id) label += ' (challenging)';
-    h2.textContent = `${label} — 🎫${team.tokens != null ? team.tokens : 0}`;
-    col.appendChild(h2);
+    const header = document.createElement('div');
+    header.className = 'mt-team-header';
+
+    const name = document.createElement('span');
+    name.className = 'mt-team-name';
+    name.textContent = team.name;
+    header.appendChild(name);
+
+    const badges = document.createElement('div');
+    badges.className = 'mt-team-badges';
+    if (team.id === data.activeTeamId) {
+      const b = document.createElement('span');
+      b.className = 'mt-badge mt-badge-active';
+      b.textContent = 'Active';
+      badges.appendChild(b);
+    }
+    if (team.id === data.djTeamId) {
+      const b = document.createElement('span');
+      b.className = 'mt-badge mt-badge-dj';
+      b.textContent = 'DJ';
+      badges.appendChild(b);
+    }
+    if (challenge && challenge.team === team.id) {
+      const b = document.createElement('span');
+      b.className = 'mt-badge mt-badge-challenging';
+      b.textContent = 'Challenging';
+      badges.appendChild(b);
+    }
+    const tokens = document.createElement('span');
+    tokens.className = 'mt-token-count';
+    tokens.textContent = `🎫 ${team.tokens != null ? team.tokens : 0}`;
+    badges.appendChild(tokens);
+    header.appendChild(badges);
+    col.appendChild(header);
 
     const timeline = team.timeline || [];
+    const board = document.createElement('div');
 
     if (showSlots && team.id === data.activeTeamId) {
-      const slots = document.createElement('div');
-      renderTimelineSlots(slots, timeline, {
+      renderTimeline(board, timeline, {
+        pendingCount: team.pendingCount || 0,
         interactive: data.phase === 'placing' && data.myTeam === data.activeTeamId,
         locked: data.phase === 'locked',
         pendingSlotIndex: data.pendingSlotIndex,
@@ -200,10 +260,8 @@ function renderMatch(data) {
           });
         },
       });
-      col.appendChild(slots);
     } else if (data.phase === 'locked' && challenge && challenge.team === team.id) {
-      const slots = document.createElement('div');
-      renderTimelineSlots(slots, timeline, {
+      renderTimeline(board, timeline, {
         interactive: data.myTeam === challenge.team && challenge.slotIndex == null,
         locked: challenge.slotIndex != null,
         pendingSlotIndex: challenge.slotIndex,
@@ -214,26 +272,10 @@ function renderMatch(data) {
           });
         },
       });
-      col.appendChild(slots);
     } else {
-      const ul = document.createElement('ul');
-      ul.className = 'player-list';
-      if (timeline.length) {
-        const pendingCount = team.pendingCount || 0;
-        const pendingFrom = timeline.length - pendingCount;
-        timeline.forEach((song, i) => {
-          const li = document.createElement('li');
-          li.textContent = i >= pendingFrom ? `${formatMtSong(song)} (not banked yet)` : formatMtSong(song);
-          if (i >= pendingFrom) li.classList.add('mt-pending-card');
-          ul.appendChild(li);
-        });
-      } else {
-        const li = document.createElement('li');
-        li.textContent = 'No cards yet';
-        ul.appendChild(li);
-      }
-      col.appendChild(ul);
+      renderTimeline(board, timeline, { pendingCount: team.pendingCount || 0 });
     }
+    col.appendChild(board);
 
     mtTeamsPanel.appendChild(col);
   });
@@ -241,7 +283,6 @@ function renderMatch(data) {
   mtLockedBadge.classList.toggle('hidden', data.phase !== 'locked');
   mtSongPanel.classList.add('hidden');
   mtWaitingSong.classList.add('hidden');
-  mtTokenActions.classList.add('hidden');
   mtChallengeBtn.classList.add('hidden');
   mtRevealBtn.classList.add('hidden');
   mtRevealPanel.classList.add('hidden');
@@ -270,26 +311,15 @@ function renderMatch(data) {
         : 'Listen up - waiting on the song…';
     }
 
-    const isActiveTeamMember = data.myTeam === data.activeTeamId;
-    mtTokenActions.classList.toggle('hidden', !(isActiveTeamMember && data.phase === 'placing'));
-    mtSkipBtn.disabled = !data.canSkip;
-    mtAutoCardBtn.disabled = !data.canAutoCard;
-
     mtChallengeBtn.classList.toggle('hidden', !data.canChallenge);
     mtRevealBtn.classList.toggle('hidden', !(isHost && data.phase === 'locked'));
   } else if (data.phase === 'revealed') {
     mtRevealPanel.classList.remove('hidden');
 
     const result = data.revealResult;
-    const resultTeam = teams.find((t) => t.id === (result && result.teamId));
     const correct = !!(result && result.correct);
     const decisionPending = correct && !data.turnOver;
-    mtRevealResult.textContent = result
-      ? correct
-        ? `✅ Correct! ${resultTeam ? resultTeam.name : 'The team'} collected this card` +
-          (decisionPending ? ' — keep guessing or stop here?' : '.')
-        : `❌ Incorrect — ${resultTeam ? resultTeam.name : 'the team'} loses everything collected this turn.`
-      : '';
+    mtRevealResult.textContent = result ? (correct ? 'Correct' : 'Wrong') : '';
     mtRevealResult.classList.toggle('correct', correct);
     mtRevealResult.classList.toggle('incorrect', !!result && !correct);
 
@@ -305,10 +335,6 @@ function renderMatch(data) {
     mtRevealChallenge.classList.toggle('incorrect', !!challengeResult && !challengeResult.correct);
 
     mtRevealSong.textContent = data.currentSong ? formatMtSong(data.currentSong) : '';
-
-    mtConfirmIdLabel.classList.toggle('hidden', !isHost);
-    mtConfirmIdCheckbox.checked = !!data.idConfirmed;
-    mtConfirmIdCheckbox.disabled = !!data.idConfirmed;
 
     if (decisionPending) {
       const isActiveTeamMember = data.myTeam === data.activeTeamId;
@@ -423,20 +449,6 @@ export const MusicTimeline = {
       });
     });
 
-    mtSkipBtn.addEventListener('click', () => {
-      mtMatchError.textContent = '';
-      socket.emit('mtSkipSong', (res) => {
-        if (res && !res.ok) mtMatchError.textContent = res.error;
-      });
-    });
-
-    mtAutoCardBtn.addEventListener('click', () => {
-      mtMatchError.textContent = '';
-      socket.emit('mtAutoCard', (res) => {
-        if (res && !res.ok) mtMatchError.textContent = res.error;
-      });
-    });
-
     mtChallengeBtn.addEventListener('click', () => {
       mtMatchError.textContent = '';
       socket.emit('mtChallenge', (res) => {
@@ -461,14 +473,6 @@ export const MusicTimeline = {
     mtStopTurnBtn.addEventListener('click', () => {
       mtMatchError.textContent = '';
       socket.emit('mtStopTurn', (res) => {
-        if (res && !res.ok) mtMatchError.textContent = res.error;
-      });
-    });
-
-    mtConfirmIdCheckbox.addEventListener('change', () => {
-      if (!mtConfirmIdCheckbox.checked) return;
-      mtMatchError.textContent = '';
-      socket.emit('mtConfirmId', (res) => {
         if (res && !res.ok) mtMatchError.textContent = res.error;
       });
     });

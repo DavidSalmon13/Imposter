@@ -42,11 +42,8 @@ without touching game logic:
 | `MT_MIN_TEAMS` | 2 | Floor on number of teams in Team mode |
 | `MT_MAX_TEAMS` | 4 | Ceiling on number of teams in Team mode |
 | `MT_TARGET_CARDS` | 10 | First team to reach this many timeline cards wins the match |
-| `MT_STARTING_TOKENS` | 2 | Tokens each team starts a match with |
-| `MT_MAX_TOKENS` | 5 | Token cap per team |
-| `MT_SKIP_COST` | 1 | Tokens spent to discard the current song and get a new one |
+| `MT_STARTING_TOKENS` | 2 | Tokens each team starts a match with - fixed, never earned back |
 | `MT_CHALLENGE_COST` | 1 (only deducted if the challenge is wrong) | Tokens spent to challenge another team's locked placement |
-| `MT_AUTO_CARD_COST` | 3 | Tokens spent to auto-receive the current song without placing |
 | `MT_USED_SONGS_AVOID_WINDOW` | 40 | How many recent songs are sent to ChatGPT as a "don't repeat these" list (mirrors Imposter's `usedWords.slice(-40)`) |
 
 Not exposed as per-room host settings in v1 — code constants only, same as `MF_TARGET_SCORE`.
@@ -71,9 +68,7 @@ Not exposed as per-room host settings in v1 — code constants only, same as `MF
 
 Host picks **Easy / Pro / Expert** at setup, alongside team mode. Unlike the original HITSTER
 spec's per-difficulty verification rules, this app's difficulty **only changes what ChatGPT is
-asked to pick** — placement correctness is always position-only, and artist/title
-identification is always a separate, difficulty-independent way to earn a token (see "Earning
-tokens" below):
+asked to pick** — placement correctness is always position-only, never affected by difficulty:
 
 | Mode | Prompt guidance to ChatGPT |
 |---|---|
@@ -152,8 +147,8 @@ lobby (shared) → teamSelect (Team mode only) → ready → generating → plac
   immutable. Non-active teams with a Challenge token available may challenge here (see
   "Challenge token" below); the host sees a "Reveal" button.
 - **revealed**: host has tapped Reveal. True title/artist/year shown to everyone, correctness
-  computed, host checks the artist/title honor-system box if earned. What happens next depends on
-  the outcome (see "Turn loop"): a wrong placement ends the turn immediately (discarding
+  computed. What happens next depends on the outcome (see "Turn loop"): a wrong placement ends
+  the turn immediately (discarding
   everything collected this turn) and shows "Next Turn"; a correct placement instead shows the
   active team a choice between drawing another song or stopping to bank what they've collected,
   and "Next Turn" only appears once that choice has been made. The match can end here if banking
@@ -239,18 +234,12 @@ newSong.year < firstTimelineSong.year
 
 ## Token system
 
-Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, capped at
-`MT_MAX_TOKENS`.
-
-### Skip token
-
-- Available to the active team only, during `placing`, **before** they lock a placement.
-- Spending `MT_SKIP_COST` discards the current song (added to `room.mtUsedSongs` so it's never
-  re-offered) and immediately triggers a new `generating` call for a replacement — same team,
-  same turn. Repeatable as long as the team has tokens; no per-turn skip limit beyond token
-  balance.
-- Discarded songs never count toward score, correct or not — the team never gets to guess on
-  them.
+Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, spent only on
+Challenge (see below). There is no way to earn tokens back — no Skip, no Auto Card, no
+artist/title bonus — so each team has a fixed, non-renewable budget of challenges for the whole
+match. This is a deliberate simplification from an earlier version of this spec, which also had
+a Skip token, an Auto Card token, and an honor-system artist/title bonus; all three were cut as
+unnecessary complexity.
 
 ### Challenge token
 
@@ -278,29 +267,6 @@ Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, ca
     effective timeline, independent of the failed challenge) and, if correct, still goes to their
     pending pile as usual.
 
-### Automatic Card token
-
-- Available to the active team only, during `placing`, before locking a placement (spending it
-  replaces the normal placement step entirely for that turn).
-- Costs `MT_AUTO_CARD_COST` tokens. On use, no placement UI is shown for that turn — the server
-  reveals the song and **auto-inserts it at the mathematically correct chronological position**
-  in that team's effective timeline (server already knows the true year), guaranteed success. This
-  forces an immediate stop: it banks the auto-card plus anything already sitting in
-  `mtTurnCollected` from earlier in the same turn straight into the team's real timeline (card
-  count +1 for the auto card, plus however many were already pending), and ends the turn — there
-  is no draw/stop decision after an Auto Card.
-- Cannot be combined with a Skip or a placement attempt on the same song — it's an alternative
-  to placing, not a modifier of it.
-
-### Earning tokens
-
-- At `revealed`, the host sees an honor-system checkbox: **"Team correctly named the artist and
-  title (said out loud)"**. Checking it awards the active team (or the challenger, if this was a
-  challenged turn and the challenger is who's being credited — host judgment) +1 token, capped
-  at `MT_MAX_TOKENS`.
-- This is independent of whether the placement itself was correct, and independent of
-  difficulty mode — no fuzzy text matching, no free-text input, purely host-confirmed.
-
 ## Reveal flow
 
 - After a placement is locked (`locked` phase), the host taps a **"Reveal"** button — not
@@ -310,19 +276,19 @@ Every team (including solo "teams") starts a match with `MT_STARTING_TOKENS`, ca
   DJing that turn) — they're trusted to reveal once the room verbally signals it's heard enough,
   same trust-based pacing model the rest of the app already uses.
 - On Reveal: true title/artist/year broadcast to everyone, correctness computed for the active
-  team (and the challenger, if any), host's artist/title checkbox becomes available. A correct
-  placement adds the card to the active team's pending pile and hands them the draw/stop
-  decision; an incorrect one discards the pending pile outright. Either way the room sees the
-  updated pending pile / real timeline reflected immediately.
+  team (and the challenger, if any). A correct placement adds the card to the active team's
+  pending pile and hands them the draw/stop decision; an incorrect one discards the pending pile
+  outright. Either way the room sees the updated pending pile / real timeline reflected
+  immediately.
 
 ## Winning
 
 - The moment any team's **real, banked** card count reaches `MT_TARGET_CARDS`, the match ends
   immediately. Because cards from the current turn only become real when a team stops (see "Turn
-  loop"), this check happens at the point of banking — an explicit Stop, an Automatic Card, or a
-  forced auto-stop from disconnection — not at every individual correct placement. A team sitting
-  on an unbanked pile that would put them over the target if kept doesn't end the match until they
-  actually choose to stop (or until they lose it all on a wrong guess first).
+  loop"), this check happens at the point of banking — an explicit Stop or a forced auto-stop from
+  disconnection — not at every individual correct placement. A team sitting on an unbanked pile
+  that would put them over the target if kept doesn't end the match until they actually choose to
+  stop (or until they lose it all on a wrong guess first).
 - If a challenge and the resulting card gain would push **two teams** to the target
   simultaneously (challenger claims a card that pushes them to target in the same reveal where,
   hypothetically, another team was already sitting at target-minus-one — not actually possible
@@ -425,8 +391,8 @@ because of *who it's broadcast to*, not because it can't be stored:
   co-champions, see "Winning").
 - `room.mtTurnCollected`: array of `{ title, artist, releaseYear }` — the active team's
   push-your-luck pile for the *current turn only* (see "Turn loop"); merged into the team's real
-  `timeline` on Stop/Auto Card, discarded on a wrong guess or team dropout, always reset to `[]`
-  when a new team's turn begins.
+  `timeline` on Stop, discarded on a wrong guess or team dropout, always reset to `[]` when a
+  new team's turn begins.
 - `room.mtTurnOver`: boolean — whether the current turn has reached an end state (wrong guess, or
   an explicit/forced Stop) and is just waiting on the host's "Next Turn". `false` while a
   draw/stop decision is pending after a correct placement.
@@ -444,8 +410,8 @@ above.
   element, no embedded player.
 - No local/static song database — every song is a live ChatGPT call; no fallback source if
   `OPENAI_API_KEY` is missing or the API is down beyond the existing retry-on-failure UX.
-- No free-text artist/title guessing or fuzzy string matching — artist/title identification is
-  always host-confirmed honor system.
+- No free-text artist/title guessing, fuzzy string matching, or bonus for naming the song
+  correctly — the only way to gain a card is a correct BEFORE/BETWEEN/AFTER placement.
 - No exact-year guessing at any difficulty — placement is always by era (BEFORE/BETWEEN/AFTER),
   never a numeric year input.
 - No per-room-configurable target card count, token costs, or team/player caps — code constants
@@ -454,6 +420,6 @@ above.
 - No timer on placement, challenge, or reveal — every step is untimed and host/team-paced.
 - No spectator mode beyond the standard "disconnected but still on the roster" handling already
   described.
-- No anti-cheat beyond what this app already trusts elsewhere (host's honor-system checkbox,
-  players verbally agreeing on what they heard) — consistent with the rest of the app's
+- No anti-cheat beyond what this app already trusts elsewhere (players verbally agreeing on what
+  they heard, the DJ team not saying the answer out loud) — consistent with the rest of the app's
   trust-based model.

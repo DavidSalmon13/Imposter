@@ -9,10 +9,7 @@ const MT_MAX_TEAMS = 4;
 const MT_TEAM_IDS = ['A', 'B', 'C', 'D'];
 const MT_TARGET_CARDS = 10;
 const MT_STARTING_TOKENS = 2;
-const MT_MAX_TOKENS = 5;
-const MT_SKIP_COST = 1;
 const MT_CHALLENGE_COST = 1;
-const MT_AUTO_CARD_COST = 3;
 const MT_USED_SONGS_AVOID_WINDOW = 40;
 const MT_DIFFICULTIES = ['easy', 'pro', 'expert'];
 const MT_DIFFICULTY_GUIDANCE = {
@@ -30,7 +27,6 @@ const SAVED_FIELDS = [
   'mtCurrentChallenge',
   'mtPendingPlacement',
   'mtRevealResult',
-  'mtIdConfirmed',
   'mtUsedSongs',
   'mtRoundNumber',
   'mtMatchWinners',
@@ -46,7 +42,6 @@ function clearState(room) {
   room.mtCurrentSong = null;
   room.mtPendingPlacement = null;
   room.mtRevealResult = null;
-  room.mtIdConfirmed = false;
   room.mtCurrentChallenge = null;
   room.mtUsedSongs = [];
   room.mtRoundNumber = 0;
@@ -257,8 +252,6 @@ function mtStatePayload(ctx, room, viewerName) {
   const viewer = room.players.get(viewerName);
   const myTeamId = viewer ? viewer.team : null;
   const activeTeamId = mtActiveTeamId(room);
-  const activeTeam = activeTeamId ? room.mtTeams[activeTeamId] : null;
-  const activeTokens = activeTeam ? activeTeam.tokens || 0 : 0;
   const myTeam = myTeamId ? room.mtTeams[myTeamId] : null;
   const djTeamId = mtDjTeamId(ctx, room);
   const canChallenge =
@@ -294,9 +287,6 @@ function mtStatePayload(ctx, room, viewerName) {
     currentSongUrl: canSeeSong && room.mtCurrentSong ? mtYoutubeSearchUrl(room.mtCurrentSong) : null,
     pendingSlotIndex: room.mtPendingPlacement ? room.mtPendingPlacement.slotIndex : null,
     revealResult: room.phase === 'revealed' ? room.mtRevealResult : null,
-    idConfirmed: room.mtIdConfirmed,
-    canSkip: room.phase === 'placing' && activeTokens >= MT_SKIP_COST,
-    canAutoCard: room.phase === 'placing' && activeTokens >= MT_AUTO_CARD_COST,
     canChallenge,
     currentChallenge: room.mtCurrentChallenge,
     turnOver: room.mtTurnOver,
@@ -356,7 +346,6 @@ async function mtNextTurn(ctx, roomCode, room) {
   room.mtCurrentSong = song;
   room.mtPendingPlacement = null;
   room.mtRevealResult = null;
-  room.mtIdConfirmed = false;
   room.phase = 'placing';
   broadcastMt(ctx, roomCode, room);
 }
@@ -407,7 +396,6 @@ function revealMtPlacement(ctx, room) {
   room.mtRevealResult = { teamId: activeTeamId, correct: activeCorrect, challenge: challengeResult };
   room.mtPendingPlacement = null;
   room.mtCurrentChallenge = null;
-  room.mtIdConfirmed = false;
   // A wrong guess ends the turn on the spot; a correct one waits on the team's own decision to
   // draw another song or stop and bank what they've collected (see mtContinueTurn/mtStopTurn).
   room.mtTurnOver = !activeCorrect;
@@ -661,29 +649,6 @@ function registerHandlers(ctx, io, socket) {
     broadcastMt(ctx, roomCode, room);
   });
 
-  socket.on('mtConfirmId', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'musictimeline' || room.phase !== 'revealed') {
-      return callback({ ok: false, error: 'Nothing to confirm right now' });
-    }
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can confirm this' });
-    }
-
-    if (!room.mtIdConfirmed) {
-      const teamId = room.mtRevealResult && room.mtRevealResult.teamId;
-      const team = teamId && room.mtTeams[teamId];
-      if (team) team.tokens = Math.min(MT_MAX_TOKENS, (team.tokens || 0) + 1);
-      room.mtIdConfirmed = true;
-    }
-
-    callback({ ok: true });
-    broadcastMt(ctx, roomCode, room);
-  });
-
   socket.on('mtPlaceSong', (data, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -708,73 +673,6 @@ function registerHandlers(ctx, io, socket) {
 
     room.mtPendingPlacement = { slotIndex };
     room.phase = 'locked';
-    callback({ ok: true });
-    broadcastMt(ctx, roomCode, room);
-  });
-
-  socket.on('mtSkipSong', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'musictimeline' || room.phase !== 'placing') {
-      return callback({ ok: false, error: 'Not placing right now' });
-    }
-
-    const name = socket.data.name;
-    const p = room.players.get(name);
-    const activeTeamId = mtActiveTeamId(room);
-    if (!p || !activeTeamId || p.team !== activeTeamId) {
-      return callback({ ok: false, error: "Not your team's turn" });
-    }
-
-    const activeTeam = room.mtTeams[activeTeamId];
-    if ((activeTeam.tokens || 0) < MT_SKIP_COST) {
-      return callback({ ok: false, error: 'Not enough tokens to skip' });
-    }
-
-    activeTeam.tokens -= MT_SKIP_COST;
-    const song = room.mtCurrentSong;
-    if (song) room.mtUsedSongs.push({ title: song.title, artist: song.artist });
-    room.mtCurrentSong = null;
-
-    callback({ ok: true });
-    mtNextTurn(ctx, roomCode, room);
-  });
-
-  socket.on('mtAutoCard', (callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'musictimeline' || room.phase !== 'placing') {
-      return callback({ ok: false, error: 'Not placing right now' });
-    }
-
-    const name = socket.data.name;
-    const p = room.players.get(name);
-    const activeTeamId = mtActiveTeamId(room);
-    if (!p || !activeTeamId || p.team !== activeTeamId) {
-      return callback({ ok: false, error: "Not your team's turn" });
-    }
-
-    const activeTeam = room.mtTeams[activeTeamId];
-    if ((activeTeam.tokens || 0) < MT_AUTO_CARD_COST) {
-      return callback({ ok: false, error: 'Not enough tokens for Auto Card' });
-    }
-
-    activeTeam.tokens -= MT_AUTO_CARD_COST;
-    const song = room.mtCurrentSong;
-    room.mtTurnCollected.push(song);
-    room.mtRevealResult = { teamId: activeTeamId, correct: true };
-    room.mtPendingPlacement = null;
-    room.mtIdConfirmed = false;
-    room.phase = 'revealed';
-
-    // Auto Card is a guaranteed, forced stop - it banks this card plus anything already
-    // collected earlier in the turn, rather than leaving the team another decision to make.
-    bankMtTurn(ctx, room);
-
     callback({ ok: true });
     broadcastMt(ctx, roomCode, room);
   });
