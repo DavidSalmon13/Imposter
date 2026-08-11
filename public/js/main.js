@@ -7,6 +7,7 @@ import { Imposter } from './games/imposter.js';
 import { Codenames } from './games/codenames.js';
 import { TensSeconds } from './games/tenseconds.js';
 import { Menifot } from './games/menifot.js';
+import { MusicTimeline } from './games/musicTimeline.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { showScreen, showGenerating } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
@@ -17,6 +18,7 @@ const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
 const KR_MIN_PLAYERS = 2;
+const MT_MIN_PLAYERS = 2;
 
 const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
@@ -43,6 +45,7 @@ const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
 const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
+const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
@@ -59,6 +62,7 @@ const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
 const tsBackBtn = document.getElementById('ts-back-btn');
 const mfBackBtn = document.getElementById('mf-back-btn');
 const krBackBtn = document.getElementById('kr-back-btn');
+const mtBackBtn = document.getElementById('mt-back-btn');
 const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
 
 let myName = localStorage.getItem('imposterName') || '';
@@ -121,6 +125,7 @@ function setHost(hostName) {
   tsBackBtn.classList.remove('hidden');
   mfBackBtn.classList.remove('hidden');
   krBackBtn.classList.remove('hidden');
+  mtBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
@@ -185,6 +190,7 @@ function renderLobby(players, scoreboard) {
   chooseCodenamesBtn.disabled = players.length < CN_MIN_PLAYERS;
   chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
   chooseKartRaceBtn.disabled = players.length < KR_MIN_PLAYERS;
+  chooseMusicTimelineBtn.disabled = players.length < MT_MIN_PLAYERS;
   if (players.length < MIN_PLAYERS) {
     chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds / Kart Race, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
   } else if (players.length < CN_MIN_PLAYERS) {
@@ -218,12 +224,14 @@ Imposter.init(gameCtx);
 Codenames.init(gameCtx);
 TensSeconds.init(gameCtx);
 Menifot.init(gameCtx);
+MusicTimeline.init(gameCtx);
 
 const GAMES = {
   imposter: Imposter,
   codenames: Codenames,
   tenseconds: TensSeconds,
   menifot: Menifot,
+  musictimeline: MusicTimeline,
   kartrace: {
     applyJoin(res) {
       KartRace.applyState(res);
@@ -378,6 +386,13 @@ chooseMenifotBtn.addEventListener('click', () => {
 chooseKartRaceBtn.addEventListener('click', () => {
   chooseError.textContent = '';
   socket.emit('chooseGame', 'kartrace', (res) => {
+    if (!res.ok) chooseError.textContent = res.error;
+  });
+});
+
+chooseMusicTimelineBtn.addEventListener('click', () => {
+  chooseError.textContent = '';
+  socket.emit('chooseGame', 'musictimeline', (res) => {
     if (!res.ok) chooseError.textContent = res.error;
   });
 });

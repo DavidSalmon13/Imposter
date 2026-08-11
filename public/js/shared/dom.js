@@ -20,6 +20,7 @@ export const screens = {
   tensSeconds: document.getElementById('ts-screen'),
   menifot: document.getElementById('mf-screen'),
   kartRace: document.getElementById('kart-race-screen'),
+  musicTimeline: document.getElementById('mt-screen'),
 };
 
 export function showScreen(name) {
@@ -32,6 +33,9 @@ export function showGenerating(game) {
   if (game === 'codenames') {
     generatingTitle.textContent = 'Building the board…';
     generatingSubtitle.textContent = 'Asking ChatGPT for 25 words.';
+  } else if (game === 'musictimeline') {
+    generatingTitle.textContent = 'Picking a song…';
+    generatingSubtitle.textContent = 'Asking ChatGPT for a song.';
   } else {
     generatingTitle.textContent = 'Picking a word…';
     generatingSubtitle.textContent = 'Asking ChatGPT to come up with a word and hint.';

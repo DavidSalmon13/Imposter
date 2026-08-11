@@ -587,6 +587,40 @@ button.secondary:hover:not(:disabled) {
   overflow-wrap: anywhere;
 }
 
+.mt-timeline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.mt-song-chip {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-2);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.mt-slot-btn {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  min-width: 2.5rem;
+}
+
+.mt-reveal-result {
+  font-weight: 600;
+}
+
+.mt-reveal-result.correct {
+  color: var(--success);
+}
+
+.mt-reveal-result.incorrect {
+  color: var(--danger);
+}
+
 .cn-header {
   display: flex;
   align-items: center;

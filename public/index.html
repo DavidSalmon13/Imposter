@@ -83,6 +83,11 @@
           <span class="game-tile-name">Kart Race</span>
           <span class="game-tile-sub">Race the shared track</span>
         </button>
+        <button id="choose-musictimeline-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🎵</span>
+          <span class="game-tile-name">Music Timeline</span>
+          <span class="game-tile-sub">Build your chronological playlist</span>
+        </button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
@@ -322,6 +327,95 @@
         <button id="kr-play-again-btn" class="hidden">Play Again</button>
       </div>
       <button id="kr-back-btn" class="secondary hidden">Back to Lobby</button>
+    </section>
+
+    <!-- Music Timeline -->
+
+    <section id="mt-screen" class="screen hidden">
+      <div id="mt-setup-panel" class="hidden">
+        <h1>Music Timeline</h1>
+        <p class="muted">Build your team's chronological timeline of songs.</p>
+
+        <div class="cn-timer-section">
+          <p class="muted">Mode</p>
+          <div class="cn-timer-choices">
+            <button class="level-btn mt-mode-btn" data-mode="team">Team</button>
+            <button class="level-btn mt-mode-btn" data-mode="solo">Solo</button>
+          </div>
+        </div>
+
+        <div id="mt-team-count-section" class="cn-timer-section hidden">
+          <p class="muted">Number of teams</p>
+          <div class="cn-timer-choices">
+            <button class="level-btn mt-team-count-btn" data-count="2">2</button>
+            <button class="level-btn mt-team-count-btn" data-count="3">3</button>
+            <button class="level-btn mt-team-count-btn" data-count="4">4</button>
+          </div>
+        </div>
+
+        <div class="cn-timer-section">
+          <p class="muted">Difficulty</p>
+          <div class="cn-timer-choices">
+            <button class="level-btn mt-difficulty-btn" data-difficulty="easy">Easy</button>
+            <button class="level-btn mt-difficulty-btn" data-difficulty="pro">Pro</button>
+            <button class="level-btn mt-difficulty-btn" data-difficulty="expert">Expert</button>
+          </div>
+        </div>
+
+        <div id="mt-team-columns" class="team-columns hidden"></div>
+
+        <button id="mt-start-btn" class="hidden" disabled>Start Match</button>
+        <p id="mt-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+        <p id="mt-setup-error" class="error"></p>
+      </div>
+
+      <div id="mt-match-panel" class="hidden">
+        <h1>Music Timeline</h1>
+        <p id="mt-round-label" class="muted"></p>
+        <div id="mt-teams-panel" class="team-columns"></div>
+        <p id="mt-locked-badge" class="mf-locked-badge hidden">Locked — waiting for reveal</p>
+        <button id="mt-challenge-btn" class="secondary hidden">Challenge!</button>
+
+        <div id="mt-song-panel" class="hidden">
+          <h2 class="mf-section-heading">Now playing (host only)</h2>
+          <p id="mt-song-display"></p>
+          <p class="muted">Play this from your own Spotify/YouTube for the room.</p>
+        </div>
+        <p id="mt-waiting-song" class="muted hidden">Listen up - waiting for the host&hellip;</p>
+
+        <div id="mt-token-actions" class="btn-row hidden">
+          <button id="mt-skip-btn" class="secondary">Skip song</button>
+          <button id="mt-auto-card-btn" class="secondary">Auto Card</button>
+        </div>
+
+        <button id="mt-reveal-btn" class="hidden">Reveal</button>
+
+        <div id="mt-reveal-panel" class="hidden">
+          <p id="mt-reveal-result" class="mt-reveal-result"></p>
+          <p id="mt-reveal-challenge" class="mt-reveal-result"></p>
+          <p id="mt-reveal-song"></p>
+          <label id="mt-confirm-id-label" class="hidden">
+            <input type="checkbox" id="mt-confirm-id-checkbox" />
+            Team correctly named the artist and title (said out loud)
+          </label>
+        </div>
+
+        <button id="mt-next-turn-btn" class="hidden">Next Turn</button>
+        <p id="mt-next-turn-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+
+        <div id="mt-gameover-panel" class="hidden">
+          <h2 id="mt-champion" class="ts-champion"></h2>
+          <ol id="mt-standings" class="ts-standings"></ol>
+          <h2 class="scoreboard-heading">Scoreboard</h2>
+          <ol id="mt-scoreboard" class="scoreboard-list"></ol>
+          <button id="mt-play-again-btn" class="hidden">Play Again</button>
+          <p id="mt-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+        </div>
+
+        <p id="mt-match-error" class="error"></p>
+      </div>
+
+      <button id="mt-back-btn" class="secondary hidden">Back to Lobby</button>
     </section>
 
     <!-- Shared -->

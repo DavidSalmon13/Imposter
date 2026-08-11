@@ -53,6 +53,20 @@ function createRoomState() {
     mfRoundNumber: 0,
     mfRoundResults: null, // populated at reveal
     mfMatchWinners: [],
+    // Music Timeline
+    // Music Timeline phases: 'teamSelect' | 'ready' | 'generating' | 'placing' | 'locked' | 'revealed' | 'gameover'
+    mtMode: null, // 'team' | 'solo'
+    mtDifficulty: null, // 'easy' | 'pro' | 'expert'
+    mtTeams: {}, // team id -> { name, timeline: [{ title, artist, releaseYear }, ...], tokens }
+    mtActiveTeamIndex: 0,
+    mtCurrentSong: null, // { title, artist, releaseYear } | null - pending song for the active team
+    mtPendingPlacement: null, // { slotIndex } | null - active team's locked-but-not-revealed slot pick
+    mtRevealResult: null, // { teamId, correct } | null - set at reveal, cleared at next turn/start
+    mtIdConfirmed: false, // honor-system artist/title checkbox for the current reveal
+    mtCurrentChallenge: null, // { team, placement } | null
+    mtUsedSongs: [], // rolling avoid-list sent to ChatGPT
+    mtRoundNumber: 0,
+    mtMatchWinners: [],
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)

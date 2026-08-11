@@ -3,6 +3,7 @@ const codenames = require('./games/codenames');
 const tenseconds = require('./games/tenseconds');
 const menifot = require('./games/menifot');
 const kartrace = require('./games/kartRace');
+const musictimeline = require('./games/musicTimeline');
 
 const GAMES = {
   imposter,
@@ -10,6 +11,7 @@ const GAMES = {
   tenseconds,
   menifot,
   kartrace,
+  musictimeline,
 };
 
 /** Shared room fields persisted alongside each game module's savedFields. */
