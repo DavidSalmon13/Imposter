@@ -6,8 +6,8 @@ const { chatCompletionJson } = require('../lib/openai');
 const CN_MIN_PLAYERS = 4;
 const CN_MIN_TEAM_SIZE = 2;
 const CN_WORD_COUNT = 25;
-const CN_START_COUNT = 7;
-const CN_OTHER_COUNT = 6;
+const CN_START_COUNT = 8;
+const CN_OTHER_COUNT = 7;
 const CN_ASSASSIN_COUNT = 1;
 const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
 const CN_TIMER_OPTIONS = [0, 60, 120]; // seconds; 0 = no timer

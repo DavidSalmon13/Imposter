@@ -34,7 +34,7 @@ lobby (shared) → team-select → generating → playing → gameover
 - One ChatGPT call (server-side) generates **25 unique, common, family-friendly, single-word nouns** — no proper nouns, no phrases (single words only, unlike Imposter's 1-2 word allowance, since these need to lay out cleanly in a 5×5 grid).
 - Codenames keeps its **own rolling "recently used" word list**, separate from Imposter's — different pool, no cross-contamination.
 - Word source lives behind a single function boundary (e.g. `generateWordGrid()`) so it can later be swapped for a custom word list or picture pack without touching the rest of the game logic. Not building that now — just keeping the seam.
-- Server randomly assigns the 25 words across the grid: **7 to the starting team, 6 to the other team, 1 assassin, 11 neutral**.
+- Server randomly assigns the 25 words across the grid: **8 to the starting team, 7 to the other team, 1 assassin, 9 neutral**.
 - **Starting team**: random on the very first round of a session. On every subsequent "Play Again," the starting team **alternates** (not re-randomized) so it's fair across a session.
 
 ## What each player sees
