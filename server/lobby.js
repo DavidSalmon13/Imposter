@@ -105,18 +105,32 @@ function reconnectPayload(room, existing) {
   };
 }
 
-function joinExistingRoom(socket, roomCode, name, callback) {
+function joinExistingRoom(socket, roomCode, name, clientId, callback) {
   const room = rooms.get(roomCode);
   if (!room) return callback({ ok: false, error: 'Room not found' });
 
   const existing = room.players.get(name);
 
   if (existing) {
+    let staleSocket = null;
     if (existing.connected) {
-      return callback({ ok: false, error: 'That name is taken' });
+      // The `connected` flag can lag behind reality for up to ~45s (socket.io's
+      // ping timeout) after a phone locks/loses signal - long enough for the same
+      // browser to reconnect and get wrongly told its own name is taken. Only
+      // treat this as a real clash when it's not the same client reclaiming it.
+      const sameClient = clientId && existing.clientId && existing.clientId === clientId;
+      if (!sameClient) {
+        return callback({ ok: false, error: 'That name is taken' });
+      }
+      staleSocket = ctx.io.sockets.sockets.get(existing.socketId);
     }
+    // Reassign the slot to the new socket before disconnecting the old one, so
+    // its disconnect handler sees it no longer owns this player and no-ops
+    // instead of briefly (and wrongly) marking the reclaiming player as gone.
     existing.connected = true;
     existing.socketId = socket.id;
+    if (clientId) existing.clientId = clientId;
+    if (staleSocket && staleSocket.id !== socket.id) staleSocket.disconnect(true);
     attachToRoom(socket, roomCode, room, name);
 
     const game = getGame(room.game);
@@ -140,6 +154,7 @@ function joinExistingRoom(socket, roomCode, name, callback) {
   room.players.set(name, {
     socketId: socket.id,
     connected: true,
+    clientId: clientId || null,
     role: null,
     word: null,
     hint: null,
@@ -209,6 +224,7 @@ function registerLobbyHandlers(socket) {
   socket.on('createRoom', (data, callback) => {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
+    const clientId = String((data && data.clientId) || '').slice(0, 64);
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
 
@@ -224,6 +240,7 @@ function registerLobbyHandlers(socket) {
     room.players.set(name, {
       socketId: socket.id,
       connected: true,
+      clientId: clientId || null,
       role: null,
       word: null,
       hint: null,
@@ -253,6 +270,7 @@ function registerLobbyHandlers(socket) {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
     const roomCode = normalizeRoomCode(data && data.roomCode);
+    const clientId = String((data && data.clientId) || '').slice(0, 64);
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
@@ -260,7 +278,7 @@ function registerLobbyHandlers(socket) {
       return callback({ ok: false, error: 'Enter a valid room code' });
     }
 
-    joinExistingRoom(socket, roomCode, name, callback);
+    joinExistingRoom(socket, roomCode, name, clientId, callback);
   });
 
   socket.on('chooseGame', (selectedGame, callback) => {
@@ -378,25 +396,26 @@ function registerLobbyHandlers(socket) {
     if (!room) return;
     const p = room.players.get(name);
     if (!p) return;
+    // This socket's disconnect event can arrive late (socket.io ping timeout),
+    // after the same player already reconnected on a new socket and reclaimed
+    // this slot. Ignore it so we don't wipe out a session that's already back.
+    if (p.socketId !== socket.id) return;
 
-    if (room.phase === 'lobby') {
-      room.players.delete(name);
-      if (name === room.hostName) {
-        const [nextHost] = connectedNames(room);
-        setHost(roomCode, room, nextHost || null);
-      }
-      broadcastLobby(roomCode, room);
-      return;
-    }
-
-    // Past the lobby, a dropped connection (phone locked, WiFi blip, tab backgrounded)
-    // shouldn't erase the player's spot - keep them so a reconnect restores it instead
-    // of being treated as a stranger trying to join a game already in progress.
+    // A dropped connection (phone locked, WiFi blip, tab backgrounded) shouldn't
+    // erase the player's spot - keep them so a reconnect restores it instead of
+    // either kicking them from the lobby list or treating them as a stranger
+    // trying to join a game already in progress.
     p.connected = false;
     if (name === room.hostName) {
       const [nextHost] = connectedNames(room);
       setHost(roomCode, room, nextHost || null);
     }
+
+    if (room.phase === 'lobby') {
+      broadcastLobby(roomCode, room);
+      return;
+    }
+
     const game = getGame(room.game);
     if (game) {
       game.onDisconnect(ctx, roomCode, room, name);

@@ -67,6 +67,18 @@ const imposterResultsBackBtn = document.getElementById('imposter-results-back-bt
 
 let myName = localStorage.getItem('imposterName') || '';
 let myRoomCode = localStorage.getItem('imposterRoom') || '';
+
+// Persistent per-browser id so the server can tell "this device reconnecting"
+// apart from "a different device using the same name" when a dropped socket
+// hasn't been noticed as dead yet.
+function getClientId() {
+  let id = localStorage.getItem('imposterClientId');
+  if (!id) {
+    id = (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem('imposterClientId', id);
+  }
+  return id;
+}
 let isHost = false;
 let currentHostName = null;
 let currentGame = null;
@@ -265,11 +277,11 @@ function handleJoinResult(res, name) {
 }
 
 function attemptCreate(name) {
-  socket.emit('createRoom', { name }, (res) => handleJoinResult(res, name));
+  socket.emit('createRoom', { name, clientId: getClientId() }, (res) => handleJoinResult(res, name));
 }
 
 function attemptJoin(name, roomCode) {
-  socket.emit('join', { name, roomCode }, (res) => handleJoinResult(res, name));
+  socket.emit('join', { name, roomCode, clientId: getClientId() }, (res) => handleJoinResult(res, name));
 }
 
 function routeFromJoin(res) {
