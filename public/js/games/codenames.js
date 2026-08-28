@@ -17,6 +17,10 @@ const cnStartWaiting = document.getElementById('cn-start-waiting');
 const cnTeamError = document.getElementById('cn-team-error');
 const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
 const cnTimerBtns = Array.from(document.querySelectorAll('.cn-timer-btn'));
+const cnNameBankList = document.getElementById('cn-name-bank-list');
+const cnNameBankInput = document.getElementById('cn-name-bank-input');
+const cnNameBankAddBtn = document.getElementById('cn-name-bank-add-btn');
+const cnNameBankError = document.getElementById('cn-name-bank-error');
 
 const cnTurnLabel = document.getElementById('cn-turn-label');
 const cnScore = document.getElementById('cn-score');
@@ -110,6 +114,13 @@ function renderTeamSelect(data) {
   cnTimerBtns.forEach((btn) => {
     btn.classList.toggle('selected', Number(btn.dataset.seconds) === cnTimerSeconds);
     btn.disabled = !isHost;
+  });
+
+  cnNameBankList.innerHTML = '';
+  (data.nameBank || []).forEach((word) => {
+    const li = document.createElement('li');
+    li.textContent = word;
+    cnNameBankList.appendChild(li);
   });
 }
 
@@ -214,6 +225,21 @@ export const Codenames = {
       });
     });
 
+    function addNameBankWord() {
+      const word = cnNameBankInput.value.trim();
+      cnNameBankError.textContent = '';
+      if (!word) return;
+      socket.emit('addCnNameBankWord', word, (res) => {
+        if (!res.ok) return (cnNameBankError.textContent = res.error);
+        cnNameBankInput.value = '';
+      });
+    }
+
+    cnNameBankAddBtn.addEventListener('click', addNameBankWord);
+    cnNameBankInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addNameBankWord();
+    });
+
     cnStartBtn.addEventListener('click', () => {
       cnTeamError.textContent = '';
       socket.emit('startCodenames', (res) => {
@@ -281,5 +307,6 @@ export const Codenames = {
     cnTimerSeconds = 0;
     cnTurnEndsAt = null;
     cnTeamError.textContent = '';
+    cnNameBankError.textContent = '';
   },
 };

@@ -34,6 +34,7 @@ function createRoomState() {
     cnScores: { red: 0, blue: 0 },
     cnTimerSeconds: null, // null | 60 | 120
     cnTurnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
+    cnNameBank: [], // room-curated words any player can add; 2 are randomly mixed into each board
     // 10 Seconds
     tsActivePlayers: [], // names still in the bracket
     tsContenders: [], // names racing the current round (subset during sudden death)

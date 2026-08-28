@@ -37,6 +37,12 @@ lobby (shared) → team-select → generating → playing → gameover
 - Server randomly assigns the 25 words across the grid: **8 to the starting team, 7 to the other team, 1 assassin, 9 neutral**.
 - **Starting team**: random on the very first round of a session. On every subsequent "Play Again," the starting team **alternates** (not re-randomized) so it's fair across a session.
 
+## Room name bank
+
+- The team-select screen has a **room-scoped name bank**: any connected player can add a word (up to 30 characters, deduped case-insensitively, max 200 entries) — meant for inside jokes, friends' names, etc.
+- The bank belongs to the room, not a single game session: it survives Play Again *and* Back to Lobby, and persists to disk like the scoreboard.
+- Each time a board is generated, **2 random entries are pulled from the bank** (fewer if the bank has fewer than 2) and mixed in alongside the ChatGPT-generated words to fill the 25-word grid. They're placed like any other word — same random color assignment, same shuffled position — so they carry no special treatment once the board is built.
+
 ## What each player sees
 
 - **Non-leader players**: plain 5×5 grid of words, no color hints, until a card is actually revealed through play.

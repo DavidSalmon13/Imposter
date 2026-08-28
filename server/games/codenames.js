@@ -11,6 +11,9 @@ const CN_OTHER_COUNT = 7;
 const CN_ASSASSIN_COUNT = 1;
 const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_ASSASSIN_COUNT;
 const CN_TIMER_OPTIONS = [0, 60, 120]; // seconds; 0 = no timer
+const CN_NAME_BANK_WORD_MAX_LEN = 30;
+const CN_NAME_BANK_LIMIT = 200;
+const CN_BANK_PICK_COUNT = 2;
 
 const SAVED_FIELDS = [
   'cnUsedWords',
@@ -21,6 +24,7 @@ const SAVED_FIELDS = [
   'cnScores',
   'cnTimerSeconds',
   'cnTurnEndsAt',
+  'cnNameBank',
 ];
 
 /** @type {Map<string, NodeJS.Timeout>} */
@@ -83,6 +87,7 @@ function broadcastTeamSelect(ctx, roomCode, room) {
     unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
     timerSeconds: room.cnTimerSeconds || 0,
     wordTheme: room.wordTheme || '',
+    nameBank: room.cnNameBank || [],
   });
 }
 
@@ -91,8 +96,13 @@ function cnTeamValid(ctx, room, color) {
   return members.length >= CN_MIN_TEAM_SIZE && members.some((n) => room.players.get(n).leader);
 }
 
-async function generateWordGrid(room) {
-  const avoid = room.cnUsedWords.slice(-100);
+function pickFromNameBank(bank, count) {
+  if (!bank || bank.length === 0) return [];
+  return shuffle(bank).slice(0, Math.min(count, bank.length));
+}
+
+async function generateWordGrid(room, count, avoidExtra = []) {
+  const avoid = [...room.cnUsedWords.slice(-100), ...avoidExtra];
   const languageInstruction =
     room.wordLanguage === 'hebrew' ? ' Write every word in Hebrew.' : '';
   const theme = (room.wordTheme || '').trim();
@@ -102,13 +112,13 @@ async function generateWordGrid(room) {
     : ` Covering a broad mix of categories (objects, animals, food, places, jobs, nature, sports, tools, ` +
       `clothing, etc).`;
   const prompt =
-    `Generate exactly ${CN_WORD_COUNT} common, family-friendly, single-word nouns suitable for a word-guessing ` +
+    `Generate exactly ${count} common, family-friendly, single-word nouns suitable for a word-guessing ` +
     `party game grid. Each must be ONE word (no phrases, no proper nouns), instantly recognizable to most ` +
-    `adults.${themeInstruction} All ${CN_WORD_COUNT} words must be different from each other.${languageInstruction}` +
+    `adults.${themeInstruction} All ${count} words must be different from each other.${languageInstruction}` +
     (avoid.length
       ? ` These words were used recently - avoid all of them: ${avoid.join(', ')}.`
       : '') +
-    ` Respond with ONLY compact JSON in the form {"words": ["...", ...]} with exactly ${CN_WORD_COUNT} items.`;
+    ` Respond with ONLY compact JSON in the form {"words": ["...", ...]} with exactly ${count} items.`;
 
   const parsed = await chatCompletionJson(prompt, { temperature: 1.1 });
   const rawWords = Array.isArray(parsed.words) ? parsed.words : [];
@@ -123,11 +133,11 @@ async function generateWordGrid(room) {
     unique.push(w);
   }
 
-  if (unique.length < CN_WORD_COUNT) {
+  if (unique.length < count) {
     throw new Error('Incomplete word grid from OpenAI');
   }
 
-  return unique.slice(0, CN_WORD_COUNT);
+  return unique.slice(0, count);
 }
 
 function buildBoard(words, startingTeam) {
@@ -209,9 +219,10 @@ async function generateCodenamesRound(ctx, roomCode, room) {
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'codenames' });
 
-  let words;
+  const bankPicks = pickFromNameBank(room.cnNameBank, CN_BANK_PICK_COUNT);
+  let aiWords;
   try {
-    words = await generateWordGrid(room);
+    aiWords = await generateWordGrid(room, CN_WORD_COUNT - bankPicks.length, bankPicks);
   } catch (err) {
     console.error('generateWordGrid failed:', err.message);
     return failCodenamesRound(
@@ -228,7 +239,8 @@ async function generateCodenamesRound(ctx, roomCode, room) {
     return failCodenamesRound(ctx, roomCode, room, 'Not enough players remained on a team.');
   }
 
-  for (const w of words) room.cnUsedWords.push(w);
+  const words = shuffle([...aiWords, ...bankPicks]);
+  for (const w of aiWords) room.cnUsedWords.push(w);
   if (room.cnUsedWords.length > 150) room.cnUsedWords.splice(0, room.cnUsedWords.length - 150);
 
   room.cnBoard = buildBoard(words, room.cnStartingTeam);
@@ -259,6 +271,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
       timerSeconds: room.cnTimerSeconds || 0,
       wordTheme: room.wordTheme || '',
+      nameBank: room.cnNameBank || [],
     };
   }
   if (room.phase === 'generating') {
@@ -416,6 +429,27 @@ function registerHandlers(ctx, io, socket) {
     room.wordTheme = theme.replace(/\s+/g, ' ').trim().slice(0, 100);
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
+  });
+
+  socket.on('addCnNameBankWord', (word, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (typeof word !== 'string') return callback({ ok: false, error: 'Invalid word' });
+
+    const cleaned = word.replace(/\s+/g, ' ').trim().slice(0, CN_NAME_BANK_WORD_MAX_LEN);
+    if (!cleaned) return callback({ ok: false, error: 'Enter a word' });
+    if (room.cnNameBank.some((w) => w.toLowerCase() === cleaned.toLowerCase())) {
+      return callback({ ok: false, error: 'Already in the list' });
+    }
+    if (room.cnNameBank.length >= CN_NAME_BANK_LIMIT) {
+      return callback({ ok: false, error: `List is full (max ${CN_NAME_BANK_LIMIT})` });
+    }
+
+    room.cnNameBank.push(cleaned);
+    callback({ ok: true });
+    if (room.phase === 'teamSelect') broadcastTeamSelect(ctx, roomCode, room);
   });
 
   socket.on('startCodenames', (callback) => {
