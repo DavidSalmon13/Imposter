@@ -33,7 +33,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
 `Map` (`rooms`, in `server/roomStore.js`), keyed by room code. Every 5s it's
 snapshotted to `data/rooms.json` (`server/persistence.js`) and reloaded on
 boot — this is a single-process design, not built for multiple server
-instances (see `refactor_plan.md` §9 if that ever becomes necessary).
+instances (see `implementation/refactor_plan.md` §9 if that ever becomes necessary).
 
 Each game is a self-contained module under `server/games/` implementing a
 common contract (`id`, `minPlayers`/`maxPlayers`, `onChoose`,
@@ -43,7 +43,7 @@ wires all four into shared dispatch points (choosing a game, disconnect,
 reconnect, persisted-fields list), so **adding a game is one new file
 implementing the contract plus one line in `gameRegistry.js`'s `GAMES` map —
 no existing game file needs to change.** The full contract shape and rationale
-are documented in `refactor_plan.md` §4; read that before adding or
+are documented in `implementation/refactor_plan.md` §4; read that before adding or
 restructuring a game module.
 
 Room state (`createRoomState()` in `roomStore.js`) is one flat object with
@@ -72,5 +72,5 @@ No automated suite exists. After any change, manually run the affected
 game's full happy path in a browser: create room → choose game → play a full
 round → confirm scoreboard updates → back to lobby — plus one
 disconnect/reconnect mid-round, since reconnect/persistence logic is the
-most likely thing to silently regress. `refactor_plan.md` §8 has more detail
+most likely thing to silently regress. `implementation/refactor_plan.md` §8 has more detail
 on what's cheapest to unit-test if a suite gets added later.

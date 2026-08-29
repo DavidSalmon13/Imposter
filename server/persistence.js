@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
 const { ROOM_SAVED_FIELDS, repairRoomOnLoad } = require('./gameRegistry');
@@ -7,9 +8,16 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
 const SAVE_INTERVAL_MS = 5000;
 
-function saveRoomsToDisk() {
+// Guards against two saves writing the same tmp file concurrently if a
+// write ever takes longer than SAVE_INTERVAL_MS - the sync version this
+// replaced couldn't overlap by construction, so this keeps that invariant.
+let saveInFlight = false;
+
+async function saveRoomsToDisk() {
+  if (saveInFlight) return;
+  saveInFlight = true;
   try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    await fsp.mkdir(DATA_DIR, { recursive: true });
     const serialized = {};
     for (const [code, room] of rooms) {
       const data = { players: Array.from(room.players.entries()) };
@@ -17,10 +25,12 @@ function saveRoomsToDisk() {
       serialized[code] = data;
     }
     const tmpFile = `${ROOMS_FILE}.tmp`;
-    fs.writeFileSync(tmpFile, JSON.stringify(serialized));
-    fs.renameSync(tmpFile, ROOMS_FILE);
+    await fsp.writeFile(tmpFile, JSON.stringify(serialized));
+    await fsp.rename(tmpFile, ROOMS_FILE);
   } catch (err) {
     console.error('Failed to save rooms to disk:', err);
+  } finally {
+    saveInFlight = false;
   }
 }
 

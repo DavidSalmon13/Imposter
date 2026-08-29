@@ -1,12 +1,12 @@
 # Music Timeline: Implementation Plan
 
-Turns `specs/music-timeline-specs.md` into code. That spec is the source of truth for *rules*
+Turns `../specs/music-timeline-specs.md` into code. That spec is the source of truth for *rules*
 (what the game does); this doc is the source of truth for *how it gets built* — concrete file
 names, function names, event names, and a step order that keeps every step browser-testable per
 this repo's testing convention (`CLAUDE.md` — no automated suite, verify by playing the affected
 flow in a browser after every change).
 
-Read `specs/music-timeline-specs.md` in full before starting Step 1 — this doc assumes its
+Read `../specs/music-timeline-specs.md` in full before starting Step 1 — this doc assumes its
 content and doesn't repeat rule details (correctness algorithm, token costs, disconnect
 philosophy, etc.), only where in the code they land.
 
@@ -95,7 +95,7 @@ like its siblings):
 
 ## Server state additions
 
-Full field list and purposes are already specified in `specs/music-timeline-specs.md` under
+Full field list and purposes are already specified in `../specs/music-timeline-specs.md` under
 "Server state additions" — add exactly those fields (`mtMode`, `mtDifficulty`, `mtTeams`,
 `mtActiveTeamIndex`, `mtCurrentSong`, `mtCurrentChallenge`, `mtUsedSongs`, `mtRoundNumber`,
 `mtMatchWinners`) to `createRoomState()` in `roomStore.js`, grouped under a `// Music Timeline`
@@ -250,6 +250,6 @@ value since they're the easiest to silently break during a copy-paste move"):
 
 ## Out of scope
 
-Everything already listed in `specs/music-timeline-specs.md`'s own "Explicitly out of scope
+Everything already listed in `../specs/music-timeline-specs.md`'s own "Explicitly out of scope
 (v1)" section applies here unchanged — this plan doesn't add scope beyond that spec, only
 sequences building it.

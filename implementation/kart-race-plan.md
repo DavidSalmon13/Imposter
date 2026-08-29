@@ -1,6 +1,6 @@
 # Kart Race — Implementation Plan
 
-Companion to `specs/kart-race.md` (rules/UX — read that first) and `refactor_plan.md` §4
+Companion to `../specs/kart-race.md` (rules/UX — read that first) and `refactor_plan.md` §4
 (the game module contract this must implement). This doc pins down the *how*: exact files,
 exact formulas/constants, and an ordered checklist, so there's nothing left to invent while
 coding. Numbers below (speeds, radii, placements) are concrete implementation defaults, not
@@ -21,7 +21,7 @@ public/vendor/three/three.module.js # vendored Three.js, ES module build
 server/games/kartRace.js            # the game module (§3)
 public/js/games/kartRace.js         # client ES module (§5)
 specs/kart-race.md                  # already written
-kart-race-plan.md                   # this file
+implementation/kart-race-plan.md    # this file
 ```
 
 Modified files — all shared/bootstrap, not game files:
@@ -527,7 +527,7 @@ broadcast has arrived yet (race just started), render it directly with no interp
 - [x] **Step 13 — Two+ browser tabs.** Verify: each tab sees the other's kart moving
   smoothly (interpolated, not snapping), item boxes/hazards trigger the right effects
   visibly, kart-kart collision pushes apart without stopping either kart.
-- [x] **Step 14 — Full race flow.** Verify per `specs/kart-race.md`'s own testing note:
+- [x] **Step 14 — Full race flow.** Verify per `../specs/kart-race.md`'s own testing note:
   create room → choose Kart Race → 2+ tabs race a full lap → item boxes and hazards behave
   → finish line triggers ranking → End Race → results + scoreboard update correctly →
   Play Again → Back to Lobby.
@@ -535,7 +535,7 @@ broadcast has arrived yet (race just started), render it directly with no interp
   ghosts (freezes, un-collidable) for everyone else; reopen and rejoin with the same name,
   confirm it resumes and rejoins collision.
 
-## 7. Explicit reminders (don't scope-creep past `specs/kart-race.md`'s non-goals)
+## 7. Explicit reminders (don't scope-creep past `../specs/kart-race.md`'s non-goals)
 
 No AI karts, no drift/boost-chaining, no second track, no physics engine dependency, no
 manual reverse, no simulated shell projectile, no client-side movement prediction. If any of

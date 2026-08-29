@@ -939,6 +939,12 @@ button.secondary:hover:not(:disabled) {
   opacity: 1;
 }
 
+/* Instant tap feedback while waiting for the server to confirm the guess. */
+.cn-card.cn-card-pending {
+  opacity: 0.55;
+  transform: scale(0.96);
+}
+
 .cn-card.cn-leader-hint.cn-red {
   background: rgba(255, 107, 120, 0.3);
   border-color: var(--team-red);

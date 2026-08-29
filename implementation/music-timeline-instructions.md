@@ -17,7 +17,7 @@ going until that one step's checkbox is genuinely done and verified.
 Paste exactly this, every time:
 
 ```
-Read specs/music-timeline-specs.md and music-timeline-plan.md. Find the first
+Read ../specs/music-timeline-specs.md and music-timeline-plan.md. Find the first
 unchecked (- [ ]) step in music-timeline-plan.md's "Implementation order"
 checklist. Implement only that step. Tell me exactly how to verify it (which
 browser actions to take), then wait for me to confirm it works before marking

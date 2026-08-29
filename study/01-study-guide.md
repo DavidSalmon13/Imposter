@@ -1,17 +1,33 @@
-# Study Guide: Shorot
+# Study Guide: JavaScript / React / React Native for the Moveo Interview
 
-A roadmap for learning this codebase well enough to present it in an interview —
-not just "what it does" but "why it's built this way" and "what I'd change."
+Moveo's stack leans heavily on React Native and JavaScript. You're strong in
+Java but less confident in JS/React — this is a **junior** round, so the goal
+is basics fluency, not framework mastery: know what closures, `async`/`await`,
+and props-vs-state *are*, in your own words, with a concrete example ready for
+each. This codebase (Shorot) is real, working JavaScript you already
+half-understand — it's your best study material, because every abstract JS
+concept below has an actual line of code in this repo to point at instead of
+a memorized definition.
 
-Read the three docs in this folder in order:
+Read the docs in this folder in order:
 
 1. **This file** — orientation, study order, self-test questions.
-2. **`02-websockets-and-concurrency.md`** — the two concepts you specifically asked
-   about, explained against this app's actual code.
-3. **`03-scaling.md`** — what breaks first under load and how you'd fix it.
+2. **`02-javascript-fundamentals.md`** — core JS logic, each concept mapped
+   from what you already know in Java, anchored to real lines in this repo.
+   **This is the one to know cold.**
+3. **`03-react-and-react-native-basics.md`** — React basics (components,
+   props/state, hooks) built on a direct contrast with this app's vanilla-DOM
+   frontend, then React Native specifics (no DOM, `View`/`Text`, Flexbox,
+   Metro).
+4. *(Bonus, if the round goes deeper into "walk me through a project you
+   built")* **`04-websockets-and-concurrency.md`** and **`05-scaling.md`** —
+   deep dives on this app's backend architecture. Not the focus for a junior
+   JS/RN round, but good material if asked to talk through something you
+   built end-to-end.
 
-Total time: **~6-8 hours** if you also click through the app in a browser while
-reading. Budget below.
+Total time for the core material (docs 1–3): **~3.5–4.5 hours**, plus hands-on
+practice below. If you only have 90 minutes, read doc 2 in full, skim doc 3's
+headers and code samples, and do the self-tests at the end of each.
 
 ---
 
@@ -22,59 +38,108 @@ own phones using a 4-character code, one host picks from four mini-games
 (Imposter, Codenames, 10 Seconds, Menifot — a poker variant), and a scoreboard
 persists across games within the room. It's a Node/Express + Socket.io backend
 with a single in-memory `Map` of room state, and a vanilla JS/HTML/CSS frontend
-with no build step. Two of the four games call OpenAI's API at runtime to
-generate words/hints/boards.
+with no build step (no React — worth knowing, in case they ask "did you use
+React for this"; a fair honest answer is in doc 3 §8, the "conceptual bridge"
+paragraph, on how you'd rebuild it in React/RN). Two of the four games call
+OpenAI's API at runtime to generate words/hints/boards.
 
 ## 1. Study order and time budget
 
 | Step | What | Files | Time |
 |---|---|---|---|
-| 1 | Run it locally, create a room, play one round of Imposter with two browser tabs | — | 20 min |
-| 2 | Read the specs for the game you'll demo | `specs/imposter_specs.md` (+ others) | 20 min |
-| 3 | Read the shared "core" — this is the part every game plugs into | `server/roomStore.js`, `server/persistence.js`, `server/gameRegistry.js`, `server/lobby.js`, `server.js` | 1.5 hr |
-| 4 | Read `02-websockets-and-concurrency.md` in this folder | — | 45 min |
-| 5 | Read **one** game module end-to-end, e.g. `server/games/imposter.js` (smallest, cleanest state machine) | `server/games/imposter.js` | 45 min |
-| 6 | Skim the other three game modules — you don't need mastery, just enough to compare | `codenames.js`, `tenseconds.js`, `menifot.js` | 1 hr |
-| 7 | Read the client-side counterpart for the game you studied in step 5 | `public/client.js` (grep for `imposter`/`vote`/`role`) | 45 min |
-| 8 | Read `03-scaling.md` | — | 30 min |
-| 9 | Read `refactor_plan.md` in the repo root — it's a real design doc explaining *why* the module boundaries are where they are | `refactor_plan.md` | 20 min |
-| 10 | Do a disconnect/reconnect test yourself (kill wifi mid-game, watch it recover) | — | 15 min |
+| 1 | Read `02-javascript-fundamentals.md` in full | — | 1.5–2 hr |
+| 2 | Do the self-test at the end of doc 2, out loud, no notes | — | 15 min |
+| 3 | Read `03-react-and-react-native-basics.md` in full | — | 1.5 hr |
+| 4 | Do the self-test at the end of doc 3, out loud, no notes | — | 15 min |
+| 5 | Skim `public/js/games/imposter.js` and `public/js/shared/dom.js` for 10 min with fresh eyes — you should now recognize closures, callbacks, destructuring, and imperative-DOM-vs-React patterns you didn't notice before | `public/js/games/imposter.js`, `public/js/shared/dom.js` | 15 min |
+| 6 | Practice writing 3–4 small JS snippets from scratch (see §3 below) without looking anything up | — | 30–45 min |
+| 7 | *(If time allows)* Read `04-websockets-and-concurrency.md` and `05-scaling.md` for "tell me about a project" ammunition | — | 1–1.5 hr |
+| 8 | Run the app locally, play one round of Imposter across two browser tabs, so you have a live demo ready if asked | — | 20 min |
 
-That's ~6 hours of reading plus the hands-on steps. If you only have 2 hours,
-do steps 1, 3, 4, 5, 8.
+## 2. What "junior" actually means for this interview
 
-## 2. The map — what lives where
+Screening/junior rounds test **breadth and clear explanation**, not
+production-scale system design. Concretely:
+
+- They'll ask you to **define** things (closures, `let` vs `const`, props vs
+  state) and expect a correct one-to-two-sentence answer plus a small example
+  — not a deep dive.
+- They may give a **small live-coding prompt**: reverse a string, dedupe an
+  array, FizzBuzz, "find the first even number," implement a basic component.
+  Fluency with array methods (doc 2 §6) and `useState`/basic JSX (doc 3 §3–6)
+  covers most of this.
+- They will **not** expect you to already know React Native's advanced
+  APIs, performance optimization, or navigation library internals. Naming
+  the right concept ("that's what `useEffect`'s dependency array is for") is
+  enough at this level even if you haven't used it in production.
+- Bridge from Java honestly and confidently: "X in JS is like Y in Java,
+  except Z" is a strong answer style for this round — it shows you're
+  transferring real understanding, not just pattern-matching syntax.
+
+## 3. Practice snippets — write these from scratch, no lookups
+
+The fastest way to convert "I read about closures" into "I can answer a
+closure question live" is to actually type code. Do these on paper or in a
+blank file, then check yourself against doc 2/3:
+
+1. Write a function `dedupe(arr)` that returns an array with duplicates
+   removed, using a `Set`.
+2. Write `sumEvens(arr)` using `.filter()` and `.reduce()`.
+3. Write a closure-based counter: a function `makeCounter()` that returns an
+   object `{ increment, getValue }`, where `getValue` always reflects the
+   current count — no module-level/global variable.
+4. Write the classic `var` vs `let` loop example from doc 2 §8 from memory,
+   and explain out loud why the output differs.
+5. Write a tiny `async function fetchTwice()` that calls an (imaginary)
+   `async function getData()` twice with `await`, and wraps it in `try`/
+   `catch`.
+6. Write a function component `Counter()` using `useState` that renders a
+   number and a button that increments it.
+7. Write a component `PlayerList({ players })` that renders an `<ul>` of
+   `<li key={...}>` from a `players` array, each showing `player.name`.
+
+## 4. The map — what lives where
 
 ```
 server.js                  bootstrap only: express/http/io setup, load/save interval, listen
-server/
+server/                    CommonJS (require/module.exports) — see doc 2 §12
   roomStore.js              the `rooms` Map (all state), room-code generation, io.to().emit() wrapper
   persistence.js             snapshot rooms to data/rooms.json every 5s, reload on boot
   lobby.js                  cross-game: create/join room, host handoff, scoreboard, disconnect/reconnect dispatch
-  gameRegistry.js            wires the 4 game modules into shared dispatch points
+  gameRegistry.js            wires the game modules into shared dispatch points
   lib/
     shuffle.js, validateName.js, openai.js
   games/
-    imposter.js codenames.js tenseconds.js menifot.js menifot-eval.js
-public/
-  client.js                 ALL frontend logic for all 4 games (monolithic, no build step)
+    imposter.js codenames.js tenseconds.js menifot.js menifot-eval.js musicTimeline.js kartRace.js
+public/                     ES Modules (import/export) — see doc 2 §12, same syntax as React Native
+  js/
+    main.js                  bootstrap + lobby glue
+    shared/                  dom.js, format.js, scoreboard.js — helpers shared across games
+    games/                   one module per game, e.g. imposter.js — mirrors the server/games/ split
   index.html, style.css
-specs/                      one .md per game describing rules/UX — read before touching game logic
-refactor_plan.md            design doc: why the module contract looks the way it does, and what's NOT solved yet
+specs/                      one .md per game describing rules/UX
+implementation/             implementation plans and design docs (refactor_plan.md: why the module contract looks the way it does, and what's NOT solved yet)
 ```
 
-**The one thing to internalize**: every game module exports the same shape
-(`id`, `minPlayers`, `onChoose`, `registerHandlers`, `reconnectPayload`,
-`onDisconnect`, `savedFields`, optional `repairOnLoad`/`clearState`). This is a
-plugin contract. `gameRegistry.js` is the only file that knows all four games
-exist — `roomStore.js`, `persistence.js`, and `lobby.js` never hardcode a game
-name. This is the single most interview-worthy architectural decision in the
-repo: **adding a 5th game touches zero existing game files.**
+**The one thing to internalize about the backend**: every game module exports
+the same shape (`id`, `minPlayers`, `onChoose`, `registerHandlers`,
+`reconnectPayload`, `onDisconnect`, `savedFields`, optional
+`repairOnLoad`/`clearState`) — a plugin contract. `gameRegistry.js` is the
+only file that knows which games exist; `roomStore.js`/`persistence.js`/
+`lobby.js` never hardcode a game name. Good "tell me about a project"
+material, but secondary for this round — see docs 4/5 if it comes up.
 
-## 3. Self-test questions
+## 5. Self-test questions
 
-Answer these out loud, from memory, before you'd call yourself ready. Each one
-maps to a section in the deep-dive doc.
+**Primary — do these first, they're what this round actually tests.** The
+full self-tests at the end of `02-javascript-fundamentals.md` and
+`03-react-and-react-native-basics.md` are the core of your prep — go there
+and answer every one of them out loud before you'd call yourself ready.
+
+**Bonus — architecture/backend, only if "tell me about a project" comes up:**
+
+<details>
+<summary>Architecture, WebSockets, concurrency, scaling questions (click to expand)</summary>
 
 **Architecture**
 - Why is there one `rooms` Map instead of a database? What's the tradeoff?
@@ -113,7 +178,9 @@ maps to a section in the deep-dive doc.
   what's actually the bottleneck — CPU, memory, or something else?
 - Name two things you'd change first, in order, if traffic 10x'd.
 
-## 4. A narrative you can tell in an interview
+</details>
+
+## 6. A narrative you can tell in an interview
 
 If asked "walk me through what happens when someone joins a room," you should
 be able to narrate this without looking at code:
@@ -137,5 +204,5 @@ be able to narrate this without looking at code:
    there's no separate "sync state" step, the join response *is* the full
    state sync.
 
-This example is deliberately reused as the backbone of the deep-dive doc's
-WebSocket section — read that next.
+This example is deliberately reused as the backbone of `04-websockets-and-
+concurrency.md`'s WebSocket section, if you get to the bonus docs.

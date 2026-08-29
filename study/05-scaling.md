@@ -27,7 +27,7 @@ answers.
 
 This design gets you a lot for free: no database to provision, no network
 round-trip on every mutation (it's just a JS object write), trivial local
-development, and — per `refactor_plan.md` §9 — it may genuinely be sufficient
+development, and — per `implementation/refactor_plan.md` §9 — it may genuinely be sufficient
 for "hundreds of concurrent users," because that's hundreds of people spread
 across tens of small rooms, not one giant shared room. The failure modes only
 show up under specific kinds of growth, covered below.
@@ -105,7 +105,7 @@ Two changes, done together, get you real multi-instance capability:
    free** — see §5.
 
 This is a genuinely separate project from the current codebase, which is why
-`refactor_plan.md` explicitly scopes it out (§9) rather than trying to bolt it
+`implementation/refactor_plan.md` explicitly scopes it out (§9) rather than trying to bolt it
 on. The right time to do it is when you actually have evidence of Stage-2-scale
 demand (multiple regions, need for zero-downtime deploys with live games, or a
 single instance visibly CPU/memory-constrained) — not preemptively.
@@ -148,11 +148,11 @@ optimize is as important as knowing what to:
 4. **Load test to find the actual first bottleneck** before building Stage 3.
    Simulate concurrent rooms with `socket.io-client` scripts and watch memory/
    latency. This turns "we might need Redis" into a measured decision instead
-   of speculative engineering — directly in the spirit of `refactor_plan.md`'s
+   of speculative engineering — directly in the spirit of `implementation/refactor_plan.md`'s
    own philosophy of small, independently-verifiable steps.
 5. **If and when Stage 3 is warranted:** Redis adapter + externalized room
    state (§2, Stage 3), likely paired with the room-state namespacing
-   refactor `refactor_plan.md` §6/§9 already flags as deliberately deferred —
+   refactor `implementation/refactor_plan.md` §6/§9 already flags as deliberately deferred —
    namespacing `room.imposter = {...}` / `room.codenames = {...}` instead of
    one flat object would make "serialize this room to Redis" and "which game
    module owns which keys" both cleaner at the same time.

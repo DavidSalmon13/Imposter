@@ -1,6 +1,6 @@
 # Kart Race — Session Split & Agent Prompts
 
-Companion to `specs/kart-race.md` (rules/UX) and `kart-race-plan.md` (the 15-step
+Companion to `../specs/kart-race.md` (rules/UX) and `kart-race-plan.md` (the 15-step
 implementation checklist). This file says *when* to start a new session and *what to paste*
 to kick each one off.
 
@@ -46,7 +46,7 @@ unaffected. No client changes yet — Kart Race isn't reachable from the UI afte
 
 > Implement Session 1 of the Kart Race feature: `kart-race-plan.md` steps 1 through 8 only
 > (track data JSON + the full `server/games/kartRace.js` module + wiring it into
-> `server/gameRegistry.js`). Read `specs/kart-race.md` and `kart-race-plan.md` in full first
+> `server/gameRegistry.js`). Read `../specs/kart-race.md` and `kart-race-plan.md` in full first
 > — the plan already specifies exact constants, formulas, and file shapes, don't re-derive
 > them from scratch or deviate without telling me why.
 >
@@ -69,8 +69,8 @@ rendered — `#kr-canvas` can be a blank rectangle at this point, that's expecte
 **Prompt to send:**
 
 > Implement Session 2 of the Kart Race feature: `kart-race-plan.md` steps 9 and 10 (vendor
-> Three.js + `index.html` changes + the minimal `client.js` shim). Read `specs/kart-race.md`
-> and `kart-race-plan.md` first — session 1 already finished steps 1–8 and flipped their
+> Three.js + `index.html` changes + the minimal `client.js` shim). Read `../specs/kart-race.md`
+> and `kart-race-plan.md` first (rules doc at `../specs/kart-race.md`) — session 1 already finished steps 1–8 and flipped their
 > checkboxes, confirm that's true before starting rather than assuming it.
 >
 > `public/js/games/kartRace.js` only needs to exist as a stub that exports `init`,
@@ -86,7 +86,7 @@ rendered — `#kr-canvas` can be a blank rectangle at this point, that's expecte
 
 ## Session 3 — 3D rendering + multiplayer play-testing (plan steps 11–15)
 
-**What "done" looks like**: the full manual test flow from `specs/kart-race.md`'s Testing
+**What "done" looks like**: the full manual test flow from `../specs/kart-race.md`'s Testing
 section passes with real multi-tab play — track renders, karts move and interpolate
 smoothly, item boxes/hazards/collisions behave, a race can be finished, ranked, scored, and
 replayed, and disconnect/reconnect resumes correctly.
@@ -95,7 +95,7 @@ replayed, and disconnect/reconnect resumes correctly.
 
 > Implement Session 3 of the Kart Race feature: `kart-race-plan.md` steps 11 through 15 —
 > the full Three.js scene, kart rendering, client-side interpolation, and the complete
-> manual test pass. Read `specs/kart-race.md` and `kart-race-plan.md` first, and confirm
+> manual test pass. Read `../specs/kart-race.md` and `kart-race-plan.md` first, and confirm
 > steps 1–10 are actually checked off before starting.
 >
 > This is the most iteration-heavy part — expect to go back and forth with me on feel (turn

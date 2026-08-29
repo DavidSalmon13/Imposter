@@ -138,7 +138,13 @@ function renderGrid(container, board, interactive, onClick) {
     const clickable = interactive && !cell.revealed;
     btn.disabled = !clickable;
     if (clickable) {
-      btn.addEventListener('click', () => onClick(i));
+      btn.addEventListener('click', () => {
+        // Instant feedback the tap registered - the real reveal (color)
+        // only arrives once the server broadcasts the next state update.
+        btn.disabled = true;
+        btn.classList.add('cn-card-pending');
+        onClick(i);
+      });
     }
     container.appendChild(btn);
   });

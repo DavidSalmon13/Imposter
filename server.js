@@ -75,8 +75,8 @@ io.on('connection', (socket) => {
 loadRoomsFromDisk({ ctx });
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 
-function shutdown() {
-  saveRoomsToDisk();
+async function shutdown() {
+  await saveRoomsToDisk();
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);
