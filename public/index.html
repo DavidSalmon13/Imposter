@@ -88,6 +88,11 @@
           <span class="game-tile-name">Music Timeline</span>
           <span class="game-tile-sub">Build your chronological playlist</span>
         </button>
+        <button id="choose-allinorfold-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🎰</span>
+          <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
+          <span class="game-tile-sub">Shove or fold, no in-between</span>
+        </button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
@@ -424,6 +429,61 @@
       </div>
 
       <button id="mt-back-btn" class="secondary hidden">Back to Lobby</button>
+    </section>
+
+    <!-- All-In or Fold -->
+
+    <section id="aiof-screen" class="screen hidden">
+      <h1>All-In or Fold</h1>
+      <p id="aiof-subtitle" class="muted"></p>
+      <div id="aiof-seats" class="aiof-seats"></div>
+      <button id="aiof-start-btn" class="hidden" disabled>Start</button>
+      <p id="aiof-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+
+      <div id="aiof-hand-panel" class="hidden">
+        <p id="aiof-pot" class="aiof-pot"></p>
+        <p class="aiof-section-label">Board</p>
+        <div id="aiof-board" class="aiof-card-row"></div>
+        <p class="aiof-section-label">Your cards</p>
+        <div id="aiof-hole-cards" class="aiof-card-row"></div>
+        <p id="aiof-turn-status" class="muted"></p>
+        <div id="aiof-decision-btns" class="btn-row hidden">
+          <button id="aiof-allin-btn" type="button">ALL-IN</button>
+          <button id="aiof-fold-btn" class="secondary" type="button">FOLD</button>
+        </div>
+      </div>
+
+      <div id="aiof-results-panel" class="hidden">
+        <p id="aiof-results-text"></p>
+      </div>
+
+      <p id="aiof-waiting-text" class="muted hidden">Waiting for players&hellip;</p>
+
+      <div id="aiof-bust-panel" class="hidden">
+        <p id="aiof-bust-text" class="muted"></p>
+        <div class="btn-row">
+          <button id="aiof-buyin-btn" type="button">Buy-in</button>
+          <button id="aiof-declinebuyin-btn" class="secondary hidden" type="button">Sit out</button>
+        </div>
+      </div>
+
+      <button id="aiof-endgame-btn" class="secondary hidden" type="button">End Game</button>
+
+      <div id="aiof-gameover-panel" class="hidden">
+        <h2>Final Standings</h2>
+        <table class="sb-results-table">
+          <thead>
+            <tr><th>Player</th><th>Stack</th><th>Net</th><th>Pts</th></tr>
+          </thead>
+          <tbody id="aiof-ranking-body"></tbody>
+        </table>
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="aiof-scoreboard" class="scoreboard-list"></ol>
+      </div>
+
+      <p id="aiof-error" class="error"></p>
+      <button id="aiof-leave-btn" class="secondary" type="button">Leave Table</button>
+      <button id="aiof-back-btn" class="secondary hidden">Back to Lobby</button>
     </section>
 
     <!-- Shared -->

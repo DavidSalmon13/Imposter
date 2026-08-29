@@ -21,6 +21,7 @@ export const screens = {
   menifot: document.getElementById('mf-screen'),
   kartRace: document.getElementById('kart-race-screen'),
   musicTimeline: document.getElementById('mt-screen'),
+  allInOrFold: document.getElementById('aiof-screen'),
 };
 
 export function showScreen(name) {

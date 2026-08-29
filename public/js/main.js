@@ -8,6 +8,7 @@ import { Codenames } from './games/codenames.js';
 import { TensSeconds } from './games/tenseconds.js';
 import { Menifot } from './games/menifot.js';
 import { MusicTimeline } from './games/musicTimeline.js';
+import { AllInOrFold } from './games/allInOrFold.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { showScreen, showGenerating } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
@@ -19,6 +20,7 @@ const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
 const KR_MIN_PLAYERS = 2;
 const MT_MIN_PLAYERS = 2;
+const AIOF_MIN_PLAYERS = 2;
 
 const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
@@ -46,6 +48,8 @@ const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
 const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
 const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
+const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
+const chooseAllInOrFoldName = document.getElementById('choose-allinorfold-name');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
@@ -64,6 +68,7 @@ const mfBackBtn = document.getElementById('mf-back-btn');
 const krBackBtn = document.getElementById('kr-back-btn');
 const mtBackBtn = document.getElementById('mt-back-btn');
 const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
+const aiofBackBtn = document.getElementById('aiof-back-btn');
 
 let myName = localStorage.getItem('imposterName') || '';
 let myRoomCode = localStorage.getItem('imposterRoom') || '';
@@ -139,6 +144,7 @@ function setHost(hostName) {
   krBackBtn.classList.remove('hidden');
   mtBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
+  aiofBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
   wordThemeSection.classList.toggle('hidden', !isHost);
@@ -190,6 +196,14 @@ function applyWordTheme(theme) {
   }
 }
 
+let lastLobbyPlayerCount = 0;
+
+function updateAiofTile() {
+  const rejoin = currentGame === 'allinorfold';
+  chooseAllInOrFoldName.textContent = rejoin ? 'Rejoin All-In or Fold' : 'All-In or Fold';
+  chooseAllInOrFoldBtn.disabled = rejoin ? false : lastLobbyPlayerCount < AIOF_MIN_PLAYERS;
+}
+
 function renderLobby(players, scoreboard) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
@@ -203,6 +217,8 @@ function renderLobby(players, scoreboard) {
   chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
   chooseKartRaceBtn.disabled = players.length < KR_MIN_PLAYERS;
   chooseMusicTimelineBtn.disabled = players.length < MT_MIN_PLAYERS;
+  lastLobbyPlayerCount = players.length;
+  updateAiofTile();
   if (players.length < MIN_PLAYERS) {
     chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds / Kart Race, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
   } else if (players.length < CN_MIN_PLAYERS) {
@@ -237,6 +253,7 @@ Codenames.init(gameCtx);
 TensSeconds.init(gameCtx);
 Menifot.init(gameCtx);
 MusicTimeline.init(gameCtx);
+AllInOrFold.init(gameCtx);
 
 const GAMES = {
   imposter: Imposter,
@@ -244,6 +261,7 @@ const GAMES = {
   tenseconds: TensSeconds,
   menifot: Menifot,
   musictimeline: MusicTimeline,
+  allinorfold: AllInOrFold,
   kartrace: {
     applyJoin(res) {
       KartRace.applyState(res);
@@ -293,8 +311,11 @@ function routeFromJoin(res) {
     return;
   }
 
+  // AIOF's reconnectPayload deliberately reports `game: 'allinorfold'` (so the dual-entry
+  // tile shows "Rejoin") but still wants the shared lobby screen, not the table — see its
+  // architecture note in implementation/all-in-or-fold-plan.md.
   const game = GAMES[res.game];
-  if (game && game.applyJoin) {
+  if (game && game.applyJoin && !res.atLobby) {
     game.applyJoin(res);
     return;
   }
@@ -409,6 +430,27 @@ chooseMusicTimelineBtn.addEventListener('click', () => {
   });
 });
 
+chooseAllInOrFoldBtn.addEventListener('click', () => {
+  chooseError.textContent = '';
+  if (currentGame === 'allinorfold') {
+    socket.emit('enterAllInOrFold', (res) => {
+      if (!res || !res.ok) {
+        chooseError.textContent = (res && res.error) || 'Could not enter';
+        return;
+      }
+      AllInOrFold.applyJoin(res);
+    });
+    return;
+  }
+  socket.emit('chooseGame', 'allinorfold', (res) => {
+    if (!res.ok) {
+      chooseError.textContent = res.error;
+      return;
+    }
+    AllInOrFold.setAtTable(true);
+  });
+});
+
 resetScoreboardBtn.addEventListener('click', () => {
   if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
   socket.emit('resetScoreboard', () => {});
@@ -494,6 +536,7 @@ socket.on('hostUpdate', ({ host }) => {
 
 socket.on('gameChosen', ({ game }) => {
   currentGame = game;
+  updateAiofTile();
 });
 
 socket.on('generating', ({ game }) => {

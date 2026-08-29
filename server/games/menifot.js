@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildDeck, rankBoard } = require('./menifot-eval');
+const { buildDeck, rankBoard } = require('./pokerEval');
 const { shuffle } = require('../lib/shuffle');
 
 const MF_MIN_PLAYERS = 2;

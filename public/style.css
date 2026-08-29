@@ -1506,6 +1506,170 @@ button.secondary:hover:not(:disabled) {
   border-bottom: none;
 }
 
+/* All-In or Fold — reuses the Menifot/Codenames poker-table visual language (felt board,
+   cream card faces) since this game is a poker table more literally than Menifot is. */
+.aiof-seats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+  margin: 1rem 0;
+  padding: 0.9rem;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at center, #1c6f47 0%, #0f4a2e 65%, #0a3a24 100%);
+  border: 3px solid #6b4a2c;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.aiof-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 70px;
+  padding: 0.6rem;
+  border-radius: 12px;
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.15);
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.85);
+  transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease);
+}
+
+.aiof-seat:hover:not(:disabled) {
+  transform: translate(-1px, -2px);
+}
+
+.aiof-seat-occupied {
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.2);
+  background: linear-gradient(160deg, #fffdf7 0%, #efe8d8 100%);
+  color: #1a1a1a;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.aiof-seat-sitting-out {
+  opacity: 0.55;
+}
+
+.aiof-seat-disabled {
+  opacity: 0.35;
+}
+
+.aiof-seat-dealer {
+  outline: 3px solid #ffcb47;
+  outline-offset: 2px;
+}
+
+.aiof-seat-name {
+  font-weight: 700;
+}
+
+.aiof-seat-stack {
+  font-variant-numeric: tabular-nums;
+}
+
+.aiof-pot {
+  display: inline-block;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  background: #ffcb47;
+  color: #1a1a1a;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.aiof-section-label {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.aiof-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  align-items: center;
+  min-height: 2.9rem;
+}
+
+.aiof-card {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.05rem;
+  height: 2.9rem;
+  padding: 0;
+  border-radius: 6px;
+  background: linear-gradient(160deg, #fffdf7 0%, #efe8d8 100%);
+  color: #1a1a1a;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.aiof-card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.aiof-card-corner-tl {
+  top: 0.13rem;
+  left: 0.18rem;
+}
+
+.aiof-card-corner-br {
+  bottom: 0.13rem;
+  right: 0.18rem;
+  transform: rotate(180deg);
+}
+
+.aiof-card-rank {
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.aiof-card-pip {
+  font-size: 0.6rem;
+}
+
+.aiof-card-center {
+  font-size: 1.05rem;
+  opacity: 0.82;
+}
+
+.aiof-card.aiof-suit-h {
+  color: #c0272b;
+}
+
+.aiof-card.aiof-suit-d {
+  color: #8b2fc9;
+}
+
+.aiof-card.aiof-suit-c {
+  color: #1a1a1a;
+}
+
+.aiof-card.aiof-suit-s {
+  color: #9a7300;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
