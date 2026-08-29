@@ -50,6 +50,7 @@ const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
 const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
 const chooseAllInOrFoldName = document.getElementById('choose-allinorfold-name');
+const aiofTileWrap = document.getElementById('aiof-tile-wrap');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
 const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
@@ -131,7 +132,7 @@ function setHost(hostName) {
   currentHostName = hostName || null;
   isHost = !!hostName && hostName === myName;
   gameChoice.classList.toggle('hidden', !isHost);
-  chooseWaiting.classList.toggle('hidden', isHost);
+  updateAiofTile();
   endRoundBtn.classList.toggle('hidden', !isHost);
   playAgainWaiting.classList.toggle('hidden', isHost);
   // Returning to the lobby is available to every player, not just the host.
@@ -202,6 +203,13 @@ function updateAiofTile() {
   const rejoin = currentGame === 'allinorfold';
   chooseAllInOrFoldName.textContent = rejoin ? 'Rejoin All-In or Fold' : 'All-In or Fold';
   chooseAllInOrFoldBtn.disabled = rejoin ? false : lastLobbyPlayerCount < AIOF_MIN_PLAYERS;
+  // Every other game's tile is host-only and disappears once picked (the whole room
+  // navigates away together). AIOF is the one game where non-host players can stay behind
+  // on the shared lobby screen (see implementation/all-in-or-fold-plan.md's architecture
+  // note), so its tile must stay visible/actionable to them too once the host has started
+  // the table — otherwise they're stuck seeing "waiting for the host" forever.
+  aiofTileWrap.classList.toggle('hidden', !(isHost || rejoin));
+  chooseWaiting.classList.toggle('hidden', isHost || rejoin);
 }
 
 function renderLobby(players, scoreboard) {

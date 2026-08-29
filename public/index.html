@@ -88,6 +88,12 @@
           <span class="game-tile-name">Music Timeline</span>
           <span class="game-tile-sub">Build your chronological playlist</span>
         </button>
+      </div>
+      <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: unlike every
+           other game (host-only, hidden from everyone else), this tile must stay visible to
+           every player once the host has started the table, so they can tap in themselves
+           (the "dual-entry" flow — see implementation/all-in-or-fold-plan.md). -->
+      <div id="aiof-tile-wrap" class="game-choice hidden">
         <button id="choose-allinorfold-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🎰</span>
           <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
@@ -436,14 +442,21 @@
     <section id="aiof-screen" class="screen hidden">
       <h1>All-In or Fold</h1>
       <p id="aiof-subtitle" class="muted"></p>
-      <div id="aiof-seats" class="aiof-seats"></div>
+
+      <div class="aiof-table">
+        <div class="aiof-table-felt">
+          <div id="aiof-seats" class="aiof-seats"></div>
+          <div id="aiof-table-center" class="aiof-table-center hidden">
+            <p id="aiof-pot" class="aiof-pot hidden"></p>
+            <div id="aiof-board" class="aiof-card-row aiof-board-cards"></div>
+          </div>
+        </div>
+      </div>
+
       <button id="aiof-start-btn" class="hidden" disabled>Start</button>
       <p id="aiof-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
 
       <div id="aiof-hand-panel" class="hidden">
-        <p id="aiof-pot" class="aiof-pot"></p>
-        <p class="aiof-section-label">Board</p>
-        <div id="aiof-board" class="aiof-card-row"></div>
         <p class="aiof-section-label">Your cards</p>
         <div id="aiof-hole-cards" class="aiof-card-row"></div>
         <p id="aiof-turn-status" class="muted"></p>

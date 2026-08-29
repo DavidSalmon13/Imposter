@@ -1506,41 +1506,86 @@ button.secondary:hover:not(:disabled) {
   border-bottom: none;
 }
 
-/* All-In or Fold — reuses the Menifot/Codenames poker-table visual language (felt board,
-   cream card faces) since this game is a poker table more literally than Menifot is. */
-.aiof-seats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.6rem;
-  margin: 1rem 0;
-  padding: 0.9rem;
-  border-radius: 20px;
+/* All-In or Fold — a literal round poker table: seats sit on the rail around an oval felt,
+   with the pot and community cards open in the middle (GG Poker-style layout). The viewer's
+   own seat is always rotated to the bottom slot by the client (see allInOrFold.js), so it
+   reads as "sitting at" the table rather than a fixed seat-1..6 list. */
+.aiof-table {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  margin: 0.4rem 0;
+}
+
+.aiof-table-felt {
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 32%, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
     radial-gradient(ellipse at center, #1c6f47 0%, #0f4a2e 65%, #0a3a24 100%);
-  border: 3px solid #6b4a2c;
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45), 0 6px 14px rgba(0, 0, 0, 0.35);
+  border: 10px solid #6b4a2c;
+  box-shadow:
+    inset 0 2px 14px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 3px rgba(255, 203, 71, 0.18),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.aiof-seats {
+  position: absolute;
+  inset: 0;
+}
+
+.aiof-table-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: 78%;
+}
+
+.aiof-board-cards {
+  justify-content: center;
+  min-height: 2.3rem;
 }
 
 .aiof-seat {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
-  min-height: 70px;
-  padding: 0.6rem;
+  gap: 0.15rem;
+  width: 5.6rem;
+  min-height: 4.2rem;
+  padding: 0.4rem 0.3rem;
   border-radius: 12px;
   border: 2px dashed rgba(255, 255, 255, 0.35);
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.2);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.85);
   transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease);
 }
 
+/* Six evenly-spaced points on the felt's ellipse, slot 0 = bottom (the viewer's seat once
+   rotated). Percentages are the point on the boundary; translate(-50%, -50%) centers the
+   seat card on that point so it straddles the rail like a real table. */
+.aiof-seat-slot-0 { top: 92%; left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-1 { top: 71%; left: 86%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-2 { top: 29%; left: 86%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-3 { top: 8%;  left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-4 { top: 29%; left: 14%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-5 { top: 71%; left: 14%; transform: translate(-50%, -50%); }
+
 .aiof-seat:hover:not(:disabled) {
-  transform: translate(-1px, -2px);
+  transform: translate(-50%, calc(-50% - 2px));
 }
 
 .aiof-seat-occupied {
@@ -1555,6 +1600,10 @@ button.secondary:hover:not(:disabled) {
   opacity: 0.55;
 }
 
+.aiof-seat-folded {
+  opacity: 0.5;
+}
+
 .aiof-seat-disabled {
   opacity: 0.35;
 }
@@ -1564,12 +1613,69 @@ button.secondary:hover:not(:disabled) {
   outline-offset: 2px;
 }
 
+.aiof-seat-dealer-badge {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ffcb47;
+  color: #1a1a1a;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.aiof-seat-turn {
+  box-shadow: 0 0 0 3px #ffcb47, 0 0 14px 4px rgba(255, 203, 71, 0.65);
+  animation: aiof-turn-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes aiof-turn-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffcb47, 0 0 14px 4px rgba(255, 203, 71, 0.65); }
+  50% { box-shadow: 0 0 0 3px #ffcb47, 0 0 4px 1px rgba(255, 203, 71, 0.3); }
+}
+
 .aiof-seat-name {
   font-weight: 700;
+  max-width: 5.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aiof-seat-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.aiof-chip-icon {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #d63b3b 0%, #d63b3b 40%, #fff 42%, #fff 48%, #d63b3b 50%, #d63b3b 100%);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .aiof-seat-stack {
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.aiof-seat-out-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
 }
 
 .aiof-pot {

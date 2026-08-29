@@ -13,8 +13,11 @@ import { renderScoreboard } from '../shared/scoreboard.js';
 const AIOF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const AIOF_SUIT_CLASS = { s: 'aiof-suit-s', h: 'aiof-suit-h', d: 'aiof-suit-d', c: 'aiof-suit-c' };
 
+const AIOF_SEAT_COUNT = 6;
+
 const aiofSubtitle = document.getElementById('aiof-subtitle');
 const aiofSeatsEl = document.getElementById('aiof-seats');
+const aiofTableCenter = document.getElementById('aiof-table-center');
 const aiofStartBtn = document.getElementById('aiof-start-btn');
 const aiofStartWaiting = document.getElementById('aiof-start-waiting');
 const aiofHandPanel = document.getElementById('aiof-hand-panel');
@@ -116,16 +119,23 @@ function formatAiofResults(results) {
 
 function renderHand(data) {
   const hand = data.hand;
+  const results = data.results;
   aiofHandPanel.classList.toggle('hidden', !hand);
-  aiofResultsPanel.classList.toggle('hidden', !(!hand && data.results));
+  aiofResultsPanel.classList.toggle('hidden', !(!hand && results));
+
+  // The board stays open in the middle of the table through the results pause (not just
+  // while `hand` is live) — cards shouldn't vanish the instant a showdown resolves.
+  const boardCards = hand ? hand.board : results ? results.board : null;
+  aiofTableCenter.classList.toggle('hidden', !boardCards);
+  renderAiofCardRow(aiofBoard, boardCards, 'Not yet revealed');
+  aiofPot.classList.toggle('hidden', !hand);
 
   if (!hand) {
-    if (data.results) aiofResultsText.textContent = formatAiofResults(data.results);
+    if (results) aiofResultsText.textContent = formatAiofResults(results);
     return;
   }
 
   aiofPot.textContent = `Pot: ${hand.potTotal}`;
-  renderAiofCardRow(aiofBoard, hand.board, 'Not yet revealed');
   renderAiofCardRow(
     aiofHoleCards,
     hand.myHoleCards,
@@ -180,26 +190,51 @@ function render(data) {
   aiofSubtitle.textContent =
     data.phase === 'seating' ? 'Pick an open seat, then the host starts the match.' : '';
 
+  // Rotates the table so the viewer's own seat always renders at the bottom slot (slot 0),
+  // like a real poker client — everyone sees themselves "sitting" at the same table, just
+  // from their own side of it. Spectators (no seat yet) get the unrotated, natural order.
+  const rotationOffset = hasSeat ? data.mySeatIndex : 0;
+  const actingName = data.hand ? data.hand.actingName : null;
+  const foldedNames = data.hand ? data.hand.foldedNames || [] : [];
+
   aiofSeatsEl.innerHTML = '';
   (data.seats || []).forEach((seat, i) => {
     const interactive = !seat && !hasSeat;
     const el = document.createElement(interactive ? 'button' : 'div');
-    el.className = 'aiof-seat';
-    if (i === data.dealerSeat) el.classList.add('aiof-seat-dealer');
+    const slot = (i - rotationOffset + AIOF_SEAT_COUNT) % AIOF_SEAT_COUNT;
+    el.className = `aiof-seat aiof-seat-slot-${slot}`;
+    if (seat && i === data.dealerSeat) el.classList.add('aiof-seat-dealer');
 
     if (seat) {
       el.classList.add('aiof-seat-occupied');
       if (seat.sittingOut) el.classList.add('aiof-seat-sitting-out');
+      if (seat.name === actingName) el.classList.add('aiof-seat-turn');
+      if (foldedNames.includes(seat.name)) el.classList.add('aiof-seat-folded');
+
       const nameEl = document.createElement('span');
       nameEl.className = 'aiof-seat-name';
       nameEl.textContent = seat.name;
+      el.appendChild(nameEl);
+
+      const chipsEl = document.createElement('span');
+      chipsEl.className = 'aiof-seat-chips';
+      const chipIcon = document.createElement('span');
+      chipIcon.className = 'aiof-chip-icon';
       const stackEl = document.createElement('span');
       stackEl.className = 'aiof-seat-stack';
-      stackEl.textContent = `${seat.stack} chips${seat.sittingOut ? ' · sitting out' : ''}`;
-      el.appendChild(nameEl);
-      el.appendChild(stackEl);
+      stackEl.textContent = `${seat.stack}`;
+      chipsEl.appendChild(chipIcon);
+      chipsEl.appendChild(stackEl);
+      el.appendChild(chipsEl);
+
+      if (seat.sittingOut) {
+        const outEl = document.createElement('span');
+        outEl.className = 'aiof-seat-out-label';
+        outEl.textContent = 'sitting out';
+        el.appendChild(outEl);
+      }
     } else {
-      el.textContent = `Seat ${i + 1} — open`;
+      el.textContent = `Seat ${i + 1}`;
       if (interactive) {
         el.type = 'button';
         el.addEventListener('click', () => trySitSeat(i));
@@ -207,6 +242,14 @@ function render(data) {
         el.classList.add('aiof-seat-disabled');
       }
     }
+
+    if (seat && i === data.dealerSeat) {
+      const badge = document.createElement('span');
+      badge.className = 'aiof-seat-dealer-badge';
+      badge.textContent = 'D';
+      el.appendChild(badge);
+    }
+
     aiofSeatsEl.appendChild(el);
   });
 
