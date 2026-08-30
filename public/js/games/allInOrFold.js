@@ -342,6 +342,7 @@ function render(data) {
 
       const seatCards = seatCardsFor(data, seat.name);
       if (seatCards) {
+        el.classList.add('aiof-seat-showing-cards');
         const usedSet = usedCardsFor(data.results, seat.name);
         const cardsEl = document.createElement('span');
         cardsEl.className = 'aiof-seat-cards';
