@@ -181,6 +181,23 @@ function usedCardsFor(results, name) {
   return set;
 }
 
+/** Colors equity relative to the field, not an absolute threshold: whoever's currently
+ * most likely to win shows green, everyone else red — except when two or more players are
+ * tied for the lead, in which case those tied leaders show gray instead (ambiguous who's
+ * "winning"), while non-leaders stay red. */
+function equityTonesFor(equities) {
+  const tones = {};
+  if (!equities) return tones;
+  const entries = Object.entries(equities);
+  if (entries.length === 0) return tones;
+  const maxPct = Math.max(...entries.map(([, pct]) => pct));
+  const leaderCount = entries.filter(([, pct]) => pct === maxPct).length;
+  entries.forEach(([name, pct]) => {
+    tones[name] = pct === maxPct ? (leaderCount > 1 ? 'even' : 'positive') : 'negative';
+  });
+  return tones;
+}
+
 function renderHand(data) {
   const hand = data.hand;
   const results = data.results;
@@ -291,6 +308,8 @@ function render(data) {
   const rotationOffset = hasSeat ? data.mySeatIndex : 0;
   const actingName = data.hand ? data.hand.actingName : null;
   const foldedNames = data.hand ? data.hand.foldedNames || [] : [];
+  const equities = data.hand ? data.hand.equities : null;
+  const equityTones = equityTonesFor(equities);
 
   aiofSeatsEl.innerHTML = '';
   (data.seats || []).forEach((seat, i) => {
@@ -338,11 +357,10 @@ function render(data) {
       // probability instead of their net win/loss — swaps back once the hand ends (results
       // never carry equities forward, unlike hole cards/board, since river already showed
       // the final 0%/100% split).
-      const equities = data.hand ? data.hand.equities : null;
       const equityPct = equities ? equities[seat.name] : null;
       const badge = document.createElement('span');
       if (equityPct != null) {
-        const tone = equityPct >= 50 ? 'positive' : equityPct < 20 ? 'negative' : 'even';
+        const tone = equityTones[seat.name] || 'even';
         badge.className = `aiof-seat-net-badge aiof-seat-net-badge-${tone}`;
         badge.textContent = `${equityPct}%`;
       } else {

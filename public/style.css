@@ -1743,20 +1743,20 @@ button.secondary:hover:not(:disabled) {
 }
 
 .aiof-seat-cards .aiof-card {
-  width: 0.85rem;
-  height: 1.2rem;
+  width: 1.15rem;
+  height: 1.62rem;
 }
 
 .aiof-seat-cards .aiof-card-rank {
-  font-size: 0.3rem;
+  font-size: 0.41rem;
 }
 
 .aiof-seat-cards .aiof-card-pip {
-  font-size: 0.32rem;
+  font-size: 0.43rem;
 }
 
 .aiof-seat-cards .aiof-card-center {
-  font-size: 0.48rem;
+  font-size: 0.65rem;
 }
 
 .aiof-card-used {
@@ -1841,24 +1841,26 @@ button.secondary:hover:not(:disabled) {
   overflow: hidden;
 }
 
-/* Community cards are smaller than hole cards so all 5 always fit on one line inside the
-   table's center circle, even on narrow phones — .aiof-board-cards also sets
-   flex-wrap: nowrap above so they can never spill onto a second line. */
+/* Community cards are still a bit smaller than hole cards so all 5 comfortably fit on one
+   line inside the table's center circle even on narrow phones — .aiof-board-cards also
+   sets flex-wrap: nowrap above so they can never spill onto a second line. There's a lot of
+   spare width in that circle at the old 1.5rem size, so these were sized back up close to
+   full hole-card size rather than staying tiny. */
 .aiof-board-cards .aiof-card {
-  width: 1.5rem;
-  height: 2.1rem;
+  width: 1.9rem;
+  height: 2.65rem;
 }
 
 .aiof-board-cards .aiof-card-rank {
-  font-size: 0.42rem;
+  font-size: 0.5rem;
 }
 
 .aiof-board-cards .aiof-card-pip {
-  font-size: 0.46rem;
+  font-size: 0.55rem;
 }
 
 .aiof-board-cards .aiof-card-center {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
 }
 
 .aiof-card-corner {
