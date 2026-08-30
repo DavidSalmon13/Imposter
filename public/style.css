@@ -1627,6 +1627,24 @@ button.secondary:hover:not(:disabled) {
   outline-offset: 2px;
 }
 
+.aiof-seat-net-badge {
+  position: absolute;
+  top: -0.4rem;
+  left: -0.4rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.aiof-seat-net-badge-positive { background: #2e9e4f; }
+.aiof-seat-net-badge-negative { background: #d63b3b; }
+.aiof-seat-net-badge-even { background: #6b7280; }
+
 .aiof-seat-dealer-badge {
   position: absolute;
   top: -0.4rem;
@@ -1669,20 +1687,81 @@ button.secondary:hover:not(:disabled) {
   gap: 0.25rem;
 }
 
-.aiof-chip-icon {
+/* Tiered chip stack: a small tower of stacked discs whose color AND height (disc count,
+   set by makeAiofChipStackEl in JS) jump at fixed value thresholds — not a literal
+   denomination breakdown, just a glanceable "bigger stack = bigger + different color" cue.
+   Used identically for a seat's stack and the center pot. */
+.aiof-chip-stack {
+  position: relative;
   flex: none;
-  width: 0.8rem;
-  height: 0.8rem;
+  width: 0.85rem;
+  height: 1.1rem;
+}
+
+.aiof-chip-disc {
+  position: absolute;
+  left: 0;
+  width: 0.85rem;
+  height: 0.34rem;
   border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.aiof-chip-disc-tier0 {
+  background:
+    radial-gradient(circle at 50% 50%, #9aa4ad 0%, #9aa4ad 40%, #fff 42%, #fff 48%, #9aa4ad 50%, #9aa4ad 100%);
+}
+.aiof-chip-disc-tier1 {
   background:
     radial-gradient(circle at 50% 50%, #d63b3b 0%, #d63b3b 40%, #fff 42%, #fff 48%, #d63b3b 50%, #d63b3b 100%);
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.aiof-chip-disc-tier2 {
+  background:
+    radial-gradient(circle at 50% 50%, #2f6fed 0%, #2f6fed 40%, #fff 42%, #fff 48%, #2f6fed 50%, #2f6fed 100%);
+}
+.aiof-chip-disc-tier3 {
+  background:
+    radial-gradient(circle at 50% 50%, #1a1a1a 0%, #1a1a1a 40%, #fff 42%, #fff 48%, #1a1a1a 50%, #1a1a1a 100%);
+}
+.aiof-chip-disc-tier4 {
+  background:
+    radial-gradient(circle at 50% 50%, #8a4fd6 0%, #8a4fd6 40%, #fff 42%, #fff 48%, #8a4fd6 50%, #8a4fd6 100%);
 }
 
 .aiof-seat-stack {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+}
+
+.aiof-seat-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.08rem;
+  max-width: 4.6rem;
+}
+
+.aiof-seat-cards .aiof-card {
+  width: 0.85rem;
+  height: 1.2rem;
+}
+
+.aiof-seat-cards .aiof-card-rank {
+  font-size: 0.3rem;
+}
+
+.aiof-seat-cards .aiof-card-pip {
+  font-size: 0.32rem;
+}
+
+.aiof-seat-cards .aiof-card-center {
+  font-size: 0.48rem;
+}
+
+.aiof-card-used {
+  outline: 2px solid #ffcb47;
+  outline-offset: 1px;
 }
 
 .aiof-seat-out-label {
@@ -1693,7 +1772,9 @@ button.secondary:hover:not(:disabled) {
 }
 
 .aiof-pot {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.3rem 0.85rem;
   border-radius: 999px;
   background: #ffcb47;
@@ -1701,6 +1782,25 @@ button.secondary:hover:not(:disabled) {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.aiof-buyin-value {
+  margin: 0.2rem 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+}
+
+#aiof-buyin-picker,
+#aiof-rebuy-picker {
+  width: 100%;
+  max-width: 22rem;
+}
+
+#aiof-buyin-slider,
+#aiof-rebuy-slider {
+  width: 100%;
 }
 
 .aiof-section-label {

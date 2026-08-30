@@ -1,16 +1,37 @@
 'use strict';
 
-const { buildDeck, rankBoard } = require('./pokerEval');
+const { buildDeck, rankBoard, computeEquities } = require('./pokerEval');
 const { shuffle } = require('../lib/shuffle');
 
 const AIOF_MIN_PLAYERS = 2;
 const AIOF_MAX_SEATS = 6;
 const AIOF_STARTING_STACK = 150;
+const AIOF_MIN_BUYIN = 150;
+const AIOF_MAX_BUYIN = 2000;
+const AIOF_BUYIN_STEP = 50;
 const AIOF_SMALL_BLIND = 5;
 const AIOF_BIG_BLIND = 10;
 const AIOF_REVEAL_STAGE_DELAY_MS = 2200;
+// Benchmarked against the real hand-evaluator cost (see all-in-or-fold-specs.md's
+// Win-probability section) — kept low because this is a repeating per-hand cost, not a rare
+// edge case: it's paid on every contested hand, and this single-process server can't afford
+// a multi-second synchronous stall on a 6-way all-in.
+const AIOF_EQUITY_SAMPLE_SIZE = 20;
 
+/** Clamps and snaps a requested buy-in/rebuy amount to a valid slider value; falls back to
+ * the default starting stack for anything missing or non-numeric (e.g. a client that hasn't
+ * sent an amount at all). */
+function clampBuyInAmount(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return AIOF_STARTING_STACK;
+  const stepped = Math.round((n - AIOF_MIN_BUYIN) / AIOF_BUYIN_STEP) * AIOF_BUYIN_STEP + AIOF_MIN_BUYIN;
+  return Math.min(AIOF_MAX_BUYIN, Math.max(AIOF_MIN_BUYIN, stepped));
+}
+
+// runReveal itself sets the first stage ('revealingHoles') immediately; this sequence is
+// everything after that, applied one at a time behind AIOF_REVEAL_STAGE_DELAY_MS pauses.
 const AIOF_REVEAL_SEQUENCE = [
+  { stage: 'revealingFlop', revealedCount: 3 },
   { stage: 'revealingTurn', revealedCount: 4 },
   { stage: 'revealingRiver', revealedCount: 5 },
 ];
@@ -76,7 +97,15 @@ function nextSeatClockwise(room, fromIndex, { activeOnly = true } = {}) {
   return -1;
 }
 
-function sitInSeat(ctx, room, name, seatIndex) {
+/**
+ * `amount` is only honored for a brand-new player (no prior aiofStacks entry) sitting down
+ * while the match is still in the pre-Start 'seating' phase — a slider choice on the seating
+ * screen. A mid-match open-seating join always buys in at the fixed AIOF_STARTING_STACK
+ * (no slider, dealt in immediately, per spec); a returning player (already in aiofStacks
+ * from an earlier stint this match) always resumes their preserved stack, ignoring `amount`
+ * entirely.
+ */
+function sitInSeat(ctx, room, name, seatIndex, amount) {
   if (!Number.isInteger(seatIndex) || seatIndex < 0 || seatIndex >= AIOF_MAX_SEATS) {
     return { ok: false, error: 'Invalid seat' };
   }
@@ -85,8 +114,9 @@ function sitInSeat(ctx, room, name, seatIndex) {
 
   room.aiofSeats[seatIndex] = name;
   if (!(name in room.aiofStacks)) {
-    room.aiofStacks[name] = AIOF_STARTING_STACK;
-    room.aiofBuyIns[name] = 1;
+    const buyIn = room.phase === 'seating' ? clampBuyInAmount(amount) : AIOF_STARTING_STACK;
+    room.aiofStacks[name] = buyIn;
+    room.aiofBuyIns[name] = buyIn;
   }
   if (!room.aiofEverSeated.includes(name)) room.aiofEverSeated.push(name);
   return { ok: true };
@@ -229,6 +259,39 @@ function livePlayers(room) {
   return hand.actionOrder.filter((name) => !hand.folded.includes(name));
 }
 
+/**
+ * Single overall win-probability number per live player at the hand's current reveal
+ * stage, deliberately ignoring side-pot eligibility (see spec). Folded players are excluded
+ * from `liveHoleCards` but their hole cards still can't reappear as board cards, so they're
+ * passed as `deadCards`. Null when there's nothing meaningful to show (no hand, or fewer
+ * than 2 live players — the uncontested-fold-out case never reaches a reveal stage anyway).
+ */
+function computeAiofEquities(room) {
+  const hand = room.aiofHand;
+  if (!hand) return null;
+  const live = livePlayers(room);
+  if (live.length < 2) return null;
+
+  const liveHoleCards = {};
+  live.forEach((name) => {
+    liveHoleCards[name] = hand.holeCards[name];
+  });
+  const deadCards = hand.folded.flatMap((name) => hand.holeCards[name] || []);
+  const boardCards = hand.board.slice(0, hand.revealedCount);
+
+  const raw = computeEquities({
+    liveHoleCards,
+    boardCards,
+    deadCards,
+    sampleSize: AIOF_EQUITY_SAMPLE_SIZE,
+  });
+  const out = {};
+  Object.entries(raw).forEach(([name, pct]) => {
+    out[name] = Math.round(pct);
+  });
+  return out;
+}
+
 /** Moves actingIndex to the next player who still owes a decision, or starts the reveal. */
 function advanceActingIndex(ctx, roomCode, room) {
   const hand = room.aiofHand;
@@ -285,8 +348,9 @@ function checkUncontestedWin(ctx, roomCode, room) {
 
 function runReveal(ctx, roomCode, room) {
   const hand = room.aiofHand;
-  hand.stage = 'revealingFlop';
-  hand.revealedCount = 3;
+  hand.stage = 'revealingHoles';
+  hand.revealedCount = 0;
+  hand.equities = computeAiofEquities(room);
   broadcastAiof(ctx, roomCode, room);
   scheduleRevealStage(ctx, roomCode, room, 0);
 }
@@ -306,6 +370,7 @@ function scheduleRevealStage(ctx, roomCode, room, sequenceIndex) {
       const step = AIOF_REVEAL_SEQUENCE[sequenceIndex];
       hand.stage = step.stage;
       hand.revealedCount = step.revealedCount;
+      hand.equities = computeAiofEquities(room);
       broadcastAiof(ctx, roomCode, room);
       scheduleRevealStage(ctx, roomCode, room, sequenceIndex + 1);
     }, AIOF_REVEAL_STAGE_DELAY_MS)
@@ -378,6 +443,12 @@ function runShowdown(ctx, roomCode, room) {
 
   awardPots(ctx, room, sidePots, rankingsPerLayer);
   room.aiofResults.board = hand.board.slice();
+  // Carries full hole cards forward into the results object (which outlives `aiofHand`,
+  // nulled out by finishHand below) so the reveal stays on screen through the between-hands
+  // pause instead of vanishing the instant the pot is awarded.
+  room.aiofResults.holeCards = Object.fromEntries(
+    livePlayers(room).map((name) => [name, hand.holeCards[name].slice()])
+  );
   finishHand(ctx, roomCode, room);
 }
 
@@ -395,7 +466,7 @@ function finishHand(ctx, roomCode, room) {
 }
 
 function computeNetProfit(room, name) {
-  return (room.aiofStacks[name] || 0) - AIOF_STARTING_STACK * (room.aiofBuyIns[name] || 0);
+  return (room.aiofStacks[name] || 0) - (room.aiofBuyIns[name] || 0);
 }
 
 /**
@@ -409,6 +480,7 @@ function computeAiofRanking(room) {
     .map((name) => ({
       name,
       stack: room.aiofStacks[name] || 0,
+      totalBoughtIn: room.aiofBuyIns[name] || 0,
       netProfit: computeNetProfit(room, name),
     }))
     .sort((a, b) => b.netProfit - a.netProfit || a.name.localeCompare(b.name));
@@ -435,6 +507,7 @@ function seatsPayload(room) {
       name,
       stack: room.aiofStacks[name] || 0,
       sittingOut: !!room.aiofSittingOut[name],
+      netProfit: computeNetProfit(room, name),
     };
   });
 }
@@ -453,6 +526,13 @@ function aiofStatePayload(ctx, room, viewerName) {
       actingName,
       isMyTurn: actingName != null && actingName === viewerName,
       foldedNames: hand.folded.slice(),
+      // Every live player's full 6 hole cards, visible to everyone once decisions are done
+      // (stage advances past 'deciding') — folded players stay mucked, never included here.
+      revealedHands:
+        hand.stage === 'deciding'
+          ? null
+          : Object.fromEntries(livePlayers(room).map((name) => [name, hand.holeCards[name].slice()])),
+      equities: hand.equities || null,
     };
   }
 
@@ -557,7 +637,7 @@ function registerHandlers(ctx, io, socket) {
 
     const name = socket.data.name;
     const seatIndex = Number(data && data.seatIndex);
-    const result = sitInSeat(ctx, room, name, seatIndex);
+    const result = sitInSeat(ctx, room, name, seatIndex, data && data.amount);
     if (!result.ok) return callback(result);
 
     callback({ ok: true });
@@ -568,6 +648,29 @@ function registerHandlers(ctx, io, socket) {
     if (room.phase === 'playing' && !room.aiofHand && !room.aiofResults) {
       dealNextHand(ctx, roomCode, room);
     }
+  });
+
+  socket.on('aiofSetBuyIn', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'allinorfold') return callback({ ok: false, error: 'Not playing All-In or Fold' });
+    if (room.phase !== 'seating') {
+      return callback({ ok: false, error: 'Can only adjust buy-in before the match starts' });
+    }
+
+    const name = socket.data.name;
+    if (!room.aiofSeats.includes(name)) return callback({ ok: false, error: 'Not seated' });
+
+    // Pre-Start only: nothing has been wagered yet, so this overwrites (not adds to) both
+    // the stack and the total bought in — unlike a post-bust rebuy, which accumulates.
+    const amount = clampBuyInAmount(data && data.amount);
+    room.aiofStacks[name] = amount;
+    room.aiofBuyIns[name] = amount;
+
+    callback({ ok: true, amount });
+    broadcastAiof(ctx, roomCode, room);
   });
 
   socket.on('startAllInOrFold', (callback) => {
@@ -626,7 +729,7 @@ function registerHandlers(ctx, io, socket) {
     callback({ ok: true });
   });
 
-  socket.on('aiofBuyIn', (callback) => {
+  socket.on('aiofBuyIn', (data, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
     const room = ctx.getRoom(socket);
@@ -639,8 +742,9 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'Only available when your stack is at 0' });
     }
 
-    room.aiofStacks[name] = AIOF_STARTING_STACK;
-    room.aiofBuyIns[name] = (room.aiofBuyIns[name] || 0) + 1;
+    const amount = clampBuyInAmount(data && data.amount);
+    room.aiofStacks[name] = amount;
+    room.aiofBuyIns[name] = (room.aiofBuyIns[name] || 0) + amount;
     delete room.aiofSittingOut[name];
 
     callback({ ok: true });

@@ -15,11 +15,50 @@ const AIOF_SUIT_CLASS = { s: 'aiof-suit-s', h: 'aiof-suit-h', d: 'aiof-suit-d', 
 
 const AIOF_SEAT_COUNT = 6;
 
+const AIOF_REVEAL_LABELS = {
+  revealingHoles: 'Hole Cards',
+  revealingFlop: 'Flop',
+  revealingTurn: 'Turn',
+  revealingRiver: 'River',
+};
+
+// Simplified tiered chip stack — not a real denomination breakdown, just a value → (color,
+// disc count) lookup so a bigger stack visibly looks bigger and a different color. `max` is
+// exclusive; the last tier catches everything at or above its floor.
+const AIOF_CHIP_TIERS = [
+  { max: 100, cls: 'aiof-chip-disc-tier0', discs: 2 },
+  { max: 500, cls: 'aiof-chip-disc-tier1', discs: 3 },
+  { max: 1000, cls: 'aiof-chip-disc-tier2', discs: 4 },
+  { max: 2000, cls: 'aiof-chip-disc-tier3', discs: 5 },
+  { max: Infinity, cls: 'aiof-chip-disc-tier4', discs: 6 },
+];
+
+function makeAiofChipStackEl(value) {
+  const tier = AIOF_CHIP_TIERS.find((t) => value < t.max) || AIOF_CHIP_TIERS[AIOF_CHIP_TIERS.length - 1];
+  const el = document.createElement('span');
+  el.className = 'aiof-chip-stack';
+  for (let i = 0; i < tier.discs; i++) {
+    const disc = document.createElement('span');
+    disc.className = `aiof-chip-disc ${tier.cls}`;
+    disc.style.bottom = `${i * 0.14}rem`;
+    disc.style.zIndex = String(i);
+    el.appendChild(disc);
+  }
+  return el;
+}
+
 const aiofSubtitle = document.getElementById('aiof-subtitle');
 const aiofSeatsEl = document.getElementById('aiof-seats');
 const aiofTableCenter = document.getElementById('aiof-table-center');
 const aiofStartBtn = document.getElementById('aiof-start-btn');
 const aiofStartWaiting = document.getElementById('aiof-start-waiting');
+const aiofBuyinPicker = document.getElementById('aiof-buyin-picker');
+const aiofBuyinSlider = document.getElementById('aiof-buyin-slider');
+const aiofBuyinValue = document.getElementById('aiof-buyin-value');
+const aiofBuyinConfirmBtn = document.getElementById('aiof-buyin-confirm-btn');
+const aiofBuyinCancelBtn = document.getElementById('aiof-buyin-cancel-btn');
+const aiofRebuySlider = document.getElementById('aiof-rebuy-slider');
+const aiofRebuyValue = document.getElementById('aiof-rebuy-value');
 const aiofHandPanel = document.getElementById('aiof-hand-panel');
 const aiofPot = document.getElementById('aiof-pot');
 const aiofBoard = document.getElementById('aiof-board');
@@ -119,6 +158,29 @@ function formatAiofResults(results) {
   return parts.join(' · ') || 'Hand complete';
 }
 
+/** Cards visible at a seat right now: the live hand's revealedHands while a hand is active
+ * (null during the 'deciding' stage — see server), falling back to the last hand's
+ * results.holeCards during the between-hands pause so the reveal doesn't vanish the instant
+ * the pot is awarded. Folded players and pre-reveal hands have nothing to show. */
+function seatCardsFor(data, name) {
+  if (data.hand && data.hand.revealedHands) return data.hand.revealedHands[name] || null;
+  if (!data.hand && data.results) return (data.results.holeCards || {})[name] || null;
+  return null;
+}
+
+/** Union, across every pot layer, of the hole cards `name` actually used in their best hand
+ * — used to highlight those 2-of-6 cards once results are in. Empty/absent outside results. */
+function usedCardsFor(results, name) {
+  const set = new Set();
+  if (!results || !results.pots) return set;
+  results.pots.forEach((pot) => {
+    (pot.rankings || []).forEach((r) => {
+      if (r.name === name) (r.holeUsed || []).forEach((code) => set.add(code));
+    });
+  });
+  return set;
+}
+
 function renderHand(data) {
   const hand = data.hand;
   const results = data.results;
@@ -140,7 +202,11 @@ function renderHand(data) {
     return;
   }
 
-  aiofPot.textContent = `Pot: ${hand.potTotal}`;
+  aiofPot.innerHTML = '';
+  aiofPot.appendChild(makeAiofChipStackEl(hand.potTotal));
+  const potText = document.createElement('span');
+  potText.textContent = `Pot: ${hand.potTotal}`;
+  aiofPot.appendChild(potText);
   renderAiofCardRow(
     aiofHoleCards,
     hand.myHoleCards,
@@ -152,7 +218,7 @@ function renderHand(data) {
       ? hand.actingName
         ? `${hand.actingName}'s decision`
         : ''
-      : `Revealing: ${hand.stage.replace('revealing', '')}`;
+      : `Revealing: ${AIOF_REVEAL_LABELS[hand.stage] || hand.stage}`;
 
   aiofDecisionBtns.classList.toggle('hidden', !(hand.isMyTurn && hand.stage === 'deciding'));
 }
@@ -167,6 +233,30 @@ function renderBustPrompt(data) {
     ? "You're sitting out. Buy back in anytime to rejoin the next hand."
     : "You're out of chips! Rebuy or sit out?";
   aiofDeclineBuyInBtn.classList.toggle('hidden', !!mySeat.sittingOut);
+
+  // Only resets the slider to the default when it isn't the one currently focused — avoids
+  // clobbering an in-progress drag every time a broadcast arrives mid-decision.
+  if (document.activeElement !== aiofRebuySlider) {
+    aiofRebuySlider.value = '150';
+    aiofRebuyValue.textContent = aiofRebuySlider.value;
+  }
+}
+
+/** Pre-Start buy-in slider: only for a seated player before the host clicks Start. Syncs
+ * from the server-known stack (their pending buy-in, since nothing's been wagered yet)
+ * unless the slider is the currently-focused element, so a live drag isn't overwritten by
+ * the next broadcast. */
+function renderBuyinPicker(data) {
+  const hasSeat = data.mySeatIndex != null && data.mySeatIndex >= 0;
+  const show = data.phase === 'seating' && hasSeat;
+  aiofBuyinPicker.classList.toggle('hidden', !show);
+  if (!show) return;
+
+  if (document.activeElement !== aiofBuyinSlider) {
+    const stack = data.seats[data.mySeatIndex].stack;
+    aiofBuyinSlider.value = String(stack);
+    aiofBuyinValue.textContent = String(stack);
+  }
 }
 
 function renderGameover(data) {
@@ -177,7 +267,7 @@ function renderGameover(data) {
   (data.ranking || []).forEach((row) => {
     const tr = document.createElement('tr');
     const netText = row.netProfit > 0 ? `+${row.netProfit}` : `${row.netProfit}`;
-    [row.name, row.stack, netText, row.points].forEach((value) => {
+    [row.name, row.stack, row.totalBoughtIn, netText, row.points].forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value;
       tr.appendChild(td);
@@ -223,14 +313,45 @@ function render(data) {
 
       const chipsEl = document.createElement('span');
       chipsEl.className = 'aiof-seat-chips';
-      const chipIcon = document.createElement('span');
-      chipIcon.className = 'aiof-chip-icon';
+      const chipIcon = makeAiofChipStackEl(seat.stack);
       const stackEl = document.createElement('span');
       stackEl.className = 'aiof-seat-stack';
       stackEl.textContent = `${seat.stack}`;
       chipsEl.appendChild(chipIcon);
       chipsEl.appendChild(stackEl);
       el.appendChild(chipsEl);
+
+      const seatCards = seatCardsFor(data, seat.name);
+      if (seatCards) {
+        const usedSet = usedCardsFor(data.results, seat.name);
+        const cardsEl = document.createElement('span');
+        cardsEl.className = 'aiof-seat-cards';
+        seatCards.forEach((code) => {
+          const cardEl = makeAiofCardEl(code);
+          if (usedSet.has(code)) cardEl.classList.add('aiof-card-used');
+          cardsEl.appendChild(cardEl);
+        });
+        el.appendChild(cardsEl);
+      }
+
+      // During an active hand's reveal stages, the corner badge shows this seat's live win
+      // probability instead of their net win/loss — swaps back once the hand ends (results
+      // never carry equities forward, unlike hole cards/board, since river already showed
+      // the final 0%/100% split).
+      const equities = data.hand ? data.hand.equities : null;
+      const equityPct = equities ? equities[seat.name] : null;
+      const badge = document.createElement('span');
+      if (equityPct != null) {
+        const tone = equityPct >= 50 ? 'positive' : equityPct < 20 ? 'negative' : 'even';
+        badge.className = `aiof-seat-net-badge aiof-seat-net-badge-${tone}`;
+        badge.textContent = `${equityPct}%`;
+      } else {
+        const net = seat.netProfit || 0;
+        const netTone = net > 0 ? 'positive' : net < 0 ? 'negative' : 'even';
+        badge.className = `aiof-seat-net-badge aiof-seat-net-badge-${netTone}`;
+        badge.textContent = net > 0 ? `+${net}` : `${net}`;
+      }
+      el.appendChild(badge);
 
       if (seat.sittingOut) {
         const outEl = document.createElement('span');
@@ -262,6 +383,7 @@ function render(data) {
   aiofStartBtn.disabled = !data.canStart;
   aiofStartWaiting.classList.toggle('hidden', isHost || data.phase !== 'seating');
 
+  renderBuyinPicker(data);
   renderHand(data);
   renderBustPrompt(data);
   aiofWaitingText.classList.toggle('hidden', !data.waitingForPlayers);
@@ -307,6 +429,28 @@ export const AllInOrFold = {
       });
     });
 
+    aiofBuyinSlider.addEventListener('input', () => {
+      aiofBuyinValue.textContent = aiofBuyinSlider.value;
+    });
+
+    aiofBuyinConfirmBtn.addEventListener('click', () => {
+      aiofError.textContent = '';
+      socket.emit('aiofSetBuyIn', { amount: Number(aiofBuyinSlider.value) }, (res) => {
+        if (res && !res.ok) aiofError.textContent = res.error;
+      });
+    });
+
+    aiofBuyinCancelBtn.addEventListener('click', () => {
+      if (!lastData || lastData.mySeatIndex < 0) return;
+      const stack = lastData.seats[lastData.mySeatIndex].stack;
+      aiofBuyinSlider.value = String(stack);
+      aiofBuyinValue.textContent = String(stack);
+    });
+
+    aiofRebuySlider.addEventListener('input', () => {
+      aiofRebuyValue.textContent = aiofRebuySlider.value;
+    });
+
     aiofNextHandBtn.addEventListener('click', () => {
       aiofError.textContent = '';
       socket.emit('aiofNextHand', (res) => {
@@ -330,7 +474,7 @@ export const AllInOrFold = {
 
     aiofBuyInBtn.addEventListener('click', () => {
       aiofError.textContent = '';
-      socket.emit('aiofBuyIn', (res) => {
+      socket.emit('aiofBuyIn', { amount: Number(aiofRebuySlider.value) }, (res) => {
         if (res && !res.ok) aiofError.textContent = res.error;
       });
     });

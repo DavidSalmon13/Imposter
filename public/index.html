@@ -453,6 +453,16 @@
         </div>
       </div>
 
+      <div id="aiof-buyin-picker" class="hidden">
+        <p class="aiof-section-label">Your buy-in</p>
+        <input id="aiof-buyin-slider" type="range" min="150" max="2000" step="50" value="150" />
+        <p id="aiof-buyin-value" class="aiof-buyin-value">150</p>
+        <div class="btn-row">
+          <button id="aiof-buyin-confirm-btn" type="button">Confirm</button>
+          <button id="aiof-buyin-cancel-btn" class="secondary" type="button">Cancel</button>
+        </div>
+      </div>
+
       <button id="aiof-start-btn" class="hidden" disabled>Start</button>
       <p id="aiof-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
 
@@ -476,6 +486,10 @@
 
       <div id="aiof-bust-panel" class="hidden">
         <p id="aiof-bust-text" class="muted"></p>
+        <div id="aiof-rebuy-picker" class="hidden">
+          <input id="aiof-rebuy-slider" type="range" min="150" max="2000" step="50" value="150" />
+          <p id="aiof-rebuy-value" class="aiof-buyin-value">150</p>
+        </div>
         <div class="btn-row">
           <button id="aiof-buyin-btn" type="button">Buy-in</button>
           <button id="aiof-declinebuyin-btn" class="secondary hidden" type="button">Sit out</button>
@@ -488,7 +502,7 @@
         <h2>Final Standings</h2>
         <table class="sb-results-table">
           <thead>
-            <tr><th>Player</th><th>Stack</th><th>Net</th><th>Pts</th></tr>
+            <tr><th>Player</th><th>Stack</th><th>Bought in</th><th>Net</th><th>Pts</th></tr>
           </thead>
           <tbody id="aiof-ranking-body"></tbody>
         </table>
