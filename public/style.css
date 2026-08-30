@@ -1627,17 +1627,6 @@ button.secondary:hover:not(:disabled) {
   outline-offset: 2px;
 }
 
-/* Grows a seat (from the same centered anchor point, via the existing translate(-50%,-50%))
-   whenever it has a hole-card reveal to show, so those cards get real room instead of being
-   crammed into the seat's normal tight footprint — and lifts it above neighboring seats so
-   the bigger card row never renders underneath them. */
-.aiof-seat-showing-cards {
-  width: 6.4rem;
-  min-height: 5.6rem;
-  padding: 0.4rem 0.3rem;
-  z-index: 4;
-}
-
 .aiof-seat-net-badge {
   position: absolute;
   top: -0.4rem;
@@ -1749,25 +1738,25 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.1rem;
-  max-width: 6rem;
+  gap: 0.08rem;
+  max-width: 4.6rem;
 }
 
 .aiof-seat-cards .aiof-card {
-  width: 1.8rem;
-  height: 2.54rem;
+  width: 1.15rem;
+  height: 1.62rem;
 }
 
 .aiof-seat-cards .aiof-card-rank {
-  font-size: 0.64rem;
+  font-size: 0.41rem;
 }
 
 .aiof-seat-cards .aiof-card-pip {
-  font-size: 0.67rem;
+  font-size: 0.43rem;
 }
 
 .aiof-seat-cards .aiof-card-center {
-  font-size: 1rem;
+  font-size: 0.65rem;
 }
 
 .aiof-card-used {

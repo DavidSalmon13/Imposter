@@ -340,9 +340,10 @@ function render(data) {
       chipsEl.appendChild(stackEl);
       el.appendChild(chipsEl);
 
-      const seatCards = seatCardsFor(data, seat.name);
+      // Skips the viewer's own seat — their hand is already shown big in the "Your cards"
+      // panel, so a second small copy at their own seat is just redundant clutter.
+      const seatCards = i === data.mySeatIndex ? null : seatCardsFor(data, seat.name);
       if (seatCards) {
-        el.classList.add('aiof-seat-showing-cards');
         const usedSet = usedCardsFor(data.results, seat.name);
         const cardsEl = document.createElement('span');
         cardsEl.className = 'aiof-seat-cards';
