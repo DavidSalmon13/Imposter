@@ -1519,7 +1519,7 @@ button.secondary:hover:not(:disabled) {
 
 .aiof-table-felt {
   position: absolute;
-  inset: 6%;
+  inset: 3%;
   border-radius: 50%;
   background:
     radial-gradient(ellipse at 50% 32%, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
@@ -1545,12 +1545,26 @@ button.secondary:hover:not(:disabled) {
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
-  width: 78%;
+  width: 94%;
 }
 
 .aiof-board-cards {
   justify-content: center;
-  min-height: 2.3rem;
+  flex-wrap: nowrap;
+  gap: 0.14rem;
+  min-height: 1.9rem;
+}
+
+/* The "Not yet revealed" placeholder has no card width to constrain it, so — unlike the
+   actual cards — it needs its own cap or it overflows the felt's center circle sideways
+   into the seats (flex-wrap: nowrap above means it can't just drop to a second line). */
+.aiof-board-cards .muted {
+  max-width: 5.5rem;
+  font-size: 0.7rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: normal;
 }
 
 .aiof-seat {
@@ -1562,9 +1576,9 @@ button.secondary:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   gap: 0.15rem;
-  width: 5.6rem;
-  min-height: 4.2rem;
-  padding: 0.4rem 0.3rem;
+  width: 4.9rem;
+  min-height: 3.8rem;
+  padding: 0.35rem 0.25rem;
   border-radius: 12px;
   border: 2px dashed rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.2);
@@ -1577,12 +1591,12 @@ button.secondary:hover:not(:disabled) {
 /* Six evenly-spaced points on the felt's ellipse, slot 0 = bottom (the viewer's seat once
    rotated). Percentages are the point on the boundary; translate(-50%, -50%) centers the
    seat card on that point so it straddles the rail like a real table. */
-.aiof-seat-slot-0 { top: 92%; left: 50%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-1 { top: 71%; left: 86%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-2 { top: 29%; left: 86%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-3 { top: 8%;  left: 50%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-4 { top: 29%; left: 14%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-5 { top: 71%; left: 14%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-0 { top: 94%; left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-1 { top: 78%; left: 94%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-2 { top: 22%; left: 94%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-3 { top: 6%;  left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-4 { top: 22%; left: 6%;  transform: translate(-50%, -50%); }
+.aiof-seat-slot-5 { top: 78%; left: 6%;  transform: translate(-50%, -50%); }
 
 .aiof-seat:hover:not(:disabled) {
   transform: translate(-50%, calc(-50% - 2px));
@@ -1643,7 +1657,7 @@ button.secondary:hover:not(:disabled) {
 
 .aiof-seat-name {
   font-weight: 700;
-  max-width: 5.2rem;
+  max-width: 4.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1725,6 +1739,26 @@ button.secondary:hover:not(:disabled) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   line-height: 1;
   overflow: hidden;
+}
+
+/* Community cards are smaller than hole cards so all 5 always fit on one line inside the
+   table's center circle, even on narrow phones — .aiof-board-cards also sets
+   flex-wrap: nowrap above so they can never spill onto a second line. */
+.aiof-board-cards .aiof-card {
+  width: 1.5rem;
+  height: 2.1rem;
+}
+
+.aiof-board-cards .aiof-card-rank {
+  font-size: 0.42rem;
+}
+
+.aiof-board-cards .aiof-card-pip {
+  font-size: 0.46rem;
+}
+
+.aiof-board-cards .aiof-card-center {
+  font-size: 0.75rem;
 }
 
 .aiof-card-corner {

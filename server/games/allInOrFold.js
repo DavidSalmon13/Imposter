@@ -8,7 +8,7 @@ const AIOF_MAX_SEATS = 6;
 const AIOF_STARTING_STACK = 150;
 const AIOF_SMALL_BLIND = 5;
 const AIOF_BIG_BLIND = 10;
-const AIOF_REVEAL_STAGE_DELAY_MS = 1500;
+const AIOF_REVEAL_STAGE_DELAY_MS = 2200;
 
 const AIOF_REVEAL_SEQUENCE = [
   { stage: 'revealingTurn', revealedCount: 4 },
@@ -381,17 +381,17 @@ function runShowdown(ctx, roomCode, room) {
   finishHand(ctx, roomCode, room);
 }
 
+/**
+ * Ends the hand and leaves it for the host to advance: results stay on screen (with the
+ * "Next Hand" button, see aiofNextHand handler) until they explicitly deal again — no more
+ * auto-redeal timer here. `room.aiofResults` being non-null is what gates that button, and
+ * is also what stops the sit/buy-in/decline handlers below from racing ahead of the host by
+ * auto-redealing themselves while results are still showing.
+ */
 function finishHand(ctx, roomCode, room) {
   clearAiofTimer(roomCode);
   room.aiofHand = null;
   broadcastAiof(ctx, roomCode, room);
-  aiofTimers.set(
-    roomCode,
-    setTimeout(() => {
-      aiofTimers.delete(roomCode);
-      dealNextHand(ctx, roomCode, room);
-    }, AIOF_REVEAL_STAGE_DELAY_MS)
-  );
 }
 
 function computeNetProfit(room, name) {
@@ -466,6 +466,7 @@ function aiofStatePayload(ctx, room, viewerName) {
     canStart: room.phase === 'seating' && occupiedSeatIndexes(room).length >= AIOF_MIN_PLAYERS,
     hand: handPayload,
     results: room.aiofResults,
+    canDealNextHand: room.phase === 'playing' && !hand && room.aiofResults != null,
     waitingForPlayers:
       room.phase === 'playing' && !hand && activeSeatIndexes(room).length < AIOF_MIN_PLAYERS,
     canEndGame: room.phase === 'playing' && !hand,
@@ -561,9 +562,12 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     broadcastAiof(ctx, roomCode, room);
-    // Re-attempt dealing if this sit brought the table out of "waiting for players"
-    // (only meaningful once the match has actually started).
-    if (room.phase === 'playing' && !room.aiofHand) dealNextHand(ctx, roomCode, room);
+    // Re-attempt dealing if this sit brought the table out of "waiting for players" (only
+    // meaningful once the match has started) — but not while a just-finished hand's results
+    // are still on screen awaiting the host's "Next Hand" (see finishHand).
+    if (room.phase === 'playing' && !room.aiofHand && !room.aiofResults) {
+      dealNextHand(ctx, roomCode, room);
+    }
   });
 
   socket.on('startAllInOrFold', (callback) => {
@@ -585,6 +589,26 @@ function registerHandlers(ctx, io, socket) {
     room.phase = 'playing';
     callback({ ok: true });
     dealNextHand(ctx, roomCode, room, { rotateDealer: false });
+  });
+
+  socket.on('aiofNextHand', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'allinorfold' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can deal the next hand' });
+    }
+    if (room.aiofHand != null) {
+      return callback({ ok: false, error: 'Wait for the current hand to finish' });
+    }
+
+    room.aiofResults = null;
+    callback({ ok: true });
+    dealNextHand(ctx, roomCode, room);
   });
 
   socket.on('aiofDecision', (data, callback) => {
@@ -621,7 +645,7 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     broadcastAiof(ctx, roomCode, room);
-    if (!room.aiofHand) dealNextHand(ctx, roomCode, room);
+    if (!room.aiofHand && !room.aiofResults) dealNextHand(ctx, roomCode, room);
   });
 
   socket.on('aiofDeclineBuyIn', (callback) => {
@@ -641,7 +665,7 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     broadcastAiof(ctx, roomCode, room);
-    if (!room.aiofHand) dealNextHand(ctx, roomCode, room);
+    if (!room.aiofHand && !room.aiofResults) dealNextHand(ctx, roomCode, room);
   });
 
   socket.on('aiofLeaveTable', (callback) => {

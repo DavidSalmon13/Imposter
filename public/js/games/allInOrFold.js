@@ -30,6 +30,8 @@ const aiofAllInBtn = document.getElementById('aiof-allin-btn');
 const aiofFoldBtn = document.getElementById('aiof-fold-btn');
 const aiofResultsPanel = document.getElementById('aiof-results-panel');
 const aiofResultsText = document.getElementById('aiof-results-text');
+const aiofNextHandBtn = document.getElementById('aiof-nexthand-btn');
+const aiofNextHandWaiting = document.getElementById('aiof-nexthand-waiting');
 const aiofWaitingText = document.getElementById('aiof-waiting-text');
 const aiofBustPanel = document.getElementById('aiof-bust-panel');
 const aiofBustText = document.getElementById('aiof-bust-text');
@@ -132,6 +134,9 @@ function renderHand(data) {
 
   if (!hand) {
     if (results) aiofResultsText.textContent = formatAiofResults(results);
+    const isHost = ctx.getIsHost();
+    aiofNextHandBtn.classList.toggle('hidden', !(isHost && data.canDealNextHand));
+    aiofNextHandWaiting.classList.toggle('hidden', !(!isHost && data.canDealNextHand));
     return;
   }
 
@@ -298,6 +303,13 @@ export const AllInOrFold = {
     aiofStartBtn.addEventListener('click', () => {
       aiofError.textContent = '';
       socket.emit('startAllInOrFold', (res) => {
+        if (res && !res.ok) aiofError.textContent = res.error;
+      });
+    });
+
+    aiofNextHandBtn.addEventListener('click', () => {
+      aiofError.textContent = '';
+      socket.emit('aiofNextHand', (res) => {
         if (res && !res.ok) aiofError.textContent = res.error;
       });
     });
