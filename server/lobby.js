@@ -388,14 +388,30 @@ function registerLobbyHandlers(socket) {
     }
 
     room.players.delete(name);
-    if (name === room.hostName) {
-      const [nextHost] = connectedNames(room);
-      setHost(roomCode, room, nextHost || null);
-    }
     socket.leave(roomCode);
     socket.data.roomCode = null;
     socket.data.name = null;
-    broadcastLobby(roomCode, room);
+
+    if (room.players.size === 0) {
+      // Nobody's left in the room at all. Without this, the room stays stuck on
+      // whatever game/phase it was last in (e.g. mid-AIOF-match) forever: a brand-new
+      // join is rejected outside room.phase === 'lobby', and chooseGame/backToLobby
+      // both require already being a room member to call them - so there'd be no one
+      // left who *could* reset it. Give the next joiner a clean lobby instead.
+      //
+      // resetToLobby doesn't touch hostName (normally it's called with the host still
+      // present, e.g. mid-game "Back to Lobby"), so clear it explicitly here - otherwise
+      // it'd keep pointing at a player who no longer exists, silently blocking the next
+      // joiner from ever becoming host (`join` only assigns a host when there isn't one).
+      room.hostName = null;
+      resetToLobby(roomCode, room);
+    } else {
+      if (name === room.hostName) {
+        const [nextHost] = connectedNames(room);
+        setHost(roomCode, room, nextHost || null);
+      }
+      broadcastLobby(roomCode, room);
+    }
     callback({ ok: true });
   });
 
