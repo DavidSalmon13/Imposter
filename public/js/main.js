@@ -34,6 +34,7 @@ const joinError = document.getElementById('join-error');
 
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
+const renameBtn = document.getElementById('rename-btn');
 const scoreboardList = document.getElementById('scoreboard-list');
 const resetScoreboardBtn = document.getElementById('reset-scoreboard-btn');
 const gameChoice = document.getElementById('game-choice');
@@ -404,6 +405,24 @@ chooseAllInOrFoldBtn.addEventListener('click', () => {
 resetScoreboardBtn.addEventListener('click', () => {
   if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
   socket.emit('resetScoreboard', () => {});
+});
+
+renameBtn.addEventListener('click', () => {
+  const newName = ((prompt('New name:', myName) || '').trim()).slice(0, 20);
+  if (!newName || newName === myName) return;
+  socket.emit('renameSelf', { name: newName }, (res) => {
+    if (!res || !res.ok) {
+      alert((res && res.error) || 'Could not change name');
+      return;
+    }
+    myName = res.name;
+    localStorage.setItem('imposterName', myName);
+    nameInput.value = myName;
+    // The room-wide lobbyUpdate broadcast this triggers may land before this ack
+    // (it carries our old name in isHost's `=== myName` check at the time it's
+    // handled), so recompute host status here now that myName is current.
+    setHost(res.host);
+  });
 });
 
 exitLobbyBtn.addEventListener('click', () => {

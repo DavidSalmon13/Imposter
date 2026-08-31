@@ -144,6 +144,15 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback) {
     if (staleSocket && staleSocket.id !== socket.id) staleSocket.disconnect(true);
     attachToRoom(socket, roomCode, room, name);
 
+    // A disconnect that happened while this player was host reassigned host to
+    // whoever was next connected (see the `disconnect` handler below) so the room
+    // isn't stuck without one. Now that they're back, hand host back to them so a
+    // brief phone-lock/wifi blip doesn't permanently bump someone else into it.
+    if (existing.wasHost) {
+      existing.wasHost = false;
+      setHost(roomCode, room, name);
+    }
+
     const game = getGame(room.game);
     if (game && typeof game.onReconnectBroadcast === 'function') {
       game.onReconnectBroadcast(ctx, roomCode, room, name);
@@ -173,6 +182,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback) {
     team: null,
     leader: false,
     eliminatedReport: null,
+    wasHost: false,
   });
   attachToRoom(socket, roomCode, room, name);
   if (!room.hostName) setHost(roomCode, room, name);
@@ -242,6 +252,46 @@ function registerLobbyHandlers(socket) {
 
     getSharedRoom();
     joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, callback);
+  });
+
+  socket.on('renameSelf', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    // Player identity is keyed by name throughout every game module's in-progress
+    // state (seats, hands, votes, turn order, ...), so renaming mid-game would
+    // silently desync all of it - only allow it between games.
+    if (room.phase !== 'lobby') {
+      return callback({ ok: false, error: 'Can only change your name in the lobby' });
+    }
+
+    const oldName = socket.data.name;
+    const newName = ((data && data.name) || '').trim();
+    const nameError = validateName(newName);
+    if (nameError) return callback({ ok: false, error: nameError });
+    if (newName === oldName) return callback({ ok: true, name: oldName, host: room.hostName });
+    if (room.players.has(newName)) {
+      return callback({ ok: false, error: 'That name is taken' });
+    }
+
+    const player = room.players.get(oldName);
+    room.players.delete(oldName);
+    room.players.set(newName, player);
+    socket.data.name = newName;
+
+    // Carry the score over to the new name instead of starting it back at zero -
+    // merge rather than overwrite in case a past (disconnected) player already
+    // holds points under that name.
+    if (room.scoreboard && Object.prototype.hasOwnProperty.call(room.scoreboard, oldName)) {
+      room.scoreboard[newName] = (Number(room.scoreboard[newName]) || 0) + (Number(room.scoreboard[oldName]) || 0);
+      delete room.scoreboard[oldName];
+    }
+
+    if (room.hostName === oldName) room.hostName = newName;
+
+    broadcastLobby(roomCode, room);
+    callback({ ok: true, name: newName, host: room.hostName });
   });
 
   socket.on('chooseGame', (selectedGame, callback) => {
@@ -370,6 +420,7 @@ function registerLobbyHandlers(socket) {
     // trying to join a game already in progress.
     p.connected = false;
     if (name === room.hostName) {
+      p.wasHost = true;
       const [nextHost] = connectedNames(room);
       setHost(roomCode, room, nextHost || null);
     }
