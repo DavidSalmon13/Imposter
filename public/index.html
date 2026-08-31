@@ -30,19 +30,16 @@
   <main class="app-main">
     <section id="join-screen" class="screen">
       <h1>Shorot</h1>
-      <p class="muted">Create a room and share the code, or join a friend's room.</p>
+      <p class="muted">Enter your name to join.</p>
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
-      <input id="room-code-input" type="text" placeholder="Room code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" />
       <div class="btn-row">
-        <button id="create-room-btn" class="secondary">Create room</button>
-        <button id="join-btn">Join room</button>
+        <button id="join-btn">Join</button>
       </div>
       <p id="join-error" class="error"></p>
     </section>
 
     <section id="lobby-screen" class="screen hidden">
       <h1>Lobby</h1>
-      <p id="room-code-display" class="room-code-display"></p>
       <p id="lobby-count" class="muted">0 joined</p>
       <ul id="lobby-list" class="player-list"></ul>
       <div id="scoreboard-section" class="scoreboard-section">
