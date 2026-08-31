@@ -57,6 +57,7 @@ const aiofBuyinSlider = document.getElementById('aiof-buyin-slider');
 const aiofBuyinValue = document.getElementById('aiof-buyin-value');
 const aiofBuyinConfirmBtn = document.getElementById('aiof-buyin-confirm-btn');
 const aiofBuyinCancelBtn = document.getElementById('aiof-buyin-cancel-btn');
+const aiofRebuyPicker = document.getElementById('aiof-rebuy-picker');
 const aiofRebuySlider = document.getElementById('aiof-rebuy-slider');
 const aiofRebuyValue = document.getElementById('aiof-rebuy-value');
 const aiofHandPanel = document.getElementById('aiof-hand-panel');
@@ -252,6 +253,7 @@ function renderBustPrompt(data) {
   aiofBustPanel.classList.toggle('hidden', !busted);
   if (!busted) {
     rebuySliderShown = false;
+    aiofRebuyPicker.classList.add('hidden');
     return;
   }
 
@@ -259,6 +261,9 @@ function renderBustPrompt(data) {
     ? "You're sitting out. Buy back in anytime to rejoin the next hand."
     : "You're out of chips! Rebuy or sit out?";
   aiofDeclineBuyInBtn.classList.toggle('hidden', !!mySeat.sittingOut);
+  // The slider markup starts hidden in the HTML - nothing else ever un-hides it, so this
+  // was the actual bug: a busted player never saw it and always rebought at the 150 default.
+  aiofRebuyPicker.classList.remove('hidden');
 
   // Set the slider to its default only the first time this bust prompt appears — table
   // broadcasts fire on essentially every other player's action too, and resetting on every
