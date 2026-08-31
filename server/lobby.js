@@ -371,9 +371,22 @@ function registerLobbyHandlers(socket) {
     const roomCode = socket.data.roomCode;
     const room = getRoom(socket);
     if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
 
     const name = socket.data.name;
+    // AIOF is the one game where non-participating players stay on this shared lobby
+    // screen for the whole match, in any of its own phases ('seating'/'playing'/'gameover'),
+    // not just the room-wide 'lobby' phase (see all-in-or-fold-plan.md's dual-entry note) -
+    // so they need to be able to leave from here too. A seated player has to leave their
+    // seat first (aiofLeaveTable), since this generic path doesn't clean up
+    // aiofSeats/dealer/turn-order state the way that does.
+    if (room.game === 'allinorfold') {
+      if (room.aiofSeats.includes(name)) {
+        return callback({ ok: false, error: 'Leave your seat at the table first' });
+      }
+    } else if (room.phase !== 'lobby') {
+      return callback({ ok: false, error: 'Only available in the lobby' });
+    }
+
     room.players.delete(name);
     if (name === room.hostName) {
       const [nextHost] = connectedNames(room);

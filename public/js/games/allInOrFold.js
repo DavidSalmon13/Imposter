@@ -87,6 +87,12 @@ const aiofBackBtn = document.getElementById('aiof-back-btn');
 let ctx = null;
 let aiofAtTable = false;
 let lastData = null;
+// Tracks the last server-committed pre-Start stack the buy-in slider was synced from, and
+// whether the rebuy slider's one-time default has already been set for the current bust -
+// both guard against a broadcast (from anyone's action at the table) clobbering a value the
+// player has dragged but not yet submitted. See renderBuyinPicker/renderBustPrompt.
+let lastSyncedBuyinStack = null;
+let rebuySliderShown = false;
 
 function trySitSeat(seatIndex) {
   aiofError.textContent = '';
@@ -244,35 +250,46 @@ function renderBustPrompt(data) {
   const mySeat = data.mySeatIndex >= 0 ? data.seats[data.mySeatIndex] : null;
   const busted = data.phase === 'playing' && !!mySeat && mySeat.stack === 0;
   aiofBustPanel.classList.toggle('hidden', !busted);
-  if (!busted) return;
+  if (!busted) {
+    rebuySliderShown = false;
+    return;
+  }
 
   aiofBustText.textContent = mySeat.sittingOut
     ? "You're sitting out. Buy back in anytime to rejoin the next hand."
     : "You're out of chips! Rebuy or sit out?";
   aiofDeclineBuyInBtn.classList.toggle('hidden', !!mySeat.sittingOut);
 
-  // Only resets the slider to the default when it isn't the one currently focused — avoids
-  // clobbering an in-progress drag every time a broadcast arrives mid-decision.
-  if (document.activeElement !== aiofRebuySlider) {
+  // Set the slider to its default only the first time this bust prompt appears — table
+  // broadcasts fire on essentially every other player's action too, and resetting on every
+  // one of them (the old behavior) clobbered a rebuy amount the player had dragged to but
+  // not yet submitted, silently sending 150 instead of what they picked.
+  if (!rebuySliderShown) {
     aiofRebuySlider.value = '150';
     aiofRebuyValue.textContent = aiofRebuySlider.value;
+    rebuySliderShown = true;
   }
 }
 
-/** Pre-Start buy-in slider: only for a seated player before the host clicks Start. Syncs
- * from the server-known stack (their pending buy-in, since nothing's been wagered yet)
- * unless the slider is the currently-focused element, so a live drag isn't overwritten by
- * the next broadcast. */
+/** Pre-Start buy-in slider: only for a seated player before the host clicks Start. Only
+ * re-syncs the displayed value when the server-known stack (their pending buy-in, since
+ * nothing's been wagered yet) actually changes - i.e. after this player's own Confirm - not
+ * on every broadcast, so someone else sitting down or adjusting their own buy-in elsewhere
+ * at the table doesn't reset this player's in-progress, unconfirmed drag back to 150. */
 function renderBuyinPicker(data) {
   const hasSeat = data.mySeatIndex != null && data.mySeatIndex >= 0;
   const show = data.phase === 'seating' && hasSeat;
   aiofBuyinPicker.classList.toggle('hidden', !show);
-  if (!show) return;
+  if (!show) {
+    lastSyncedBuyinStack = null;
+    return;
+  }
 
-  if (document.activeElement !== aiofBuyinSlider) {
-    const stack = data.seats[data.mySeatIndex].stack;
+  const stack = data.seats[data.mySeatIndex].stack;
+  if (stack !== lastSyncedBuyinStack) {
     aiofBuyinSlider.value = String(stack);
     aiofBuyinValue.textContent = String(stack);
+    lastSyncedBuyinStack = stack;
   }
 }
 
@@ -540,5 +557,7 @@ export const AllInOrFold = {
   stop() {
     aiofAtTable = false;
     lastData = null;
+    lastSyncedBuyinStack = null;
+    rebuySliderShown = false;
   },
 };

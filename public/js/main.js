@@ -428,7 +428,10 @@ renameBtn.addEventListener('click', () => {
 exitLobbyBtn.addEventListener('click', () => {
   if (!confirm('Leave this room?')) return;
   socket.emit('leaveLobby', (res) => {
-    if (!res || !res.ok) return;
+    if (!res || !res.ok) {
+      alert((res && res.error) || 'Could not leave');
+      return;
+    }
     localStorage.removeItem('imposterRoom');
     myRoomCode = '';
     applyBackground(null);
