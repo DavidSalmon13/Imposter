@@ -53,8 +53,8 @@ body {
   font-size: 1.15rem;
   font-weight: 600;
   letter-spacing: 0.06em;
-  border-bottom: 3px solid var(--border-strong);
-  background: var(--glass-bg-strong);
+  border-bottom: none;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
