@@ -6,12 +6,12 @@
 }
 
 :root {
-  --bg: #341008;
+  --bg: #2b1509;
   --text: #fff8ee;
-  --muted: #ffcf7a;
-  --accent: #ff6b57;
-  --accent-2: #ffcf7a;
-  --accent-text: #240b06;
+  --muted: #ffd98f;
+  --accent: #f2884a;
+  --accent-2: #f0c96b;
+  --accent-text: #2b1305;
   --danger: #ff6b78;
   --success: #3fd79a;
   --radius: 12px;
@@ -20,13 +20,15 @@
   --team-neutral: #a7aabb;
   --team-assassin: #f5f5f9;
 
-  --glass-bg: #241812;
-  --glass-bg-strong: #1c0f09;
-  --glass-border: rgba(243, 226, 200, 0.32);
-  --glass-highlight: rgba(255, 248, 238, 0.08);
-  --border-strong: #f3e2c8;
-  --shadow-soft: 4px 4px 0 rgba(20, 8, 4, 0.4);
-  --shadow-lift: 6px 7px 0 rgba(20, 8, 4, 0.42);
+  --glass-bg: rgba(37, 22, 12, 0.88);
+  --glass-bg-strong: rgba(24, 13, 7, 0.92);
+  --glass-border: rgba(240, 201, 107, 0.35);
+  --glass-highlight: rgba(255, 248, 238, 0.1);
+  --border-strong: #f0c96b;
+  --shadow-soft: 4px 4px 0 rgba(15, 6, 2, 0.5);
+  --shadow-lift: 6px 8px 0 rgba(15, 6, 2, 0.52);
+  --bevel-hi: inset 0 2px 0 rgba(255, 255, 255, 0.28);
+  --bevel-lo: inset 0 -3px 0 rgba(0, 0, 0, 0.22);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -38,10 +40,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background: var(--bg) url('images/bg-gamenight.jpg') center / contain no-repeat fixed;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   display: flex;
@@ -60,6 +59,12 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+}
+
+.app-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 }
 
 .bg-controls {
@@ -110,8 +115,9 @@ body {
   width: 100%;
   max-width: 420px;
   background: var(--glass-bg);
+  backdrop-filter: blur(6px);
   border: 3px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: 20px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
@@ -122,6 +128,31 @@ body {
 
 .screen.hidden {
   display: none;
+}
+
+#join-screen,
+#lobby-screen {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 2rem 1.25rem;
+}
+
+#join-screen h1,
+#join-screen .muted,
+#join-screen .error,
+#lobby-screen h1,
+#lobby-screen .muted,
+#lobby-screen .error,
+#lobby-screen .scoreboard-heading {
+  text-shadow: 0 2px 4px rgba(10, 4, 1, 0.85), 0 1px 14px rgba(10, 4, 1, 0.6);
+}
+
+#join-screen input[type="text"] {
+  background: rgba(20, 10, 5, 0.35);
+  backdrop-filter: blur(3px);
+  border: 2px solid var(--glass-border);
 }
 
 .hidden {
@@ -160,8 +191,8 @@ h1 {
 input[type="text"] {
   width: 100%;
   padding: 0.85rem 0.9rem;
-  border-radius: 12px;
-  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  border: 2px solid var(--glass-border);
   background: var(--glass-bg-strong);
   color: var(--text);
   font-size: 1rem;
@@ -183,26 +214,28 @@ input[type="text"]:focus-visible {
 button {
   width: 100%;
   padding: 0.85rem 1rem;
-  border-radius: 12px;
-  border: 2px solid var(--border-strong);
-  background: var(--accent);
+  border-radius: 999px;
+  border: 3px solid var(--border-strong);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 100%, white 18%) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 100%, black 15%) 100%);
   color: var(--accent-text);
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 1rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
   min-height: 48px;
   transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease), opacity 0.15s var(--ease);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
 }
 
 button:hover:not(:disabled) {
   transform: translate(-1px, -2px);
-  box-shadow: var(--shadow-lift);
+  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
 }
 
 button:active:not(:disabled) {
   transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(20, 8, 4, 0.4);
+  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
 }
 
 button:focus-visible {
@@ -217,16 +250,20 @@ button:disabled {
 }
 
 button.secondary {
-  background: transparent;
-  border: 2px solid var(--border-strong);
+  background: var(--glass-bg-strong);
+  border: 3px solid var(--border-strong);
   color: var(--text);
-  box-shadow: none;
+  box-shadow: var(--shadow-soft);
 }
 
 button.secondary:hover:not(:disabled) {
   background: var(--glass-highlight);
-  box-shadow: none;
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+  transform: translate(-1px, -2px);
+}
+
+button.secondary:active:not(:disabled) {
+  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5);
 }
 
 .btn-row {
@@ -277,7 +314,7 @@ button.secondary:hover:not(:disabled) {
 .player-list li {
   background: var(--glass-bg-strong);
   border: 2px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 0.6rem 0.75rem;
   animation: item-in 0.25s var(--ease);
 }
@@ -360,74 +397,101 @@ button.secondary:hover:not(:disabled) {
 }
 
 .game-choice {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
 .game-tile {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.3rem;
+  gap: 0.6rem;
   width: 100%;
-  min-height: 116px;
-  padding: 1rem 0.6rem;
-  border-radius: 14px;
+  min-height: 60px;
+  padding: 0.9rem 1.4rem;
+  border-radius: 999px;
   border: 3px solid var(--border-strong);
-  background: var(--tile-a);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tile-a) 100%, white 18%) 0%, var(--tile-a) 55%, color-mix(in srgb, var(--tile-a) 100%, black 15%) 100%);
   text-align: center;
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
   transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease);
 }
 
 .game-tile:hover:not(:disabled) {
   transform: translate(-1px, -2px);
-  box-shadow: var(--shadow-lift);
+  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
 }
 
 .game-tile:active:not(:disabled) {
   transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(20, 8, 4, 0.4);
+  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
 }
 
 .game-tile-icon {
-  font-size: 1.9rem;
+  font-size: 1.5rem;
   line-height: 1;
 }
 
 .game-tile-name {
   font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
-.game-tile-sub {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--accent-text);
-  opacity: 0.85;
+.icon-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.3rem;
+}
+
+.icon-btn {
+  width: 52px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0;
+  flex: none;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-bg-strong);
+  border: 3px solid var(--border-strong);
+  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
+}
+
+.icon-btn:hover:not(:disabled) {
+  transform: translate(-1px, -2px);
+  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
 }
 
 /* Cycles through a warm palette so new tiles added later stay on-theme automatically. */
 .game-tile:nth-of-type(4n + 1) {
-  --tile-a: #ff8a65;
+  --tile-a: #ef7d4f;
 }
 
 .game-tile:nth-of-type(4n + 2) {
-  --tile-a: #2dd4bf;
+  --tile-a: #7fae5e;
 }
 
 .game-tile:nth-of-type(4n + 3) {
-  --tile-a: #ffcb47;
+  --tile-a: #f0c96b;
 }
 
 .game-tile:nth-of-type(4n) {
-  --tile-a: #ff8fd0;
+  --tile-a: #d97757;
 }
 
 .scoreboard-section {
@@ -462,7 +526,7 @@ button.secondary:hover:not(:disabled) {
   gap: 0.75rem;
   background: var(--glass-bg-strong);
   border: 2px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 0.55rem 0.75rem;
   font-variant-numeric: tabular-nums;
 }

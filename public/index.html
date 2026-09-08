@@ -25,7 +25,7 @@
     <div id="sound-controls" class="bg-controls sound-controls">
       <button id="mute-btn" class="bg-btn" type="button" title="Mute sound">🔊</button>
     </div>
-    🎉 Shorot
+    <img class="app-logo" src="images/logo-shorot.png" alt="Shorot" />
     <div id="bg-controls" class="bg-controls hidden">
       <button id="bg-change-btn" class="bg-btn" type="button" title="Change background">🖼️</button>
       <button id="bg-clear-btn" class="bg-btn hidden" type="button" title="Reset background">✕</button>
@@ -36,8 +36,6 @@
 
   <main class="app-main">
     <section id="join-screen" class="screen">
-      <h1>Shorot</h1>
-      <p class="muted">Enter your name to join.</p>
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
       <div class="btn-row">
         <button id="join-btn">Join</button>
@@ -46,14 +44,11 @@
     </section>
 
     <section id="lobby-screen" class="screen hidden">
-      <h1>Lobby</h1>
       <p id="lobby-count" class="muted">0 joined</p>
       <ul id="lobby-list" class="player-list"></ul>
-      <button id="rename-btn" class="secondary" type="button">Change my name</button>
       <div id="scoreboard-section" class="scoreboard-section">
         <h2 class="scoreboard-heading">Scoreboard</h2>
         <ol id="scoreboard-list" class="scoreboard-list"></ol>
-        <button id="reset-scoreboard-btn" class="secondary hidden" type="button">Reset Scoreboard</button>
       </div>
       <div id="word-language-section" class="cn-timer-section hidden">
         <p class="muted">ChatGPT word language (Imposter &amp; Codenames)</p>
@@ -66,32 +61,26 @@
         <button id="choose-imposter-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🕵️</span>
           <span class="game-tile-name">Imposter</span>
-          <span class="game-tile-sub">Spot who's faking it</span>
         </button>
         <button id="choose-codenames-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🔴🔵</span>
           <span class="game-tile-name">Codenames</span>
-          <span class="game-tile-sub">Team word-guessing duel</span>
         </button>
         <button id="choose-tenseconds-btn" class="game-tile" type="button">
           <span class="game-tile-icon">⏱️</span>
           <span class="game-tile-name">10 Seconds</span>
-          <span class="game-tile-sub">Stop the clock exactly</span>
         </button>
         <button id="choose-menifot-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🃏</span>
           <span class="game-tile-name">Menifot</span>
-          <span class="game-tile-sub">Split your hand, win boards</span>
         </button>
         <button id="choose-kartrace-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🏎️</span>
           <span class="game-tile-name">Kart Race</span>
-          <span class="game-tile-sub">Race the shared track</span>
         </button>
         <button id="choose-musictimeline-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🎵</span>
           <span class="game-tile-name">Music Timeline</span>
-          <span class="game-tile-sub">Build your chronological playlist</span>
         </button>
       </div>
       <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: unlike every
@@ -102,12 +91,15 @@
         <button id="choose-allinorfold-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🎰</span>
           <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
-          <span class="game-tile-sub">Shove or fold, no in-between</span>
         </button>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
-      <button id="exit-lobby-btn" class="secondary" type="button">Exit Lobby</button>
+      <div class="icon-row">
+        <button id="rename-btn" class="icon-btn" type="button" title="Change my name" aria-label="Change my name">✏️</button>
+        <button id="reset-scoreboard-btn" class="icon-btn hidden" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
+        <button id="exit-lobby-btn" class="icon-btn" type="button" title="Exit Lobby" aria-label="Exit Lobby">🚪</button>
+      </div>
     </section>
 
     <!-- Imposter -->
