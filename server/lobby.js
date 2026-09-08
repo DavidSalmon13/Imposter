@@ -167,7 +167,12 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback) {
     return callback(payload);
   }
 
-  if (room.phase !== 'lobby') {
+  // All-In or Fold's dual-entry design deliberately lets brand-new players join the shared
+  // room while a table is already 'playing' — they land on the lobby screen (via the
+  // reconnectPayload's atLobby flag below) with the tile in "Rejoin" mode, and only enter
+  // the actual table via the separate `enterAllInOrFold`/`aiofSitSeat` handlers, which
+  // already accept brand-new seats mid-match. Every other game keeps the hard gate.
+  if (room.phase !== 'lobby' && room.game !== 'allinorfold') {
     return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
   }
 
@@ -187,18 +192,15 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback) {
   attachToRoom(socket, roomCode, room, name);
   if (!room.hostName) setHost(roomCode, room, name);
   broadcastLobby(roomCode, room);
-  callback({
-    ok: true,
-    game: null,
-    phase: 'lobby',
-    players: connectedNames(room),
-    host: room.hostName,
-    roomCode,
-    background: room.backgroundImage,
-    scoreboard: scoreboardEntries(room),
-    wordLanguage: room.wordLanguage || 'english',
-    wordTheme: room.wordTheme || '',
-  });
+
+  // Built from the same reconnectPayload used for reconnecting players (rather than a
+  // hardcoded { game: null, phase: 'lobby' }) so a brand-new join during an active
+  // All-In or Fold match correctly reports `atLobby`/`game` instead of lying about the
+  // room's real state.
+  const payload = reconnectPayload(room, room.players.get(name));
+  payload.roomCode = roomCode;
+  payload.background = room.backgroundImage;
+  callback(payload);
 }
 
 function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT }) {
