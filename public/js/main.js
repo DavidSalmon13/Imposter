@@ -67,7 +67,6 @@ const cnBackBtn = document.getElementById('cn-back-btn');
 const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
 const tsBackBtn = document.getElementById('ts-back-btn');
 const mfBackBtn = document.getElementById('mf-back-btn');
-const krBackBtn = document.getElementById('kr-back-btn');
 const mtBackBtn = document.getElementById('mt-back-btn');
 const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
 const aiofBackBtn = document.getElementById('aiof-back-btn');
@@ -121,7 +120,6 @@ function setHost(hostName) {
   cnTeamBackBtn.classList.remove('hidden');
   tsBackBtn.classList.remove('hidden');
   mfBackBtn.classList.remove('hidden');
-  krBackBtn.classList.remove('hidden');
   mtBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
   aiofBackBtn.classList.remove('hidden');
@@ -308,11 +306,10 @@ muteBtn.addEventListener('click', () => {
 });
 refreshMuteBtn();
 
-// Light tap feedback on every button press, except held racing controls
-// (accelerate/steer/brake), which fire far too rapidly for a per-tap cue.
+// Light tap feedback on every button press.
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (!btn || btn.disabled || btn.closest('#kr-controls')) return;
+  if (!btn || btn.disabled) return;
   sfx.click();
   haptics.tap();
 });
