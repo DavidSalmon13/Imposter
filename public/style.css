@@ -1569,12 +1569,19 @@ button.secondary:active:not(:disabled) {
 
 .aiof-table {
   position: relative;
-  /* Width-driven sizing with a viewport-height guard so table + top/bottom bars always fit
-     on one phone screen without scrolling. */
-  width: min(100%, calc((100dvh - 11.5rem) * 0.72), 26rem);
+  /* Grows to fill whatever vertical space is left after the top/bottom bars — no guessed
+     "reserved chrome height" constant, the flex layout measures it for real. Width then
+     derives from that height via aspect-ratio (auto width takes priority over the column's
+     default stretch when a preferred aspect ratio is set), so the table naturally fills
+     the tall phone screens it's designed for; max-width is just a safety net against
+     horizontal overflow on very short/wide viewports. */
+  flex: 1 1 0;
+  min-height: 0;
+  width: auto;
+  max-width: 100%;
   aspect-ratio: 0.72;
-  margin: 0.2rem auto;
-  flex: none;
+  align-self: center;
+  margin: 0.2rem 0;
 }
 
 .aiof-table-felt {
@@ -1799,11 +1806,16 @@ button.aiof-seat-open:hover {
   margin-left: -0.72rem;
 }
 
-/* The dealer button: a small yellow "D" disc sitting on the felt next to the dealer's
-   seat (positioned per slot by .aiof-spot-slot-N), like the refs — not a ring around
-   the whole seat. */
-.aiof-dealer-disc {
+/* The dealer button: a small yellow "D" disc on the plaque's corner — not on the felt
+   near the fan (a felt position tuned for small opponent fans collided with the viewer's
+   own wide 6-card fan at the bottom seat, hiding their first hole card) and not a ring
+   around the whole seat. The plaque sits below every seat's fan, so this can never
+   overlap cards. */
+.aiof-seat-dealer-disc {
   position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  z-index: 2;
   width: 1.1rem;
   height: 1.1rem;
   display: flex;
@@ -1816,7 +1828,6 @@ button.aiof-seat-open:hover {
   font-weight: 800;
   border: 1px solid rgba(0, 0, 0, 0.45);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
-  transform: translate(-50%, -50%);
 }
 
 .aiof-seat-turn .aiof-seat-plaque {
@@ -2017,13 +2028,6 @@ button.aiof-seat-open:hover {
 .aiof-spot-slot-3 { top: 22%; left: 50%; }
 .aiof-spot-slot-4 { top: 37%; left: 34%; }
 .aiof-spot-slot-5 { top: 63%; left: 34%; }
-
-.aiof-dealer-disc.aiof-spot-slot-0 { top: 78%; left: 37%; }
-.aiof-dealer-disc.aiof-spot-slot-1 { top: 55%; left: 73%; }
-.aiof-dealer-disc.aiof-spot-slot-2 { top: 45%; left: 73%; }
-.aiof-dealer-disc.aiof-spot-slot-3 { top: 20%; left: 37%; }
-.aiof-dealer-disc.aiof-spot-slot-4 { top: 45%; left: 27%; }
-.aiof-dealer-disc.aiof-spot-slot-5 { top: 55%; left: 27%; }
 
 .aiof-seat-out-label {
   font-size: 0.6rem;

@@ -469,6 +469,18 @@ function render(data) {
         outEl.textContent = 'sitting out';
         plaqueEl.appendChild(outEl);
       }
+
+      // Dealer "D" disc: anchored to the plaque's corner, not the felt — a felt position
+      // tuned for small opponent fans collided with the viewer's own big fan at the bottom
+      // seat (6 overlapping cards, wider than any other seat's), hiding the dealer's first
+      // hole card behind the disc. The plaque sits below the fan for every seat, so a
+      // corner badge there can never overlap cards regardless of fan size.
+      if (i === data.dealerSeat && data.phase === 'playing') {
+        const discEl = document.createElement('span');
+        discEl.className = 'aiof-seat-dealer-disc';
+        discEl.textContent = 'D';
+        plaqueEl.appendChild(discEl);
+      }
       el.appendChild(plaqueEl);
 
       // Winner treatment during the between-hands pause: gold plaque glow + floating "+N".
@@ -481,8 +493,8 @@ function render(data) {
         el.appendChild(wonEl);
       }
 
-      // Felt spots for this seat: posted chips (blind/shove) between seat and pot while a
-      // hand is live, and the dealer's "D" disc.
+      // Felt spot for this seat's posted chips (blind/shove), between the seat and the pot
+      // while a hand is live.
       const contributed = data.hand ? (data.hand.contributions || {})[seat.name] || 0 : 0;
       if (contributed > 0) {
         const betEl = document.createElement('span');
@@ -492,12 +504,6 @@ function render(data) {
         amountEl.textContent = `${contributed}`;
         betEl.appendChild(amountEl);
         aiofFeltSpots.appendChild(betEl);
-      }
-      if (i === data.dealerSeat && data.phase === 'playing') {
-        const discEl = document.createElement('span');
-        discEl.className = `aiof-dealer-disc aiof-spot-slot-${slot}`;
-        discEl.textContent = 'D';
-        aiofFeltSpots.appendChild(discEl);
       }
     } else {
       el.classList.add('aiof-seat-open');
