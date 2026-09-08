@@ -2,7 +2,6 @@ const imposter = require('./games/imposter');
 const codenames = require('./games/codenames');
 const tenseconds = require('./games/tenseconds');
 const menifot = require('./games/menifot');
-const kartrace = require('./games/kartRace');
 const musictimeline = require('./games/musicTimeline');
 const allinorfold = require('./games/allInOrFold');
 
@@ -11,7 +10,6 @@ const GAMES = {
   codenames,
   tenseconds,
   menifot,
-  kartrace,
   musictimeline,
   allinorfold,
 };

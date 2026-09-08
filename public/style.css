@@ -1192,63 +1192,6 @@ button.secondary:active:not(:disabled) {
   }
 }
 
-/* ---------- Kart Race ---------- */
-
-#kart-race-screen {
-  max-width: 480px;
-}
-
-#kr-race-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-#kr-race-panel.hidden {
-  display: none;
-}
-
-#kr-canvas {
-  width: 100%;
-  height: 260px;
-  display: block;
-  border-radius: 10px;
-  background: #2a3340;
-  touch-action: none;
-}
-
-#kr-countdown {
-  margin: 0;
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-#kr-hud {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-#kr-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.2fr;
-  gap: 0.45rem;
-}
-
-#kr-controls button {
-  min-height: 3rem;
-  font-size: 1rem;
-  user-select: none;
-  touch-action: none;
-}
-
-#kr-item-btn {
-  grid-column: 1 / -1;
-}
-
 /* ---------- Menifot ---------- */
 
 #mf-screen {
@@ -1557,7 +1500,16 @@ button.secondary:active:not(:disabled) {
 /* All-In or Fold — a literal round poker table: seats sit on the rail around an oval felt,
    with the pot and community cards open in the middle (GG Poker-style layout). The viewer's
    own seat is always rotated to the bottom slot by the client (see allInOrFold.js), so it
-   reads as "sitting at" the table rather than a fixed seat-1..6 list. */
+   reads as "sitting at" the table rather than a fixed seat-1..6 list.
+
+   This screen intentionally breaks from the app's warm illustrated theme — real poker
+   clients read as a dark, neutral "casino" backdrop, so #aiof-screen overrides the shared
+   .screen panel color instead of reusing --glass-bg. */
+#aiof-screen {
+  background: #121317;
+  border-color: #34363d;
+}
+
 .aiof-table {
   position: relative;
   width: 100%;
@@ -1652,10 +1604,10 @@ button.secondary:active:not(:disabled) {
 
 .aiof-seat-occupied {
   border-style: solid;
-  border-color: rgba(0, 0, 0, 0.2);
-  background: linear-gradient(160deg, #fffdf7 0%, #efe8d8 100%);
-  color: #1a1a1a;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(160deg, #2b2e35 0%, #17181c 100%);
+  color: #f4f4f6;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .aiof-seat-sitting-out {
@@ -1733,6 +1685,9 @@ button.secondary:active:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  padding: 0.06rem 0.4rem;
+  border-radius: 999px;
+  background: #2f6fed;
 }
 
 /* Tiered chip stack: a small tower of stacked discs whose color AND height (disc count,
@@ -1780,6 +1735,7 @@ button.secondary:active:not(:disabled) {
 .aiof-seat-stack {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  color: #fff;
 }
 
 .aiof-seat-cards {
@@ -1825,8 +1781,9 @@ button.secondary:active:not(:disabled) {
   gap: 0.4rem;
   padding: 0.3rem 0.85rem;
   border-radius: 999px;
-  background: #ffcb47;
-  color: #1a1a1a;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1944,20 +1901,32 @@ button.secondary:active:not(:disabled) {
   opacity: 0.82;
 }
 
-.aiof-card.aiof-suit-h {
+.aiof-card.aiof-suit-h,
+.aiof-card.aiof-suit-d {
   color: #c0272b;
 }
 
-.aiof-card.aiof-suit-d {
-  color: #8b2fc9;
-}
-
-.aiof-card.aiof-suit-c {
+.aiof-card.aiof-suit-c,
+.aiof-card.aiof-suit-s {
   color: #1a1a1a;
 }
 
-.aiof-card.aiof-suit-s {
-  color: #9a7300;
+/* Decision buttons break from the app's pill/gradient button language on purpose, matching
+   the reference poker clients' rectangular red action bar instead. */
+#aiof-allin-btn,
+#aiof-fold-btn {
+  border-radius: 14px;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+#aiof-allin-btn {
+  background: linear-gradient(180deg, #e5484d 0%, #c53030 55%, #9b2226 100%);
+}
+
+#aiof-fold-btn {
+  background: linear-gradient(180deg, #4a3234 0%, #362224 55%, #241717 100%);
+  box-shadow: var(--shadow-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {

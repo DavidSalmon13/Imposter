@@ -19,7 +19,6 @@ export const screens = {
   codenamesGameover: document.getElementById('codenames-gameover-screen'),
   tensSeconds: document.getElementById('ts-screen'),
   menifot: document.getElementById('mf-screen'),
-  kartRace: document.getElementById('kart-race-screen'),
   musicTimeline: document.getElementById('mt-screen'),
   allInOrFold: document.getElementById('aiof-screen'),
 };

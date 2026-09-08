@@ -2,7 +2,6 @@
  * Client bootstrap: socket, lobby/join/create, screen routing, game module inits.
  */
 
-import { KartRace } from './games/kartRace.js';
 import { Imposter } from './games/imposter.js';
 import { Codenames } from './games/codenames.js';
 import { TensSeconds } from './games/tenseconds.js';
@@ -24,7 +23,6 @@ const socket = io();
 const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
-const KR_MIN_PLAYERS = 2;
 const MT_MIN_PLAYERS = 2;
 const AIOF_MIN_PLAYERS = 2;
 
@@ -50,7 +48,6 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
-const chooseKartRaceBtn = document.getElementById('choose-kartrace-btn');
 const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
 const chooseAllInOrFoldName = document.getElementById('choose-allinorfold-name');
@@ -205,12 +202,11 @@ function renderLobby(players, scoreboard) {
   chooseImposterBtn.disabled = players.length < MIN_PLAYERS;
   chooseCodenamesBtn.disabled = players.length < CN_MIN_PLAYERS;
   chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
-  chooseKartRaceBtn.disabled = players.length < KR_MIN_PLAYERS;
   chooseMusicTimelineBtn.disabled = players.length < MT_MIN_PLAYERS;
   lastLobbyPlayerCount = players.length;
   updateAiofTile();
   if (players.length < MIN_PLAYERS) {
-    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds / Kart Race, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
+    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
   } else if (players.length < CN_MIN_PLAYERS) {
     chooseError.textContent = `Need at least ${CN_MIN_PLAYERS} players for Codenames`;
   } else {
@@ -237,7 +233,6 @@ const gameCtx = {
   applyWordTheme,
 };
 
-KartRace.init(socket);
 Imposter.init(gameCtx);
 Codenames.init(gameCtx);
 TensSeconds.init(gameCtx);
@@ -252,15 +247,6 @@ const GAMES = {
   menifot: Menifot,
   musictimeline: MusicTimeline,
   allinorfold: AllInOrFold,
-  kartrace: {
-    applyJoin(res) {
-      KartRace.applyState(res);
-      showScreen('kartRace');
-    },
-    stop() {
-      KartRace.stop();
-    },
-  },
 };
 
 function handleJoinResult(res, name) {
@@ -369,13 +355,6 @@ chooseTensSecondsBtn.addEventListener('click', () => {
 chooseMenifotBtn.addEventListener('click', () => {
   chooseError.textContent = '';
   socket.emit('chooseGame', 'menifot', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
-  });
-});
-
-chooseKartRaceBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
-  socket.emit('chooseGame', 'kartrace', (res) => {
     if (!res.ok) chooseError.textContent = res.error;
   });
 });
@@ -517,11 +496,6 @@ socket.on('gameChosen', ({ game }) => {
 
 socket.on('generating', ({ game }) => {
   showGenerating(game || currentGame);
-});
-
-socket.on('krState', (data) => {
-  KartRace.applyState(data);
-  showScreen('kartRace');
 });
 
 socket.on('backToLobby', () => {

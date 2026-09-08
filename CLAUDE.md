@@ -64,7 +64,7 @@ disconnect/reconnect socket handlers that delegate into the active game via
 **Frontend** (`public/`): `index.html` + `style.css` + ES modules under `public/js/`
 (`main.js` bootstrap/lobby, `shared/` helpers, `games/<name>.js` per game). Entry is
 `<script type="module" src="js/main.js">`. Each game module exports
-`init` / `applyState` (or `applyJoin`) / `stop`, matching the Kart Race client pattern.
+`init` / `applyState` (or `applyJoin`) / `stop`, matching the Menifot client pattern.
 
 ## Testing
 

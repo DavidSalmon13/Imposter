@@ -1,7 +1,7 @@
 # Music Timeline — Specs
 
-A same-room party music game inspired by HITSTER, sixth game in this app alongside Imposter,
-Codenames, 10 Seconds, Menifot, and Kart Race. Teams (or solo players) each build their own
+A same-room party music game inspired by HITSTER, one of several games in this app alongside
+Imposter, Codenames, 10 Seconds, and Menifot. Teams (or solo players) each build their own
 chronological timeline of songs, starting from nothing. Each turn is push-your-luck: the server
 asks ChatGPT for one song (title + artist + release year, kept secret from everyone except the
 DJ team for that turn - the next team up in turn order); a DJ team member plays it out loud from
@@ -11,9 +11,9 @@ team chooses whether to draw another song (risking everything collected so far) 
 what they've collected. A single wrong placement anywhere in the turn loses everything collected
 that turn. First team to a target card count wins.
 
-## Relationship to Imposter / Codenames / 10 Seconds / Menifot / Kart Race / shared app changes
+## Relationship to Imposter / Codenames / 10 Seconds / Menifot / shared app changes
 
-- Sixth option on the "Choose a game" screen, same `chooseGame` socket event pattern:
+- One of the options on the "Choose a game" screen, same `chooseGame` socket event pattern:
   `room.game = 'musictimeline'`.
 - Reuses the shared lobby, host concept (first joiner, reassigned on disconnect), room-code
   model, and the shared per-room `room.scoreboard` (see `scoreboard-specs.md`).

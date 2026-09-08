@@ -110,7 +110,7 @@ server/                    CommonJS (require/module.exports) — see doc 2 §12
   lib/
     shuffle.js, validateName.js, openai.js
   games/
-    imposter.js codenames.js tenseconds.js menifot.js menifot-eval.js musicTimeline.js kartRace.js
+    imposter.js codenames.js tenseconds.js menifot.js menifot-eval.js musicTimeline.js allInOrFold.js
 public/                     ES Modules (import/export) — see doc 2 §12, same syntax as React Native
   js/
     main.js                  bootstrap + lobby glue
