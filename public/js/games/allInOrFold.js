@@ -54,30 +54,32 @@ function makeAiofChipStackEl(value) {
 
 const aiofSubtitle = document.getElementById('aiof-subtitle');
 const aiofSeatsEl = document.getElementById('aiof-seats');
+const aiofFeltSpots = document.getElementById('aiof-felt-spots');
 const aiofTableCenter = document.getElementById('aiof-table-center');
+const aiofCenterMsg = document.getElementById('aiof-center-msg');
+const aiofBlindsInfo = document.getElementById('aiof-blinds-info');
 const aiofStartBtn = document.getElementById('aiof-start-btn');
 const aiofStartWaiting = document.getElementById('aiof-start-waiting');
 const aiofBuyinPicker = document.getElementById('aiof-buyin-picker');
+const aiofBuyinOpenBtn = document.getElementById('aiof-buyin-open-btn');
 const aiofBuyinSlider = document.getElementById('aiof-buyin-slider');
 const aiofBuyinValue = document.getElementById('aiof-buyin-value');
 const aiofBuyinConfirmBtn = document.getElementById('aiof-buyin-confirm-btn');
 const aiofBuyinCancelBtn = document.getElementById('aiof-buyin-cancel-btn');
+const aiofRebuyOpenBtn = document.getElementById('aiof-rebuy-open-btn');
+const aiofRebuyCloseBtn = document.getElementById('aiof-rebuy-close-btn');
 const aiofRebuyPicker = document.getElementById('aiof-rebuy-picker');
 const aiofRebuySlider = document.getElementById('aiof-rebuy-slider');
 const aiofRebuyValue = document.getElementById('aiof-rebuy-value');
-const aiofHandPanel = document.getElementById('aiof-hand-panel');
 const aiofPot = document.getElementById('aiof-pot');
 const aiofBoard = document.getElementById('aiof-board');
-const aiofHoleCards = document.getElementById('aiof-hole-cards');
 const aiofTurnStatus = document.getElementById('aiof-turn-status');
 const aiofDecisionBtns = document.getElementById('aiof-decision-btns');
 const aiofAllInBtn = document.getElementById('aiof-allin-btn');
 const aiofFoldBtn = document.getElementById('aiof-fold-btn');
 const aiofResultsPanel = document.getElementById('aiof-results-panel');
-const aiofResultsText = document.getElementById('aiof-results-text');
 const aiofNextHandBtn = document.getElementById('aiof-nexthand-btn');
 const aiofNextHandWaiting = document.getElementById('aiof-nexthand-waiting');
-const aiofWaitingText = document.getElementById('aiof-waiting-text');
 const aiofBustPanel = document.getElementById('aiof-bust-panel');
 const aiofBustText = document.getElementById('aiof-bust-text');
 const aiofBuyInBtn = document.getElementById('aiof-buyin-btn');
@@ -93,12 +95,19 @@ const aiofBackBtn = document.getElementById('aiof-back-btn');
 let ctx = null;
 let aiofAtTable = false;
 let lastData = null;
-// Tracks the last server-committed pre-Start stack the buy-in slider was synced from, and
-// whether the rebuy slider's one-time default has already been set for the current bust -
-// both guard against a broadcast (from anyone's action at the table) clobbering a value the
-// player has dragged but not yet submitted. See renderBuyinPicker/renderBustPrompt.
-let lastSyncedBuyinStack = null;
+// The pre-Start buy-in sheet is opened on demand (via the "Buy-in: N" button in the bottom
+// bar) rather than shown permanently, so it can't cover the host's Start button. Opening it
+// syncs the slider from the server-known stack once; broadcasts never touch the slider
+// while it's open, so other players' actions can't clobber an in-progress drag.
+let buyinSheetOpen = false;
+// Whether the rebuy slider's one-time default has already been set for the current bust —
+// guards against a broadcast (from anyone's action at the table) resetting a value the
+// player has dragged but not yet submitted. See renderBustPrompt.
 let rebuySliderShown = false;
+// A sitting-out player's rebuy sheet is opened on demand (via the "Buy back in" button)
+// rather than shown persistently — a permanent bottom sheet would cover the bottom bar,
+// including a sitting-out host's Next Hand button. See renderBustPrompt.
+let rebuySheetOpen = false;
 
 function trySitSeat(seatIndex) {
   aiofError.textContent = '';
@@ -147,15 +156,9 @@ function makeAiofCardEl(code) {
   return el;
 }
 
-function renderAiofCardRow(container, cards, emptyText) {
+function renderAiofCardRow(container, cards) {
   container.innerHTML = '';
-  if (!cards || !cards.length) {
-    const span = document.createElement('span');
-    span.className = 'muted';
-    span.textContent = emptyText;
-    container.appendChild(span);
-    return;
-  }
+  if (!cards) return;
   cards.forEach((code) => container.appendChild(makeAiofCardEl(code)));
 }
 
@@ -178,6 +181,29 @@ function seatCardsFor(data, name) {
   if (data.hand && data.hand.revealedHands) return data.hand.revealedHands[name] || null;
   if (!data.hand && data.results) return (data.results.holeCards || {})[name] || null;
   return null;
+}
+
+/** Per-winner won amounts for the last hand, replicating the server's exact split (floor
+ * share + remainder chips to winners in array order) so the floating "+N" matches what was
+ * actually credited to each stack. */
+function winningsFor(results) {
+  const map = {};
+  if (!results) return map;
+  if (results.uncontested) {
+    map[results.winners[0]] = results.potTotal;
+    return map;
+  }
+  (results.pots || []).forEach((pot) => {
+    if (!pot.winners.length) return;
+    const share = Math.floor(pot.amount / pot.winners.length);
+    let remainder = pot.amount - share * pot.winners.length;
+    pot.winners.forEach((name) => {
+      const extra = remainder > 0 ? 1 : 0;
+      if (extra) remainder -= 1;
+      map[name] = (map[name] || 0) + share + extra;
+    });
+  });
+  return map;
 }
 
 /** Union, across every pot layer, of the hole cards `name` actually used in their best hand
@@ -213,18 +239,29 @@ function equityTonesFor(equities) {
 function renderHand(data) {
   const hand = data.hand;
   const results = data.results;
-  aiofHandPanel.classList.toggle('hidden', !hand);
   aiofResultsPanel.classList.toggle('hidden', !(!hand && results));
 
   // The board stays open in the middle of the table through the results pause (not just
-  // while `hand` is live) — cards shouldn't vanish the instant a showdown resolves.
+  // while `hand` is live) — cards shouldn't vanish the instant a showdown resolves. During
+  // an active hand the center shows even before any board card is revealed (pot pill only),
+  // like a real table.
   const boardCards = hand ? hand.board : results ? results.board : null;
-  aiofTableCenter.classList.toggle('hidden', !boardCards);
-  renderAiofCardRow(aiofBoard, boardCards, 'Not yet revealed');
+  aiofTableCenter.classList.toggle('hidden', !(hand || boardCards));
+  renderAiofCardRow(aiofBoard, boardCards);
   aiofPot.classList.toggle('hidden', !hand);
+  aiofBlindsInfo.classList.toggle('hidden', !hand);
+
+  // Center-felt info line: last hand's outcome during the between-hands pause, and/or the
+  // waiting-for-players notice — the refs' centered lower-felt text block.
+  const msgs = [];
+  if (!hand && results) msgs.push(formatAiofResults(results));
+  if (data.waitingForPlayers) msgs.push('Waiting for players…');
+  aiofCenterMsg.textContent = msgs.join(' — ');
+  aiofCenterMsg.classList.toggle('hidden', !msgs.length);
 
   if (!hand) {
-    if (results) aiofResultsText.textContent = formatAiofResults(results);
+    aiofTurnStatus.textContent = '';
+    aiofDecisionBtns.classList.add('hidden');
     const isHost = ctx.getIsHost();
     aiofNextHandBtn.classList.toggle('hidden', !(isHost && data.canDealNextHand));
     aiofNextHandWaiting.classList.toggle('hidden', !(!isHost && data.canDealNextHand));
@@ -234,13 +271,8 @@ function renderHand(data) {
   aiofPot.innerHTML = '';
   aiofPot.appendChild(makeAiofChipStackEl(hand.potTotal));
   const potText = document.createElement('span');
-  potText.textContent = `Pot: ${hand.potTotal}`;
+  potText.textContent = `Total Pot: ${hand.potTotal}`;
   aiofPot.appendChild(potText);
-  renderAiofCardRow(
-    aiofHoleCards,
-    hand.myHoleCards,
-    data.mySeatIndex >= 0 ? 'You folded — no cards shown' : 'Spectating this hand'
-  );
 
   aiofTurnStatus.textContent =
     hand.stage === 'deciding'
@@ -254,18 +286,29 @@ function renderHand(data) {
 
 function renderBustPrompt(data) {
   const mySeat = data.mySeatIndex >= 0 ? data.seats[data.mySeatIndex] : null;
-  const busted = data.phase === 'playing' && !!mySeat && mySeat.stack === 0;
-  aiofBustPanel.classList.toggle('hidden', !busted);
-  if (!busted) {
+  const sittingOut = !!(mySeat && mySeat.sittingOut);
+  // Fresh bust: 0 stack between hands, rebuy/sit-out decision not yet made. `!data.hand`
+  // matters now that this is a bottom sheet over the table: a shoved stack is 0 mid-hand
+  // too, and an always-on check would slide the sheet over the reveal the player is
+  // watching. Covering the bottom bar here is safe — the server refuses to deal the next
+  // hand until every 0-stack player resolves, so Next Hand couldn't do anything anyway.
+  const mustDecide =
+    data.phase === 'playing' && !data.hand && !!mySeat && mySeat.stack === 0 && !sittingOut;
+  // Sitting out: no forced sheet (it would permanently cover the bottom bar, including a
+  // sitting-out host's Next Hand button) — a "Buy back in" button opens it on demand.
+  aiofRebuyOpenBtn.classList.toggle('hidden', !(sittingOut && !rebuySheetOpen));
+  const show = mustDecide || (sittingOut && rebuySheetOpen);
+  aiofBustPanel.classList.toggle('hidden', !show);
+  if (!show) {
     rebuySliderShown = false;
-    aiofRebuyPicker.classList.add('hidden');
     return;
   }
 
-  aiofBustText.textContent = mySeat.sittingOut
-    ? "You're sitting out. Buy back in anytime to rejoin the next hand."
+  aiofBustText.textContent = sittingOut
+    ? "You're sitting out. Buy back in to rejoin the next hand."
     : "You're out of chips! Rebuy or sit out?";
-  aiofDeclineBuyInBtn.classList.toggle('hidden', !!mySeat.sittingOut);
+  aiofDeclineBuyInBtn.classList.toggle('hidden', sittingOut);
+  aiofRebuyCloseBtn.classList.toggle('hidden', !sittingOut);
   // The slider markup starts hidden in the HTML - nothing else ever un-hides it, so this
   // was the actual bug: a busted player never saw it and always rebought at the 150 default.
   aiofRebuyPicker.classList.remove('hidden');
@@ -281,26 +324,19 @@ function renderBustPrompt(data) {
   }
 }
 
-/** Pre-Start buy-in slider: only for a seated player before the host clicks Start. Only
- * re-syncs the displayed value when the server-known stack (their pending buy-in, since
- * nothing's been wagered yet) actually changes - i.e. after this player's own Confirm - not
- * on every broadcast, so someone else sitting down or adjusting their own buy-in elsewhere
- * at the table doesn't reset this player's in-progress, unconfirmed drag back to 150. */
+/** Pre-Start buy-in: a seated player sees a "Buy-in: N" button in the bottom bar; tapping
+ * it opens the bottom-sheet slider (synced to the server-known stack at open time only, so
+ * broadcasts from other players' actions never clobber an in-progress drag). Confirm and
+ * Cancel both close the sheet. */
 function renderBuyinPicker(data) {
   const hasSeat = data.mySeatIndex != null && data.mySeatIndex >= 0;
   const show = data.phase === 'seating' && hasSeat;
-  aiofBuyinPicker.classList.toggle('hidden', !show);
-  if (!show) {
-    lastSyncedBuyinStack = null;
-    return;
+  if (!show) buyinSheetOpen = false;
+  aiofBuyinOpenBtn.classList.toggle('hidden', !show);
+  if (show) {
+    aiofBuyinOpenBtn.textContent = `Buy-in: ${data.seats[data.mySeatIndex].stack} — change`;
   }
-
-  const stack = data.seats[data.mySeatIndex].stack;
-  if (stack !== lastSyncedBuyinStack) {
-    aiofBuyinSlider.value = String(stack);
-    aiofBuyinValue.textContent = String(stack);
-    lastSyncedBuyinStack = stack;
-  }
+  aiofBuyinPicker.classList.toggle('hidden', !(show && buyinSheetOpen));
 }
 
 function renderGameover(data) {
@@ -337,35 +373,55 @@ function render(data) {
   const foldedNames = data.hand ? data.hand.foldedNames || [] : [];
   const equities = data.hand ? data.hand.equities : null;
   const equityTones = equityTonesFor(equities);
+  const betweenHands = !data.hand && data.results;
+  const winnings = betweenHands ? winningsFor(data.results) : {};
 
   aiofSeatsEl.innerHTML = '';
+  aiofFeltSpots.innerHTML = '';
   (data.seats || []).forEach((seat, i) => {
     const interactive = !seat && !hasSeat;
     const el = document.createElement(interactive ? 'button' : 'div');
     const slot = (i - rotationOffset + AIOF_SEAT_COUNT) % AIOF_SEAT_COUNT;
     el.className = `aiof-seat aiof-seat-slot-${slot}`;
-    if (seat && i === data.dealerSeat) el.classList.add('aiof-seat-dealer');
 
     if (seat) {
-      el.classList.add('aiof-seat-occupied');
+      const isSelf = i === data.mySeatIndex;
+      if (isSelf) el.classList.add('aiof-seat-self');
       if (seat.sittingOut) el.classList.add('aiof-seat-sitting-out');
       if (seat.name === actingName) el.classList.add('aiof-seat-turn');
       if (foldedNames.includes(seat.name)) el.classList.add('aiof-seat-folded');
 
-      // Skips the viewer's own seat — their hand is already shown big in the "Your cards"
-      // panel, so a second small copy at their own seat is just redundant clutter.
-      const seatCards = i === data.mySeatIndex ? null : seatCardsFor(data, seat.name);
+      // Face-up cards at this seat: the viewer's own hand is always visible to them (their
+      // seat is the bottom slot, where the refs put your big hand), other seats only once
+      // revealed by a showdown (seatCardsFor).
+      const faceUpCards = isSelf
+        ? data.hand
+          ? data.hand.myHoleCards
+          : betweenHands
+            ? (data.results.holeCards || {})[seat.name] || null
+            : null
+        : seatCardsFor(data, seat.name);
 
-      // A fanned pair of face-down card backs, shown above the avatar for anyone still live
-      // in the current hand whose cards we can't see yet (mirrors real poker clients, where
-      // every active seat shows hidden cards until they fold or a showdown reveals them).
+      // A fan of face-down card backs above the avatar for anyone still live in the current
+      // hand whose cards we can't see yet — one back per hole card dealt, like the refs.
       const stillHiddenInHand =
-        data.hand && i !== data.mySeatIndex && !seatCards && !foldedNames.includes(seat.name) && !seat.sittingOut;
+        data.hand && !faceUpCards && !foldedNames.includes(seat.name) && !seat.sittingOut;
       if (stillHiddenInHand) {
         const fanEl = document.createElement('span');
-        fanEl.className = 'aiof-seat-cardback-fan';
-        fanEl.appendChild(document.createElement('span')).className = 'aiof-cardback';
-        fanEl.appendChild(document.createElement('span')).className = 'aiof-cardback';
+        fanEl.className = 'aiof-seat-fan';
+        for (let c = 0; c < 6; c++) {
+          fanEl.appendChild(document.createElement('span')).className = 'aiof-cardback';
+        }
+        el.appendChild(fanEl);
+      } else if (faceUpCards) {
+        const usedSet = usedCardsFor(data.results, seat.name);
+        const fanEl = document.createElement('span');
+        fanEl.className = 'aiof-seat-fan aiof-seat-cards';
+        faceUpCards.forEach((code) => {
+          const cardEl = makeAiofCardEl(code);
+          if (usedSet.has(code)) cardEl.classList.add('aiof-card-used');
+          fanEl.appendChild(cardEl);
+        });
         el.appendChild(fanEl);
       }
 
@@ -392,49 +448,66 @@ function render(data) {
       avatarEl.appendChild(badge);
       el.appendChild(avatarEl);
 
+      // The nameplate plaque: name + stack (+ sitting-out label), with the avatar
+      // overlapping its top edge — the refs' seat anchor.
+      const plaqueEl = document.createElement('span');
+      plaqueEl.className = 'aiof-seat-plaque';
+
       const nameEl = document.createElement('span');
       nameEl.className = 'aiof-seat-name';
       nameEl.textContent = seat.name;
-      el.appendChild(nameEl);
+      plaqueEl.appendChild(nameEl);
 
       const stackEl = document.createElement('span');
       stackEl.className = 'aiof-seat-stack';
       stackEl.textContent = `${seat.stack}`;
-      el.appendChild(stackEl);
-
-      if (seatCards) {
-        const usedSet = usedCardsFor(data.results, seat.name);
-        const cardsEl = document.createElement('span');
-        cardsEl.className = 'aiof-seat-cards';
-        seatCards.forEach((code) => {
-          const cardEl = makeAiofCardEl(code);
-          if (usedSet.has(code)) cardEl.classList.add('aiof-card-used');
-          cardsEl.appendChild(cardEl);
-        });
-        el.appendChild(cardsEl);
-      }
+      plaqueEl.appendChild(stackEl);
 
       if (seat.sittingOut) {
         const outEl = document.createElement('span');
         outEl.className = 'aiof-seat-out-label';
         outEl.textContent = 'sitting out';
-        el.appendChild(outEl);
+        plaqueEl.appendChild(outEl);
+      }
+      el.appendChild(plaqueEl);
+
+      // Winner treatment during the between-hands pause: gold plaque glow + floating "+N".
+      const won = winnings[seat.name];
+      if (won) {
+        el.classList.add('aiof-seat-winner');
+        const wonEl = document.createElement('span');
+        wonEl.className = 'aiof-seat-win-amount';
+        wonEl.textContent = `+${won}`;
+        el.appendChild(wonEl);
+      }
+
+      // Felt spots for this seat: posted chips (blind/shove) between seat and pot while a
+      // hand is live, and the dealer's "D" disc.
+      const contributed = data.hand ? (data.hand.contributions || {})[seat.name] || 0 : 0;
+      if (contributed > 0) {
+        const betEl = document.createElement('span');
+        betEl.className = `aiof-bet-spot aiof-spot-slot-${slot}`;
+        betEl.appendChild(makeAiofChipStackEl(contributed));
+        const amountEl = document.createElement('span');
+        amountEl.textContent = `${contributed}`;
+        betEl.appendChild(amountEl);
+        aiofFeltSpots.appendChild(betEl);
+      }
+      if (i === data.dealerSeat && data.phase === 'playing') {
+        const discEl = document.createElement('span');
+        discEl.className = `aiof-dealer-disc aiof-spot-slot-${slot}`;
+        discEl.textContent = 'D';
+        aiofFeltSpots.appendChild(discEl);
       }
     } else {
-      el.textContent = `Seat ${i + 1}`;
+      el.classList.add('aiof-seat-open');
+      el.textContent = 'Take Seat';
       if (interactive) {
         el.type = 'button';
         el.addEventListener('click', () => trySitSeat(i));
       } else {
         el.classList.add('aiof-seat-disabled');
       }
-    }
-
-    if (seat && i === data.dealerSeat) {
-      const badge = document.createElement('span');
-      badge.className = 'aiof-seat-dealer-badge';
-      badge.textContent = 'D';
-      el.appendChild(badge);
     }
 
     aiofSeatsEl.appendChild(el);
@@ -447,7 +520,6 @@ function render(data) {
   renderBuyinPicker(data);
   renderHand(data);
   renderBustPrompt(data);
-  aiofWaitingText.classList.toggle('hidden', !data.waitingForPlayers);
   aiofEndGameBtn.classList.toggle('hidden', !(isHost && data.phase === 'playing'));
   aiofEndGameBtn.disabled = !data.canEndGame;
   renderGameover(data);
@@ -494,18 +566,30 @@ export const AllInOrFold = {
       aiofBuyinValue.textContent = aiofBuyinSlider.value;
     });
 
-    aiofBuyinConfirmBtn.addEventListener('click', () => {
-      aiofError.textContent = '';
-      socket.emit('aiofSetBuyIn', { amount: Number(aiofBuyinSlider.value) }, (res) => {
-        if (res && !res.ok) aiofError.textContent = res.error;
-      });
-    });
-
-    aiofBuyinCancelBtn.addEventListener('click', () => {
+    aiofBuyinOpenBtn.addEventListener('click', () => {
       if (!lastData || lastData.mySeatIndex < 0) return;
       const stack = lastData.seats[lastData.mySeatIndex].stack;
       aiofBuyinSlider.value = String(stack);
       aiofBuyinValue.textContent = String(stack);
+      buyinSheetOpen = true;
+      aiofBuyinPicker.classList.remove('hidden');
+    });
+
+    aiofBuyinConfirmBtn.addEventListener('click', () => {
+      aiofError.textContent = '';
+      socket.emit('aiofSetBuyIn', { amount: Number(aiofBuyinSlider.value) }, (res) => {
+        if (res && !res.ok) {
+          aiofError.textContent = res.error;
+          return;
+        }
+        buyinSheetOpen = false;
+        aiofBuyinPicker.classList.add('hidden');
+      });
+    });
+
+    aiofBuyinCancelBtn.addEventListener('click', () => {
+      buyinSheetOpen = false;
+      aiofBuyinPicker.classList.add('hidden');
     });
 
     aiofRebuySlider.addEventListener('input', () => {
@@ -533,10 +617,24 @@ export const AllInOrFold = {
       });
     });
 
+    aiofRebuyOpenBtn.addEventListener('click', () => {
+      rebuySheetOpen = true;
+      if (lastData) render(lastData);
+    });
+
+    aiofRebuyCloseBtn.addEventListener('click', () => {
+      rebuySheetOpen = false;
+      if (lastData) render(lastData);
+    });
+
     aiofBuyInBtn.addEventListener('click', () => {
       aiofError.textContent = '';
       socket.emit('aiofBuyIn', { amount: Number(aiofRebuySlider.value) }, (res) => {
-        if (res && !res.ok) aiofError.textContent = res.error;
+        if (res && !res.ok) {
+          aiofError.textContent = res.error;
+          return;
+        }
+        rebuySheetOpen = false;
       });
     });
 
@@ -581,7 +679,8 @@ export const AllInOrFold = {
   stop() {
     aiofAtTable = false;
     lastData = null;
-    lastSyncedBuyinStack = null;
+    buyinSheetOpen = false;
     rebuySliderShown = false;
+    rebuySheetOpen = false;
   },
 };

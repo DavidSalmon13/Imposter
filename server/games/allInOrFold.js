@@ -523,6 +523,9 @@ function aiofStatePayload(ctx, room, viewerName) {
       board: hand.board.slice(0, hand.revealedCount),
       myHoleCards: hand.holeCards[viewerName] ? hand.holeCards[viewerName].slice() : null,
       potTotal: Object.values(hand.contributions).reduce((a, b) => a + b, 0),
+      // Per-player posted amounts (blinds + shoves), keyed by name — lets clients draw each
+      // player's chips on the felt in front of their seat, like real poker clients.
+      contributions: { ...hand.contributions },
       actingName,
       isMyTurn: actingName != null && actingName === viewerName,
       foldedNames: hand.folded.slice(),

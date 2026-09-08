@@ -1497,80 +1497,164 @@ button.secondary:active:not(:disabled) {
   border-bottom: none;
 }
 
-/* All-In or Fold — a literal round poker table: seats sit on the rail around an oval felt,
-   with the pot and community cards open in the middle (GG Poker-style layout). The viewer's
-   own seat is always rotated to the bottom slot by the client (see allInOrFold.js), so it
-   reads as "sitting at" the table rather than a fixed seat-1..6 list.
-
-   This screen intentionally breaks from the app's warm illustrated theme — real poker
-   clients read as a dark, neutral "casino" backdrop, so #aiof-screen overrides the shared
-   .screen panel color instead of reusing --glass-bg. */
+/* All-In or Fold — full-bleed poker client (ClubGG-style): dark casino backdrop filling
+   the whole viewport, a portrait "racetrack" green felt table in the middle, seats
+   straddling the rail, and the viewer's own seat always rotated to the bottom slot by the
+   client (see allInOrFold.js). Intentionally breaks from the app's warm illustrated theme
+   — this screen takes over the viewport instead of sitting inside the shared panel. */
 #aiof-screen {
-  background: #121317;
-  border-color: #34363d;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  max-width: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem calc(0.6rem + env(safe-area-inset-bottom));
+  gap: 0.3rem;
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(50, 56, 66, 0.55) 0%, transparent 60%),
+    #101216;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.aiof-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.aiof-topbar-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.aiof-topbar-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.aiof-topbar-btn {
+  width: auto;
+  min-height: 0;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: none;
+}
+
+.aiof-subtitle,
+.aiof-error {
+  margin: 0;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.aiof-subtitle:empty,
+.aiof-error:empty {
+  display: none;
 }
 
 .aiof-table {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  margin: 0.4rem 0;
+  /* Width-driven sizing with a viewport-height guard so table + top/bottom bars always fit
+     on one phone screen without scrolling. */
+  width: min(100%, calc((100dvh - 11.5rem) * 0.72), 26rem);
+  aspect-ratio: 0.72;
+  margin: 0.2rem auto;
+  flex: none;
 }
 
 .aiof-table-felt {
   position: absolute;
-  /* Pulled in well past the seats' own boundary (see .aiof-seats below) so the nameplates
-     float outside the rail in the dark background, like the reference clients, instead of
-     straddling the felt's edge. */
-  inset: 13%;
-  border-radius: 50%;
+  /* Seats straddle this rail: their centers sit just inside/outside the edge, so the
+     nameplates overlap the rail like the reference clients. */
+  inset: 5% 8%;
+  /* Taller than wide + a huge fixed radius = a portrait racetrack (straight sides,
+     semicircular ends), matching the refs rather than an egg-shaped ellipse. */
+  border-radius: 999px;
   background:
-    radial-gradient(ellipse at 50% 32%, rgba(255, 255, 255, 0.12) 0%, transparent 55%),
-    radial-gradient(ellipse at center, #1c7a4f 0%, #0d5536 60%, #073a24 100%);
-  border: 14px solid #3d2817;
+    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
+    radial-gradient(ellipse at center, #1d7c50 0%, #0e5637 58%, #073a24 100%);
+  border: 11px solid #26282e;
   box-shadow:
-    inset 0 0 0 3px rgba(0, 0, 0, 0.45),
-    inset 0 2px 18px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 6px rgba(255, 203, 71, 0.12),
-    0 10px 22px rgba(0, 0, 0, 0.5);
+    inset 0 0 0 3px rgba(0, 0, 0, 0.5),
+    inset 0 2px 22px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(255, 255, 255, 0.05),
+    0 12px 26px rgba(0, 0, 0, 0.55);
 }
 
-.aiof-seats {
+.aiof-seats,
+.aiof-felt-spots {
   position: absolute;
   inset: 0;
 }
 
+.aiof-felt-spots {
+  pointer-events: none;
+}
+
 .aiof-table-center {
   position: absolute;
-  top: 50%;
+  top: 46%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  width: 94%;
+  gap: 0.35rem;
+  width: 92%;
 }
 
 .aiof-board-cards {
+  display: flex;
   justify-content: center;
   flex-wrap: nowrap;
   gap: 0.14rem;
-  min-height: 1.9rem;
+  min-height: 2.65rem;
 }
 
-/* The "Not yet revealed" placeholder has no card width to constrain it, so — unlike the
-   actual cards — it needs its own cap or it overflows the felt's center circle sideways
-   into the seats (flex-wrap: nowrap above means it can't just drop to a second line). */
-.aiof-board-cards .muted {
-  max-width: 5.5rem;
-  font-size: 0.7rem;
+/* Results / waiting-for-players line on the lower felt, mirroring the refs' centered
+   info text block between the board and the bottom seat. */
+.aiof-center-msg {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72%;
+  margin: 0;
   text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: normal;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(220, 240, 228, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
+.aiof-blinds-info {
+  position: absolute;
+  top: 68%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  color: rgba(210, 235, 220, 0.5);
+}
+
+/* A seat is a loose stack (fan above, avatar, plaque below) with no box of its own —
+   the dark nameplate plaque is the visual anchor, like the refs. */
 .aiof-seat {
   position: absolute;
   top: 0;
@@ -1578,40 +1662,50 @@ button.secondary:active:not(:disabled) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.1rem;
-  width: 4.6rem;
-  min-height: 5.6rem;
-  padding: 0.3rem 0.2rem;
-  border-radius: 12px;
-  border: 2px dashed rgba(255, 255, 255, 0.35);
-  background: rgba(0, 0, 0, 0.2);
+  gap: 0;
+  width: 5.4rem;
+  padding: 0;
+  border: none;
+  background: none;
   font-family: inherit;
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.85);
-  transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease);
 }
 
-/* Six evenly-spaced points on the felt's ellipse, slot 0 = bottom (the viewer's seat once
-   rotated). Percentages are the point on the boundary; translate(-50%, -50%) centers the
-   seat card on that point so it straddles the rail like a real table. */
-.aiof-seat-slot-0 { top: 94%; left: 50%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-1 { top: 78%; left: 94%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-2 { top: 22%; left: 94%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-3 { top: 6%;  left: 50%; transform: translate(-50%, -50%); }
-.aiof-seat-slot-4 { top: 22%; left: 6%;  transform: translate(-50%, -50%); }
-.aiof-seat-slot-5 { top: 78%; left: 6%;  transform: translate(-50%, -50%); }
+/* Six points around the racetrack, slot 0 = bottom (the viewer's seat once rotated).
+   translate(-50%, -50%) centers the seat on the point so it straddles the rail. */
+.aiof-seat-slot-0 { top: 90%; left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-1 { top: 69%; left: 84%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-2 { top: 31%; left: 84%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-3 { top: 8%;  left: 50%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-4 { top: 31%; left: 16%; transform: translate(-50%, -50%); }
+.aiof-seat-slot-5 { top: 69%; left: 16%; transform: translate(-50%, -50%); }
 
-.aiof-seat:hover:not(:disabled) {
+/* Empty seat: the refs' round dark "Take Seat" button. */
+.aiof-seat-open {
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  background: rgba(10, 12, 15, 0.72);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.56rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.2rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s var(--ease-bounce), background 0.15s var(--ease);
+}
+
+button.aiof-seat-open:hover {
+  background: rgba(30, 34, 40, 0.85);
   transform: translate(-50%, calc(-50% - 2px));
-}
-
-.aiof-seat-occupied {
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.16);
-  background: linear-gradient(160deg, #2b2e35 0%, #17181c 100%);
-  color: #f4f4f6;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .aiof-seat-sitting-out {
@@ -1626,26 +1720,23 @@ button.secondary:active:not(:disabled) {
   opacity: 0.35;
 }
 
-.aiof-seat-dealer {
-  outline: 3px solid #ffcb47;
-  outline-offset: 2px;
-}
-
 /* Avatar circle: no real profile pictures, so each seat gets a flat initial-letter disc,
    tinted by its fixed original seat index (see AIOF_AVATAR_TONES in allInOrFold.js) so a
-   given physical seat reads consistently across every viewer's rotated layout. The win/loss
-   (or live equity) badge overlaps its top-left corner, matching the reference clients'
-   seat-number-badge-on-avatar layout — restyled as a small neutral plaque with colored text
-   rather than a solid colored pill, since the color there is a number badge, not a flag. */
+   given physical seat reads consistently across every viewer's rotated layout. It overlaps
+   the top of the nameplate plaque below it, like the reference clients. The win/loss
+   (or live equity) badge overlaps its top-left corner — a small neutral plaque with
+   colored text, matching the refs' number-badge-on-avatar layout. */
 .aiof-seat-avatar {
   position: relative;
-  width: 2.5rem;
-  height: 2.5rem;
+  z-index: 2;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-bottom: -0.55rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   color: rgba(255, 255, 255, 0.92);
   border: 2px solid rgba(255, 255, 255, 0.22);
@@ -1661,6 +1752,7 @@ button.secondary:active:not(:disabled) {
 
 .aiof-seat-net-badge {
   position: absolute;
+  z-index: 3;
   top: -0.35rem;
   left: -0.5rem;
   padding: 0.02rem 0.28rem;
@@ -1677,12 +1769,13 @@ button.secondary:active:not(:disabled) {
 .aiof-seat-net-badge-negative { color: #ff5c5c; }
 .aiof-seat-net-badge-even { color: #cfd3da; }
 
-/* A fanned pair of face-down card backs floating above the avatar for anyone still live in
-   the hand whose cards we can't see yet — the reference clients' signature "still in the
-   hand" cue. Purely decorative: it never encodes which/how many cards, just presence. */
-.aiof-seat-cardback-fan {
+/* Card fan anchored above the seat, peeking out from behind the avatar/plaque: a 6-card
+   face-down fan while an opponent's cards are hidden, swapped for an overlapping face-up
+   fan (rank+suit corners visible) at showdown. The viewer's own seat gets a larger
+   face-up fan of the same structure. */
+.aiof-seat-fan {
   position: absolute;
-  top: -1rem;
+  bottom: calc(100% - 0.65rem);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1690,58 +1783,110 @@ button.secondary:active:not(:disabled) {
 }
 
 .aiof-cardback {
-  width: 1rem;
-  height: 1.42rem;
+  flex: none;
+  width: 1.15rem;
+  height: 1.62rem;
   border-radius: 3px;
-  background: repeating-linear-gradient(135deg, #b52731 0 3px, #8f1c24 3px 6px);
-  border: 1.5px solid #fff8ee;
+  background:
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.14) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.14) 0 2px, transparent 2px 6px),
+    #a7adb8;
+  border: 1.5px solid #f2f3f6;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.aiof-cardback:first-child {
-  transform: rotate(-14deg) translate(2px, 1px);
+.aiof-cardback:not(:first-child) {
+  margin-left: -0.72rem;
 }
 
-.aiof-cardback:last-child {
-  transform: rotate(14deg) translate(-2px, 1px);
-  margin-left: -0.55rem;
-}
-
-.aiof-seat-dealer-badge {
+/* The dealer button: a small yellow "D" disc sitting on the felt next to the dealer's
+   seat (positioned per slot by .aiof-spot-slot-N), like the refs — not a ring around
+   the whole seat. */
+.aiof-dealer-disc {
   position: absolute;
-  top: -0.4rem;
-  right: -0.4rem;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #ffcb47;
+  background: linear-gradient(180deg, #ffe08a 0%, #ffcb47 60%, #e0a92c 100%);
   color: #1a1a1a;
   font-size: 0.6rem;
   font-weight: 800;
-  border: 2px solid #1a1a1a;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
 }
 
-.aiof-seat-turn {
-  box-shadow: 0 0 0 3px #ffcb47, 0 0 14px 4px rgba(255, 203, 71, 0.65);
+.aiof-seat-turn .aiof-seat-plaque {
+  border-color: #ffcb47;
+  box-shadow: 0 0 0 2px #ffcb47, 0 0 14px 3px rgba(255, 203, 71, 0.55);
   animation: aiof-turn-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes aiof-turn-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px #ffcb47, 0 0 14px 4px rgba(255, 203, 71, 0.65); }
-  50% { box-shadow: 0 0 0 3px #ffcb47, 0 0 4px 1px rgba(255, 203, 71, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 2px #ffcb47, 0 0 14px 3px rgba(255, 203, 71, 0.55); }
+  50% { box-shadow: 0 0 0 2px #ffcb47, 0 0 4px 1px rgba(255, 203, 71, 0.25); }
+}
+
+/* The nameplate: one dark rounded plaque holding name + stack, the seat's visual anchor.
+   The avatar disc overlaps its top edge (negative margin above). */
+.aiof-seat-plaque {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.06rem;
+  min-width: 4.9rem;
+  max-width: 5.4rem;
+  padding: 0.55rem 0.4rem 0.28rem;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(160deg, rgba(38, 41, 48, 0.96) 0%, rgba(16, 17, 21, 0.96) 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .aiof-seat-name {
   font-weight: 700;
-  max-width: 4.2rem;
-  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  color: #f2f3f5;
+  max-width: 4.8rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Winner treatment during the between-hands pause: gold glow on the plaque + a floating
+   "+N" amount above the seat. */
+.aiof-seat-winner .aiof-seat-plaque {
+  border-color: #ffcb47;
+  box-shadow: 0 0 0 2px #ffcb47, 0 0 18px 5px rgba(255, 203, 71, 0.55);
+}
+
+.aiof-seat-win-amount {
+  position: absolute;
+  /* Above the revealed card fan (which itself peeks above the avatar), not on top of it. */
+  bottom: calc(100% + 1.45rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(10, 11, 14, 0.85);
+  border: 1px solid rgba(255, 203, 71, 0.7);
+  color: #ffd873;
+  font-size: 0.7rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: aiof-win-float 0.6s var(--ease);
+}
+
+@keyframes aiof-win-float {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* Tiered chip stack: a small tower of stacked discs whose color AND height (disc count,
@@ -1792,35 +1937,93 @@ button.secondary:active:not(:disabled) {
   color: #5bb8ff;
 }
 
-.aiof-seat-cards {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.08rem;
-  max-width: 4.6rem;
+/* Revealed hands render as a tight overlapping fan (like the refs' PLO hands): each card
+   shows its top-left rank+suit index, the rest hidden under the next card. The center pip
+   and bottom-right corner are dropped at this size — only the last card's would show. */
+.aiof-seat-cards .aiof-card {
+  width: 1.3rem;
+  height: 1.85rem;
+  border-radius: 4px;
 }
 
-.aiof-seat-cards .aiof-card {
-  width: 1.15rem;
-  height: 1.62rem;
+.aiof-seat-cards .aiof-card:not(:first-child) {
+  margin-left: -0.62rem;
 }
 
 .aiof-seat-cards .aiof-card-rank {
-  font-size: 0.41rem;
+  font-size: 0.46rem;
 }
 
 .aiof-seat-cards .aiof-card-pip {
-  font-size: 0.43rem;
+  font-size: 0.48rem;
 }
 
-.aiof-seat-cards .aiof-card-center {
-  font-size: 0.65rem;
+.aiof-seat-cards .aiof-card-center,
+.aiof-seat-cards .aiof-card-corner-br {
+  display: none;
 }
 
+/* The viewer's own hand: same fan, but larger, at their bottom seat. */
+.aiof-seat-self .aiof-seat-cards .aiof-card {
+  width: 1.85rem;
+  height: 2.6rem;
+  border-radius: 5px;
+}
+
+.aiof-seat-self .aiof-seat-cards .aiof-card:not(:first-child) {
+  margin-left: -0.8rem;
+}
+
+.aiof-seat-self .aiof-seat-cards .aiof-card-rank {
+  font-size: 0.62rem;
+}
+
+.aiof-seat-self .aiof-seat-cards .aiof-card-pip {
+  font-size: 0.66rem;
+}
+
+.aiof-seat-self .aiof-seat-fan {
+  bottom: calc(100% - 1rem);
+}
+
+/* The 2-of-6 cards actually used in the winning hand pop up out of the fan so the gold
+   outline survives the overlap. */
 .aiof-card-used {
   outline: 2px solid #ffcb47;
   outline-offset: 1px;
+  transform: translateY(-0.35rem);
+  z-index: 1;
 }
+
+/* Per-seat posted chips (blind or shoved amount) sitting on the felt between the seat and
+   the pot, amount labeled next to a small chip stack — the refs' bet markers. Positioned
+   per display slot, inside #aiof-felt-spots. */
+.aiof-bet-spot {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.aiof-spot-slot-0 { top: 72%; left: 50%; }
+.aiof-spot-slot-1 { top: 63%; left: 66%; }
+.aiof-spot-slot-2 { top: 37%; left: 66%; }
+.aiof-spot-slot-3 { top: 22%; left: 50%; }
+.aiof-spot-slot-4 { top: 37%; left: 34%; }
+.aiof-spot-slot-5 { top: 63%; left: 34%; }
+
+.aiof-dealer-disc.aiof-spot-slot-0 { top: 78%; left: 37%; }
+.aiof-dealer-disc.aiof-spot-slot-1 { top: 55%; left: 73%; }
+.aiof-dealer-disc.aiof-spot-slot-2 { top: 45%; left: 73%; }
+.aiof-dealer-disc.aiof-spot-slot-3 { top: 20%; left: 37%; }
+.aiof-dealer-disc.aiof-spot-slot-4 { top: 45%; left: 27%; }
+.aiof-dealer-disc.aiof-spot-slot-5 { top: 55%; left: 27%; }
 
 .aiof-seat-out-label {
   font-size: 0.6rem;
@@ -1833,11 +2036,13 @@ button.secondary:active:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.3rem 0.85rem;
+  margin: 0;
+  padding: 0.22rem 0.8rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
+  font-size: 0.74rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1851,7 +2056,6 @@ button.secondary:active:not(:disabled) {
   color: var(--accent-2);
 }
 
-#aiof-buyin-picker,
 #aiof-rebuy-picker {
   width: 100%;
   max-width: 22rem;
@@ -1869,14 +2073,6 @@ button.secondary:active:not(:disabled) {
   color: var(--accent-2);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-}
-
-.aiof-card-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.32rem;
-  align-items: center;
-  min-height: 2.9rem;
 }
 
 .aiof-card {
@@ -1965,13 +2161,65 @@ button.secondary:active:not(:disabled) {
   color: #1a1a1a;
 }
 
-/* Decision buttons break from the app's pill/gradient button language on purpose, matching
-   the reference poker clients' rectangular red action bar instead. */
+/* Fixed bottom action area: turn status + whichever of Start / Next Hand / FOLD+ALL-IN
+   applies right now. Reserves its height so the table doesn't jump when buttons appear. */
+.aiof-bottombar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 4.6rem;
+  justify-content: flex-end;
+  padding-top: 0.2rem;
+}
+
+.aiof-bottombar .muted {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.aiof-turn-status:empty {
+  display: none;
+}
+
+/* Start / Next Hand: a gold "table action" button, distinct from the red decision pair. */
+.aiof-gold-btn {
+  width: 100%;
+  max-width: 20rem;
+  border-radius: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, #ffe08a 0%, #ffcb47 55%, #dfa72b 100%);
+  color: #241a05;
+  font-weight: 800;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+#aiof-results-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Decision buttons: the refs' rectangular red action bar pinned at the bottom — breaks
+   from the app's pill/gradient button language on purpose. */
+.aiof-decision-btns {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 #aiof-allin-btn,
 #aiof-fold-btn {
-  border-radius: 14px;
+  flex: 1;
+  min-height: 3.1rem;
+  border-radius: 10px;
   border: 2px solid rgba(0, 0, 0, 0.35);
   color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 #aiof-allin-btn {
@@ -1981,6 +2229,70 @@ button.secondary:active:not(:disabled) {
 #aiof-fold-btn {
   background: linear-gradient(180deg, #4a3234 0%, #362224 55%, #241717 100%);
   box-shadow: var(--shadow-soft);
+}
+
+/* Bottom sheets (buy-in pre-Start, rebuy on bust) slide over the table; the end-of-match
+   ranking is a centered overlay. The overlay starts below the topbar so Leave Table /
+   Back to Lobby stay clickable from the ranking screen. */
+.aiof-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(100%, 27rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.9rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  background: #191b20;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.65);
+}
+
+.aiof-sheet .btn-row {
+  width: 100%;
+  max-width: 20rem;
+}
+
+#aiof-buyin-slider,
+#aiof-rebuy-slider {
+  width: 100%;
+  max-width: 20rem;
+}
+
+.aiof-overlay {
+  position: fixed;
+  top: 3.2rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(8, 9, 12, 0.82);
+}
+
+.aiof-overlay-panel {
+  width: min(100%, 26rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #191b20;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+.aiof-overlay-panel h2 {
+  margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
