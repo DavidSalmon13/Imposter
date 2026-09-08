@@ -15,6 +15,11 @@ const AIOF_SUIT_CLASS = { s: 'aiof-suit-s', h: 'aiof-suit-h', d: 'aiof-suit-d', 
 
 const AIOF_SEAT_COUNT = 6;
 
+// Number of distinct avatar background tones (aiof-seat-avatar-tone0..N-1 in CSS), cycled by
+// each seat's fixed original index (not its rotated display slot) so a given physical seat
+// keeps the same avatar color for everyone regardless of whose screen it renders on.
+const AIOF_AVATAR_TONES = 6;
+
 const AIOF_REVEAL_LABELS = {
   revealingHoles: 'Hole Cards',
   revealingFlop: 'Flop',
@@ -347,35 +352,26 @@ function render(data) {
       if (seat.name === actingName) el.classList.add('aiof-seat-turn');
       if (foldedNames.includes(seat.name)) el.classList.add('aiof-seat-folded');
 
-      const nameEl = document.createElement('span');
-      nameEl.className = 'aiof-seat-name';
-      nameEl.textContent = seat.name;
-      el.appendChild(nameEl);
-
-      const chipsEl = document.createElement('span');
-      chipsEl.className = 'aiof-seat-chips';
-      const chipIcon = makeAiofChipStackEl(seat.stack);
-      const stackEl = document.createElement('span');
-      stackEl.className = 'aiof-seat-stack';
-      stackEl.textContent = `${seat.stack}`;
-      chipsEl.appendChild(chipIcon);
-      chipsEl.appendChild(stackEl);
-      el.appendChild(chipsEl);
-
       // Skips the viewer's own seat — their hand is already shown big in the "Your cards"
       // panel, so a second small copy at their own seat is just redundant clutter.
       const seatCards = i === data.mySeatIndex ? null : seatCardsFor(data, seat.name);
-      if (seatCards) {
-        const usedSet = usedCardsFor(data.results, seat.name);
-        const cardsEl = document.createElement('span');
-        cardsEl.className = 'aiof-seat-cards';
-        seatCards.forEach((code) => {
-          const cardEl = makeAiofCardEl(code);
-          if (usedSet.has(code)) cardEl.classList.add('aiof-card-used');
-          cardsEl.appendChild(cardEl);
-        });
-        el.appendChild(cardsEl);
+
+      // A fanned pair of face-down card backs, shown above the avatar for anyone still live
+      // in the current hand whose cards we can't see yet (mirrors real poker clients, where
+      // every active seat shows hidden cards until they fold or a showdown reveals them).
+      const stillHiddenInHand =
+        data.hand && i !== data.mySeatIndex && !seatCards && !foldedNames.includes(seat.name) && !seat.sittingOut;
+      if (stillHiddenInHand) {
+        const fanEl = document.createElement('span');
+        fanEl.className = 'aiof-seat-cardback-fan';
+        fanEl.appendChild(document.createElement('span')).className = 'aiof-cardback';
+        fanEl.appendChild(document.createElement('span')).className = 'aiof-cardback';
+        el.appendChild(fanEl);
       }
+
+      const avatarEl = document.createElement('span');
+      avatarEl.className = `aiof-seat-avatar aiof-seat-avatar-tone${i % AIOF_AVATAR_TONES}`;
+      avatarEl.textContent = seat.name.charAt(0).toUpperCase();
 
       // During an active hand's reveal stages, the corner badge shows this seat's live win
       // probability instead of their net win/loss — swaps back once the hand ends (results
@@ -393,7 +389,30 @@ function render(data) {
         badge.className = `aiof-seat-net-badge aiof-seat-net-badge-${netTone}`;
         badge.textContent = net > 0 ? `+${net}` : `${net}`;
       }
-      el.appendChild(badge);
+      avatarEl.appendChild(badge);
+      el.appendChild(avatarEl);
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'aiof-seat-name';
+      nameEl.textContent = seat.name;
+      el.appendChild(nameEl);
+
+      const stackEl = document.createElement('span');
+      stackEl.className = 'aiof-seat-stack';
+      stackEl.textContent = `${seat.stack}`;
+      el.appendChild(stackEl);
+
+      if (seatCards) {
+        const usedSet = usedCardsFor(data.results, seat.name);
+        const cardsEl = document.createElement('span');
+        cardsEl.className = 'aiof-seat-cards';
+        seatCards.forEach((code) => {
+          const cardEl = makeAiofCardEl(code);
+          if (usedSet.has(code)) cardEl.classList.add('aiof-card-used');
+          cardsEl.appendChild(cardEl);
+        });
+        el.appendChild(cardsEl);
+      }
 
       if (seat.sittingOut) {
         const outEl = document.createElement('span');
