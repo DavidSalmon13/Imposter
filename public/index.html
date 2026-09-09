@@ -37,14 +37,21 @@
     </section>
 
     <section id="lobby-screen" class="screen hidden">
-      <p id="lobby-count" class="muted">0 joined</p>
+      <div class="lobby-top-row">
+        <p id="lobby-count" class="muted">0 joined</p>
+        <button id="scoreboard-toggle-btn" class="icon-btn scoreboard-toggle-btn" type="button" title="Scoreboard" aria-label="Show scoreboard">🏆</button>
+      </div>
       <ul id="lobby-list" class="player-list"></ul>
-      <div id="scoreboard-section" class="scoreboard-section">
-        <h2 class="scoreboard-heading">Scoreboard</h2>
-        <ol id="scoreboard-list" class="scoreboard-list"></ol>
+      <div id="scoreboard-dropdown" class="scoreboard-dropdown">
+        <div class="scoreboard-dropdown-inner">
+          <div id="scoreboard-section" class="scoreboard-section">
+            <h2 class="scoreboard-heading">Scoreboard</h2>
+            <ol id="scoreboard-list" class="scoreboard-list"></ol>
+          </div>
+        </div>
       </div>
       <div id="word-language-section" class="cn-timer-section hidden">
-        <p class="muted">ChatGPT word language (Imposter &amp; Codenames)</p>
+        <p class="muted">Pick board language</p>
         <div id="word-language-choices" class="cn-timer-choices">
           <button class="level-btn word-lang-btn" data-lang="english">English</button>
           <button class="level-btn word-lang-btn" data-lang="hebrew">Hebrew</button>

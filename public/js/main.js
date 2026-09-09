@@ -26,6 +26,27 @@ const TS_MIN_PLAYERS = 2;
 const MT_MIN_PLAYERS = 2;
 const AIOF_MIN_PLAYERS = 2;
 
+// Deterministic per-name emoji so the lobby list feels alive without any server-side state.
+const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🐯', '🐨', '🐷', '🐙', '🦁', '🐮', '🐰', '🐻', '🐔', '🦄', '🐢', '🦉', '🐝', '🐳', '🦋', '🐺'];
+function emojiForName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return PLAYER_EMOJIS[hash % PLAYER_EMOJIS.length];
+}
+
+// Choose-game errors (e.g. "Need at least N players") should flash briefly, not sit
+// on screen permanently — see lobby fix 2.
+let chooseErrorTimer = null;
+function flashChooseError(msg) {
+  clearTimeout(chooseErrorTimer);
+  chooseError.textContent = msg || '';
+  if (msg) {
+    chooseErrorTimer = setTimeout(() => {
+      chooseError.textContent = '';
+    }, 3000);
+  }
+}
+
 const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
 const bgFileInput = document.getElementById('bg-file-input');
@@ -39,6 +60,8 @@ const joinError = document.getElementById('join-error');
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
 const renameBtn = document.getElementById('rename-btn');
+const scoreboardToggleBtn = document.getElementById('scoreboard-toggle-btn');
+const scoreboardDropdown = document.getElementById('scoreboard-dropdown');
 const scoreboardList = document.getElementById('scoreboard-list');
 const resetScoreboardBtn = document.getElementById('reset-scoreboard-btn');
 const gameChoice = document.getElementById('game-choice');
@@ -179,7 +202,7 @@ let lastLobbyPlayerCount = 0;
 function updateAiofTile() {
   const rejoin = currentGame === 'allinorfold';
   chooseAllInOrFoldName.textContent = rejoin ? 'Rejoin All-In or Fold' : 'All-In or Fold';
-  chooseAllInOrFoldBtn.disabled = rejoin ? false : lastLobbyPlayerCount < AIOF_MIN_PLAYERS;
+  chooseAllInOrFoldBtn.classList.toggle('tile-underfilled', !rejoin && lastLobbyPlayerCount < AIOF_MIN_PLAYERS);
   // Every other game's tile is host-only and disappears once picked (the whole room
   // navigates away together). AIOF is the one game where non-host players can stay behind
   // on the shared lobby screen (see implementation/all-in-or-fold-plan.md's architecture
@@ -193,23 +216,22 @@ function renderLobby(players, scoreboard) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
-    li.textContent = n === currentHostName ? `${n} (host)` : n;
+    const emoji = document.createElement('span');
+    emoji.className = 'player-emoji';
+    emoji.textContent = emojiForName(n);
+    const label = document.createElement('span');
+    label.textContent = n === currentHostName ? `${n} (host)` : n;
+    li.appendChild(emoji);
+    li.appendChild(label);
     lobbyList.appendChild(li);
   });
   lobbyCount.textContent = `${players.length} joined`;
-  chooseImposterBtn.disabled = players.length < MIN_PLAYERS;
-  chooseCodenamesBtn.disabled = players.length < CN_MIN_PLAYERS;
-  chooseTensSecondsBtn.disabled = players.length < TS_MIN_PLAYERS;
-  chooseMusicTimelineBtn.disabled = players.length < MT_MIN_PLAYERS;
+  chooseImposterBtn.classList.toggle('tile-underfilled', players.length < MIN_PLAYERS);
+  chooseCodenamesBtn.classList.toggle('tile-underfilled', players.length < CN_MIN_PLAYERS);
+  chooseTensSecondsBtn.classList.toggle('tile-underfilled', players.length < TS_MIN_PLAYERS);
+  chooseMusicTimelineBtn.classList.toggle('tile-underfilled', players.length < MT_MIN_PLAYERS);
   lastLobbyPlayerCount = players.length;
   updateAiofTile();
-  if (players.length < MIN_PLAYERS) {
-    chooseError.textContent = `Need at least ${TS_MIN_PLAYERS} for 10 Seconds, ${MIN_PLAYERS} for Imposter, ${CN_MIN_PLAYERS} for Codenames`;
-  } else if (players.length < CN_MIN_PLAYERS) {
-    chooseError.textContent = `Need at least ${CN_MIN_PLAYERS} players for Codenames`;
-  } else {
-    chooseError.textContent = '';
-  }
 
   const scoreMap = new Map((scoreboard || []).map((e) => [e.name, e.points]));
   const names = new Set(players);
@@ -328,47 +350,52 @@ nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') joinBtn.click();
 });
 
+scoreboardToggleBtn.addEventListener('click', () => {
+  const open = scoreboardDropdown.classList.toggle('open');
+  scoreboardToggleBtn.classList.toggle('open', open);
+});
+
 chooseImposterBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   socket.emit('chooseGame', 'imposter', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
+    if (!res.ok) flashChooseError(res.error);
   });
 });
 
 chooseCodenamesBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   socket.emit('chooseGame', 'codenames', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
+    if (!res.ok) flashChooseError(res.error);
   });
 });
 
 chooseTensSecondsBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   socket.emit('chooseGame', 'tenseconds', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
+    if (!res.ok) flashChooseError(res.error);
   });
 });
 
 chooseMenifotBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   socket.emit('chooseGame', 'menifot', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
+    if (!res.ok) flashChooseError(res.error);
   });
 });
 
 chooseMusicTimelineBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   socket.emit('chooseGame', 'musictimeline', (res) => {
-    if (!res.ok) chooseError.textContent = res.error;
+    if (!res.ok) flashChooseError(res.error);
   });
 });
 
 chooseAllInOrFoldBtn.addEventListener('click', () => {
-  chooseError.textContent = '';
+  flashChooseError('');
   if (currentGame === 'allinorfold') {
     socket.emit('enterAllInOrFold', (res) => {
       if (!res || !res.ok) {
-        chooseError.textContent = (res && res.error) || 'Could not enter';
+        flashChooseError((res && res.error) || 'Could not enter');
         return;
       }
       AllInOrFold.applyJoin(res);
@@ -377,7 +404,7 @@ chooseAllInOrFoldBtn.addEventListener('click', () => {
   }
   socket.emit('chooseGame', 'allinorfold', (res) => {
     if (!res.ok) {
-      chooseError.textContent = res.error;
+      flashChooseError(res.error);
       return;
     }
     AllInOrFold.setAtTable(true);

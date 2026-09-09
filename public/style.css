@@ -317,6 +317,14 @@ button.secondary:active:not(:disabled) {
   border-radius: 14px;
   padding: 0.6rem 0.75rem;
   animation: item-in 0.25s var(--ease);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
 }
 
 @keyframes item-in {
@@ -429,6 +437,10 @@ button.secondary:active:not(:disabled) {
   box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
 }
 
+.game-tile.tile-underfilled {
+  opacity: 0.55;
+}
+
 .game-tile-icon {
   font-size: 1.5rem;
   line-height: 1;
@@ -494,11 +506,47 @@ button.secondary:active:not(:disabled) {
   --tile-a: #d97757;
 }
 
+.lobby-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.scoreboard-toggle-btn {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  font-size: 1.15rem;
+}
+
+.scoreboard-toggle-btn.open {
+  background: var(--accent);
+  border-color: var(--border-strong);
+}
+
+/* Grid-rows 0fr->1fr trick: animates to auto content height ("falls down") without JS measuring. */
+.scoreboard-dropdown {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s var(--ease-bounce);
+}
+
+.scoreboard-dropdown.open {
+  grid-template-rows: 1fr;
+}
+
+.scoreboard-dropdown-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .scoreboard-section {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.25rem;
+  padding-top: 0.25rem;
 }
 
 .scoreboard-heading {
