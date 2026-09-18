@@ -1643,12 +1643,21 @@ button.secondary:active:not(:disabled) {
   background:
     radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
     radial-gradient(ellipse at center, #1d7c50 0%, #0e5637 58%, #073a24 100%);
-  border: 11px solid #26282e;
+  /* A metallic-looking rail (layered shadows, not a flat single-tone border) plus a soft
+     blue/violet ambient rim glow — the ClubGG-style signature look the old flat gray
+     bezel was missing. border-image is deliberately avoided here: it doesn't clip
+     correctly to this shape's border-radius (a near-999px stadium) across browsers. */
+  border: 10px solid #3a3f4a;
   box-shadow:
-    inset 0 0 0 3px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 2px rgba(120, 130, 150, 0.5),
+    inset 0 3px 3px rgba(255, 255, 255, 0.12),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.45),
     inset 0 2px 22px rgba(0, 0, 0, 0.55),
-    0 0 0 2px rgba(255, 255, 255, 0.05),
-    0 12px 26px rgba(0, 0, 0, 0.55);
+    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 32px 8px rgba(72, 128, 255, 0.3),
+    0 0 64px 20px rgba(140, 80, 230, 0.16),
+    0 12px 26px rgba(0, 0, 0, 0.6);
 }
 
 .aiof-seats,
@@ -1736,17 +1745,18 @@ button.secondary:active:not(:disabled) {
 .aiof-seat-slot-4 { top: 31%; left: 16%; transform: translate(-50%, -50%); }
 .aiof-seat-slot-5 { top: 69%; left: 16%; transform: translate(-50%, -50%); }
 
-/* Empty seat: the refs' round dark "Take Seat" button. */
+/* Empty seat: a dashed glowing ring inviting a tap — sized close to an occupied seat's
+   avatar+plaque footprint so the table doesn't visibly reflow when someone sits down. */
 .aiof-seat-open {
-  width: 3.1rem;
-  height: 3.1rem;
+  width: 3.6rem;
+  height: 3.6rem;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  background: rgba(10, 12, 15, 0.72);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.56rem;
+  border: 2px dashed rgba(130, 175, 255, 0.6);
+  background: rgba(12, 16, 24, 0.68);
+  color: rgba(215, 228, 255, 0.9);
+  font-size: 0.58rem;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   display: flex;
@@ -1754,12 +1764,18 @@ button.secondary:active:not(:disabled) {
   justify-content: center;
   text-align: center;
   padding: 0.2rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 14px 2px rgba(90, 145, 255, 0.22);
   transition: transform 0.15s var(--ease-bounce), background 0.15s var(--ease);
+  animation: aiof-openseat-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes aiof-openseat-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 14px 2px rgba(90, 145, 255, 0.22); }
+  50% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 20px 6px rgba(90, 145, 255, 0.5); }
 }
 
 button.aiof-seat-open:hover {
-  background: rgba(30, 34, 40, 0.85);
+  background: rgba(30, 40, 55, 0.85);
   transform: translate(-50%, calc(-50% - 2px));
 }
 
@@ -1773,6 +1789,7 @@ button.aiof-seat-open:hover {
 
 .aiof-seat-disabled {
   opacity: 0.35;
+  animation: none;
 }
 
 /* Avatar circle: no real profile pictures, so each seat gets a flat initial-letter disc,
@@ -1794,8 +1811,16 @@ button.aiof-seat-open:hover {
   font-size: 1rem;
   font-weight: 800;
   color: rgba(255, 255, 255, 0.92);
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 2.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: box-shadow 0.15s var(--ease);
+}
+
+/* Active-turn ring on the avatar itself, mirroring the plaque's pulse — the refs
+   highlight the whole seat, not just the nameplate, when it's someone's move. */
+.aiof-seat-turn .aiof-seat-avatar {
+  border-color: #ffcb47;
+  box-shadow: 0 0 0 3px #ffcb47, 0 0 16px 4px rgba(255, 203, 71, 0.6);
 }
 
 .aiof-seat-avatar-tone0 { background: linear-gradient(160deg, #5b7fd6 0%, #2f4d99 100%); }
@@ -1884,9 +1909,18 @@ button.aiof-seat-open:hover {
   animation: aiof-turn-pulse 1.1s ease-in-out infinite;
 }
 
+.aiof-seat-turn .aiof-seat-avatar {
+  animation: aiof-turn-pulse-avatar 1.1s ease-in-out infinite;
+}
+
 @keyframes aiof-turn-pulse {
   0%, 100% { box-shadow: 0 0 0 2px #ffcb47, 0 0 14px 3px rgba(255, 203, 71, 0.55); }
   50% { box-shadow: 0 0 0 2px #ffcb47, 0 0 4px 1px rgba(255, 203, 71, 0.25); }
+}
+
+@keyframes aiof-turn-pulse-avatar {
+  0%, 100% { box-shadow: 0 0 0 3px #ffcb47, 0 0 16px 4px rgba(255, 203, 71, 0.6); }
+  50% { box-shadow: 0 0 0 3px #ffcb47, 0 0 6px 1px rgba(255, 203, 71, 0.3); }
 }
 
 /* The nameplate: one dark rounded plaque holding name + stack, the seat's visual anchor.
@@ -1951,43 +1985,52 @@ button.aiof-seat-open:hover {
 /* Tiered chip stack: a small tower of stacked discs whose color AND height (disc count,
    set by makeAiofChipStackEl in JS) jump at fixed value thresholds — not a literal
    denomination breakdown, just a glanceable "bigger stack = bigger + different color" cue.
-   Used identically for a seat's stack and the center pot. */
+   Used identically for a seat's stack and the center pot. Each disc's gradient uses wide,
+   soft stops rather than a tight color/white/color ring — at ~14px real size a tight ring
+   aliased into a moire/checkerboard smear instead of reading as a chip. */
 .aiof-chip-stack {
   position: relative;
   flex: none;
-  width: 0.85rem;
-  height: 1.1rem;
+  width: 1rem;
+  height: 1.25rem;
 }
 
 .aiof-chip-disc {
   position: absolute;
   left: 0;
-  width: 0.85rem;
-  height: 0.34rem;
+  width: 1rem;
+  height: 0.4rem;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.45);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .aiof-chip-disc-tier0 {
-  background:
-    radial-gradient(circle at 50% 50%, #9aa4ad 0%, #9aa4ad 40%, #fff 42%, #fff 48%, #9aa4ad 50%, #9aa4ad 100%);
+  background: radial-gradient(ellipse at 50% 32%, #d5dae0 0%, #aeb5bf 55%, #767e8a 100%);
 }
 .aiof-chip-disc-tier1 {
-  background:
-    radial-gradient(circle at 50% 50%, #d63b3b 0%, #d63b3b 40%, #fff 42%, #fff 48%, #d63b3b 50%, #d63b3b 100%);
+  background: radial-gradient(ellipse at 50% 32%, #ef6a6a 0%, #d63b3b 55%, #8f2222 100%);
 }
 .aiof-chip-disc-tier2 {
-  background:
-    radial-gradient(circle at 50% 50%, #2f6fed 0%, #2f6fed 40%, #fff 42%, #fff 48%, #2f6fed 50%, #2f6fed 100%);
+  background: radial-gradient(ellipse at 50% 32%, #6a9bf5 0%, #2f6fed 55%, #1c469c 100%);
 }
 .aiof-chip-disc-tier3 {
-  background:
-    radial-gradient(circle at 50% 50%, #1a1a1a 0%, #1a1a1a 40%, #fff 42%, #fff 48%, #1a1a1a 50%, #1a1a1a 100%);
+  background: radial-gradient(ellipse at 50% 32%, #45464a 0%, #1a1a1a 55%, #050505 100%);
 }
 .aiof-chip-disc-tier4 {
-  background:
-    radial-gradient(circle at 50% 50%, #8a4fd6 0%, #8a4fd6 40%, #fff 42%, #fff 48%, #8a4fd6 50%, #8a4fd6 100%);
+  background: radial-gradient(ellipse at 50% 32%, #b184eb 0%, #8a4fd6 55%, #5a2f96 100%);
+}
+
+/* The center-pot chip icon reads as a standalone graphic, not a per-seat detail — sized
+   up a step from the seat/bet-spot version. */
+.aiof-pot .aiof-chip-stack {
+  width: 1.3rem;
+  height: 1.6rem;
+}
+
+.aiof-pot .aiof-chip-disc {
+  width: 1.3rem;
+  height: 0.5rem;
 }
 
 .aiof-seat-stack {
@@ -2041,8 +2084,11 @@ button.aiof-seat-open:hover {
   font-size: 0.66rem;
 }
 
+/* More clearance than the opponent fan (which deliberately overlaps down onto the
+   plaque) — the hero's larger 6-card fan was landing right on top of the nameplate at
+   the old offset, crowding the name/stack/dealer-disc. */
 .aiof-seat-self .aiof-seat-fan {
-  bottom: calc(100% - 1rem);
+  bottom: calc(100% + 0.2rem);
 }
 
 /* The 2-of-6 cards actually used in the winning hand pop up out of the fan so the gold
@@ -2063,7 +2109,7 @@ button.aiof-seat-open:hover {
   align-items: center;
   gap: 0.22rem;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: #ffe9b8;
   font-size: 0.62rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -2092,8 +2138,8 @@ button.aiof-seat-open:hover {
   padding: 0.22rem 0.8rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #fff;
+  border: 1px solid rgba(255, 203, 71, 0.35);
+  color: #ffe9b8;
   font-size: 0.74rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
