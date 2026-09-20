@@ -201,11 +201,16 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
       avoid.map((q) => `"${q}"`).join(', ') + '.'
     : '';
   const toneClause =
-    `TONE: go as ridiculous, raunchy, and outrageous as you like - sex, hookups, dating disasters, ` +
-    `dares-for-money, and absurd hypotheticals are all fair game and encouraged, the raunchier the ` +
-    `better. The only hard rule: stay PLAYFUL, never CRUEL - no slurs, no hate speech, and nothing that ` +
-    `reads as a genuine personal attack on someone's intelligence, worth, appearance, or health. This ` +
-    `should be the kind of question that gets a table laughing, not one that actually humiliates someone.`;
+    `TONE: go absolutely wild - lean hard into funny, naughty, and crazy territory (sex, hookups, ` +
+    `dating disasters, money-for-crazy-dares, gross-out humor, deranged hypotheticals - anything ` +
+    `goes) at least as often as tamer stuff. Don't play it safe, don't be generic, and don't settle ` +
+    `for the first mundane idea that comes to mind. The only hard rule: stay PLAYFUL, never CRUEL - ` +
+    `no slurs, no hate speech, and nothing that reads as a genuine personal attack on someone's ` +
+    `intelligence, worth, appearance, or health. This should be the kind of question that gets a ` +
+    `table laughing, not one that actually humiliates someone.`;
+  const numberClause =
+    `NUMBERS: aim big - favor questions whose honest answer could plausibly land in the hundreds, ` +
+    `thousands, or higher, rather than a tame single-digit count.`;
 
   const prompt = otherName
     ? `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
@@ -213,13 +218,10 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
       `Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
       `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
-      `opinion/guess about ${otherName} (not an objective fact), asking for a single non-negative number. ` +
-      `Examples of the TOPIC, TONE, and PHRASING to match (write a NEW, different question - do not reuse ` +
-      `these): "For how much money does ${subjectName} think ${otherName} would agree to go on a blind date ` +
-      `with a stranger from the internet?", "How many minutes does ${subjectName} think ${otherName} could ` +
-      `last at a nudist beach before getting uncomfortable?", "For how much money does ${subjectName} think ` +
-      `${otherName} would send a nude to their ex by accident on purpose?"\n\n` +
+      `opinion/guess about ${otherName} (not an objective fact), asking for a single non-negative number.\n\n` +
       toneClause +
+      ' ' +
+      numberClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`
     : `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
@@ -227,12 +229,10 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
       `what number the Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
       `${subjectName}'s own personal estimate/opinion (not an objective fact), asking for a single ` +
-      `non-negative number. Examples of the TOPIC, TONE, and PHRASING to match (write a NEW, different ` +
-      `question - do not reuse these): "For how much money would ${subjectName} let a stranger read every ` +
-      `text on their phone from the last year?", "How many people does ${subjectName} think they've hooked ` +
-      `up with while pretending to remember their name?", "How many minutes into a first date would ` +
-      `${subjectName} last before bringing up their ex?"\n\n` +
+      `non-negative number.\n\n` +
       toneClause +
+      ' ' +
+      numberClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
 
@@ -258,11 +258,13 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
       avoid.map((q) => `"${q}"`).join(', ') + '.'
     : '';
   const toneClause =
-    `TONE: go as ridiculous, raunchy, and outrageous as you like - sex, hookups, dating disasters, ` +
-    `dares-for-money, and absurd hypotheticals are all fair game and encouraged, the raunchier the ` +
-    `better. The only hard rule: stay PLAYFUL, never CRUEL - no slurs, no hate speech, and nothing that ` +
-    `reads as a genuine personal attack on someone's intelligence, worth, appearance, or health. This ` +
-    `should be the kind of question that gets a table laughing, not one that actually humiliates someone.`;
+    `TONE: go absolutely wild - lean hard into funny, naughty, and crazy territory (sex, hookups, ` +
+    `dating disasters, money-for-crazy-dares, gross-out humor, deranged hypotheticals - anything ` +
+    `goes) at least as often as tamer stuff. Don't play it safe, don't be generic, and don't settle ` +
+    `for the first mundane idea that comes to mind. The only hard rule: stay PLAYFUL, never CRUEL - ` +
+    `no slurs, no hate speech, and nothing that reads as a genuine personal attack on someone's ` +
+    `intelligence, worth, appearance, or health. This should be the kind of question that gets a ` +
+    `table laughing, not one that actually humiliates someone.`;
   const formatClause =
     `The answer must be a short phrase, name, or word (NOT a number) - something everyone else at the ` +
     `table can take a one- or two-word guess at.`;
@@ -273,11 +275,7 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
       `answer.\n\n` +
       `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
       `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
-      `opinion/guess about ${otherName}. ${formatClause} Examples of the TOPIC, TONE, and PHRASING to match ` +
-      `(write a NEW, different question - do not reuse these): "Who does ${subjectName} think ${otherName} ` +
-      `has a secret crush on in this room?", "What's the first word ${subjectName} thinks of when picturing ` +
-      `${otherName} on a wild night out?", "What animal would ${subjectName} say ${otherName} is most like ` +
-      `in bed?"\n\n` +
+      `opinion/guess about ${otherName}. ${formatClause}\n\n` +
       toneClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`
@@ -285,10 +283,7 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
       `gets an outrageous open-ended question about themselves, and everyone else tries to guess what the ` +
       `Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
-      `${subjectName}'s own personal opinion. ${formatClause} Examples of the TOPIC, TONE, and PHRASING to ` +
-      `match (write a NEW, different question - do not reuse these): "Who does ${subjectName} think is the ` +
-      `hottest person at this table?", "What's the wildest place ${subjectName} has ever hooked up?", "What ` +
-      `one word would ${subjectName} use to describe their worst ex in bed?"\n\n` +
+      `${subjectName}'s own personal opinion. ${formatClause}\n\n` +
       toneClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
