@@ -2438,6 +2438,55 @@ button.aiof-seat-open:hover {
   margin: 0;
 }
 
+/* ---------- Mind Meld ---------- */
+
+.mm-question {
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+#mm-countdown {
+  display: block;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(240, 201, 107, 0.18);
+  border: 1px solid rgba(240, 201, 107, 0.45);
+  color: var(--accent-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mm-answer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+#mm-answer-input {
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-results-table td.mm-bullseye {
+  color: var(--accent-2);
+  font-weight: 800;
+}
+
+#mm-revealed-target {
+  text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

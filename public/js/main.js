@@ -8,6 +8,7 @@ import { TensSeconds } from './games/tenseconds.js';
 import { Menifot } from './games/menifot.js';
 import { MusicTimeline } from './games/musicTimeline.js';
 import { AllInOrFold } from './games/allInOrFold.js';
+import { MindMeld } from './games/mindMeld.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { showScreen, showGenerating } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
@@ -25,6 +26,7 @@ const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
 const MT_MIN_PLAYERS = 2;
 const AIOF_MIN_PLAYERS = 2;
+const MM_MIN_PLAYERS = 3;
 
 // Deterministic per-name emoji so the lobby list feels alive without any server-side state.
 const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🐯', '🐨', '🐷', '🐙', '🦁', '🐮', '🐰', '🐻', '🐔', '🦄', '🐢', '🦉', '🐝', '🐳', '🦋', '🐺'];
@@ -76,6 +78,7 @@ const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
 const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
+const chooseMindMeldBtn = document.getElementById('choose-mindmeld-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
 const chooseAllInOrFoldName = document.getElementById('choose-allinorfold-name');
 const aiofTileWrap = document.getElementById('aiof-tile-wrap');
@@ -97,6 +100,7 @@ const mfBackBtn = document.getElementById('mf-back-btn');
 const mtBackBtn = document.getElementById('mt-back-btn');
 const imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
 const aiofBackBtn = document.getElementById('aiof-back-btn');
+const mmBackBtn = document.getElementById('mm-back-btn');
 
 let myName = localStorage.getItem('imposterName') || '';
 let myRoomCode = localStorage.getItem('imposterRoom') || '';
@@ -208,6 +212,7 @@ function setHost(hostName) {
   mtBackBtn.classList.remove('hidden');
   imposterResultsBackBtn.classList.remove('hidden');
   aiofBackBtn.classList.remove('hidden');
+  mmBackBtn.classList.remove('hidden');
   resetScoreboardBtn.classList.toggle('hidden', !isHost);
   wordLanguageSection.classList.toggle('hidden', !isHost);
   wordThemeSection.classList.toggle('hidden', !isHost);
@@ -301,6 +306,7 @@ function renderLobby(players, scoreboard, playerStickers) {
   chooseCodenamesBtn.classList.toggle('tile-underfilled', players.length < CN_MIN_PLAYERS);
   chooseTensSecondsBtn.classList.toggle('tile-underfilled', players.length < TS_MIN_PLAYERS);
   chooseMusicTimelineBtn.classList.toggle('tile-underfilled', players.length < MT_MIN_PLAYERS);
+  chooseMindMeldBtn.classList.toggle('tile-underfilled', players.length < MM_MIN_PLAYERS);
   lastLobbyPlayerCount = players.length;
   updateAiofTile();
 
@@ -330,6 +336,7 @@ TensSeconds.init(gameCtx);
 Menifot.init(gameCtx);
 MusicTimeline.init(gameCtx);
 AllInOrFold.init(gameCtx);
+MindMeld.init(gameCtx);
 
 const GAMES = {
   imposter: Imposter,
@@ -338,6 +345,7 @@ const GAMES = {
   menifot: Menifot,
   musictimeline: MusicTimeline,
   allinorfold: AllInOrFold,
+  mindmeld: MindMeld,
 };
 
 function handleJoinResult(res, name) {
@@ -462,6 +470,13 @@ chooseMenifotBtn.addEventListener('click', () => {
 chooseMusicTimelineBtn.addEventListener('click', () => {
   flashChooseError('');
   socket.emit('chooseGame', 'musictimeline', (res) => {
+    if (!res.ok) flashChooseError(res.error);
+  });
+});
+
+chooseMindMeldBtn.addEventListener('click', () => {
+  flashChooseError('');
+  socket.emit('chooseGame', 'mindmeld', (res) => {
     if (!res.ok) flashChooseError(res.error);
   });
 });

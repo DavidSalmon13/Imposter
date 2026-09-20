@@ -80,6 +80,10 @@
           <span class="game-tile-icon">🎵</span>
           <span class="game-tile-name">Music Timeline</span>
         </button>
+        <button id="choose-mindmeld-btn" class="game-tile" type="button">
+          <span class="game-tile-icon">🧠</span>
+          <span class="game-tile-name">Mind Meld</span>
+        </button>
       </div>
       <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: unlike every
            other game (host-only, hidden from everyone else), this tile must stay visible to
@@ -486,6 +490,63 @@
           <ol id="aiof-scoreboard" class="scoreboard-list"></ol>
         </div>
       </div>
+    </section>
+
+    <!-- Mind Meld -->
+
+    <section id="mm-screen" class="screen hidden">
+      <div id="mm-ready-panel">
+        <h1>Mind Meld</h1>
+        <p class="muted">Guess what's really in your friend's head.</p>
+        <ul id="mm-player-list" class="player-list"></ul>
+        <button id="mm-start-btn" class="hidden" type="button">Start</button>
+        <p id="mm-start-waiting" class="muted hidden">Waiting for the host to start&hellip;</p>
+        <p id="mm-ready-error" class="error"></p>
+      </div>
+
+      <div id="mm-answering-panel" class="hidden">
+        <h1 id="mm-subject-name"></h1>
+        <p id="mm-question" class="mm-question"></p>
+        <p id="mm-countdown" class="muted hidden"></p>
+        <div class="mm-answer-row">
+          <input id="mm-answer-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Your guess (e.g. 5k, 2.5m)" />
+          <button id="mm-answer-submit-btn" type="button">Submit</button>
+        </div>
+        <p id="mm-answer-waiting" class="muted hidden"></p>
+        <p id="mm-answer-error" class="error"></p>
+      </div>
+
+      <div id="mm-revealed-panel" class="hidden">
+        <h1>Round Results</h1>
+        <p id="mm-revealed-target" class="muted"></p>
+        <table class="sb-results-table">
+          <thead>
+            <tr><th>Player</th><th>Guess</th><th>Diff</th><th>Rank</th><th>Points</th></tr>
+          </thead>
+          <tbody id="mm-revealed-body"></tbody>
+        </table>
+        <h2 class="scoreboard-heading">Match Score</h2>
+        <ol id="mm-match-scores" class="scoreboard-list"></ol>
+        <button id="mm-next-btn" class="hidden" type="button">Next Round</button>
+        <p id="mm-next-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <div id="mm-gameover-panel" class="hidden">
+        <h1>Match Over</h1>
+        <table class="sb-results-table">
+          <thead>
+            <tr><th>Rank</th><th>Player</th><th>Score</th></tr>
+          </thead>
+          <tbody id="mm-standings-body"></tbody>
+        </table>
+        <h2 class="scoreboard-heading">Scoreboard</h2>
+        <ol id="mm-scoreboard" class="scoreboard-list"></ol>
+        <button id="mm-play-again-btn" class="hidden" type="button">Play Again</button>
+        <p id="mm-play-again-waiting" class="muted hidden">Waiting for the host&hellip;</p>
+      </div>
+
+      <p id="mm-error" class="error"></p>
+      <button id="mm-back-btn" class="secondary hidden">Back to Lobby</button>
     </section>
 
     <!-- Shared -->
