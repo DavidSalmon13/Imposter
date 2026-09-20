@@ -10,6 +10,8 @@ async function chatCompletionJson(prompt, { temperature } = {}) {
     throw new Error('OPENAI_API_KEY is not configured on the server');
   }
 
+  console.log(`[openai] prompt:\n${prompt}`);
+
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -25,11 +27,14 @@ async function chatCompletionJson(prompt, { temperature } = {}) {
   });
 
   if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    console.error(`[openai] request failed (${res.status}): ${errText}`);
     throw new Error(`OpenAI request failed (${res.status})`);
   }
 
   const data = await res.json();
   const raw = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  console.log(`[openai] response:\n${raw}`);
   return JSON.parse(raw);
 }
 
