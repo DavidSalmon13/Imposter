@@ -11,6 +11,7 @@ const {
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
+const { isValidSticker } = require('./stickers');
 
 // Single shared room for now - no room codes to create or join, everyone
 // who connects lands in the same game.
@@ -35,6 +36,15 @@ function connectedNames(room) {
     .map(([name]) => name);
 }
 
+// name -> sticker filename, only for connected players with one chosen.
+function connectedStickers(room) {
+  const out = {};
+  for (const [name, p] of room.players.entries()) {
+    if (p.connected && p.sticker) out[name] = p.sticker;
+  }
+  return out;
+}
+
 function scoreboardEntries(room) {
   return Object.entries(room.scoreboard || {})
     .map(([name, points]) => ({ name, points: Number(points) || 0 }))
@@ -50,6 +60,7 @@ function addScore(room, name, delta) {
 function broadcastLobby(roomCode, room) {
   roomEmit(roomCode, 'lobbyUpdate', {
     players: connectedNames(room),
+    playerStickers: connectedStickers(room),
     host: room.hostName,
     roomCode,
     scoreboard: scoreboardEntries(room),
@@ -100,6 +111,7 @@ function reconnectPayload(room, existing) {
     game: null,
     phase: 'lobby',
     players: connectedNames(room),
+    playerStickers: connectedStickers(room),
     host: room.hostName,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
@@ -116,13 +128,17 @@ function getSharedRoom() {
   return room;
 }
 
-function joinExistingRoom(socket, roomCode, name, clientId, callback) {
+function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
   const room = rooms.get(roomCode);
   if (!room) return callback({ ok: false, error: 'Room not found' });
 
   const existing = room.players.get(name);
 
   if (existing) {
+    // A reconnect resends whatever sticker the client has saved locally, so this
+    // also doubles as how a picker change made via `changeSticker` survives a
+    // dropped connection.
+    if (sticker !== undefined) existing.sticker = sticker;
     let staleSocket = null;
     if (existing.connected) {
       // The `connected` flag can lag behind reality for up to ~45s (socket.io's
@@ -180,6 +196,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback) {
     socketId: socket.id,
     connected: true,
     clientId: clientId || null,
+    sticker: sticker || null,
     role: null,
     word: null,
     hint: null,
@@ -248,12 +265,36 @@ function registerLobbyHandlers(socket) {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
     const clientId = String((data && data.clientId) || '').slice(0, 64);
+    const rawSticker = data && data.sticker;
+    const sticker = isValidSticker(rawSticker) ? rawSticker : null;
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
 
     getSharedRoom();
-    joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, callback);
+    joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, callback, sticker);
+  });
+
+  socket.on('changeSticker', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.phase !== 'lobby') {
+      return callback({ ok: false, error: 'Can only change your sticker in the lobby' });
+    }
+
+    const name = socket.data.name;
+    const player = room.players.get(name);
+    if (!player) return callback({ ok: false, error: 'Not in a room' });
+
+    const rawSticker = data && data.sticker;
+    // Empty/invalid clears back to the emoji fallback rather than erroring - "no sticker"
+    // is always a valid choice, not just an invalid one.
+    player.sticker = isValidSticker(rawSticker) ? rawSticker : null;
+
+    broadcastLobby(roomCode, room);
+    callback({ ok: true, sticker: player.sticker });
   });
 
   socket.on('renameSelf', (data, callback) => {

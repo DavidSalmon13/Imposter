@@ -56,10 +56,14 @@ const muteBtn = document.getElementById('mute-btn');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
 const joinError = document.getElementById('join-error');
+const joinStickerGrid = document.getElementById('join-sticker-grid');
 
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
 const renameBtn = document.getElementById('rename-btn');
+const stickerBtn = document.getElementById('sticker-btn');
+const stickerDropdown = document.getElementById('sticker-dropdown');
+const lobbyStickerGrid = document.getElementById('lobby-sticker-grid');
 const scoreboardToggleBtn = document.getElementById('scoreboard-toggle-btn');
 const scoreboardDropdown = document.getElementById('scoreboard-dropdown');
 const scoreboardList = document.getElementById('scoreboard-list');
@@ -96,6 +100,7 @@ const aiofBackBtn = document.getElementById('aiof-back-btn');
 
 let myName = localStorage.getItem('imposterName') || '';
 let myRoomCode = localStorage.getItem('imposterRoom') || '';
+let mySticker = localStorage.getItem('imposterSticker') || null;
 
 // Persistent per-browser id so the server can tell "this device reconnecting"
 // apart from "a different device using the same name" when a dropped socket
@@ -128,6 +133,63 @@ function rememberSession(name, roomCode) {
   localStorage.setItem('imposterName', name);
   localStorage.setItem('imposterRoom', roomCode);
 }
+
+// Populated once from GET /api/stickers so the picker never hardcodes filenames -
+// dropping a new .webp into public/images/stickers/ is enough to add it here too.
+let stickerFiles = [];
+
+function markSelectedSticker(container) {
+  Array.from(container.children).forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.sticker === mySticker);
+  });
+}
+
+function buildStickerGrid(container, onPick) {
+  container.innerHTML = '';
+  stickerFiles.forEach((file) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sticker-option';
+    btn.dataset.sticker = file;
+    const img = document.createElement('img');
+    img.src = `images/stickers/${file}`;
+    img.alt = '';
+    btn.appendChild(img);
+    btn.addEventListener('click', () => {
+      // Tapping the already-selected sticker clears it back to the emoji fallback.
+      onPick(mySticker === file ? null : file);
+    });
+    container.appendChild(btn);
+  });
+  markSelectedSticker(container);
+}
+
+function selectJoinSticker(sticker) {
+  mySticker = sticker;
+  if (sticker) localStorage.setItem('imposterSticker', sticker);
+  else localStorage.removeItem('imposterSticker');
+  markSelectedSticker(joinStickerGrid);
+}
+
+fetch('/api/stickers')
+  .then((r) => r.json())
+  .then((data) => {
+    stickerFiles = data.stickers || [];
+    buildStickerGrid(joinStickerGrid, selectJoinSticker);
+    buildStickerGrid(lobbyStickerGrid, (sticker) => {
+      socket.emit('changeSticker', { sticker }, (res) => {
+        if (!res || !res.ok) return;
+        mySticker = res.sticker;
+        if (res.sticker) localStorage.setItem('imposterSticker', res.sticker);
+        else localStorage.removeItem('imposterSticker');
+        markSelectedSticker(joinStickerGrid);
+        markSelectedSticker(lobbyStickerGrid);
+        stickerDropdown.classList.remove('open');
+        stickerBtn.classList.remove('open');
+      });
+    });
+  })
+  .catch(() => {});
 
 function setHost(hostName) {
   currentHostName = hostName || null;
@@ -212,16 +274,25 @@ function updateAiofTile() {
   chooseWaiting.classList.toggle('hidden', isHost || rejoin);
 }
 
-function renderLobby(players, scoreboard) {
+function renderLobby(players, scoreboard, playerStickers) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
-    const emoji = document.createElement('span');
-    emoji.className = 'player-emoji';
-    emoji.textContent = emojiForName(n);
+    const sticker = playerStickers && playerStickers[n];
+    let avatar;
+    if (sticker) {
+      avatar = document.createElement('img');
+      avatar.className = 'player-emoji-img';
+      avatar.src = `images/stickers/${sticker}`;
+      avatar.alt = '';
+    } else {
+      avatar = document.createElement('span');
+      avatar.className = 'player-emoji';
+      avatar.textContent = emojiForName(n);
+    }
     const label = document.createElement('span');
     label.textContent = n === currentHostName ? `${n} (host)` : n;
-    li.appendChild(emoji);
+    li.appendChild(avatar);
     li.appendChild(label);
     lobbyList.appendChild(li);
   });
@@ -285,7 +356,7 @@ function handleJoinResult(res, name) {
 }
 
 function attemptJoin(name) {
-  socket.emit('join', { name, clientId: getClientId() }, (res) => handleJoinResult(res, name));
+  socket.emit('join', { name, clientId: getClientId(), sticker: mySticker }, (res) => handleJoinResult(res, name));
 }
 
 function routeFromJoin(res) {
@@ -308,7 +379,7 @@ function routeFromJoin(res) {
 
   applyWordLanguage(res.wordLanguage);
   applyWordTheme(res.wordTheme);
-  renderLobby(res.players || [], res.scoreboard || []);
+  renderLobby(res.players || [], res.scoreboard || [], res.playerStickers || {});
   showScreen('lobby');
 }
 
@@ -353,6 +424,11 @@ nameInput.addEventListener('keydown', (e) => {
 scoreboardToggleBtn.addEventListener('click', () => {
   const open = scoreboardDropdown.classList.toggle('open');
   scoreboardToggleBtn.classList.toggle('open', open);
+});
+
+stickerBtn.addEventListener('click', () => {
+  const open = stickerDropdown.classList.toggle('open');
+  stickerBtn.classList.toggle('open', open);
 });
 
 chooseImposterBtn.addEventListener('click', () => {
@@ -502,11 +578,11 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme }) => {
+socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers }) => {
   setHost(host);
   applyWordLanguage(lang);
   applyWordTheme(theme);
-  renderLobby(players, scoreboard);
+  renderLobby(players, scoreboard, playerStickers);
 });
 
 socket.on('hostUpdate', ({ host }) => {

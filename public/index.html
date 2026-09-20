@@ -30,6 +30,8 @@
   <main class="app-main">
     <section id="join-screen" class="screen">
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
+      <p class="muted sticker-picker-label">Pick a sticker (optional)</p>
+      <div id="join-sticker-grid" class="sticker-grid"></div>
       <div class="btn-row">
         <button id="join-btn">Join</button>
       </div>
@@ -93,8 +95,17 @@
       <p id="choose-error" class="error"></p>
       <div class="icon-row">
         <button id="rename-btn" class="icon-btn" type="button" title="Change my name" aria-label="Change my name">✏️</button>
+        <button id="sticker-btn" class="icon-btn" type="button" title="Change my sticker" aria-label="Change my sticker">🧸</button>
         <button id="reset-scoreboard-btn" class="icon-btn hidden" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
         <button id="exit-lobby-btn" class="icon-btn" type="button" title="Exit Lobby" aria-label="Exit Lobby">🚪</button>
+      </div>
+      <div id="sticker-dropdown" class="scoreboard-dropdown">
+        <div class="scoreboard-dropdown-inner">
+          <div class="scoreboard-section">
+            <h2 class="scoreboard-heading">Change Sticker</h2>
+            <div id="lobby-sticker-grid" class="sticker-grid"></div>
+          </div>
+        </div>
       </div>
     </section>
 

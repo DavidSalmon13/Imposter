@@ -327,6 +327,50 @@ button.secondary:active:not(:disabled) {
   line-height: 1;
 }
 
+.player-emoji-img {
+  width: 1.6rem;
+  height: 1.6rem;
+  object-fit: contain;
+  flex: none;
+}
+
+.sticker-picker-label {
+  margin-top: 0.2rem;
+}
+
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 0.5rem;
+  margin: 0.3rem 0 0.6rem;
+}
+
+.sticker-option {
+  padding: 0.3rem;
+  border-radius: 12px;
+  background: var(--glass-highlight);
+  border: 2px solid var(--glass-border);
+  box-shadow: none;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sticker-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.sticker-option.selected {
+  background: var(--accent);
+  border-color: var(--border-strong);
+  border-width: 3px;
+  box-shadow: var(--shadow-soft);
+}
+
 @keyframes item-in {
   from {
     opacity: 0;
@@ -520,7 +564,8 @@ button.secondary:active:not(:disabled) {
   font-size: 1.15rem;
 }
 
-.scoreboard-toggle-btn.open {
+.scoreboard-toggle-btn.open,
+#sticker-btn.open {
   background: var(--accent);
   border-color: var(--border-strong);
 }

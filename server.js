@@ -28,6 +28,7 @@ const {
   registerLobbyHandlers,
 } = require('./server/lobby');
 const { registerAllHandlers } = require('./server/gameRegistry');
+const { STICKER_FILES } = require('./server/stickers');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +36,10 @@ const io = new Server(server);
 initRoomStore(io);
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/api/stickers', (req, res) => {
+  res.json({ stickers: STICKER_FILES });
+});
 
 const BACKGROUND_MIME_EXT = {
   'image/jpeg': 'jpg',
