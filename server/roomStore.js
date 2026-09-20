@@ -71,6 +71,17 @@ function createRoomState() {
     mtUsedSongs: [], // rolling avoid-list sent to ChatGPT
     mtRoundNumber: 0,
     mtMatchWinners: [],
+    // Mind Meld
+    // Mind Meld phases: 'ready' | 'pickingSubject' | 'generating' | 'answering' | 'revealed' | 'gameover'
+    mmRotationOrder: [], // frozen shuffled array of player names, set once at match start
+    mmRotationIndex: 0, // pointer into mmRotationOrder; current Subject is mmRotationOrder[mmRotationIndex]
+    mmRoundNumber: 0, // increments each round that actually resolves
+    mmCurrentQuestion: null, // current round's question text, or null between rounds
+    mmAnswerDeadline: null, // epoch ms deadline for non-Subject players, or null
+    mmAnswers: {}, // name -> submitted number for the current round (includes the Subject's)
+    mmUsedQuestions: [], // rolling avoid-list sent to ChatGPT, windowed at MM_USED_QUESTIONS_AVOID_WINDOW
+    mmScores: {}, // name -> cumulative points across the current match
+    mmRotationsCompleted: 0, // increments each time mmRotationIndex wraps to 0
     // All-In or Fold
     aiofSeats: [null, null, null, null, null, null], // seatIndex -> name | null
     aiofStacks: {}, // name -> current chip stack, present once they've ever sat this match
