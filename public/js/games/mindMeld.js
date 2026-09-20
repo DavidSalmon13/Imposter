@@ -17,9 +17,15 @@ const mmAnswerInput = document.getElementById('mm-answer-input');
 const mmAnswerSubmitBtn = document.getElementById('mm-answer-submit-btn');
 const mmAnswerWaiting = document.getElementById('mm-answer-waiting');
 const mmAnswerError = document.getElementById('mm-answer-error');
+const mmJudgingPanel = document.getElementById('mm-judging-panel');
+const mmJudgingSubjectName = document.getElementById('mm-judging-subject-name');
+const mmJudgingQuestion = document.getElementById('mm-judging-question');
 const mmRevealedPanel = document.getElementById('mm-revealed-panel');
 const mmRevealedTarget = document.getElementById('mm-revealed-target');
+const mmDiffHeader = document.getElementById('mm-diff-header');
 const mmRevealedBody = document.getElementById('mm-revealed-body');
+const mmReasoningBtn = document.getElementById('mm-reasoning-btn');
+const mmReasoningText = document.getElementById('mm-reasoning-text');
 const mmMatchScores = document.getElementById('mm-match-scores');
 const mmNextBtn = document.getElementById('mm-next-btn');
 const mmNextWaiting = document.getElementById('mm-next-waiting');
@@ -68,7 +74,8 @@ function tickMmCountdown() {
   mmCountdown.textContent = `${Math.ceil(remainingMs / 1000)}s left`;
 }
 
-function renderMmRevealedRow(r, targetIsZero) {
+function renderMmRevealedRow(r, kind, targetIsZero) {
+  const isJudged = kind === 'judged';
   const tr = document.createElement('tr');
 
   const nameTd = document.createElement('td');
@@ -76,11 +83,15 @@ function renderMmRevealedRow(r, targetIsZero) {
   tr.appendChild(nameTd);
 
   const guessTd = document.createElement('td');
-  guessTd.textContent = formatMmNumber(r.guess);
+  guessTd.textContent = isJudged ? r.guess : formatMmNumber(r.guess);
   tr.appendChild(guessTd);
 
   const diffTd = document.createElement('td');
-  diffTd.textContent = targetIsZero ? `off by ${formatMmNumber(r.pctDiff)}` : `${r.pctDiff.toFixed(1)}%`;
+  diffTd.textContent = isJudged
+    ? '—'
+    : targetIsZero
+      ? `off by ${formatMmNumber(r.pctDiff)}`
+      : `${r.pctDiff.toFixed(1)}%`;
   tr.appendChild(diffTd);
 
   const rankTd = document.createElement('td');
@@ -88,8 +99,9 @@ function renderMmRevealedRow(r, targetIsZero) {
   tr.appendChild(rankTd);
 
   const pointsTd = document.createElement('td');
-  pointsTd.textContent = r.bullseye ? `${r.points} 🎯` : String(r.points);
-  if (r.bullseye) pointsTd.classList.add('mm-bullseye');
+  const bullseye = !isJudged && r.bullseye;
+  pointsTd.textContent = bullseye ? `${r.points} 🎯` : String(r.points);
+  if (bullseye) pointsTd.classList.add('mm-bullseye');
   tr.appendChild(pointsTd);
 
   return tr;
@@ -101,6 +113,7 @@ function applyState(data) {
 
   mmReadyPanel.classList.add('hidden');
   mmAnsweringPanel.classList.add('hidden');
+  mmJudgingPanel.classList.add('hidden');
   mmRevealedPanel.classList.add('hidden');
   mmGameoverPanel.classList.add('hidden');
   stopMmTick();
@@ -112,6 +125,15 @@ function applyState(data) {
     mmSubjectName.textContent = data.subjectName ? `${data.subjectName}'s question` : '';
     mmQuestion.textContent = data.question || '';
     mmAnswerError.textContent = '';
+
+    const isJudged = data.questionKind === 'judged';
+    mmAnswerInput.inputMode = isJudged ? 'text' : 'decimal';
+    mmAnswerInput.placeholder = isJudged ? 'Your guess' : 'Your guess (e.g. 5k, 2.5m)';
+    if (isJudged) {
+      mmAnswerInput.maxLength = 60;
+    } else {
+      mmAnswerInput.removeAttribute('maxlength');
+    }
 
     mmIsSubject = !!data.isSubject;
     mmAnswerDeadline = data.answerDeadline || null;
@@ -128,18 +150,33 @@ function applyState(data) {
     return;
   }
 
+  if (data.phase === 'judging') {
+    mmJudgingPanel.classList.remove('hidden');
+    mmJudgingSubjectName.textContent = data.subjectName ? `${data.subjectName}'s question` : '';
+    mmJudgingQuestion.textContent = data.question || '';
+    return;
+  }
+
   if (data.phase === 'revealed') {
     mmRevealedPanel.classList.remove('hidden');
-    const targetIsZero = data.target === 0;
+    const kind = data.questionKind === 'judged' ? 'judged' : 'number';
+    const targetIsZero = kind === 'number' && data.target === 0;
     mmRevealedTarget.textContent = data.subjectName
-      ? `${data.subjectName}'s answer: ${formatMmNumber(data.target)}`
+      ? `${data.subjectName}'s answer: ${kind === 'judged' ? data.target : formatMmNumber(data.target)}`
       : '';
+    mmDiffHeader.textContent = kind === 'judged' ? 'Match' : 'Diff';
 
     mmRevealedBody.innerHTML = '';
     (data.ranking || [])
       .slice()
       .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))
-      .forEach((r) => mmRevealedBody.appendChild(renderMmRevealedRow(r, targetIsZero)));
+      .forEach((r) => mmRevealedBody.appendChild(renderMmRevealedRow(r, kind, targetIsZero)));
+
+    const hasReasoning = kind === 'judged' && !!data.judgeReasoning;
+    mmReasoningBtn.classList.toggle('hidden', !hasReasoning);
+    mmReasoningBtn.textContent = "Show judge's reasoning";
+    mmReasoningText.textContent = data.judgeReasoning || '';
+    mmReasoningText.classList.add('hidden');
 
     const scoreEntries = Object.entries(data.scores || {})
       .map(([name, points]) => ({ name, points }))
@@ -210,6 +247,12 @@ export const MindMeld = {
 
     mmAnswerInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') mmAnswerSubmitBtn.click();
+    });
+
+    mmReasoningBtn.addEventListener('click', () => {
+      const showing = !mmReasoningText.classList.contains('hidden');
+      mmReasoningText.classList.toggle('hidden', showing);
+      mmReasoningBtn.textContent = showing ? "Show judge's reasoning" : "Hide judge's reasoning";
     });
 
     mmNextBtn.addEventListener('click', () => {

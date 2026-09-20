@@ -516,15 +516,23 @@
         <p id="mm-answer-error" class="error"></p>
       </div>
 
+      <div id="mm-judging-panel" class="hidden">
+        <h1 id="mm-judging-subject-name"></h1>
+        <p id="mm-judging-question" class="mm-question"></p>
+        <p class="muted">The judge is weighing everyone's answers&hellip;</p>
+      </div>
+
       <div id="mm-revealed-panel" class="hidden">
         <h1>Round Results</h1>
         <p id="mm-revealed-target" class="muted"></p>
         <table class="sb-results-table">
           <thead>
-            <tr><th>Player</th><th>Guess</th><th>Diff</th><th>Rank</th><th>Points</th></tr>
+            <tr><th>Player</th><th>Guess</th><th id="mm-diff-header">Diff</th><th>Rank</th><th>Points</th></tr>
           </thead>
           <tbody id="mm-revealed-body"></tbody>
         </table>
+        <button id="mm-reasoning-btn" class="secondary hidden" type="button">Show judge's reasoning</button>
+        <p id="mm-reasoning-text" class="muted hidden"></p>
         <h2 class="scoreboard-heading">Match Score</h2>
         <ol id="mm-match-scores" class="scoreboard-list"></ol>
         <button id="mm-next-btn" class="hidden" type="button">Next Round</button>

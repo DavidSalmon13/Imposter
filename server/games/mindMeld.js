@@ -11,24 +11,16 @@ const MM_USED_QUESTIONS_AVOID_WINDOW = 30;
 const MM_CONTENT_CHECK_RETRIES = 3;
 const MM_BULLSEYE_BONUS = 2;
 const MM_ROTATIONS_PER_MATCH = 2;
+// One in four rounds asks the Subject's opinion about a second named player instead of
+// about themselves - see generateMindMeldQuestion's otherName branch.
+const MM_OTHER_PLAYER_CHANCE = 0.25;
+// Roughly one in three rounds is a free-text "judged" question instead of a numeric one -
+// see startMmRound's questionKind branch.
+const MM_JUDGED_QUESTION_CHANCE = 0.3;
+const MM_ANSWER_MAX_LENGTH = 60;
 
 const MM_MAGNITUDE_WORDS = { thousand: 1e3, million: 1e6, billion: 1e9 };
 const MM_MAGNITUDE_SUFFIXES = { k: 1e3, m: 1e6, b: 1e9 };
-
-// Every question names a real person in the room, so the denylist is stricter than
-// Imposter/Codenames' general family-friendly bar - anything that could read as an
-// insult even framed as a joke, plus the specific sensitive topics from the spec.
-const MM_DENYLIST_PATTERNS = [
-  /\bweight\b/i, /\bfat\b/i, /\bskinny\b/i, /\bobese\b/i, /\bbody image\b/i, /\bugly\b/i, /\battractive\b/i,
-  /\bmoney\b/i, /\bincome\b/i, /\bsalary\b/i, /\brich\b/i, /\bpoor\b/i, /\bpaid\b/i, /\bdollars?\b/i, /\bdebt\b/i,
-  /\bdat(e|ing)\b/i, /\brelationship\b/i, /\bboyfriend\b/i, /\bgirlfriend\b/i, /\bex[- ]?(girlfriend|boyfriend)\b/i,
-  /\bcheat(ed|ing)?\b/i, /\bsex(ual)?\b/i, /\bcrush(es)?\b/i,
-  /\bhealth\b/i, /\bsick(ness)?\b/i, /\billness\b/i, /\bdisease\b/i, /\btherap(y|ist)\b/i, /\bmental\b/i,
-  /\bdepress(ed|ion)?\b/i, /\banxi(ety|ous)\b/i, /\bdiet(ing)?\b/i,
-  /\bfamily\b/i, /\bdivorce\b/i, /\bparents?\b/i, /\bsibling\b/i, /\bmom\b/i, /\bdad\b/i, /\bfight(s|ing)?\b/i,
-  /\bargu(e|ment|ing)\b/i,
-  /\bstupid\b/i, /\bdumb\b/i, /\bidiot\b/i, /\bloser\b/i, /\blazy\b/i, /\bpathetic\b/i, /\bworthless\b/i,
-];
 
 const SAVED_FIELDS = [
   'mmRotationOrder',
@@ -54,11 +46,14 @@ function clearState(room, roomCode) {
   room.mmRotationIndex = 0;
   room.mmRoundNumber = 0;
   room.mmCurrentQuestion = null;
+  room.mmQuestionKind = null;
   room.mmAnswerDeadline = null;
   room.mmAnswers = {};
   room.mmUsedQuestions = [];
   room.mmScores = {};
   room.mmRotationsCompleted = 0;
+  room.mmJudgeReasoning = null;
+  room.mmJudgedRanking = null;
 }
 
 function mmCurrentSubject(room) {
@@ -75,7 +70,9 @@ function mmStatePayload(ctx, room, viewerName) {
     roundNumber: room.mmRoundNumber,
     subjectName,
     isSubject: viewerName != null && viewerName === subjectName,
-    question: room.phase === 'answering' ? room.mmCurrentQuestion : null,
+    questionKind: room.mmQuestionKind || null,
+    question:
+      room.phase === 'answering' || room.phase === 'judging' ? room.mmCurrentQuestion : null,
     answerDeadline: room.phase === 'answering' ? room.mmAnswerDeadline : null,
     mySubmitted:
       viewerName != null && Object.prototype.hasOwnProperty.call(room.mmAnswers || {}, viewerName),
@@ -83,12 +80,17 @@ function mmStatePayload(ctx, room, viewerName) {
 
   if (room.phase === 'revealed') {
     const target = room.mmAnswers[subjectName];
-    const answers = {};
-    for (const [name, guess] of Object.entries(room.mmAnswers)) {
-      if (name !== subjectName) answers[name] = guess;
-    }
     payload.target = target;
-    payload.ranking = computeMmRanking(target, answers);
+    if (room.mmQuestionKind === 'judged') {
+      payload.ranking = room.mmJudgedRanking || [];
+      payload.judgeReasoning = room.mmJudgeReasoning || '';
+    } else {
+      const answers = {};
+      for (const [name, guess] of Object.entries(room.mmAnswers)) {
+        if (name !== subjectName) answers[name] = guess;
+      }
+      payload.ranking = computeMmRanking(target, answers);
+    }
     payload.scores = { ...room.mmScores };
   }
 
@@ -105,12 +107,6 @@ function broadcastMm(ctx, roomCode, room) {
     if (!p.connected || !p.socketId) continue;
     ctx.io.to(p.socketId).emit('mmState', mmStatePayload(ctx, room, name));
   }
-}
-
-/** Pure keyword/topic guardrail run against the model's output before accepting it. */
-function questionPassesContentCheck(question) {
-  if (!question || typeof question !== 'string') return false;
-  return !MM_DENYLIST_PATTERNS.some((re) => re.test(question));
 }
 
 /**
@@ -191,46 +187,198 @@ function computeMmRanking(target, answers) {
   return results;
 }
 
-async function generateMindMeldQuestion(room, subjectName) {
+/** Picks a random other player from the frozen rotation to be the subject of an "about someone else" question. */
+function pickMmOtherPlayer(room, subjectName) {
+  const others = room.mmRotationOrder.filter((name) => name !== subjectName);
+  if (!others.length) return null;
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+async function generateMindMeldQuestion(room, subjectName, otherName) {
   const avoid = room.mmUsedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
-  const prompt =
-    `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
-    `gets a silly numeric-estimate question about themselves, and everyone else tries to guess what ` +
-    `number the Subject will answer.\n\n` +
-    `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
-    `${subjectName}'s own personal estimate/opinion (not an objective fact), asking for a single ` +
-    `non-negative number. Examples of the TOPIC, TONE, and PHRASING to match (write a NEW, different ` +
-    `question - do not reuse these): "How many apples does ${subjectName} think there are in the whole ` +
-    `world?", "How many hours has ${subjectName} spent waiting in traffic in their life?", "How many ` +
-    `push-ups does ${subjectName} think they could do right now?"\n\n` +
-    `STRICT CONTENT RULES: keep it light and silly - food, everyday objects, mundane life activities, ` +
-    `playful physical feats, goofy hypotheticals. NEVER mention weight or body image, money or income, ` +
-    `relationships or dating history, health or illness, family conflict, or anything that could read as ` +
-    `an insult even as a joke - this question names a real person in the room.` +
-    (avoid.length
-      ? ` These questions were already used this match - write something different from all of them: ` +
-        avoid.map((q) => `"${q}"`).join(', ') + '.'
-      : '') +
-    ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
+  const avoidClause = avoid.length
+    ? ` These questions were already used this match - write something different from all of them: ` +
+      avoid.map((q) => `"${q}"`).join(', ') + '.'
+    : '';
+  const toneClause =
+    `TONE: go as ridiculous, raunchy, and outrageous as you like - sex, hookups, dating disasters, ` +
+    `dares-for-money, and absurd hypotheticals are all fair game and encouraged, the raunchier the ` +
+    `better. The only hard rule: stay PLAYFUL, never CRUEL - no slurs, no hate speech, and nothing that ` +
+    `reads as a genuine personal attack on someone's intelligence, worth, appearance, or health. This ` +
+    `should be the kind of question that gets a table laughing, not one that actually humiliates someone.`;
+
+  const prompt = otherName
+    ? `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
+      `gets an outrageous numeric-estimate question, and everyone else tries to guess what number the ` +
+      `Subject will answer.\n\n` +
+      `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
+      `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
+      `opinion/guess about ${otherName} (not an objective fact), asking for a single non-negative number. ` +
+      `Examples of the TOPIC, TONE, and PHRASING to match (write a NEW, different question - do not reuse ` +
+      `these): "For how much money does ${subjectName} think ${otherName} would agree to go on a blind date ` +
+      `with a stranger from the internet?", "How many minutes does ${subjectName} think ${otherName} could ` +
+      `last at a nudist beach before getting uncomfortable?", "For how much money does ${subjectName} think ` +
+      `${otherName} would send a nude to their ex by accident on purpose?"\n\n` +
+      toneClause +
+      avoidClause +
+      ` Respond with ONLY compact JSON in the form {"question": "..."}.`
+    : `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
+      `gets an outrageous numeric-estimate question about themselves, and everyone else tries to guess ` +
+      `what number the Subject will answer.\n\n` +
+      `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
+      `${subjectName}'s own personal estimate/opinion (not an objective fact), asking for a single ` +
+      `non-negative number. Examples of the TOPIC, TONE, and PHRASING to match (write a NEW, different ` +
+      `question - do not reuse these): "For how much money would ${subjectName} let a stranger read every ` +
+      `text on their phone from the last year?", "How many people does ${subjectName} think they've hooked ` +
+      `up with while pretending to remember their name?", "How many minutes into a first date would ` +
+      `${subjectName} last before bringing up their ex?"\n\n` +
+      toneClause +
+      avoidClause +
+      ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
 
   for (let attempt = 0; attempt < MM_CONTENT_CHECK_RETRIES; attempt++) {
     const parsed = await chatCompletionJson(prompt, { temperature: 1.1 });
     const question = String((parsed && parsed.question) || '').trim();
-    if (question && questionPassesContentCheck(question)) {
+    if (question) {
       return { question };
     }
   }
-  throw new Error('Could not generate a question that passed the content check');
+  throw new Error('Could not generate a question - please try again');
+}
+
+/**
+ * Same shape as generateMindMeldQuestion, but for the free-text "judged" question kind - the
+ * answer is a short phrase/name/word instead of a number, and there's no numeric ranking; a
+ * judge LLM call (see judgeMmAnswers) ranks the guesses against the Subject's own answer instead.
+ */
+async function generateMindMeldTextQuestion(room, subjectName, otherName) {
+  const avoid = room.mmUsedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
+  const avoidClause = avoid.length
+    ? ` These questions were already used this match - write something different from all of them: ` +
+      avoid.map((q) => `"${q}"`).join(', ') + '.'
+    : '';
+  const toneClause =
+    `TONE: go as ridiculous, raunchy, and outrageous as you like - sex, hookups, dating disasters, ` +
+    `dares-for-money, and absurd hypotheticals are all fair game and encouraged, the raunchier the ` +
+    `better. The only hard rule: stay PLAYFUL, never CRUEL - no slurs, no hate speech, and nothing that ` +
+    `reads as a genuine personal attack on someone's intelligence, worth, appearance, or health. This ` +
+    `should be the kind of question that gets a table laughing, not one that actually humiliates someone.`;
+  const formatClause =
+    `The answer must be a short phrase, name, or word (NOT a number) - something everyone else at the ` +
+    `table can take a one- or two-word guess at.`;
+
+  const prompt = otherName
+    ? `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
+      `gets an outrageous open-ended question, and everyone else tries to guess what the Subject will ` +
+      `answer.\n\n` +
+      `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
+      `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
+      `opinion/guess about ${otherName}. ${formatClause} Examples of the TOPIC, TONE, and PHRASING to match ` +
+      `(write a NEW, different question - do not reuse these): "Who does ${subjectName} think ${otherName} ` +
+      `has a secret crush on in this room?", "What's the first word ${subjectName} thinks of when picturing ` +
+      `${otherName} on a wild night out?", "What animal would ${subjectName} say ${otherName} is most like ` +
+      `in bed?"\n\n` +
+      toneClause +
+      avoidClause +
+      ` Respond with ONLY compact JSON in the form {"question": "..."}.`
+    : `You are generating one question for a party game called Mind Meld. A rotating "Subject" player ` +
+      `gets an outrageous open-ended question about themselves, and everyone else tries to guess what the ` +
+      `Subject will answer.\n\n` +
+      `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
+      `${subjectName}'s own personal opinion. ${formatClause} Examples of the TOPIC, TONE, and PHRASING to ` +
+      `match (write a NEW, different question - do not reuse these): "Who does ${subjectName} think is the ` +
+      `hottest person at this table?", "What's the wildest place ${subjectName} has ever hooked up?", "What ` +
+      `one word would ${subjectName} use to describe their worst ex in bed?"\n\n` +
+      toneClause +
+      avoidClause +
+      ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
+
+  for (let attempt = 0; attempt < MM_CONTENT_CHECK_RETRIES; attempt++) {
+    const parsed = await chatCompletionJson(prompt, { temperature: 1.1 });
+    const question = String((parsed && parsed.question) || '').trim();
+    if (question) {
+      return { question };
+    }
+  }
+  throw new Error('Could not generate a question - please try again');
+}
+
+/**
+ * Sends the Subject's free-text answer plus everyone else's guesses to a judge LLM, which orders
+ * the guesses from closest-in-spirit to least close and gives a short reasoning blurb. Unlike
+ * computeMmRanking, this returns a strict order with no ties - a semantic judgment call, not a
+ * computed metric. `answers` is {name: text} and must already exclude the Subject.
+ */
+async function judgeMmAnswers(question, subjectName, subjectAnswer, answers) {
+  const guessList = Object.entries(answers)
+    .map(([name, text]) => `${name}: "${text}"`)
+    .join('\n');
+  const prompt =
+    `You are the judge for a party game called Mind Meld. The question this round was: "${question}"\n\n` +
+    `${subjectName} (the Subject) gave this answer: "${subjectAnswer}"\n\n` +
+    `Now rank the other players' guesses below by how closely each one matches what ${subjectName} ` +
+    `actually said - judge by meaning and spirit (the same person, thing, or idea referenced differently ` +
+    `should count as a strong match), not exact string matching.\n\n${guessList}\n\n` +
+    `Respond with ONLY compact JSON in the form {"ranking": [<array of every player name above, ordered ` +
+    `from closest match to least close>], "reasoning": "one or two witty sentences explaining the ` +
+    `ranking, referencing specific guesses by name"}.`;
+
+  const parsed = await chatCompletionJson(prompt, { temperature: 0.7 });
+  const names = Object.keys(answers);
+  const rawRanking = Array.isArray(parsed && parsed.ranking) ? parsed.ranking : [];
+  const ranking = rawRanking.filter((n) => names.includes(n));
+  for (const name of names) {
+    if (!ranking.includes(name)) ranking.push(name); // model omitted someone - append in original order
+  }
+  const reasoning = String((parsed && parsed.reasoning) || '').trim();
+  return { ranking, reasoning };
 }
 
 /** Ranks the round, fans points into room.mmScores, and moves to 'revealed'. */
-function resolveMmRound(ctx, roomCode, room) {
+async function resolveMmRound(ctx, roomCode, room) {
   clearMmDeadlineHandle(roomCode);
   const subjectName = mmCurrentSubject(room);
   const target = room.mmAnswers[subjectName];
   const answers = {};
   for (const [name, guess] of Object.entries(room.mmAnswers)) {
     if (name !== subjectName) answers[name] = guess;
+  }
+
+  if (room.mmQuestionKind === 'judged') {
+    room.phase = 'judging';
+    broadcastMm(ctx, roomCode, room);
+
+    let ranking;
+    let reasoning;
+    let judgeFailed = false;
+    try {
+      ({ ranking, reasoning } = await judgeMmAnswers(room.mmCurrentQuestion, subjectName, target, answers));
+    } catch (err) {
+      console.error('judgeMmAnswers failed:', err.message);
+      judgeFailed = true;
+      ranking = Object.keys(answers);
+      reasoning = "The judge couldn't reach a verdict this round, so everyone shares the points.";
+    }
+
+    // Room may have been deleted, or the round already voided by a Subject disconnect, while awaiting the judge.
+    if (!ctx.rooms.has(roomCode) || ctx.rooms.get(roomCode) !== room) return;
+    if (room.phase !== 'judging') return;
+
+    const totalPlayers = ranking.length + 1; // +1 for the un-ranked Subject
+    const scored = judgeFailed
+      ? ranking.map((name) => ({ name, guess: answers[name], rank: 1, points: Math.max(totalPlayers - 1, 0) }))
+      : ranking.map((name, i) => ({ name, guess: answers[name], rank: i + 1, points: totalPlayers - (i + 1) }));
+
+    for (const r of scored) {
+      room.mmScores[r.name] = (room.mmScores[r.name] || 0) + r.points;
+    }
+
+    room.mmJudgedRanking = scored;
+    room.mmJudgeReasoning = reasoning;
+    room.mmAnswerDeadline = null;
+    room.phase = 'revealed';
+    broadcastMm(ctx, roomCode, room);
+    return;
   }
 
   const ranking = computeMmRanking(target, answers);
@@ -303,9 +451,16 @@ async function startMmRound(ctx, roomCode, room, fallbackPhase) {
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'mindmeld' });
 
+  const otherName =
+    Math.random() < MM_OTHER_PLAYER_CHANCE ? pickMmOtherPlayer(room, subjectName) : null;
+  const questionKind = Math.random() < MM_JUDGED_QUESTION_CHANCE ? 'judged' : 'number';
+
   let question;
   try {
-    ({ question } = await generateMindMeldQuestion(room, subjectName));
+    ({ question } =
+      questionKind === 'judged'
+        ? await generateMindMeldTextQuestion(room, subjectName, otherName)
+        : await generateMindMeldQuestion(room, subjectName, otherName));
   } catch (err) {
     console.error('generateMindMeldQuestion failed:', err.message);
     return failMmRound(
@@ -324,9 +479,12 @@ async function startMmRound(ctx, roomCode, room, fallbackPhase) {
   if (room.mmUsedQuestions.length > MM_USED_QUESTIONS_AVOID_WINDOW) {
     room.mmUsedQuestions.splice(0, room.mmUsedQuestions.length - MM_USED_QUESTIONS_AVOID_WINDOW);
   }
+  room.mmQuestionKind = questionKind;
   room.mmCurrentQuestion = question;
   room.mmAnswerDeadline = Date.now() + MM_ANSWER_TIME_MS;
   room.mmAnswers = {};
+  room.mmJudgeReasoning = null;
+  room.mmJudgedRanking = null;
   room.phase = 'answering';
   scheduleMmDeadlineHandle(ctx, roomCode, room);
   broadcastMm(ctx, roomCode, room);
@@ -513,9 +671,19 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'Too late - the timer ran out' });
     }
 
-    const value = parseMmNumber(data && data.raw);
-    if (value === null) {
-      return callback({ ok: false, error: 'Enter a valid non-negative number' });
+    let value;
+    if (room.mmQuestionKind === 'judged') {
+      const raw = typeof (data && data.raw) === 'string' ? data.raw.trim() : '';
+      if (!raw) return callback({ ok: false, error: 'Enter an answer' });
+      if (raw.length > MM_ANSWER_MAX_LENGTH) {
+        return callback({ ok: false, error: `Keep it under ${MM_ANSWER_MAX_LENGTH} characters` });
+      }
+      value = raw;
+    } else {
+      value = parseMmNumber(data && data.raw);
+      if (value === null) {
+        return callback({ ok: false, error: 'Enter a valid non-negative number' });
+      }
     }
 
     room.mmAnswers[name] = value;
@@ -556,18 +724,22 @@ function onReconnectBroadcast(ctx, roomCode, room) {
 }
 
 /**
- * mmCurrentQuestion/mmAnswerDeadline/mmAnswers are deliberately not in savedFields (in-flight
- * round state, same simplification Menifot/Music Timeline's own generating-rollback uses) - so
- * none of 'generating'/'answering'/'revealed' can actually resume after a restart (an in-flight
- * OpenAI call can't be resumed, and a restart during answering/revealed loses the very state
- * those screens need to render). All three roll back to 'ready', where the frozen roster/scores
- * are intact and a Start press regenerates the stuck round via the retry path above.
+ * mmCurrentQuestion/mmAnswerDeadline/mmAnswers/mmJudge* are deliberately not in savedFields
+ * (in-flight round state, same simplification Menifot/Music Timeline's own generating-rollback
+ * uses) - so none of 'generating'/'answering'/'judging'/'revealed' can actually resume after a
+ * restart (an in-flight OpenAI call can't be resumed, and a restart during answering/judging/
+ * revealed loses the very state those screens need to render). All four roll back to 'ready',
+ * where the frozen roster/scores are intact and a Start press regenerates the stuck round via
+ * the retry path above.
  */
 function repairOnLoad(ctx, room) {
-  if (room.phase !== 'generating' && room.phase !== 'answering' && room.phase !== 'revealed') return;
+  if (!['generating', 'answering', 'judging', 'revealed'].includes(room.phase)) return;
   room.mmCurrentQuestion = null;
+  room.mmQuestionKind = null;
   room.mmAnswerDeadline = null;
   room.mmAnswers = {};
+  room.mmJudgeReasoning = null;
+  room.mmJudgedRanking = null;
   room.phase = 'ready';
 }
 

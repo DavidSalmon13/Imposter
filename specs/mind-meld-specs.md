@@ -34,11 +34,14 @@ constants table.
 | `MM_ROTATIONS_PER_MATCH` | 2 | Every player is Subject exactly this many times before the match ends |
 | `MM_BULLSEYE_BONUS` | 2 | Extra points on top of rank points for an exact numeric match to the Subject's answer |
 | `MM_USED_QUESTIONS_AVOID_WINDOW` | 30 | Recent questions sent to the LLM as a "don't repeat these" list |
+| `MM_OTHER_PLAYER_CHANCE` | 0.25 | Chance a round's question is about a second named player instead of the Subject themselves |
+| `MM_JUDGED_QUESTION_CHANCE` | 0.3 | Chance a round is a free-text `judged` question instead of a `number` one |
+| `MM_ANSWER_MAX_LENGTH` | 60 | Max character length for a `judged`-question free-text answer |
 
 ## Phases
 
 ```
-lobby (shared) → ready → pickingSubject → generating → answering → revealed → (pickingSubject again | gameover)
+lobby (shared) → ready → pickingSubject → generating → answering → (judging →) revealed → (pickingSubject again | gameover)
 ```
 
 - **ready**: host presses "Start" / "Next Round". Host-only, same control-plane pattern as
@@ -48,13 +51,18 @@ lobby (shared) → ready → pickingSubject → generating → answering → rev
 - **generating**: server is asking the LLM for this round's question. Mirrors Imposter's
   `generating` phase and `failImposterRound` pattern — on failure, revert to `ready`, emit a
   retryable error.
-- **answering**: the question is shown to everyone, including the Subject. Every player sees a
-  numeric input and a live countdown. Non-Subject players lose their input once their 60 seconds
-  run out (or once they submit, whichever first); the Subject's input never disables itself, no
-  matter how long they take (see "Timing" below).
-- **revealed**: the Subject's number, everyone's guesses, computed percentage-differences, rank,
-  and points-awarded-this-round are all shown together, plus the running match score. Host sees
-  "Next Round".
+- **answering**: the question is shown to everyone, including the Subject. Non-Subject players
+  lose their input once their 60 seconds run out (or once they submit, whichever first); the
+  Subject's input never disables itself, no matter how long they take (see "Timing" below). For a
+  `number`-kind question, every player sees a numeric input; for a `judged`-kind question (see
+  "Judged (free-text) questions" below), everyone sees a free-text input instead.
+- **judging**: `judged`-kind questions only, server-only — every player sees a "the judge is
+  weighing everyone's answers" holding screen while the judge LLM call is in flight. `number`-kind
+  questions skip straight from `answering` to `revealed`.
+- **revealed**: the Subject's answer, everyone's guesses, rank, and points-awarded-this-round are
+  all shown together, plus the running match score. For `number` questions this includes computed
+  percentage-differences; for `judged` questions it includes the judge's ranking and a
+  "show judge's reasoning" toggle instead. Host sees "Next Round".
 - **gameover**: once `MM_ROTATIONS_PER_MATCH` full rotations have completed, final standings are
   shown and the scoreboard is updated. Host can press Play Again or Back to Lobby.
 
@@ -92,20 +100,25 @@ lobby (shared) → ready → pickingSubject → generating → answering → rev
 
 ## Question generation
 
-- One LLM call per round: `generateMindMeldQuestion(room, subjectName) → { question: string }`.
+- One LLM call per round: `generateMindMeldQuestion(room, subjectName, otherName) → { question: string }`.
   The question must be phrased as a request for a numeric estimate framed as that player's own
-  opinion/estimate, not an objective fact — e.g. "How many apples does {name} think there are in
-  the whole world?", "How many hours has {name} spent waiting in traffic in their life?", "How
-  many push-ups does {name} think they could do right now?"
-- **Content-safety guardrail specific to this game**: because every question names a real person
-  in the room, the prompt must explicitly restrict topics to light, silly, harmless quantities —
-  food, everyday objects, mundane life activities, playful physical feats, goofy hypotheticals.
-  It must explicitly forbid anything touching weight/body image, money/income,
-  relationships/dating history, health, family conflict, or anything that could read as an
-  insult even framed as a joke. This is a stricter bar than Imposter/Codenames' general
-  "family-friendly" constraint, because those games generate content about nobody in
-  particular — this one is about a specific person sitting in the room. Reject-and-retry if the
-  model's output fails a basic keyword/topic check.
+  opinion/estimate, not an objective fact.
+- **Tone**: deliberately outrageous and raunchy — sex, hookups, dating disasters, dares-for-money,
+  and absurd hypotheticals are all fair game and encouraged, e.g. "For how much money would
+  {name} let a stranger read every text on their phone from the last year?", "How many people
+  does {name} think they've hooked up with while pretending to remember their name?" There is no
+  topic denylist. The one guardrail baked into the prompt: stay playful, never cruel — no slurs,
+  no hate speech, nothing that reads as a genuine personal attack on someone's intelligence,
+  worth, appearance, or health. If the model call fails or returns nothing, the round is retried
+  (`MM_CONTENT_CHECK_RETRIES`), then reverts to the fallback phase.
+- **Second-player questions**: with probability `MM_OTHER_PLAYER_CHANCE`, the round's question
+  asks about a different player at the table (`otherName`, picked uniformly at random from the
+  rest of `room.mmRotationOrder`) instead of the Subject themselves — e.g. "For how much money
+  does {subjectName} think {otherName} would accept to go on a blind date with a stranger from
+  the internet?" The number being guessed is still `subjectName`'s own opinion/estimate (the
+  Subject is always who submits the target number and is always who everyone else is trying to
+  predict) — only the topic of the question shifts to be about someone else. This is decided
+  once per round in `startMmRound`, before calling `generateMindMeldQuestion`.
 - The question is sent to everyone at once (unlike Music Timeline's DJ-only visibility) —
   there's no secret to protect here, the only "hidden" thing is what number the Subject will
   actually pick, and that's inherent to the mechanic, not something the app needs to conceal.
@@ -126,6 +139,39 @@ lobby (shared) → ready → pickingSubject → generating → answering → rev
 - A hard ceiling (e.g. `10^15`) rejects obvious troll input ("a billion billion billion") with a
   friendly inline error, rather than letting it silently break the percentage-difference math.
 - Non-numeric junk shows an inline "please enter a number" error and does not submit.
+
+## Judged (free-text) questions
+
+- With probability `MM_JUDGED_QUESTION_CHANCE`, a round's question is a `judged`-kind question
+  instead of a `number`-kind one, decided once per round in `startMmRound` alongside the
+  `otherName` roll. `room.mmQuestionKind` (`'number'` | `'judged'`) is set for the round and
+  drives both the client's input UI and the server's resolution path.
+- The question is generated by `generateMindMeldTextQuestion(room, subjectName, otherName) →
+  { question: string }` — same prompt shape and tone as the numeric generator, but the answer is
+  a short phrase, name, or word instead of a number, e.g. "Who does {name} think is the hottest
+  person at this table?", "What's the wildest place {name} has ever hooked up?"
+- Every player (Subject included) sees a free-text input instead of the numeric one. The Subject
+  submits their own real answer; everyone else submits their guess at what the Subject will say.
+  Same submission rules as numeric questions (one submission per player, Subject has no deadline,
+  non-Subject players are cut off at `MM_ANSWER_TIME_MS`). Input is capped at
+  `MM_ANSWER_MAX_LENGTH` characters and rejected if empty.
+- **Judging**: once the round would otherwise resolve (Subject answered, and every connected
+  non-Subject player has submitted or timed out), the round enters the `judging` phase and
+  `judgeMmAnswers(question, subjectName, subjectAnswer, answers)` sends the Subject's answer and
+  every guess to the LLM in one call, asking it to order the guesses from closest-in-spirit to
+  least close and give a one-or-two-sentence reasoning blurb. This is a semantic judgment, not a
+  computed metric — unlike numeric scoring there is no tie support; the judge returns a strict
+  order.
+- Points follow the same rank-based scale as numeric questions (1st place among the guessers gets
+  `totalPlayers − 1`, 2nd gets `totalPlayers − 2`, …), just driven by the judge's order instead of
+  `pctDiff`. There is no bullseye bonus for judged questions. The Subject always scores 0, as with
+  numeric questions.
+- **Judge failure**: if the LLM call fails, the round still resolves — every guesser is treated as
+  tied for 1st (everyone gets `totalPlayers − 1` points) and the reasoning shown is a generic
+  "the judge couldn't reach a verdict" message, rather than leaving the round stuck.
+- The judge's reasoning is sent to every client in the `revealed` payload (`judgeReasoning`) but
+  hidden behind a "Show judge's reasoning" button in the UI — no secret is being protected, it's
+  just kept out of the way until someone wants to read it.
 
 ## Scoring — ranked by percentage closeness
 
@@ -223,7 +269,9 @@ Maya 2, Ariel 1, Tom 0, carried forward into the next round.
   submits.
 - **Subject disconnects during `answering`**: round voided, no scoring, rotation advances to the
   next Subject (see "Timing" above) — this is the one deliberate exception to "the Subject holds
-  up the round indefinitely."
+  up the round indefinitely." A Subject disconnecting during `judging` (after they've already
+  answered) does not void the round - their answer is already captured, so the round resolves
+  normally once the judge responds.
 - **A player disconnects and never returns for the rest of the match**: their spot in
   `room.mmRotationOrder` is not removed — when their turn comes up again (2nd rotation), the same
   disconnect-voids-the-round handling above fires again. Matches this app's established "don't
@@ -249,23 +297,29 @@ Maya 2, Ariel 1, Tom 0, carried forward into the next round.
 - `room.mmRoundNumber`: increments each round that actually resolves (voided rounds still
   advance rotation but are worth noting separately if a round-history view is ever added).
 - `room.mmCurrentQuestion`: the current round's question text, or `null` between rounds.
+- `room.mmQuestionKind`: `'number'` or `'judged'` for the current round, or `null` between rounds.
 - `room.mmAnswerDeadline`: epoch ms deadline for non-Subject players, or `null`.
-- `room.mmAnswers`: map of name → submitted number for the current round (includes the
+- `room.mmAnswers`: map of name → submitted number/text for the current round (includes the
   Subject's).
 - `room.mmUsedQuestions`: rolling list of recent question texts, windowed at
   `MM_USED_QUESTIONS_AVOID_WINDOW`.
 - `room.mmScores`: name → cumulative points across the current match.
 - `room.mmRotationsCompleted`: integer, increments each time `mmRotationIndex` wraps to 0.
+- `room.mmJudgedRanking`: for `judged` rounds only, the judge's resolved `[{name, guess, rank,
+  points}]` array, or `null`.
+- `room.mmJudgeReasoning`: for `judged` rounds only, the judge's reasoning text, or `null`.
 
 `savedFields` for this module: `mmRotationOrder`, `mmRotationIndex`, `mmRoundNumber`,
 `mmUsedQuestions`, `mmScores`, `mmRotationsCompleted` — enough to resume a match between rounds
-after a restart. `mmCurrentQuestion` / `mmAnswerDeadline` / `mmAnswers` are in-flight round
-state, safe to discard and roll back to `ready` on restart, same simplification Menifot and
-Music Timeline's `generating` rollback already use.
+after a restart. `mmCurrentQuestion` / `mmQuestionKind` / `mmAnswerDeadline` / `mmAnswers` /
+`mmJudgedRanking` / `mmJudgeReasoning` are in-flight round state, safe to discard and roll back to
+`ready` on restart, same simplification Menifot and Music Timeline's `generating` rollback
+already use.
 
 ## Explicitly out of scope (v1)
 
-- No free-text or multiple-choice answers — always a single numeric estimate.
+- No multiple-choice answers — always a single numeric estimate or (for `judged` questions) a
+  short free-text phrase.
 - No per-room-configurable rotation count, timer length, or bonus values — code constants only,
   same precedent as every other game's constants table.
 - No spectator mode beyond "disconnected but still on the roster."
