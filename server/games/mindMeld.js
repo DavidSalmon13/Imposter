@@ -200,6 +200,7 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
     ? ` These questions were already used this match - write something different from all of them: ` +
       avoid.map((q) => `"${q}"`).join(', ') + '.'
     : '';
+  const languageInstruction = room.wordLanguage === 'hebrew' ? ' Write the question in Hebrew.' : '';
   const toneClause =
     `TONE: go absolutely wild - lean hard into funny, naughty, and crazy territory (sex, hookups, ` +
     `dating disasters, money-for-crazy-dares, gross-out humor, deranged hypotheticals - anything ` +
@@ -218,7 +219,8 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
       `Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
       `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
-      `opinion/guess about ${otherName} (not an objective fact), asking for a single non-negative number.\n\n` +
+      `opinion/guess about ${otherName} (not an objective fact), asking for a single non-negative ` +
+      `number.${languageInstruction}\n\n` +
       toneClause +
       ' ' +
       numberClause +
@@ -229,7 +231,7 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
       `what number the Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
       `${subjectName}'s own personal estimate/opinion (not an objective fact), asking for a single ` +
-      `non-negative number.\n\n` +
+      `non-negative number.${languageInstruction}\n\n` +
       toneClause +
       ' ' +
       numberClause +
@@ -257,6 +259,7 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
     ? ` These questions were already used this match - write something different from all of them: ` +
       avoid.map((q) => `"${q}"`).join(', ') + '.'
     : '';
+  const languageInstruction = room.wordLanguage === 'hebrew' ? ' Write the question in Hebrew.' : '';
   const toneClause =
     `TONE: go absolutely wild - lean hard into funny, naughty, and crazy territory (sex, hookups, ` +
     `dating disasters, money-for-crazy-dares, gross-out humor, deranged hypotheticals - anything ` +
@@ -275,7 +278,7 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
       `answer.\n\n` +
       `The Subject this round is named "${subjectName}". This particular question should be about ANOTHER ` +
       `player at the table named "${otherName}" - phrased as a request for ${subjectName}'s own personal ` +
-      `opinion/guess about ${otherName}. ${formatClause}\n\n` +
+      `opinion/guess about ${otherName}. ${formatClause}${languageInstruction}\n\n` +
       toneClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`
@@ -283,7 +286,7 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
       `gets an outrageous open-ended question about themselves, and everyone else tries to guess what the ` +
       `Subject will answer.\n\n` +
       `The Subject this round is named "${subjectName}". Write ONE question, phrased as a request for ` +
-      `${subjectName}'s own personal opinion. ${formatClause}\n\n` +
+      `${subjectName}'s own personal opinion. ${formatClause}${languageInstruction}\n\n` +
       toneClause +
       avoidClause +
       ` Respond with ONLY compact JSON in the form {"question": "..."}.`;
@@ -304,10 +307,11 @@ async function generateMindMeldTextQuestion(room, subjectName, otherName) {
  * computeMmRanking, this returns a strict order with no ties - a semantic judgment call, not a
  * computed metric. `answers` is {name: text} and must already exclude the Subject.
  */
-async function judgeMmAnswers(question, subjectName, subjectAnswer, answers) {
+async function judgeMmAnswers(room, question, subjectName, subjectAnswer, answers) {
   const guessList = Object.entries(answers)
     .map(([name, text]) => `${name}: "${text}"`)
     .join('\n');
+  const languageInstruction = room.wordLanguage === 'hebrew' ? ' Write your reasoning in Hebrew.' : '';
   const prompt =
     `You are the judge for a party game called Mind Meld. The question this round was: "${question}"\n\n` +
     `${subjectName} (the Subject) gave this answer: "${subjectAnswer}"\n\n` +
@@ -316,7 +320,7 @@ async function judgeMmAnswers(question, subjectName, subjectAnswer, answers) {
     `should count as a strong match), not exact string matching.\n\n${guessList}\n\n` +
     `Respond with ONLY compact JSON in the form {"ranking": [<array of every player name above, ordered ` +
     `from closest match to least close>], "reasoning": "one or two witty sentences explaining the ` +
-    `ranking, referencing specific guesses by name"}.`;
+    `ranking, referencing specific guesses by name"}.${languageInstruction}`;
 
   const parsed = await chatCompletionJson(prompt, { temperature: 0.7 });
   const names = Object.keys(answers);
@@ -347,7 +351,7 @@ async function resolveMmRound(ctx, roomCode, room) {
     let reasoning;
     let judgeFailed = false;
     try {
-      ({ ranking, reasoning } = await judgeMmAnswers(room.mmCurrentQuestion, subjectName, target, answers));
+      ({ ranking, reasoning } = await judgeMmAnswers(room, room.mmCurrentQuestion, subjectName, target, answers));
     } catch (err) {
       console.error('judgeMmAnswers failed:', err.message);
       judgeFailed = true;

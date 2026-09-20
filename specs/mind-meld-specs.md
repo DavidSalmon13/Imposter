@@ -14,10 +14,15 @@ model that one person's brain closely enough to out-guess the rest of the table.
   lobby phase, new joiners get "Game in progress, wait for the next round."
 - "Back to Lobby" returns everyone to the shared lobby / choose-a-game screen, keeping the
   roster/names intact, clearing only `room.mm*` state — same pattern as every other game.
-- One LLM call per round (question generation only — unlike Imposter/Music Timeline, the LLM
-  never supplies "the answer"; the Subject's own live submission is the answer), reusing the
-  existing `chatCompletionJson()` helper and the rolling avoid-list pattern (`room.usedWords`,
+- One LLM call per round for question generation (plus a second, judge-only call for `judged`
+  rounds — see "Judged (free-text) questions" below); unlike Imposter/Music Timeline, the LLM
+  never supplies "the answer" to a `number` round, the Subject's own live submission is. Reuses
+  the existing `chatCompletionJson()` helper and the rolling avoid-list pattern (`room.usedWords`,
   `room.mtUsedSongs`) as `room.mmUsedQuestions`.
+- Reuses the shared `room.wordLanguage` ('english' | 'hebrew') the same way Imposter/Codenames do:
+  the host's language pick in the lobby (before choosing a game) applies to both the LLM-generated
+  question text and, for `judged` rounds, the judge's reasoning text. No Mind-Meld-specific
+  language state or UI — it's the same lobby control and the same `room.wordLanguage` field.
 
 ## Configurable constants
 
