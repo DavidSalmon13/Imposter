@@ -162,11 +162,12 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
 
     // A disconnect that happened while this player was host reassigned host to
     // whoever was next connected (see the `disconnect` handler below) so the room
-    // isn't stuck without one. Now that they're back, hand host back to them so a
-    // brief phone-lock/wifi blip doesn't permanently bump someone else into it.
+    // isn't stuck without one. Only hand host back if nobody was around to inherit
+    // it (room went hostless) - if someone else is currently holding it, a later
+    // reconnect shouldn't silently bump them back out.
     if (existing.wasHost) {
       existing.wasHost = false;
-      setHost(roomCode, room, name);
+      if (!room.hostName) setHost(roomCode, room, name);
     }
 
     const game = getGame(room.game);
