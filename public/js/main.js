@@ -21,6 +21,45 @@ if ('serviceWorker' in navigator) {
 
 const socket = io();
 
+// Surfaces socket connectivity instead of leaving actions (like the Join button)
+// looking dead while a drop is being retried - see CLAUDE.md's note that reconnect
+// logic is the most likely thing to silently regress. Debounced so a reconnect
+// that lands within 800ms (the common case) never flashes the banner, and escalates
+// wording after 8s so a real outage reads differently from a normal blip.
+const connStatus = document.getElementById('conn-status');
+let connDownSince = null;
+let connStatusInterval = null;
+
+function updateConnStatus() {
+  const downMs = Date.now() - connDownSince;
+  if (downMs < 800) {
+    connStatus.classList.add('hidden');
+    return;
+  }
+  const stale = downMs > 8000;
+  connStatus.textContent = stale ? 'Still trying to reconnect…' : 'Reconnecting…';
+  connStatus.classList.toggle('offline', stale);
+  connStatus.classList.remove('hidden');
+}
+
+function connLost() {
+  if (connDownSince) return;
+  connDownSince = Date.now();
+  updateConnStatus();
+  connStatusInterval = setInterval(updateConnStatus, 500);
+}
+
+function connRestored() {
+  connDownSince = null;
+  clearInterval(connStatusInterval);
+  connStatus.classList.add('hidden');
+}
+
+if (!socket.connected) connLost();
+socket.on('disconnect', connLost);
+socket.on('connect_error', connLost);
+socket.on('connect', connRestored);
+
 const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;

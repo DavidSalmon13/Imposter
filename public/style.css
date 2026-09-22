@@ -67,6 +67,38 @@ body {
   object-fit: contain;
 }
 
+.conn-status {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--accent-text);
+  background: var(--accent-2);
+  border-bottom: 2px solid var(--border-strong);
+  animation: conn-status-in 0.25s var(--ease);
+}
+
+.conn-status.offline {
+  background: var(--danger);
+  color: var(--text);
+}
+
+@keyframes conn-status-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .bg-controls {
   position: absolute;
   right: 1rem;
