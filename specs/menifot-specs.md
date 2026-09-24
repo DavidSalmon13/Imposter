@@ -60,6 +60,8 @@ Tap-to-select, tap-to-assign — matches this app's existing tap-based interacti
 
 Same as your original spec: once a player locks, their allocation is stored server-side and immutable — no more moves, even if they change their mind, even if they briefly disconnect and reconnect before reveal (see disconnect handling below, locks are never reversible once set, manual or automatic). The round's reveal only begins once **every player in the match roster has a locked allocation** (manual or auto-locked, see below).
 
+The reveal is **automatic** — nobody taps cards. As soon as the last lock lands, the server flips every board's turn together, then every board's river, then shows the round results, pausing `MF_REVEAL_STAGE_DELAY_MS` (2s) between steps — the same timed-reveal pacing All In or Fold uses for its showdown.
+
 ## Hand evaluation — Omaha-style, not "best 5 of everything"
 
 This is the one place this spec **overrides** the literal wording of your original section 7 ("best possible 5-card hand from all available cards"). The actual rule, confirmed during design: for every board, a player's hand is always built from **exactly 2 of their own cards allocated to that board + exactly 3 of that board's 5 community cards** — never more, never fewer from either side, regardless of how many cards the player has on that board (could be as few as 2, as many as ~6 depending on player/board count).

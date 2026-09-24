@@ -201,14 +201,6 @@ function mfTryAssignToBoard(boardIndex) {
   });
 }
 
-function mfTryRevealCard(boardIndex, part) {
-  if (!ctx.getIsHost()) return;
-  mfAllocError.textContent = '';
-  ctx.socket.emit('mfRevealCard', { boardIndex, part }, (res) => {
-    if (res && !res.ok) mfAllocError.textContent = res.error;
-  });
-}
-
 function renderMfAllocating(data) {
   mfAllocData = data;
   const boardCount = data.boardCount || 2;
@@ -216,7 +208,6 @@ function renderMfAllocating(data) {
   const inMatch = !!data.inMatch;
   const myHand = data.myHand;
   const allocation = (myHand && myHand.allocation) || {};
-  const isHost = ctx.getIsHost();
   const myName = ctx.getMyName();
 
   if (mfSelectedCard && myHand && !myHand.cards.includes(mfSelectedCard)) {
@@ -231,9 +222,7 @@ function renderMfAllocating(data) {
 
   mfAllocHint.classList.toggle('hidden', !revealing && (locked || !inMatch));
   mfAllocHint.textContent = revealing
-    ? isHost
-      ? 'Tap the face-down cards to reveal turn & river, one board at a time.'
-      : 'Waiting for the host to reveal the boards…'
+    ? 'Everyone is locked — revealing the boards…'
     : mfSelectedCard
       ? selectedAssigned >= 0
         ? 'Tap a board to move it, or Unassign to return it to your hand.'
@@ -271,32 +260,8 @@ function renderMfAllocating(data) {
     const community = document.createElement('div');
     community.className = 'mf-card-row';
     (board.flop || []).forEach((c) => community.appendChild(makeMfCardEl(c)));
-
-    const canRevealTurn = revealing && isHost && !board.turnRevealed;
-    const turnEl = makeMfCardEl(board.turn, {
-      hidden: !board.turnRevealed,
-      interactive: canRevealTurn,
-    });
-    if (canRevealTurn) {
-      turnEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        mfTryRevealCard(i, 'turn');
-      });
-    }
-    community.appendChild(turnEl);
-
-    const canRevealRiver = revealing && isHost && board.turnRevealed && !board.riverRevealed;
-    const riverEl = makeMfCardEl(board.river, {
-      hidden: !board.riverRevealed,
-      interactive: canRevealRiver,
-    });
-    if (canRevealRiver) {
-      riverEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        mfTryRevealCard(i, 'river');
-      });
-    }
-    community.appendChild(riverEl);
+    community.appendChild(makeMfCardEl(board.turn, { hidden: !board.turnRevealed }));
+    community.appendChild(makeMfCardEl(board.river, { hidden: !board.riverRevealed }));
     wrap.appendChild(community);
 
     const holeLabel = document.createElement('p');
@@ -370,11 +335,7 @@ function renderMfAllocating(data) {
     locked || !inMatch || !mfSelectedCard || selectedAssigned < 0
   );
   mfLockedBadge.classList.toggle('hidden', !(inMatch && locked));
-  mfLockedBadge.textContent = revealing
-    ? isHost
-      ? 'Locked — tap the boards above to reveal'
-      : 'Locked — waiting for host to reveal'
-    : 'Locked — waiting for others';
+  mfLockedBadge.textContent = revealing ? 'Locked — revealing…' : 'Locked — waiting for others';
 
   mfLockStatus.innerHTML = '';
   (data.lockStatus || []).forEach((row) => {
@@ -397,9 +358,7 @@ function renderMfAllocating(data) {
   mfLockBtn.disabled = !allAssigned;
   mfLockWaiting.classList.toggle('hidden', !(inMatch && locked));
   mfLockWaiting.textContent = revealing
-    ? isHost
-      ? 'Tap the face-down cards above to reveal them.'
-      : 'Waiting for the host to reveal the boards…'
+    ? 'Revealing turn & river…'
     : 'Waiting for everyone to lock…';
 }
 
@@ -510,11 +469,7 @@ function mfAllLocked(data) {
 }
 
 function lockedSubtitle(data) {
-  if (mfAllLocked(data)) {
-    return ctx.getIsHost()
-      ? 'Everyone is locked — tap the boards below to reveal'
-      : 'Everyone is locked — waiting for the host to reveal';
-  }
+  if (mfAllLocked(data)) return 'Everyone is locked — revealing the boards';
   if (data.myHand && data.myHand.locked) {
     return 'Your hand is locked — waiting for the rest of the table';
   }

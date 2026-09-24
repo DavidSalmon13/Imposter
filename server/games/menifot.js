@@ -7,6 +7,9 @@ const MF_MIN_PLAYERS = 2;
 const MF_MAX_PLAYERS = 8;
 const MF_THREE_BOARD_MAX_PLAYERS = 3;
 const MF_TARGET_SCORE = 10;
+// Pause between each automatic reveal step once everyone has locked (turns, then rivers,
+// then results) — same pacing idea as AIOF_REVEAL_STAGE_DELAY_MS in allInOrFold.js.
+const MF_REVEAL_STAGE_DELAY_MS = 2000;
 
 const SAVED_FIELDS = [
   'mfPlayers',
@@ -20,7 +23,17 @@ const SAVED_FIELDS = [
   'mfMatchWinners',
 ];
 
-function clearState(room) {
+/** @type {Map<string, NodeJS.Timeout>} */
+const mfTimers = new Map();
+
+function clearMfTimer(roomCode) {
+  const handle = mfTimers.get(roomCode);
+  if (handle) clearTimeout(handle);
+  mfTimers.delete(roomCode);
+}
+
+function clearState(room, roomCode) {
+  if (roomCode) clearMfTimer(roomCode);
   room.mfPlayers = [];
   room.mfBoardCount = 0;
   room.mfBoards = [];
@@ -252,6 +265,7 @@ function startMenifotMatch(ctx, roomCode, room, playerNames) {
     }
   }
   broadcastMenifot(ctx, roomCode, room);
+  maybeStartMfReveal(ctx, roomCode, room);
   return true;
 }
 
@@ -265,6 +279,7 @@ function startMenifotNextRound(ctx, roomCode, room) {
     }
   }
   broadcastMenifot(ctx, roomCode, room);
+  maybeStartMfReveal(ctx, roomCode, room);
 }
 
 function setMfCardBoard(hand, card, boardIndex, boardCount) {
@@ -376,28 +391,39 @@ function finalizeMenifotRound(ctx, roomCode, room) {
   broadcastMenifot(ctx, roomCode, room);
 }
 
-// Once everyone has locked, the host reveals each board's turn and river by tapping the
-// face-down card (turn before river, per board). Stays in the 'allocating' phase the
-// whole time — every hand is already locked, so no further allocation moves are
-// possible, and the client renders locked boards read-only aside from the host's taps.
-function revealMfCard(room, boardIndex, part) {
-  if (!allMfLocked(room)) return { ok: false, error: 'Waiting for everyone to lock' };
-  const board = room.mfBoards[boardIndex];
-  if (!board) return { ok: false, error: 'Invalid board' };
-  if (part !== 'turn' && part !== 'river') return { ok: false, error: 'Invalid card' };
+// Once everyone has locked, the turn and river on every board flip automatically — all
+// turns together, then all rivers, then results — each step behind
+// MF_REVEAL_STAGE_DELAY_MS. Stays in the 'allocating' phase the whole time; every hand
+// is already locked, so no further allocation moves are possible.
+function maybeStartMfReveal(ctx, roomCode, room) {
+  if (room.phase !== 'allocating' || !allMfLocked(room)) return;
+  if (mfTimers.has(roomCode)) return;
+  scheduleMfRevealStep(ctx, roomCode, room);
+}
 
-  const key = part === 'turn' ? 'turnRevealed' : 'riverRevealed';
-  if (board[key]) return { ok: false, error: 'Already revealed' };
-  if (part === 'river' && !board.turnRevealed) {
-    return { ok: false, error: 'Reveal the turn first' };
-  }
-
-  board[key] = true;
-  return { ok: true };
+function scheduleMfRevealStep(ctx, roomCode, room) {
+  mfTimers.set(
+    roomCode,
+    setTimeout(() => {
+      mfTimers.delete(roomCode);
+      if (room.game !== 'menifot' || room.phase !== 'allocating') return;
+      const boards = room.mfBoards;
+      if (boards.some((b) => !b.turnRevealed)) {
+        boards.forEach((b) => (b.turnRevealed = true));
+      } else if (boards.some((b) => !b.riverRevealed)) {
+        boards.forEach((b) => (b.riverRevealed = true));
+      } else {
+        finalizeMenifotRound(ctx, roomCode, room);
+        return;
+      }
+      broadcastMenifot(ctx, roomCode, room);
+      scheduleMfRevealStep(ctx, roomCode, room);
+    }, MF_REVEAL_STAGE_DELAY_MS)
+  );
 }
 
 function onChoose(ctx, roomCode, room) {
-  clearState(room);
+  clearState(room, roomCode);
   room.phase = 'ready';
   broadcastMenifot(ctx, roomCode, room);
 }
@@ -418,6 +444,7 @@ function onDisconnect(ctx, roomCode, room, name) {
     autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
   }
   broadcastMenifot(ctx, roomCode, room);
+  maybeStartMfReveal(ctx, roomCode, room);
 }
 
 function onReconnectBroadcast(ctx, roomCode, room) {
@@ -509,30 +536,7 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     broadcastMenifot(ctx, roomCode, room);
-  });
-
-  socket.on('mfRevealCard', (data, callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'menifot' || room.phase !== 'allocating') {
-      return callback({ ok: false, error: 'Not ready to reveal' });
-    }
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can reveal cards' });
-    }
-
-    const boardIndex = Number(data && data.boardIndex);
-    const part = data && data.part;
-    const result = revealMfCard(room, boardIndex, part);
-    if (!result.ok) return callback(result);
-
-    callback({ ok: true });
-    broadcastMenifot(ctx, roomCode, room);
-    if (room.mfBoards.every((b) => b.turnRevealed && b.riverRevealed)) {
-      finalizeMenifotRound(ctx, roomCode, room);
-    }
+    maybeStartMfReveal(ctx, roomCode, room);
   });
 
   socket.on('mfNextRound', (callback) => {
