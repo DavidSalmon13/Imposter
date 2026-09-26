@@ -31,15 +31,18 @@
   <main class="app-main">
     <section id="join-screen" class="screen">
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
+      <input id="room-code-input" type="text" placeholder="Room code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" />
       <p class="muted sticker-picker-label">Pick your shora</p>
       <div id="join-sticker-grid" class="sticker-grid"></div>
       <div class="btn-row">
-        <button id="join-btn">Join</button>
+        <button id="create-room-btn" class="secondary">Create room</button>
+        <button id="join-btn">Join room</button>
       </div>
       <p id="join-error" class="error"></p>
     </section>
 
     <section id="lobby-screen" class="screen hidden">
+      <p id="room-code-display" class="room-code-display"></p>
       <div class="lobby-top-row">
         <p id="lobby-count" class="muted">0 joined</p>
         <button id="scoreboard-toggle-btn" class="icon-btn scoreboard-toggle-btn" type="button" title="Scoreboard" aria-label="Show scoreboard">🏆</button>

@@ -33,7 +33,8 @@ Gotchas that cost real time:
 - **Don't use `offsetParent !== null` for visibility** — it's always null inside
   `position: fixed` screens (e.g. `#aiof-screen`). Walk `getComputedStyle` display /
   visibility up to `<body>` instead.
-- Joining is name-only (everyone lands in one shared room); first joiner is host. The
+- The first player clicks `#create-room-btn` and reads the 4-char code from
+  `#room-code-display`; others fill `#room-code-input` and click `#join-btn`. The creator is host. The
   AIOF tile (`#choose-allinorfold-btn`) is visible to every player, not just the host.
 
 ## Worth driving

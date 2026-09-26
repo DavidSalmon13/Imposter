@@ -95,10 +95,13 @@ const bgError = document.getElementById('bg-error');
 const muteBtn = document.getElementById('mute-btn');
 
 const nameInput = document.getElementById('name-input');
+const roomCodeInput = document.getElementById('room-code-input');
+const createRoomBtn = document.getElementById('create-room-btn');
 const joinBtn = document.getElementById('join-btn');
 const joinError = document.getElementById('join-error');
 const joinStickerGrid = document.getElementById('join-sticker-grid');
 
+const roomCodeDisplay = document.getElementById('room-code-display');
 const lobbyList = document.getElementById('lobby-list');
 const lobbyCount = document.getElementById('lobby-count');
 const renameBtn = document.getElementById('rename-btn');
@@ -170,11 +173,33 @@ function getIsHost() {
   return isHost;
 }
 
+function normalizeRoomCode(code) {
+  return String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 4);
+}
+
+function roomCodeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return normalizeRoomCode(params.get('room'));
+}
+
+function setRoomInUrl(roomCode) {
+  const url = new URL(window.location.href);
+  if (roomCode) url.searchParams.set('room', roomCode);
+  else url.searchParams.delete('room');
+  window.history.replaceState({}, '', url);
+}
+
 function rememberSession(name, roomCode) {
   myName = name;
   myRoomCode = roomCode;
   localStorage.setItem('imposterName', name);
   localStorage.setItem('imposterRoom', roomCode);
+  setRoomInUrl(roomCode);
+  roomCodeDisplay.textContent = roomCode;
 }
 
 // Populated once from GET /api/stickers so the picker never hardcodes filenames -
@@ -392,6 +417,12 @@ function handleJoinResult(res, name) {
     sfx.error();
     haptics.warn();
     joinError.textContent = res.error;
+    if (res.error === 'Room not found') {
+      localStorage.removeItem('imposterRoom');
+      myRoomCode = '';
+      setRoomInUrl('');
+      applyBackground(null);
+    }
     showScreen('join');
     return;
   }
@@ -402,8 +433,12 @@ function handleJoinResult(res, name) {
   routeFromJoin(res);
 }
 
-function attemptJoin(name) {
-  socket.emit('join', { name, clientId: getClientId(), sticker: mySticker }, (res) => handleJoinResult(res, name));
+function attemptCreate(name) {
+  socket.emit('createRoom', { name, clientId: getClientId(), sticker: mySticker }, (res) => handleJoinResult(res, name));
+}
+
+function attemptJoin(name, roomCode) {
+  socket.emit('join', { name, roomCode, clientId: getClientId(), sticker: mySticker }, (res) => handleJoinResult(res, name));
 }
 
 function routeFromJoin(res) {
@@ -454,17 +489,40 @@ document.addEventListener('click', (e) => {
   haptics.tap();
 });
 
-joinBtn.addEventListener('click', () => {
+createRoomBtn.addEventListener('click', () => {
   const name = readName();
   joinError.textContent = '';
   if (!name) {
     joinError.textContent = 'Enter a name';
     return;
   }
-  attemptJoin(name);
+  attemptCreate(name);
+});
+
+joinBtn.addEventListener('click', () => {
+  const name = readName();
+  const roomCode = normalizeRoomCode(roomCodeInput.value);
+  joinError.textContent = '';
+  if (!name) {
+    joinError.textContent = 'Enter a name';
+    return;
+  }
+  if (roomCode.length !== 4) {
+    joinError.textContent = 'Enter a 4-character room code';
+    return;
+  }
+  attemptJoin(name, roomCode);
 });
 
 nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinBtn.click();
+});
+
+roomCodeInput.addEventListener('input', () => {
+  roomCodeInput.value = normalizeRoomCode(roomCodeInput.value);
+});
+
+roomCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') joinBtn.click();
 });
 
@@ -573,6 +631,7 @@ exitLobbyBtn.addEventListener('click', () => {
     }
     localStorage.removeItem('imposterRoom');
     myRoomCode = '';
+    setRoomInUrl('');
     applyBackground(null);
     currentHostName = null;
     isHost = false;
@@ -632,8 +691,9 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers }) => {
+socket.on('lobbyUpdate', ({ players, host, roomCode, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers }) => {
   setHost(host);
+  if (roomCode) roomCodeDisplay.textContent = roomCode;
   applyWordLanguage(lang);
   applyWordTheme(theme);
   renderLobby(players, scoreboard, playerStickers);
@@ -661,11 +721,17 @@ socket.on('backToLobby', () => {
   showScreen('lobby');
 });
 
+const urlRoom = roomCodeFromUrl();
+if (urlRoom) {
+  roomCodeInput.value = urlRoom;
+  myRoomCode = urlRoom;
+}
+
 if (myName) nameInput.value = myName;
 
 // Re-sync on every connect, not just the first one - phones suspend the socket when the
 // screen locks or the tab backgrounds, and on reconnect we need to catch back up to the
 // current phase/screen rather than being stuck on whatever was last rendered.
 socket.on('connect', () => {
-  if (myName) attemptJoin(myName);
+  if (myName && myRoomCode) attemptJoin(myName, myRoomCode);
 });

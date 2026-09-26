@@ -6,16 +6,14 @@ const {
   rooms,
   createRoomState,
   normalizeRoomCode,
+  generateRoomCode,
   getRoom,
   roomEmit,
+  ROOM_CODE_LENGTH,
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
-
-// Single shared room for now - no room codes to create or join, everyone
-// who connects lands in the same game.
-const SHARED_ROOM_CODE = 'MAIN';
 
 /** @type {object | null} */
 let hooks = null;
@@ -117,15 +115,6 @@ function reconnectPayload(room, existing) {
     wordLanguage: room.wordLanguage || 'english',
     wordTheme: room.wordTheme || '',
   };
-}
-
-function getSharedRoom() {
-  let room = rooms.get(SHARED_ROOM_CODE);
-  if (!room) {
-    room = createRoomState();
-    rooms.set(SHARED_ROOM_CODE, room);
-  }
-  return room;
 }
 
 function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
@@ -262,18 +251,41 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
 function registerLobbyHandlers(socket) {
   const { BACKGROUNDS_DIR } = hooks;
 
+  socket.on('createRoom', (data, callback) => {
+    callback = callback || (() => {});
+    const name = ((data && data.name) || '').trim();
+    const clientId = String((data && data.clientId) || '').slice(0, 64);
+    const rawSticker = data && data.sticker;
+    const sticker = isValidSticker(rawSticker) ? rawSticker : null;
+    const nameError = validateName(name);
+    if (nameError) return callback({ ok: false, error: nameError });
+
+    let roomCode;
+    try {
+      roomCode = generateRoomCode();
+    } catch (err) {
+      return callback({ ok: false, error: 'Could not create a room. Try again.' });
+    }
+
+    rooms.set(roomCode, createRoomState());
+    joinExistingRoom(socket, roomCode, name, clientId, callback, sticker);
+  });
+
   socket.on('join', (data, callback) => {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
+    const roomCode = normalizeRoomCode(data && data.roomCode);
     const clientId = String((data && data.clientId) || '').slice(0, 64);
     const rawSticker = data && data.sticker;
     const sticker = isValidSticker(rawSticker) ? rawSticker : null;
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
+    if (!roomCode || roomCode.length !== ROOM_CODE_LENGTH) {
+      return callback({ ok: false, error: 'Enter a valid room code' });
+    }
 
-    getSharedRoom();
-    joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, callback, sticker);
+    joinExistingRoom(socket, roomCode, name, clientId, callback, sticker);
   });
 
   socket.on('changeSticker', (data, callback) => {

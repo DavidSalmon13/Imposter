@@ -307,6 +307,22 @@ button.secondary:active:not(:disabled) {
   flex: 1;
 }
 
+.room-code-display {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 10px;
+  background: var(--glass-bg-strong);
+  border: 2px dashed var(--border-strong);
+  text-align: center;
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  transform: rotate(-1.4deg);
+  box-shadow: var(--shadow-soft);
+}
+
 #room-code-input {
   text-transform: uppercase;
   letter-spacing: 0.2em;
