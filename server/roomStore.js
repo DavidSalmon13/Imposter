@@ -13,7 +13,7 @@ function initRoomStore(ioInstance) {
 
 function createRoomState() {
   return {
-    game: null, // null | 'imposter' | 'codenames' | 'tenseconds' | 'menifot'
+    game: null, // null | 'imposter' | 'codenames' | 'tenseconds' | 'menifot' | 'bluff'
     phase: 'lobby',
     // Imposter phases: 'voting' | 'generating' | 'playing' | 'reporting' | 'roundResults'
     // Codenames phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
@@ -22,6 +22,7 @@ function createRoomState() {
     // All-In or Fold phases: 'seating' | 'playing' | 'gameover'
     // (intra-hand sub-state lives in room.aiofHand.stage, not room.phase — the client stays on
     // the same table screen for the whole 'playing' phase; only aiofHand.stage changes the UI.)
+    // Bluff phases: 'seating' | 'playing' | 'gameover'
     hostName: null,
     players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
     wordLanguage: 'english', // 'english' | 'hebrew' - language for ChatGPT-generated words/hints
@@ -92,6 +93,14 @@ function createRoomState() {
     aiofHand: null, // { stage, deck, holeCards, board, revealedCount, contributions, folded,
                     //   actionOrder, actingIndex } while a hand is in progress; null between hands
     aiofResults: null, // last hand's brief outcome, shown during the auto-advance pause
+    // Bluff
+    bfPlayers: [], // frozen match roster, fixed order = round-table seat order
+    bfCounts: {}, // name -> current card count, persists across rounds, 0 on elimination
+    bfPendingStartCount: 0, // seating-phase slider value, chosen before Start Match freezes it
+    bfRoundNumber: 0, // current round number, display-only
+    bfEliminationOrder: [], // names in the order they hit 0 cards, oldest first
+    bfHands: {}, // name -> this round's dealt cards (NOT persisted, see ROOM_SAVED_FIELDS below)
+    bfLastResult: null, // { loserName, newCount, eliminated } during the highlight/deal pause (NOT persisted)
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)

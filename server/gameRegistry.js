@@ -5,6 +5,7 @@ const menifot = require('./games/menifot');
 const musictimeline = require('./games/musicTimeline');
 const allinorfold = require('./games/allInOrFold');
 const mindmeld = require('./games/mindMeld');
+const bluff = require('./games/bluff');
 
 const GAMES = {
   imposter,
@@ -14,6 +15,7 @@ const GAMES = {
   musictimeline,
   allinorfold,
   mindmeld,
+  bluff,
 };
 
 /** Shared room fields persisted alongside each game module's savedFields. */

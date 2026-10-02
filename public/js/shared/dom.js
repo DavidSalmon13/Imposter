@@ -22,6 +22,7 @@ export const screens = {
   musicTimeline: document.getElementById('mt-screen'),
   allInOrFold: document.getElementById('aiof-screen'),
   mindMeld: document.getElementById('mm-screen'),
+  bluff: document.getElementById('bf-screen'),
 };
 
 export function showScreen(name) {
