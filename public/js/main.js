@@ -13,6 +13,7 @@ import { Bluff } from './games/bluff.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { showScreen, showGenerating } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
+import { confirmDialog } from './shared/confirmDialog.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -556,8 +557,13 @@ chooseAllInOrFoldBtn.addEventListener('click', () => {
   });
 });
 
-resetScoreboardBtn.addEventListener('click', () => {
-  if (!confirm('Reset the scoreboard to zero for everyone in this room?')) return;
+resetScoreboardBtn.addEventListener('click', async () => {
+  const ok = await confirmDialog('Everyone in this room goes back to zero.', {
+    title: 'Reset the scoreboard?',
+    confirmLabel: 'Reset',
+    danger: true,
+  });
+  if (!ok) return;
   socket.emit('resetScoreboard', () => {});
 });
 
@@ -579,8 +585,9 @@ renameBtn.addEventListener('click', () => {
   });
 });
 
-exitLobbyBtn.addEventListener('click', () => {
-  if (!confirm('Leave this room?')) return;
+exitLobbyBtn.addEventListener('click', async () => {
+  const ok = await confirmDialog('Leave this room?', { confirmLabel: 'Leave', danger: true });
+  if (!ok) return;
   socket.emit('leaveLobby', (res) => {
     if (!res || !res.ok) {
       alert((res && res.error) || 'Could not leave');
@@ -683,4 +690,17 @@ if (myName) nameInput.value = myName;
 // current phase/screen rather than being stuck on whatever was last rendered.
 socket.on('connect', () => {
   if (myName) attemptJoin(myName);
+});
+
+// A phone that kept the tab open across a deploy reconnects its socket to the new server
+// while still running the old JS - which silently ignores any new game's events (e.g. a
+// newly added game's state broadcasts), leaving that player stuck. Reload onto the new
+// code instead; the saved session rejoins automatically after the reload.
+let loadedServerBuild = null;
+socket.on('serverBuild', (build) => {
+  if (loadedServerBuild && build !== loadedServerBuild) {
+    window.location.reload();
+    return;
+  }
+  loadedServerBuild = build;
 });

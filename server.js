@@ -72,7 +72,13 @@ initLobby({
   BACKGROUNDS_DIR,
 });
 
+// Identifies the code this process is serving, so clients still running JS from before a
+// deploy know to reload (see the 'serverBuild' listener in public/js/main.js). Prefer the
+// deploy's commit so a plain restart of the same code doesn't force everyone to reload.
+const SERVER_BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || String(Date.now());
+
 io.on('connection', (socket) => {
+  socket.emit('serverBuild', SERVER_BUILD);
   registerLobbyHandlers(socket);
   registerAllHandlers(ctx, io, socket);
 });

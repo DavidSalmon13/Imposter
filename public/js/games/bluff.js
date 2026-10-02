@@ -3,6 +3,7 @@
  */
 
 import { renderScoreboard } from '../shared/scoreboard.js';
+import { confirmDialog } from '../shared/confirmDialog.js';
 
 const BF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const BF_SUIT_CLASS = { s: 'bf-suit-s', h: 'bf-suit-h', d: 'bf-suit-d', c: 'bf-suit-c' };
@@ -115,8 +116,12 @@ function applySeating(data) {
   bfStartWaiting.classList.toggle('hidden', isHost);
 }
 
-function trySelectLoser(name) {
-  if (!confirm(`Mark ${name} as this round's loser?`)) return;
+async function trySelectLoser(name) {
+  const ok = await confirmDialog(`Mark ${name} as this round's loser?`, {
+    title: 'Round loser',
+    confirmLabel: 'Mark loser',
+  });
+  if (!ok) return;
   bfTableError.textContent = '';
   ctx.socket.emit('bfSelectLoser', { name }, (res) => {
     if (res && !res.ok) bfTableError.textContent = res.error;
@@ -305,8 +310,13 @@ export const Bluff = {
       });
     });
 
-    bfResetBtn.addEventListener('click', () => {
-      if (!confirm('Reset this match? Everyone keeps their seat for a fresh game.')) return;
+    bfResetBtn.addEventListener('click', async () => {
+      const ok = await confirmDialog('Everyone keeps their seat for a fresh game.', {
+        title: 'Reset this match?',
+        confirmLabel: 'Reset',
+        danger: true,
+      });
+      if (!ok) return;
       bfResetError.textContent = '';
       socket.emit('bfResetGame', (res) => {
         if (res && !res.ok) bfResetError.textContent = res.error;
