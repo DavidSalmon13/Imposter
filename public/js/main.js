@@ -264,7 +264,7 @@ function setHost(hostName) {
 }
 
 function applyBackground(url) {
-  document.body.style.backgroundImage = url ? `url("${url}")` : '';
+  document.body.style.setProperty('--bg-image', url ? `url("${url}")` : '');
   bgClearBtn.classList.toggle('hidden', !url);
 }
 

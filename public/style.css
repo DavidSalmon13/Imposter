@@ -5,13 +5,31 @@
   src: url('fonts/fredoka.woff2') format('woff2');
 }
 
+/* ---------- Shorot theme ----------
+   Built off the logo: a carved wooden sign (dark bark outline, warm plank fill),
+   peachy-cream lettering, leaf-green accents and sunset orange. Surfaces stay dark
+   so every game's existing light-on-dark text keeps its contrast. */
+
 :root {
+  /* Palette */
+  --bark: #2a1408;
+  --wood: #5a3119;
+  --wood-mid: #46240f;
+  --wood-light: #7b4627;
+  --cream: #fff3dc;
+  --peach: #ffc48a;
+  --orange: #f08a4b;
+  --leaf: #8cbf63;
+  --leaf-dark: #5b8a3c;
+  --sun: #f6c768;
+  --rose: #ec8b78;
+
   --bg: #2b1509;
-  --text: #fff8ee;
-  --muted: #ffd98f;
-  --accent: #f2884a;
-  --accent-2: #f0c96b;
-  --accent-text: #2b1305;
+  --text: var(--cream);
+  --muted: #ffd59a;
+  --accent: var(--orange);
+  --accent-2: var(--sun);
+  --accent-text: #3a1a08;
   --danger: #ff6b78;
   --success: #3fd79a;
   --radius: 12px;
@@ -20,15 +38,22 @@
   --team-neutral: #a7aabb;
   --team-assassin: #f5f5f9;
 
-  --glass-bg: rgba(37, 22, 12, 0.88);
-  --glass-bg-strong: rgba(24, 13, 7, 0.92);
-  --glass-border: rgba(240, 201, 107, 0.35);
-  --glass-highlight: rgba(255, 248, 238, 0.1);
-  --border-strong: #f0c96b;
-  --shadow-soft: 4px 4px 0 rgba(15, 6, 2, 0.5);
-  --shadow-lift: 6px 8px 0 rgba(15, 6, 2, 0.52);
-  --bevel-hi: inset 0 2px 0 rgba(255, 255, 255, 0.28);
-  --bevel-lo: inset 0 -3px 0 rgba(0, 0, 0, 0.22);
+  --font: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --glass-bg: rgba(70, 36, 15, 0.94);
+  --glass-bg-strong: rgba(36, 18, 7, 0.72);
+  --glass-border: rgba(255, 213, 154, 0.3);
+  --glass-highlight: rgba(255, 236, 200, 0.08);
+  --border-strong: var(--bark);
+  /* Chunky "sticker" drop: a solid bark edge under everything that's pressable. */
+  --shadow-soft: 0 4px 0 var(--bark), 0 8px 18px rgba(20, 8, 2, 0.35);
+  --shadow-lift: 0 6px 0 var(--bark), 0 12px 24px rgba(20, 8, 2, 0.4);
+  --shadow-press: 0 1px 0 var(--bark);
+  --bevel-hi: inset 0 2px 0 rgba(255, 255, 255, 0.4);
+  --bevel-lo: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+  --plank:
+    repeating-linear-gradient(180deg, transparent 0 34px, rgba(30, 12, 3, 0.18) 34px 36px, transparent 36px 38px),
+    linear-gradient(180deg, #62361c 0%, #4e2911 100%);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -37,24 +62,39 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg) url('images/bg-gamenight.jpg') center / cover no-repeat fixed;
+  min-height: 100dvh;
+  background: var(--bg);
+  isolation: isolate;
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font);
+  font-weight: 500;
   display: flex;
   flex-direction: column;
 }
 
+/* The scene lives on its own fixed layer instead of `background-attachment: fixed`,
+   which iOS Safari ignores (it stretches the image over the whole scroll height).
+   main.js sets --bg-image when the room has a custom upload. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg) var(--bg-image, url('images/bg-gamenight.jpg')) center / cover no-repeat;
+}
+
 .app-header {
-  padding: 1.1rem 1rem;
-  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: calc(0.7rem + env(safe-area-inset-top)) 1rem 0.4rem;
+  font-family: var(--font);
   font-size: 1.15rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  border-bottom: none;
-  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -62,9 +102,10 @@ body {
 }
 
 .app-logo {
-  height: 40px;
+  height: 64px;
   width: auto;
   object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgba(20, 8, 2, 0.45));
 }
 
 .conn-status {
@@ -73,13 +114,13 @@ body {
   z-index: 50;
   text-align: center;
   padding: 0.5rem 1rem;
-  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font);
   font-weight: 700;
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   color: var(--accent-text);
-  background: var(--accent-2);
-  border-bottom: 2px solid var(--border-strong);
+  background: var(--sun);
+  border-bottom: 3px solid var(--bark);
   animation: conn-status-in 0.25s var(--ease);
 }
 
@@ -102,7 +143,7 @@ body {
 .bg-controls {
   position: absolute;
   right: 1rem;
-  top: 50%;
+  top: calc(50% + env(safe-area-inset-top) / 2);
   transform: translateY(-50%);
   display: flex;
   gap: 0.4rem;
@@ -114,25 +155,30 @@ body {
 }
 
 .bg-btn {
-  width: auto;
-  padding: 0.5rem 0.7rem;
-  font-size: 1.05rem;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.1rem;
   line-height: 1;
-  border-radius: 10px;
-  background: var(--glass-highlight);
-  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--plank);
+  border: 3px solid var(--bark);
   color: var(--text);
-  min-height: 40px;
-  transition: transform 0.15s var(--ease), background 0.15s var(--ease);
+  box-shadow: 0 3px 0 var(--bark), var(--bevel-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.bg-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+.bg-btn:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--bark), var(--bevel-hi);
 }
 
-.bg-btn:active {
-  transform: translateY(0) scale(0.96);
+.bg-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press);
 }
 
 .app-main {
@@ -140,21 +186,29 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1rem 1rem calc(3rem + env(safe-area-inset-bottom));
 }
 
+/* Game panels read as a wooden sign: bark outline, warm planks, a faint cream
+   inner ring and two brass nails up top. */
 .screen {
   width: 100%;
-  max-width: 420px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(6px);
-  border: 3px solid var(--border-strong);
-  border-radius: 20px;
-  padding: 1.5rem;
+  max-width: 440px;
+  background:
+    radial-gradient(circle at 16px 16px, #f3d39a 0 2px, #8a5a2e 2.5px 4px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 16px) 16px, #f3d39a 0 2px, #8a5a2e 2.5px 4px, transparent 4.5px),
+    var(--plank);
+  border: 3px solid var(--bark);
+  border-radius: 26px;
+  padding: 1.6rem 1.35rem 1.4rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  box-shadow: var(--shadow-soft);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 213, 154, 0.16),
+    inset 0 3px 0 rgba(255, 236, 200, 0.12),
+    0 6px 0 var(--bark),
+    0 18px 36px rgba(20, 8, 2, 0.45);
   animation: screen-in 0.45s var(--ease-bounce);
 }
 
@@ -162,29 +216,45 @@ body {
   display: none;
 }
 
+/* Join + lobby float directly on the meadow so the cows stay in view; each
+   element brings its own surface instead of sitting in one big panel. */
 #join-screen,
 #lobby-screen {
   background: transparent;
   border: none;
   box-shadow: none;
-  backdrop-filter: none;
-  padding: 2rem 1.25rem;
+  padding: 0.75rem 0.25rem 2rem;
 }
 
-#join-screen h1,
+/* Small wooden tag for any label that sits straight on the background. */
 #join-screen .muted,
-#join-screen .error,
-#lobby-screen h1,
-#lobby-screen .muted,
-#lobby-screen .error,
+#lobby-screen > .muted,
+#lobby-screen .lobby-top-row .muted,
+#lobby-screen .cn-timer-section > .muted,
 #lobby-screen .scoreboard-heading {
-  text-shadow: 0 2px 4px rgba(10, 4, 1, 0.85), 0 1px 14px rgba(10, 4, 1, 0.6);
+  align-self: flex-start;
+  width: fit-content;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: var(--plank);
+  border: 2px solid var(--bark);
+  box-shadow: 0 3px 0 var(--bark);
+  color: var(--peach);
+  margin-bottom: 0.15rem;
 }
 
-#join-screen input[type="text"] {
-  background: rgba(20, 10, 5, 0.35);
-  backdrop-filter: blur(3px);
-  border: 2px solid var(--glass-border);
+#lobby-screen > #choose-waiting {
+  align-self: center;
+}
+
+#join-screen .error,
+#lobby-screen .error {
+  text-shadow: 0 2px 4px rgba(10, 4, 1, 0.9);
+}
+
+#lobby-screen .error:empty,
+#join-screen .error:empty {
+  display: none;
 }
 
 .hidden {
@@ -198,13 +268,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  background: linear-gradient(to bottom, transparent, var(--glass-bg-strong) 22%);
+  background: linear-gradient(to bottom, transparent, #4e2911 22%);
 }
 
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.99);
+    transform: translateY(14px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -213,89 +283,105 @@ body {
 }
 
 h1 {
-  margin: 0 0 0.25rem;
-  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0 0 0.15rem;
+  font-family: var(--font);
   font-weight: 700;
-  font-size: 1.7rem;
-  letter-spacing: -0.01em;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  color: var(--cream);
+  text-shadow: 0 3px 0 var(--bark);
+}
+
+h2 {
+  font-family: var(--font);
+  font-weight: 700;
 }
 
 input[type="text"] {
   width: 100%;
-  padding: 0.85rem 0.9rem;
-  border-radius: 16px;
-  border: 2px solid var(--glass-border);
-  background: var(--glass-bg-strong);
-  color: var(--text);
-  font-size: 1rem;
-  min-height: 48px;
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  border: 3px solid var(--bark);
+  background: var(--cream);
+  color: var(--accent-text);
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 1.05rem;
+  min-height: 52px;
+  box-shadow: inset 0 3px 0 rgba(90, 49, 25, 0.15), 0 4px 0 var(--bark);
   transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
 input[type="text"]::placeholder {
-  color: var(--muted);
-  opacity: 0.7;
+  color: #a3784f;
+  opacity: 1;
 }
 
 input[type="text"]:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 107, 87, 0.35);
+  box-shadow: inset 0 3px 0 rgba(90, 49, 25, 0.15), 0 4px 0 var(--bark), 0 0 0 4px rgba(246, 199, 104, 0.6);
 }
 
+input[type="range"] {
+  accent-color: var(--orange);
+}
+
+/* Primary: sunset-orange candy button with a bark edge you press "into". */
 button {
   width: 100%;
-  padding: 0.85rem 1rem;
-  border-radius: 999px;
-  border: 3px solid var(--border-strong);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 100%, white 18%) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 100%, black 15%) 100%);
+  padding: 0.8rem 1rem;
+  border-radius: 18px;
+  border: 3px solid var(--bark);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 100%, white 28%) 0%, var(--accent) 60%, color-mix(in srgb, var(--accent) 100%, black 8%) 100%);
   color: var(--accent-text);
-  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 1rem;
+  font-family: var(--font);
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   cursor: pointer;
-  min-height: 48px;
-  transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease), opacity 0.15s var(--ease);
-  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
+  min-height: 52px;
+  transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease), opacity 0.15s var(--ease), background 0.15s var(--ease);
+  box-shadow: 0 4px 0 var(--bark), var(--bevel-hi), var(--bevel-lo);
 }
 
 button:hover:not(:disabled) {
-  transform: translate(-1px, -2px);
-  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 var(--bark), var(--bevel-hi), var(--bevel-lo);
 }
 
 button:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
+  transform: translateY(3px);
+  box-shadow: var(--shadow-press), var(--bevel-lo);
 }
 
 button:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
+  outline: 3px solid var(--sun);
+  outline-offset: 3px;
 }
 
 button:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
+/* Secondary: a lighter plank, cream lettering. */
 button.secondary {
-  background: var(--glass-bg-strong);
-  border: 3px solid var(--border-strong);
-  color: var(--text);
-  box-shadow: var(--shadow-soft);
+  background: linear-gradient(180deg, #8c5430 0%, var(--wood-light) 55%, #693a1e 100%);
+  border: 3px solid var(--bark);
+  color: var(--cream);
+  box-shadow: 0 4px 0 var(--bark), inset 0 2px 0 rgba(255, 220, 170, 0.25);
 }
 
 button.secondary:hover:not(:disabled) {
-  background: var(--glass-highlight);
-  box-shadow: var(--shadow-lift);
-  transform: translate(-1px, -2px);
+  background: linear-gradient(180deg, #98603a 0%, #87502e 55%, #713f21 100%);
+  box-shadow: 0 5px 0 var(--bark), inset 0 2px 0 rgba(255, 220, 170, 0.25);
+  transform: translateY(-1px);
 }
 
 button.secondary:active:not(:disabled) {
-  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5);
+  transform: translateY(3px);
+  box-shadow: var(--shadow-press);
 }
 
 .btn-row {
@@ -305,6 +391,11 @@ button.secondary:active:not(:disabled) {
 
 .btn-row button {
   flex: 1;
+}
+
+#join-btn {
+  font-size: 1.2rem;
+  min-height: 58px;
 }
 
 #room-code-input {
@@ -317,16 +408,17 @@ button.secondary:active:not(:disabled) {
 .muted {
   color: var(--muted);
   margin: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .error {
-  color: var(--danger);
+  color: #ff8a93;
   margin: 0;
   min-height: 1.1em;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .bg-error {
@@ -340,18 +432,34 @@ button.secondary:active:not(:disabled) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
 
 .player-list li {
   background: var(--glass-bg-strong);
-  border: 2px solid var(--border-strong);
-  border-radius: 14px;
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
   padding: 0.5rem 0.75rem;
+  font-weight: 600;
   animation: item-in 0.25s var(--ease);
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+/* Lobby roster sits on the meadow, so each name gets a full wooden tag. */
+#lobby-list li {
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  border-radius: 20px;
+  padding: 0.35rem 0.9rem 0.35rem 0.4rem;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.12);
+}
+
+#lobby-list .player-emoji-img {
+  background: rgba(255, 243, 220, 0.12);
+  border-radius: 14px;
 }
 
 .player-emoji {
@@ -367,26 +475,30 @@ button.secondary:active:not(:disabled) {
 }
 
 .sticker-picker-label {
-  margin-top: 0.2rem;
+  margin-top: 0.4rem;
 }
 
 .sticker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 0.6rem;
+  gap: 0.65rem;
   margin: 0.3rem 0 0.6rem;
 }
 
 .sticker-option {
-  padding: 0.4rem;
-  border-radius: 14px;
-  background: var(--glass-highlight);
-  border: 2px solid var(--glass-border);
-  box-shadow: none;
+  padding: 0.35rem;
+  border-radius: 20px;
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  box-shadow: 0 4px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.12);
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.sticker-option:hover:not(:disabled) {
+  box-shadow: 0 5px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.12);
 }
 
 .sticker-option img {
@@ -394,13 +506,14 @@ button.secondary:active:not(:disabled) {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
 }
 
 .sticker-option.selected {
-  background: var(--accent);
-  border-color: var(--border-strong);
-  border-width: 3px;
-  box-shadow: var(--shadow-soft);
+  background: linear-gradient(180deg, #b6e08f 0%, var(--leaf) 100%);
+  border-color: var(--bark);
+  box-shadow: 0 4px 0 var(--bark), 0 0 0 4px rgba(255, 243, 220, 0.85);
+  transform: scale(1.04);
 }
 
 @keyframes item-in {
@@ -417,30 +530,50 @@ button.secondary:active:not(:disabled) {
 .level-choices {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
+/* Choice chips (difficulty, timer, language...): carved-in slots that turn
+   leaf-green when picked, so a choice never looks like an action button. */
 .level-btn {
-  background: var(--glass-highlight);
-  border: 1px solid var(--glass-border);
-  color: var(--text);
-  box-shadow: none;
+  background: rgba(30, 14, 5, 0.45);
+  border: 2px solid var(--glass-border);
+  color: var(--cream);
+  box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.2);
 }
 
-.level-btn.selected {
-  background: var(--accent);
-  border-color: var(--border-strong);
-  border-width: 2px;
-  color: var(--accent-text);
-  box-shadow: var(--shadow-soft);
+.level-btn:hover:not(:disabled) {
+  background: rgba(30, 14, 5, 0.6);
+  box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.2);
+  transform: none;
+}
+
+.level-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* On the open meadow (lobby) chips need a solid plank so they don't look ghosted. */
+#lobby-screen .level-btn:not(.selected) {
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  box-shadow: 0 4px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.12);
+}
+
+.level-btn.selected,
+.level-btn.selected:hover:not(:disabled) {
+  background: linear-gradient(180deg, #b6e08f 0%, var(--leaf) 60%, #79ad52 100%);
+  border: 3px solid var(--bark);
+  color: #20380f;
+  box-shadow: 0 4px 0 var(--bark), var(--bevel-hi);
 }
 
 .spinner {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   margin: 0.5rem auto 0;
-  border: 3px solid var(--glass-border);
-  border-top-color: var(--accent);
+  border: 4px solid rgba(255, 213, 154, 0.25);
+  border-top-color: var(--orange);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -453,133 +586,164 @@ button.secondary:active:not(:disabled) {
 
 .role-panel {
   text-align: center;
-  padding: 1.1rem;
-  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  border-radius: 20px;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  border: 3px solid var(--bark);
+  box-shadow: 0 4px 0 var(--bark);
   animation: screen-in 0.35s var(--ease);
 }
 
 .hint-text {
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 0.98rem;
 }
 
 .role-panel.imposter {
-  background: rgba(255, 107, 120, 0.16);
-  border: 2px solid var(--danger);
-  color: #ffd3d7;
+  background: linear-gradient(180deg, rgba(255, 107, 120, 0.3), rgba(160, 40, 50, 0.35));
+  color: #ffe0e3;
 }
 
 .role-panel.crew {
-  background: rgba(63, 215, 154, 0.16);
-  border: 2px solid var(--success);
-  color: #bdf5dd;
+  background: linear-gradient(180deg, rgba(140, 191, 99, 0.35), rgba(70, 120, 45, 0.35));
+  color: #e9ffd8;
 }
 
+/* Game picker: a 2-up grid of chunky picture tiles. */
 .game-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+#aiof-tile-wrap {
+  grid-template-columns: 1fr;
+}
+
+#aiof-tile-wrap .game-tile {
+  flex-direction: row;
+  min-height: 72px;
 }
 
 .game-tile {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: 0.35rem;
   width: 100%;
-  min-height: 60px;
-  padding: 0.9rem 1.4rem;
-  border-radius: 999px;
-  border: 3px solid var(--border-strong);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tile-a) 100%, white 18%) 0%, var(--tile-a) 55%, color-mix(in srgb, var(--tile-a) 100%, black 15%) 100%);
+  min-height: 108px;
+  padding: 0.8rem 0.5rem;
+  border-radius: 22px;
+  border: 3px solid var(--bark);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.35), transparent 65%),
+    linear-gradient(180deg, color-mix(in srgb, var(--tile-a) 100%, white 22%) 0%, var(--tile-a) 70%, color-mix(in srgb, var(--tile-a) 100%, black 10%) 100%);
   text-align: center;
-  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
-  transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s var(--ease);
+  box-shadow: 0 5px 0 var(--bark), var(--bevel-hi), var(--bevel-lo), 0 10px 18px rgba(20, 8, 2, 0.3);
+  transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
 }
 
 .game-tile:hover:not(:disabled) {
-  transform: translate(-1px, -2px);
-  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 var(--bark), var(--bevel-hi), var(--bevel-lo), 0 14px 22px rgba(20, 8, 2, 0.35);
 }
 
 .game-tile:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
+  transform: translateY(4px);
+  box-shadow: var(--shadow-press), var(--bevel-lo);
 }
 
 .game-tile.tile-underfilled {
-  opacity: 0.55;
+  --tile-a: #b7a48c;
+  filter: saturate(0.5);
+}
+
+.game-tile.tile-underfilled .game-tile-icon,
+.game-tile.tile-underfilled .game-tile-name {
+  opacity: 0.6;
+}
+
+/* An odd tile out stretches across the row instead of leaving a gap. */
+.game-choice .game-tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  min-height: 72px;
+  gap: 0.6rem;
 }
 
 .game-tile-icon {
-  font-size: 1.5rem;
+  font-size: 2.1rem;
   line-height: 1;
+  filter: drop-shadow(0 2px 0 rgba(42, 20, 8, 0.35));
 }
 
 .game-tile-name {
-  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 1.05rem;
+  font-family: var(--font);
+  font-size: 1.02rem;
   font-weight: 700;
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  line-height: 1.15;
+  color: var(--accent-text);
+  letter-spacing: 0.01em;
 }
 
 .icon-row {
   display: flex;
   justify-content: center;
   gap: 0.7rem;
-  margin-top: 0.3rem;
+  margin-top: 0.5rem;
 }
 
 .icon-btn {
-  width: 52px;
-  height: 52px;
-  min-height: 52px;
+  width: 54px;
+  height: 54px;
+  min-height: 54px;
   padding: 0;
   flex: none;
-  border-radius: 50%;
-  font-size: 1.3rem;
+  border-radius: 18px;
+  font-size: 1.35rem;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--glass-bg-strong);
-  border: 3px solid var(--border-strong);
-  box-shadow: var(--shadow-soft), var(--bevel-hi), var(--bevel-lo);
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  box-shadow: 0 4px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.15);
 }
 
 .icon-btn:hover:not(:disabled) {
-  transform: translate(-1px, -2px);
-  box-shadow: var(--shadow-lift), var(--bevel-hi), var(--bevel-lo);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 var(--bark), inset 0 2px 0 rgba(255, 236, 200, 0.15);
 }
 
 .icon-btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgba(15, 6, 2, 0.5), var(--bevel-lo);
+  transform: translateY(3px);
+  box-shadow: var(--shadow-press);
 }
 
-/* Cycles through a warm palette so new tiles added later stay on-theme automatically. */
+/* Cycles through the sunset-meadow palette so new tiles stay on-theme automatically. */
 .game-tile:nth-of-type(4n + 1) {
-  --tile-a: #ef7d4f;
+  --tile-a: var(--orange);
 }
 
 .game-tile:nth-of-type(4n + 2) {
-  --tile-a: #7fae5e;
+  --tile-a: var(--leaf);
 }
 
 .game-tile:nth-of-type(4n + 3) {
-  --tile-a: #f0c96b;
+  --tile-a: var(--sun);
 }
 
 .game-tile:nth-of-type(4n) {
-  --tile-a: #d97757;
+  --tile-a: var(--rose);
+}
+
+#choose-allinorfold-btn {
+  --tile-a: var(--peach);
 }
 
 .lobby-top-row {
@@ -590,16 +754,16 @@ button.secondary:active:not(:disabled) {
 }
 
 .scoreboard-toggle-btn {
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
-  font-size: 1.15rem;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  font-size: 1.2rem;
 }
 
 .scoreboard-toggle-btn.open,
 #sticker-btn.open {
-  background: var(--accent);
-  border-color: var(--border-strong);
+  background: linear-gradient(180deg, #ffd88f 0%, var(--sun) 100%);
+  border-color: var(--bark);
 }
 
 /* Grid-rows 0fr->1fr trick: animates to auto content height ("falls down") without JS measuring. */
@@ -616,6 +780,8 @@ button.secondary:active:not(:disabled) {
 .scoreboard-dropdown-inner {
   overflow: hidden;
   min-height: 0;
+  /* room for the rows' bark drop-shadow so it isn't clipped */
+  padding-bottom: 6px;
 }
 
 .scoreboard-section {
@@ -628,37 +794,85 @@ button.secondary:active:not(:disabled) {
 
 .scoreboard-heading {
   margin: 0.5rem 0 0;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   text-transform: uppercase;
 }
 
+/* Rows get a rank badge; the top three are gold / silver / bronze. */
 .scoreboard-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  counter-reset: sb-rank;
 }
 
 .scoreboard-list li {
+  counter-increment: sb-rank;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   background: var(--glass-bg-strong);
-  border: 2px solid var(--border-strong);
-  border-radius: 14px;
-  padding: 0.55rem 0.75rem;
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 0.5rem 0.8rem 0.5rem 0.5rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.scoreboard-list li::before {
+  content: counter(sb-rank);
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--cream);
+  background: rgba(255, 236, 200, 0.12);
+  border: 2px solid rgba(255, 213, 154, 0.3);
+}
+
+.scoreboard-list li:nth-child(1)::before {
+  background: linear-gradient(180deg, #ffe59a, #f2b93b);
+  border-color: var(--bark);
+  color: var(--accent-text);
+}
+
+.scoreboard-list li:nth-child(2)::before {
+  background: linear-gradient(180deg, #f4f1ea, #c4bdb0);
+  border-color: var(--bark);
+  color: var(--accent-text);
+}
+
+.scoreboard-list li:nth-child(3)::before {
+  background: linear-gradient(180deg, #f0b98a, #c97d45);
+  border-color: var(--bark);
+  color: var(--accent-text);
+}
+
+.scoreboard-list li > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#lobby-screen .scoreboard-list li {
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  box-shadow: 0 3px 0 var(--bark);
 }
 
 .scoreboard-list .sb-points {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--peach);
 }
 
 .scoreboard-list .sb-points.negative {
@@ -672,11 +886,10 @@ button.secondary:active:not(:disabled) {
 
 @keyframes sb-flash {
   0% {
-    background: rgba(63, 215, 154, 0.35);
+    background: rgba(140, 191, 99, 0.55);
     transform: scale(1.03);
   }
   100% {
-    background: var(--glass-bg-strong);
     transform: scale(1);
   }
 }
@@ -687,46 +900,56 @@ button.secondary:active:not(:disabled) {
 
 @keyframes sb-flash-down {
   0% {
-    background: rgba(255, 107, 120, 0.32);
+    background: rgba(255, 107, 120, 0.45);
     transform: scale(1.03);
   }
   100% {
-    background: var(--glass-bg-strong);
     transform: scale(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scoreboard-list li.sb-flash-up,
-  .scoreboard-list li.sb-flash-down {
+  .scoreboard-list li.sb-flash-down,
+  .screen {
     animation: none;
   }
 }
 
 .sb-results-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 0.25rem 0 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  background: rgba(30, 14, 5, 0.4);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .sb-results-table th,
 .sb-results-table td {
   text-align: left;
-  padding: 0.5rem 0.35rem;
-  border-bottom: 1px solid var(--glass-border);
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 213, 154, 0.15);
+}
+
+.sb-results-table tr:last-child td {
+  border-bottom: none;
 }
 
 .sb-results-table th {
   color: var(--muted);
-  font-weight: 600;
-  font-size: 0.75rem;
+  background: rgba(30, 14, 5, 0.45);
+  font-weight: 700;
+  font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .sb-results-table .pts-positive {
-  color: var(--success);
+  color: #b6e08f;
   font-weight: 700;
 }
 
@@ -750,8 +973,26 @@ button.secondary:active:not(:disabled) {
 
 .team-column h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.15rem;
   text-align: center;
+  text-shadow: 0 2px 0 var(--bark);
+}
+
+.team-columns > .team-column {
+  padding: 0.7rem 0.55rem;
+  border-radius: 18px;
+  border: 2px solid var(--glass-border);
+  background: rgba(30, 14, 5, 0.35);
+}
+
+.team-columns > .team-red {
+  background: rgba(255, 107, 120, 0.14);
+  border-color: rgba(255, 107, 120, 0.5);
+}
+
+.team-columns > .team-blue {
+  background: rgba(92, 147, 255, 0.14);
+  border-color: rgba(92, 147, 255, 0.5);
 }
 
 .team-red h2 {
@@ -2750,10 +2991,10 @@ button.aiof-seat-open:hover {
   flex-direction: column;
   gap: 1rem;
   padding: 1.4rem 1.25rem 1.25rem;
-  background: var(--glass-bg-strong);
-  border: 3px solid var(--border-strong);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lift);
+  background: var(--plank);
+  border: 3px solid var(--bark);
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 2px rgba(255, 213, 154, 0.16), var(--shadow-lift);
   text-align: center;
   animation: screen-in 0.3s var(--ease-bounce);
 }
