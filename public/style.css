@@ -3023,7 +3023,7 @@ button.confirm-danger {
   to { opacity: 1; }
 }
 
-/* ---------- Bluff: "is the last hand there?" check ---------- */
+/* ---------- Bluff: "are the called cards there?" check ---------- */
 .bf-check-result {
   text-align: center;
   padding: 0.8rem 1rem;
@@ -3067,59 +3067,27 @@ button.confirm-danger {
   gap: 0.5rem;
 }
 
-.bf-check-field-label {
-  margin: 0.3rem 0 0;
-}
-
 .bf-chip-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   gap: 0.4rem;
 }
 
-.bf-chip-grid-types {
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+.bf-check-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 44px;
+  align-items: center;
 }
 
-.bf-chip-grid-suits {
-  grid-template-columns: repeat(4, 1fr);
+.bf-check-picked .bf-chip {
+  width: auto;
+  min-width: 48px;
 }
 
 .bf-chip {
   min-height: 44px;
   padding: 0.4rem 0.3rem;
   font-size: 0.95rem;
-}
-
-.bf-chip-grid-suits .bf-chip {
-  font-size: 1.4rem;
-}
-
-.bf-chip.bf-suit-h {
-  color: #ff7a85;
-}
-
-.bf-chip.bf-suit-d {
-  color: #d29bff;
-}
-
-.bf-chip.bf-suit-s {
-  color: var(--sun);
-}
-
-/* Selected chips go leaf-green, so switch to the darker card-face suit colors. */
-.bf-chip.selected.bf-suit-h {
-  color: #c0272b;
-}
-
-.bf-chip.selected.bf-suit-d {
-  color: #8b2fc9;
-}
-
-.bf-chip.selected.bf-suit-c {
-  color: #1a1a1a;
-}
-
-.bf-chip.selected.bf-suit-s {
-  color: #7a5a00;
 }

@@ -2,7 +2,7 @@
 
 const { buildDeck } = require('./pokerEval');
 const { shuffle } = require('../lib/shuffle');
-const { normalizeHand, handLabel, isHandPresent } = require('./bluffHands');
+const { normalizeCalledRanks, calledRanksLabel, areRanksPresent } = require('./bluffHands');
 
 const BF_MIN_PLAYERS = 2;
 const BF_MAX_PLAYERS = 10;
@@ -294,8 +294,8 @@ function registerHandlers(ctx, io, socket) {
     applyBluffLoss(ctx, roomCode, room, name);
   });
 
-  // Host enters the last hand called; after a short countdown everyone sees whether it
-  // can be made from all players' cards pooled together.
+  // Host enters the card values called (suits ignored); after a short countdown everyone
+  // sees whether all players' cards pooled together contain them.
   socket.on('bfCheckHand', (data, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -311,16 +311,16 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'No active round to check' });
     }
     if (checkPending(room)) {
-      return callback({ ok: false, error: 'A hand is already being checked' });
+      return callback({ ok: false, error: 'Already checking - wait for the result' });
     }
 
-    const hand = normalizeHand(data && data.hand);
-    if (!hand) return callback({ ok: false, error: 'Pick a complete hand' });
+    const ranks = normalizeCalledRanks(data && data.ranks);
+    if (!ranks) return callback({ ok: false, error: 'Pick the cards that were called' });
 
     room.bfCheck = {
       id: `${room.bfRoundNumber}:${Date.now()}`,
-      hand,
-      label: handLabel(hand),
+      ranks,
+      label: calledRanksLabel(ranks),
       revealAt: Date.now() + BF_CHECK_COUNTDOWN_MS,
       present: null,
     };
@@ -335,7 +335,7 @@ function registerHandlers(ctx, io, socket) {
         bfCheckTimers.delete(roomCode);
         if (room.bfCheck !== check) return;
         const pooled = Object.values(room.bfHands).flat();
-        check.present = isHandPresent(hand, pooled);
+        check.present = areRanksPresent(ranks, pooled);
         broadcastBluff(ctx, roomCode, room);
       }, BF_CHECK_COUNTDOWN_MS)
     );
