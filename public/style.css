@@ -624,20 +624,25 @@ button.secondary:active:not(:disabled) {
   color: #e9ffd8;
 }
 
-/* Game picker: a 2-up grid of chunky picture tiles. */
-.game-choice {
+/* Game picker: a 2-up grid of chunky picture tiles, all the same size. The host-only
+   tiles and the All-In or Fold tile sit in separate wrappers (see index.html), which are
+   display: contents so all their tiles share this one grid. */
+.game-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
-#aiof-tile-wrap {
-  grid-template-columns: 1fr;
+.game-choice {
+  display: contents;
 }
 
-#aiof-tile-wrap .game-tile {
-  flex-direction: row;
-  min-height: 72px;
+/* A non-host rejoining All-In or Fold sees only that tile - center it rather than
+   leaving it stuck in the left column. */
+#game-choice.hidden + #aiof-tile-wrap .game-tile {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc(50% - 0.375rem);
 }
 
 .game-tile {
@@ -677,14 +682,6 @@ button.secondary:active:not(:disabled) {
 .game-tile.tile-underfilled .game-tile-icon,
 .game-tile.tile-underfilled .game-tile-name {
   opacity: 0.6;
-}
-
-/* An odd tile out stretches across the row instead of leaving a gap. */
-.game-choice .game-tile:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-  flex-direction: row;
-  min-height: 72px;
-  gap: 0.6rem;
 }
 
 .game-tile-icon {

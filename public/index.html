@@ -60,6 +60,9 @@
           <button class="level-btn word-lang-btn" data-lang="hebrew">Hebrew</button>
         </div>
       </div>
+      <!-- One shared grid: both wrappers below are display: contents, so every tile
+           (including All-In or Fold) lays out in the same 2-up grid at the same size. -->
+      <div class="game-grid">
       <div id="game-choice" class="game-choice hidden">
         <button id="choose-imposter-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🕵️</span>
@@ -99,6 +102,7 @@
           <span class="game-tile-icon">🎰</span>
           <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
         </button>
+      </div>
       </div>
       <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
