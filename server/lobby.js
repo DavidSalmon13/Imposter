@@ -523,4 +523,5 @@ module.exports = {
   joinExistingRoom,
   registerBackgroundRoutes,
   registerLobbyHandlers,
+  SHARED_ROOM_CODE,
 };

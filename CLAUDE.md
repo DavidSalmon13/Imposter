@@ -23,8 +23,8 @@ changes by manually running the affected game's full flow in a browser (see
 Requires Node >=18. Environment variables (see `.env.example`):
 - `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`) — used for
   Imposter word/hint generation and Codenames board generation.
-- `DATA_DIR` — where `rooms.json` (room state snapshot) and uploaded
-  background images are persisted; point this at a mounted volume in
+- `DATA_DIR` — where `rooms.json` (room state snapshot), uploaded
+  background images, and player-uploaded stickers (`DATA_DIR/stickers`) are persisted; point this at a mounted volume in
   production (e.g. Railway) so state survives redeploys.
 
 ## Architecture

@@ -26,9 +26,10 @@ const {
   attachToRoom,
   registerBackgroundRoutes,
   registerLobbyHandlers,
+  SHARED_ROOM_CODE,
 } = require('./server/lobby');
 const { registerAllHandlers } = require('./server/gameRegistry');
-const { STICKER_FILES } = require('./server/stickers');
+const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./server/stickers');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,8 +38,25 @@ initRoomStore(io);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Falls through from the public/ static above, so uploaded stickers share the
+// built-ins' /images/stickers URL.
+app.use('/images/stickers', express.static(CUSTOM_STICKERS_DIR));
+
 app.get('/api/stickers', (req, res) => {
-  res.json({ stickers: STICKER_FILES });
+  res.json({ stickers: stickerFiles() });
+});
+
+// Any player in the room can add a sticker to the shared bank.
+app.post('/api/stickers', express.raw({ type: 'image/*', limit: '2mb' }), (req, res) => {
+  const room = rooms.get(SHARED_ROOM_CODE);
+  const name = String(req.query.name || '').trim();
+  if (!room || !room.players.has(name)) {
+    return res.status(403).json({ ok: false, error: 'Not a player in this room' });
+  }
+  const result = addCustomSticker(req.headers['content-type'], req.body);
+  if (result.error) return res.status(400).json({ ok: false, error: result.error });
+  io.emit('stickersUpdated', { stickers: stickerFiles() });
+  res.json({ ok: true, sticker: result.id });
 });
 
 const BACKGROUND_MIME_EXT = {

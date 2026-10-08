@@ -108,6 +108,8 @@ const renameBtn = document.getElementById('rename-btn');
 const stickerBtn = document.getElementById('sticker-btn');
 const stickerDropdown = document.getElementById('sticker-dropdown');
 const lobbyStickerGrid = document.getElementById('lobby-sticker-grid');
+const stickerFileInput = document.getElementById('sticker-file-input');
+const stickerError = document.getElementById('sticker-error');
 const scoreboardToggleBtn = document.getElementById('scoreboard-toggle-btn');
 const scoreboardDropdown = document.getElementById('scoreboard-dropdown');
 const scoreboardList = document.getElementById('scoreboard-list');
@@ -182,8 +184,9 @@ function rememberSession(name, roomCode) {
   localStorage.setItem('imposterRoom', roomCode);
 }
 
-// Populated once from GET /api/stickers so the picker never hardcodes filenames -
-// dropping a new .webp into public/images/stickers/ is enough to add it here too.
+// Populated from GET /api/stickers (and kept fresh by 'stickersUpdated') so the picker
+// never hardcodes filenames - dropping a new .webp into public/images/stickers/, or a
+// player uploading one, is enough to add it here too.
 let stickerFiles = [];
 
 function markSelectedSticker(container) {
@@ -192,7 +195,7 @@ function markSelectedSticker(container) {
   });
 }
 
-function buildStickerGrid(container, onPick) {
+function buildStickerGrid(container, onPick, onAdd) {
   container.innerHTML = '';
   stickerFiles.forEach((file) => {
     const btn = document.createElement('button');
@@ -209,6 +212,16 @@ function buildStickerGrid(container, onPick) {
     });
     container.appendChild(btn);
   });
+  if (onAdd) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'sticker-option sticker-add';
+    addBtn.title = 'Add a sticker to the bank';
+    addBtn.setAttribute('aria-label', 'Add a sticker to the bank');
+    addBtn.textContent = '+';
+    addBtn.addEventListener('click', onAdd);
+    container.appendChild(addBtn);
+  }
   markSelectedSticker(container);
 }
 
@@ -219,25 +232,65 @@ function selectJoinSticker(sticker) {
   markSelectedSticker(joinStickerGrid);
 }
 
+function pickLobbySticker(sticker) {
+  socket.emit('changeSticker', { sticker }, (res) => {
+    if (!res || !res.ok) return;
+    mySticker = res.sticker;
+    if (res.sticker) localStorage.setItem('imposterSticker', res.sticker);
+    else localStorage.removeItem('imposterSticker');
+    markSelectedSticker(joinStickerGrid);
+    markSelectedSticker(lobbyStickerGrid);
+    stickerDropdown.classList.remove('open');
+    stickerBtn.classList.remove('open');
+  });
+}
+
+function renderStickerGrids() {
+  buildStickerGrid(joinStickerGrid, selectJoinSticker);
+  // Uploading needs to be a player in the room, so the "+" tile only lives in the lobby picker.
+  buildStickerGrid(lobbyStickerGrid, pickLobbySticker, () => stickerFileInput.click());
+}
+
+function applyStickerFiles(files) {
+  stickerFiles = files || [];
+  renderStickerGrids();
+}
+
 fetch('/api/stickers')
   .then((r) => r.json())
-  .then((data) => {
-    stickerFiles = data.stickers || [];
-    buildStickerGrid(joinStickerGrid, selectJoinSticker);
-    buildStickerGrid(lobbyStickerGrid, (sticker) => {
-      socket.emit('changeSticker', { sticker }, (res) => {
-        if (!res || !res.ok) return;
-        mySticker = res.sticker;
-        if (res.sticker) localStorage.setItem('imposterSticker', res.sticker);
-        else localStorage.removeItem('imposterSticker');
-        markSelectedSticker(joinStickerGrid);
-        markSelectedSticker(lobbyStickerGrid);
-        stickerDropdown.classList.remove('open');
-        stickerBtn.classList.remove('open');
-      });
-    });
-  })
+  .then((data) => applyStickerFiles(data.stickers))
   .catch(() => {});
+
+// Someone added a sticker - everyone's picker grows to include it.
+socket.on('stickersUpdated', ({ stickers }) => applyStickerFiles(stickers));
+
+stickerFileInput.addEventListener('change', async () => {
+  const file = stickerFileInput.files[0];
+  stickerFileInput.value = '';
+  if (!file || !myName) return;
+
+  stickerError.textContent = '';
+  stickerError.classList.add('hidden');
+  try {
+    // WebP keeps transparency (cut-out stickers); browsers that can't encode it fall back to PNG.
+    const blob = await resizeImage(file, 256, 0.85, 'image/webp');
+    const res = await fetch(`/api/stickers?name=${encodeURIComponent(myName)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type },
+      body: blob,
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    // The stickersUpdated broadcast may land after this response, so make sure it's in the grid.
+    if (!stickerFiles.includes(data.sticker)) applyStickerFiles([...stickerFiles, data.sticker]);
+    pickLobbySticker(data.sticker);
+  } catch (err) {
+    stickerError.textContent = err.message === 'The sticker bank is full'
+      ? err.message
+      : 'Could not add sticker - try a smaller or different image.';
+    stickerError.classList.remove('hidden');
+  }
+});
 
 function setHost(hostName) {
   currentHostName = hostName || null;
@@ -268,7 +321,7 @@ function applyBackground(url) {
   bgClearBtn.classList.toggle('hidden', !url);
 }
 
-function resizeImage(file, maxDim, quality) {
+function resizeImage(file, maxDim, quality, type = 'image/jpeg') {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Could not read file'));
@@ -285,7 +338,7 @@ function resizeImage(file, maxDim, quality) {
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         canvas.toBlob(
           (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode image'))),
-          'image/jpeg',
+          type,
           quality
         );
       };

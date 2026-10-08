@@ -509,6 +509,17 @@ button.secondary:active:not(:disabled) {
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
 }
 
+.sticker-add {
+  font-size: 2.6rem;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(36, 18, 7, 0.55);
+  border-style: dashed;
+  border-color: var(--muted);
+  box-shadow: none;
+}
+
 .sticker-option.selected {
   background: linear-gradient(180deg, #b6e08f 0%, var(--leaf) 100%);
   border-color: var(--bark);
