@@ -441,7 +441,6 @@ button.secondary:active:not(:disabled) {
   border-radius: 16px;
   padding: 0.5rem 0.75rem;
   font-weight: 600;
-  animation: item-in 0.25s var(--ease);
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -525,17 +524,6 @@ button.secondary:active:not(:disabled) {
   border-color: var(--bark);
   box-shadow: 0 4px 0 var(--bark), 0 0 0 4px rgba(255, 243, 220, 0.85);
   transform: scale(1.04);
-}
-
-@keyframes item-in {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 .level-choices {
@@ -1391,7 +1379,9 @@ button.secondary:active:not(:disabled) {
   color: var(--team-assassin);
 }
 
-.cn-card.revealed {
+/* Only the card revealed by this update pops - the board is rebuilt on every state
+   update, so animating every .revealed card would replay them all on each click. */
+.cn-card.just-revealed {
   animation: card-reveal 0.3s var(--ease);
 }
 

@@ -124,14 +124,20 @@ function renderTeamSelect(data) {
   });
 }
 
+// container -> words revealed as of its last render, so a re-render only animates new reveals.
+const lastRevealed = new WeakMap();
+
 function renderGrid(container, board, interactive, onClick) {
   container.innerHTML = '';
+  const prev = lastRevealed.get(container);
+  lastRevealed.set(container, new Set(board.filter((c) => c.revealed).map((c) => c.word)));
   board.forEach((cell, i) => {
     const btn = document.createElement('button');
     btn.className = 'cn-card';
     btn.textContent = cell.word;
     if (cell.revealed) {
       btn.classList.add('revealed', `cn-${cell.color}`);
+      if (prev && !prev.has(cell.word)) btn.classList.add('just-revealed');
     } else if (cell.color) {
       btn.classList.add('cn-leader-hint', `cn-${cell.color}`);
     }
