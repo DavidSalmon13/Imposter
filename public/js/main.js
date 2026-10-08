@@ -69,6 +69,7 @@ const MT_MIN_PLAYERS = 2;
 const AIOF_MIN_PLAYERS = 2;
 const MM_MIN_PLAYERS = 3;
 const BF_MIN_PLAYERS = 2;
+const MF_MIN_PLAYERS = 2;
 
 // Deterministic per-name emoji so the lobby list feels alive without any server-side state.
 const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🐯', '🐨', '🐷', '🐙', '🦁', '🐮', '🐰', '🐻', '🐔', '🦄', '🐢', '🦉', '🐝', '🐳', '🦋', '🐺'];
@@ -403,6 +404,7 @@ function renderLobby(players, scoreboard, playerStickers) {
   chooseImposterBtn.classList.toggle('tile-underfilled', players.length < MIN_PLAYERS);
   chooseCodenamesBtn.classList.toggle('tile-underfilled', players.length < CN_MIN_PLAYERS);
   chooseTensSecondsBtn.classList.toggle('tile-underfilled', players.length < TS_MIN_PLAYERS);
+  chooseMenifotBtn.classList.toggle('tile-underfilled', players.length < MF_MIN_PLAYERS);
   chooseMusicTimelineBtn.classList.toggle('tile-underfilled', players.length < MT_MIN_PLAYERS);
   chooseMindMeldBtn.classList.toggle('tile-underfilled', players.length < MM_MIN_PLAYERS);
   chooseBluffBtn.classList.toggle('tile-underfilled', players.length < BF_MIN_PLAYERS);
