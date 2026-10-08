@@ -36,6 +36,38 @@ const bfStandings = document.getElementById('bf-standings');
 const bfScoreboard = document.getElementById('bf-scoreboard');
 const bfResetBtn = document.getElementById('bf-reset-btn');
 const bfResetError = document.getElementById('bf-reset-error');
+const bfCheckResult = document.getElementById('bf-check-result');
+const bfCheckLabel = document.getElementById('bf-check-label');
+const bfCheckCountdown = document.getElementById('bf-check-countdown');
+const bfCheckOpenBtn = document.getElementById('bf-check-open-btn');
+const bfCheckBuilder = document.getElementById('bf-check-builder');
+const bfCheckTypes = document.getElementById('bf-check-types');
+const bfCheckRankLabel = document.getElementById('bf-check-rank-label');
+const bfCheckRanks = document.getElementById('bf-check-ranks');
+const bfCheckRank2Label = document.getElementById('bf-check-rank2-label');
+const bfCheckRanks2 = document.getElementById('bf-check-ranks2');
+const bfCheckSuitLabel = document.getElementById('bf-check-suit-label');
+const bfCheckSuits = document.getElementById('bf-check-suits');
+const bfCheckCancelBtn = document.getElementById('bf-check-cancel-btn');
+const bfCheckSubmitBtn = document.getElementById('bf-check-submit-btn');
+
+// Hand types the host can call out, weakest first. Mirrors server/games/bluffHands.js -
+// the server re-validates, this only drives which pickers to show.
+const BF_HAND_TYPES = [
+  { type: 'high', label: 'High card', rankLabel: 'Card' },
+  { type: 'pair', label: 'Pair', rankLabel: 'Pair of' },
+  { type: 'twopair', label: 'Two pair', rankLabel: 'First pair', rank2Label: 'Second pair' },
+  { type: 'trips', label: 'Three of a kind', rankLabel: 'Three of' },
+  { type: 'straight', label: 'Straight', rankLabel: 'Up to', straight: true },
+  { type: 'flush', label: 'Flush', noRank: true, suit: true },
+  { type: 'fullhouse', label: 'Full house', rankLabel: 'Three of', rank2Label: 'Over a pair of' },
+  { type: 'quads', label: 'Four of a kind', rankLabel: 'Four of' },
+  { type: 'straightflush', label: 'Straight flush', rankLabel: 'Up to', straight: true, suit: true },
+];
+const BF_RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+const BF_SUITS = ['s', 'h', 'd', 'c'];
+// Straights are named by their top card; the lowest is 5 (A-2-3-4-5).
+const BF_MIN_STRAIGHT_TOP = BF_RANKS.indexOf('5');
 
 let ctx = null;
 let sliderDragging = false;
@@ -47,6 +79,16 @@ let bfHighlightSeatName = null;
 let bfDealing = false;
 let bfHandledResultKey = null;
 let bfSequenceTimers = [];
+
+// Host's in-progress hand pick - kept across re-renders so a state update mid-pick
+// (e.g. someone's offline badge) doesn't wipe it.
+let bfBuilderOpen = false;
+let bfPick = { type: null, rank: null, rank2: null, suit: null };
+// Local 3-2-1 countdown for the current check, keyed by check id so re-renders don't restart it.
+let bfCheckShownId = null;
+let bfCheckTimer = null;
+let bfCheckRevealAt = 0;
+let bfCheckPresent = null;
 
 function bfClearSequenceTimers() {
   bfSequenceTimers.forEach((t) => clearTimeout(t));
@@ -196,7 +238,8 @@ function runResultSequence(data) {
     bfDealing = false;
     bfHandledResultKey = null;
     bfTableFelt.classList.remove('bf-dealing');
-    renderBfSeats(data.seats || [], { tappable: isHost, highlightName: null });
+    const checkCounting = !!data.check && data.check.present === null;
+    renderBfSeats(data.seats || [], { tappable: isHost && !checkCounting, highlightName: null });
     renderTableHint(isHost, null);
     return;
   }
@@ -228,10 +271,164 @@ function runResultSequence(data) {
   renderTableHint(isHost, data.lastResult);
 }
 
+function bfRankText(r) {
+  return r === 'T' ? '10' : r;
+}
+
+function bfMakeChip(text, onClick, extraClass) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `level-btn bf-chip${extraClass ? ` ${extraClass}` : ''}`;
+  btn.textContent = text;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function bfPickSpec() {
+  return BF_HAND_TYPES.find((t) => t.type === bfPick.type) || null;
+}
+
+function bfPickComplete() {
+  const spec = bfPickSpec();
+  if (!spec) return false;
+  if (!spec.noRank && !bfPick.rank) return false;
+  if (spec.rank2Label && (!bfPick.rank2 || bfPick.rank2 === bfPick.rank)) return false;
+  if (spec.suit && !bfPick.suit) return false;
+  return true;
+}
+
+/** Syncs the chip highlights / visible pickers to bfPick. Chips are built once in init. */
+function renderBuilder() {
+  const spec = bfPickSpec();
+  Array.from(bfCheckTypes.children).forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.type === bfPick.type);
+  });
+
+  const showRank = !!spec && !spec.noRank;
+  bfCheckRankLabel.classList.toggle('hidden', !showRank);
+  bfCheckRanks.classList.toggle('hidden', !showRank);
+  if (showRank) bfCheckRankLabel.textContent = spec.rankLabel;
+  Array.from(bfCheckRanks.children).forEach((btn, i) => {
+    btn.disabled = !!spec && !!spec.straight && i < BF_MIN_STRAIGHT_TOP;
+    btn.classList.toggle('selected', btn.dataset.rank === bfPick.rank);
+  });
+
+  const showRank2 = !!spec && !!spec.rank2Label;
+  bfCheckRank2Label.classList.toggle('hidden', !showRank2);
+  bfCheckRanks2.classList.toggle('hidden', !showRank2);
+  if (showRank2) bfCheckRank2Label.textContent = spec.rank2Label;
+  Array.from(bfCheckRanks2.children).forEach((btn) => {
+    btn.disabled = btn.dataset.rank === bfPick.rank;
+    btn.classList.toggle('selected', btn.dataset.rank === bfPick.rank2);
+  });
+
+  const showSuit = !!spec && !!spec.suit;
+  bfCheckSuitLabel.classList.toggle('hidden', !showSuit);
+  bfCheckSuits.classList.toggle('hidden', !showSuit);
+  Array.from(bfCheckSuits.children).forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.suit === bfPick.suit);
+  });
+
+  bfCheckSubmitBtn.disabled = !bfPickComplete();
+}
+
+function buildBuilderChips() {
+  BF_HAND_TYPES.forEach((t) => {
+    const chip = bfMakeChip(t.label, () => {
+      bfPick.type = t.type;
+      // Drop picks the new type can't use (e.g. a 3 when switching to Straight).
+      if (t.noRank) bfPick.rank = null;
+      if (t.straight && bfPick.rank && BF_RANKS.indexOf(bfPick.rank) < BF_MIN_STRAIGHT_TOP) bfPick.rank = null;
+      if (!t.rank2Label) bfPick.rank2 = null;
+      if (!t.suit) bfPick.suit = null;
+      renderBuilder();
+    });
+    chip.dataset.type = t.type;
+    bfCheckTypes.appendChild(chip);
+  });
+  BF_RANKS.forEach((r) => {
+    const chip = bfMakeChip(bfRankText(r), () => {
+      bfPick.rank = r;
+      if (bfPick.rank2 === r) bfPick.rank2 = null;
+      renderBuilder();
+    });
+    chip.dataset.rank = r;
+    bfCheckRanks.appendChild(chip);
+    const chip2 = bfMakeChip(bfRankText(r), () => {
+      bfPick.rank2 = r;
+      renderBuilder();
+    });
+    chip2.dataset.rank = r;
+    bfCheckRanks2.appendChild(chip2);
+  });
+  BF_SUITS.forEach((suitCode) => {
+    const chip = bfMakeChip(BF_SUIT_SYMBOL[suitCode], () => {
+      bfPick.suit = suitCode;
+      renderBuilder();
+    }, BF_SUIT_CLASS[suitCode]);
+    chip.dataset.suit = suitCode;
+    bfCheckSuits.appendChild(chip);
+  });
+}
+
+function resetBuilder() {
+  bfBuilderOpen = false;
+  bfPick = { type: null, rank: null, rank2: null, suit: null };
+  renderBuilder();
+}
+
+function stopCheckCountdown() {
+  if (bfCheckTimer) clearInterval(bfCheckTimer);
+  bfCheckTimer = null;
+}
+
+function renderCheckCountdown() {
+  bfCheckResult.classList.remove('bf-check-present', 'bf-check-absent');
+  const left = Math.ceil((bfCheckRevealAt - Date.now()) / 1000);
+  if (bfCheckPresent === null) {
+    // Server reveal may land a beat after our local clock hits zero - hold on "1" until it does.
+    bfCheckCountdown.textContent = String(Math.max(1, left));
+    return;
+  }
+  stopCheckCountdown();
+  bfCheckResult.classList.add(bfCheckPresent ? 'bf-check-present' : 'bf-check-absent');
+  bfCheckCountdown.textContent = bfCheckPresent ? '✅ It\'s there!' : '❌ Not there!';
+}
+
+/** Shows the called hand, a 3-2-1 countdown, then whether it's on the table. */
+function applyCheck(check) {
+  if (!check) {
+    stopCheckCountdown();
+    bfCheckShownId = null;
+    bfCheckResult.classList.add('hidden');
+    return;
+  }
+  bfCheckResult.classList.remove('hidden');
+  bfCheckLabel.textContent = check.label;
+  bfCheckPresent = check.present;
+  if (check.id !== bfCheckShownId) {
+    bfCheckShownId = check.id;
+    bfCheckRevealAt = Date.now() + check.remainingMs;
+    stopCheckCountdown();
+    if (check.present === null) bfCheckTimer = setInterval(renderCheckCountdown, 200);
+  }
+  renderCheckCountdown();
+}
+
 function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
   runResultSequence(data);
+  applyCheck(data.check);
+
+  // Host can check the called hand while a round is live and no check is counting down.
+  const isHost = ctx.getIsHost();
+  const checkCounting = !!data.check && data.check.present === null;
+  const canCheck = isHost && !data.lastResult && !checkCounting;
+  if (!canCheck && bfBuilderOpen) resetBuilder();
+  bfCheckOpenBtn.classList.toggle('hidden', !canCheck || bfBuilderOpen);
+  bfCheckOpenBtn.textContent = data.check ? '🔍 Check another hand' : '🔍 Check the last hand';
+  bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
   bfHandEl.innerHTML = '';
   if (!data.myHand) {
@@ -270,6 +467,8 @@ function applyState(data) {
   bfGameoverPanel.classList.toggle('hidden', data.phase !== 'gameover');
 
   if (data.phase !== 'playing') {
+    applyCheck(null);
+    if (bfBuilderOpen) resetBuilder();
     bfClearSequenceTimers();
     bfHighlightSeatName = null;
     bfDealing = false;
@@ -323,6 +522,32 @@ export const Bluff = {
       });
     });
 
+    buildBuilderChips();
+    renderBuilder();
+
+    bfCheckOpenBtn.addEventListener('click', () => {
+      bfBuilderOpen = true;
+      bfCheckOpenBtn.classList.add('hidden');
+      bfCheckBuilder.classList.remove('hidden');
+    });
+
+    bfCheckCancelBtn.addEventListener('click', () => {
+      resetBuilder();
+      bfCheckBuilder.classList.add('hidden');
+      bfCheckOpenBtn.classList.remove('hidden');
+    });
+
+    bfCheckSubmitBtn.addEventListener('click', () => {
+      if (!bfPickComplete()) return;
+      bfTableError.textContent = '';
+      const hand = { ...bfPick };
+      socket.emit('bfCheckHand', { hand }, (res) => {
+        if (res && !res.ok) bfTableError.textContent = res.error;
+      });
+      resetBuilder();
+      bfCheckBuilder.classList.add('hidden');
+    });
+
     bfBackBtn.addEventListener('click', () => {
       socket.emit('backToLobby', () => {});
     });
@@ -342,6 +567,9 @@ export const Bluff = {
 
   stop() {
     sliderDragging = false;
+    applyCheck(null);
+    resetBuilder();
+    if (bfCheckBuilder) bfCheckBuilder.classList.add('hidden');
     bfClearSequenceTimers();
     bfHighlightSeatName = null;
     bfDealing = false;

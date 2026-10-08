@@ -589,9 +589,28 @@
       <div id="bf-table-panel" class="hidden">
         <h1 id="bf-round-label"></h1>
         <p id="bf-table-hint" class="muted"></p>
+        <div id="bf-check-result" class="bf-check-result hidden" aria-live="polite">
+          <p id="bf-check-label" class="bf-check-label"></p>
+          <p id="bf-check-countdown" class="bf-check-countdown"></p>
+        </div>
         <div class="bf-table">
           <div class="bf-table-felt"></div>
           <div id="bf-seats" class="bf-seats"></div>
+        </div>
+        <button id="bf-check-open-btn" class="secondary hidden" type="button">🔍 Check the last hand</button>
+        <div id="bf-check-builder" class="bf-check-builder hidden">
+          <h2 class="mf-section-heading">What was the last hand called?</h2>
+          <div id="bf-check-types" class="bf-chip-grid bf-chip-grid-types"></div>
+          <p id="bf-check-rank-label" class="muted bf-check-field-label"></p>
+          <div id="bf-check-ranks" class="bf-chip-grid"></div>
+          <p id="bf-check-rank2-label" class="muted bf-check-field-label"></p>
+          <div id="bf-check-ranks2" class="bf-chip-grid"></div>
+          <p id="bf-check-suit-label" class="muted bf-check-field-label">Suit</p>
+          <div id="bf-check-suits" class="bf-chip-grid bf-chip-grid-suits"></div>
+          <div class="btn-row">
+            <button id="bf-check-cancel-btn" class="secondary" type="button">Cancel</button>
+            <button id="bf-check-submit-btn" type="button" disabled>Check!</button>
+          </div>
         </div>
         <h2 class="mf-section-heading">Your hand</h2>
         <div id="bf-hand" class="mf-card-row bf-hand"></div>

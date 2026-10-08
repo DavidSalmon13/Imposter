@@ -31,6 +31,7 @@ player remains.
 | `BF_MAX_PLAYERS` | 10 | Max frozen roster size |
 | `BF_LOSER_HIGHLIGHT_MS` | 1500 | How long the picked loser stays highlighted before the deal animation starts |
 | `BF_DEAL_ANIMATION_MS` | 2200 | Duration of the shuffle/deal animation before the next round's state is usable |
+| `BF_CHECK_COUNTDOWN_MS` | 3000 | Countdown everyone sees before a hand check's verdict is revealed |
 
 ## Seating phase (`room.phase === 'seating'`)
 
@@ -117,6 +118,29 @@ Dealt whenever a match starts (round 1) and automatically again after every lose
    loser always auto-advances into the next round (or into game-over) on its own.
 5. While the highlight/animation window is running, seat-tapping is disabled (there's no
    active round to act on until the next deal lands).
+
+## Checking the last hand (host-controlled)
+
+When someone calls a bluff in real life, the host can ask the app whether the last hand
+called can actually be made from **every active player's cards pooled together**.
+
+- Available to the host only, while a round is live (hands dealt, no loser picked yet) and no
+  other check is counting down. Host taps "Check the last hand" and picks:
+  - a hand type — High card, Pair, Two pair, Three of a kind, Straight, Flush, Full house,
+    Four of a kind, Straight flush;
+  - the rank(s) it needs — one rank for most types; two different ranks for Two pair and
+    Full house ("Kings over 7s"); straights are named by their top card, 5 (A-2-3-4-5)
+    through A (10-J-Q-K-A);
+  - a suit for Flush and Straight flush. A flush is any 5+ cards of that suit.
+- On submit, every player sees the called hand plus a **3-second countdown**
+  (`BF_CHECK_COUNTDOWN_MS`), then the verdict: "It's there!" or "Not there!". The server
+  computes the answer only when the countdown ends, and the payload carries `present: null`
+  until then, so nobody can peek early.
+- The verdict is informational only — the host still taps the round's loser as before
+  (seat-tapping is disabled while a countdown runs). The host may check another hand after
+  a verdict (e.g. a mis-entry). The check clears when the next round is dealt.
+- `room.bfCheck` (`{ id, hand, label, revealAt, present }`) is **not persisted**, like
+  `bfHands`: after a restart the round is re-dealt, so any check is moot.
 
 ## Ending the match & scoreboard integration
 

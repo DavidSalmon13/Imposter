@@ -101,6 +101,7 @@ function createRoomState() {
     bfEliminationOrder: [], // names in the order they hit 0 cards, oldest first
     bfHands: {}, // name -> this round's dealt cards (NOT persisted, see ROOM_SAVED_FIELDS below)
     bfLastResult: null, // { loserName, newCount, eliminated } during the highlight/deal pause (NOT persisted)
+    bfCheck: null, // { id, hand, label, revealAt, present } for the host's "is the last hand there?" check (NOT persisted)
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)

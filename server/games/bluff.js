@@ -2,11 +2,13 @@
 
 const { buildDeck } = require('./pokerEval');
 const { shuffle } = require('../lib/shuffle');
+const { normalizeHand, handLabel, isHandPresent } = require('./bluffHands');
 
 const BF_MIN_PLAYERS = 2;
 const BF_MAX_PLAYERS = 10;
 const BF_LOSER_HIGHLIGHT_MS = 1500;
 const BF_DEAL_ANIMATION_MS = 2200;
+const BF_CHECK_COUNTDOWN_MS = 3000;
 
 const SAVED_FIELDS = ['bfPlayers', 'bfCounts', 'bfRoundNumber', 'bfEliminationOrder'];
 
@@ -19,8 +21,25 @@ function clearBluffTimer(roomCode) {
   bfTimers.delete(roomCode);
 }
 
+/** @type {Map<string, NodeJS.Timeout>} roomCode -> pending hand-check reveal */
+const bfCheckTimers = new Map();
+
+function clearCheckTimer(roomCode) {
+  const handle = bfCheckTimers.get(roomCode);
+  if (handle) clearTimeout(handle);
+  bfCheckTimers.delete(roomCode);
+}
+
+/** A hand check is mid-countdown (entered, not yet revealed). */
+function checkPending(room) {
+  return !!room.bfCheck && room.bfCheck.present === null;
+}
+
 function clearState(room, roomCode) {
-  if (roomCode) clearBluffTimer(roomCode);
+  if (roomCode) {
+    clearBluffTimer(roomCode);
+    clearCheckTimer(roomCode);
+  }
   room.bfPlayers = [];
   room.bfCounts = {};
   room.bfPendingStartCount = 0;
@@ -28,6 +47,7 @@ function clearState(room, roomCode) {
   room.bfEliminationOrder = [];
   room.bfHands = {};
   room.bfLastResult = null;
+  room.bfCheck = null;
 }
 
 function activeBluffPlayers(room) {
@@ -86,6 +106,15 @@ function bluffStatePayload(ctx, room, viewerName) {
     roundNumber: room.bfRoundNumber,
     myHand: myHand ? myHand.slice() : null,
     lastResult: room.bfLastResult,
+    // `present` stays null until the countdown ends, so nobody can peek at the answer early.
+    check: room.bfCheck
+      ? {
+          id: room.bfCheck.id,
+          label: room.bfCheck.label,
+          remainingMs: Math.max(0, room.bfCheck.revealAt - Date.now()),
+          present: room.bfCheck.present,
+        }
+      : null,
     startCountBounds:
       room.phase === 'seating'
         ? { min: 1, max: Math.max(1, Math.floor(52 / Math.max(1, connectedCount))) }
@@ -119,6 +148,8 @@ function dealBluffRound(ctx, roomCode, room) {
   }
   room.bfHands = hands;
   room.bfLastResult = null;
+  if (roomCode) clearCheckTimer(roomCode);
+  room.bfCheck = null;
   room.bfRoundNumber += 1;
   broadcastBluff(ctx, roomCode, room);
 }
@@ -250,6 +281,9 @@ function registerHandlers(ctx, io, socket) {
     if (Object.keys(room.bfHands).length === 0 || room.bfLastResult != null) {
       return callback({ ok: false, error: 'No active round to act on' });
     }
+    if (checkPending(room)) {
+      return callback({ ok: false, error: 'Wait for the hand check to finish' });
+    }
 
     const name = data && data.name;
     if (!room.bfPlayers.includes(name) || (room.bfCounts[name] || 0) <= 0) {
@@ -258,6 +292,53 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     applyBluffLoss(ctx, roomCode, room, name);
+  });
+
+  // Host enters the last hand called; after a short countdown everyone sees whether it
+  // can be made from all players' cards pooled together.
+  socket.on('bfCheckHand', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can check a hand' });
+    }
+    if (Object.keys(room.bfHands).length === 0 || room.bfLastResult != null) {
+      return callback({ ok: false, error: 'No active round to check' });
+    }
+    if (checkPending(room)) {
+      return callback({ ok: false, error: 'A hand is already being checked' });
+    }
+
+    const hand = normalizeHand(data && data.hand);
+    if (!hand) return callback({ ok: false, error: 'Pick a complete hand' });
+
+    room.bfCheck = {
+      id: `${room.bfRoundNumber}:${Date.now()}`,
+      hand,
+      label: handLabel(hand),
+      revealAt: Date.now() + BF_CHECK_COUNTDOWN_MS,
+      present: null,
+    };
+    callback({ ok: true });
+    broadcastBluff(ctx, roomCode, room);
+
+    clearCheckTimer(roomCode);
+    const check = room.bfCheck;
+    bfCheckTimers.set(
+      roomCode,
+      setTimeout(() => {
+        bfCheckTimers.delete(roomCode);
+        if (room.bfCheck !== check) return;
+        const pooled = Object.values(room.bfHands).flat();
+        check.present = isHandPresent(hand, pooled);
+        broadcastBluff(ctx, roomCode, room);
+      }, BF_CHECK_COUNTDOWN_MS)
+    );
   });
 
   socket.on('bfResetGame', (callback) => {
@@ -273,6 +354,8 @@ function registerHandlers(ctx, io, socket) {
     }
 
     clearBluffTimer(roomCode);
+    clearCheckTimer(roomCode);
+    room.bfCheck = null;
     room.bfCounts = {};
     room.bfRoundNumber = 0;
     room.bfEliminationOrder = [];

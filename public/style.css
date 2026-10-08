@@ -3022,3 +3022,104 @@ button.confirm-danger {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ---------- Bluff: "is the last hand there?" check ---------- */
+.bf-check-result {
+  text-align: center;
+  padding: 0.8rem 1rem;
+  border-radius: 20px;
+  border: 3px solid var(--bark);
+  background: var(--glass-bg);
+  box-shadow: 0 4px 0 var(--bark);
+}
+
+.bf-check-label {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.bf-check-countdown {
+  margin: 0.2rem 0 0;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.bf-check-result.bf-check-present {
+  background: linear-gradient(180deg, #b6e08f 0%, var(--leaf) 100%);
+  color: var(--accent-text);
+}
+
+.bf-check-result.bf-check-absent {
+  background: linear-gradient(180deg, #f6a99b 0%, var(--rose) 100%);
+  color: var(--accent-text);
+}
+
+.bf-check-result.bf-check-present .bf-check-countdown,
+.bf-check-result.bf-check-absent .bf-check-countdown {
+  font-size: 2rem;
+}
+
+.bf-check-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bf-check-field-label {
+  margin: 0.3rem 0 0;
+}
+
+.bf-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 0.4rem;
+}
+
+.bf-chip-grid-types {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.bf-chip-grid-suits {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.bf-chip {
+  min-height: 44px;
+  padding: 0.4rem 0.3rem;
+  font-size: 0.95rem;
+}
+
+.bf-chip-grid-suits .bf-chip {
+  font-size: 1.4rem;
+}
+
+.bf-chip.bf-suit-h {
+  color: #ff7a85;
+}
+
+.bf-chip.bf-suit-d {
+  color: #d29bff;
+}
+
+.bf-chip.bf-suit-s {
+  color: var(--sun);
+}
+
+/* Selected chips go leaf-green, so switch to the darker card-face suit colors. */
+.bf-chip.selected.bf-suit-h {
+  color: #c0272b;
+}
+
+.bf-chip.selected.bf-suit-d {
+  color: #8b2fc9;
+}
+
+.bf-chip.selected.bf-suit-c {
+  color: #1a1a1a;
+}
+
+.bf-chip.selected.bf-suit-s {
+  color: #7a5a00;
+}
