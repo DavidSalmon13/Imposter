@@ -1,0 +1,121 @@
+/* Option A — "ClubGG Night": full-bleed dark client, glowing stadium felts with a metal
+   rail, 4-colour jumbo-index deck, bottom action bar. Matches the All-In or Fold screen. */
+#mf-screen {
+  position: fixed; inset: 0; z-index: 50; max-width: none; margin: 0;
+  border: none; border-radius: 0; box-shadow: none; backdrop-filter: none;
+  padding: 0.7rem 0.8rem 0; gap: 0.25rem; overflow-y: auto;
+  background: radial-gradient(ellipse at 50% 0%, rgba(60, 70, 96, 0.6) 0%, transparent 55%), #0d0f14;
+  color: #e9edf5;
+}
+#mf-screen #mf-title { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.55); text-shadow: none; margin: 0; }
+#mf-screen #mf-subtitle { margin: 0; font-size: 0.8rem; color: #9fb0d0; }
+#mf-screen .muted { color: #8f9bb3; }
+#mf-screen .mf-scores {
+  font-size: 0.75rem; color: #ffd76a; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 0.3rem 0.7rem; align-self: flex-start; margin: 0.3rem 0 0.2rem;
+}
+
+#mf-screen #mf-alloc-panel { display: flex; flex-direction: column; }
+#mf-screen #mf-alloc-hint { order: 0; text-align: center; font-size: 0.75rem; margin: 0.2rem 0 0.35rem; }
+
+#mf-screen .mf-boards { gap: 0.9rem; }
+#mf-screen .mf-board {
+  border-radius: 999px / 70px;
+  padding: 0.7rem 1.4rem 0.75rem;
+  border: 6px solid #383e4b;
+  background:
+    radial-gradient(ellipse at 50% 25%, rgba(255,255,255,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at center, #1e8152 0%, #0f5a39 60%, #073a24 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(120,130,150,0.5), inset 0 2px 18px rgba(0,0,0,0.55),
+    0 0 22px 4px rgba(72,128,255,0.25), 0 0 44px 10px rgba(140,80,230,0.12), 0 10px 20px rgba(0,0,0,0.6);
+}
+#mf-screen .mf-board::before { display: none; }
+#mf-screen .mf-board-target {
+  border-color: #4f8cff;
+  box-shadow: inset 0 2px 18px rgba(0,0,0,0.55), 0 0 0 2px #8db4ff, 0 0 26px 6px rgba(79,140,255,0.55);
+}
+#mf-screen .mf-board-disabled { opacity: 0.35; filter: saturate(0.4); }
+#mf-screen .mf-board-title {
+  text-align: center; color: rgba(255,255,255,0.75); font-size: 0.62rem; letter-spacing: 0.18em; margin-bottom: 0.35rem;
+}
+#mf-screen .mf-board > .mf-card-row:first-of-type { justify-content: center; }
+#mf-screen .mf-hole-label { text-align: center; color: rgba(255,255,255,0.5); margin: 0.4rem 0 0.25rem; }
+#mf-screen .mf-hole-row {
+  justify-content: center; background: rgba(0,0,0,0.28); border: 1px dashed rgba(255,255,255,0.18);
+  border-radius: 999px; min-height: 3.1rem; padding: 0.3rem 0.8rem;
+}
+
+/* Cards: white face, jumbo index (big rank + suit), 4-colour deck */
+#mf-screen .mf-card {
+  width: 2.25rem; height: 3.1rem; border-radius: 5px; background: #fff;
+  border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+}
+#mf-screen .mf-card-corner-br { display: none; }
+#mf-screen .mf-card-corner-tl { top: 0.12rem; left: 0.2rem; }
+#mf-screen .mf-card-rank { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.04em; }
+#mf-screen .mf-card-pip { display: none; }
+#mf-screen .mf-card-center { position: absolute; right: 0.15rem; bottom: 0.05rem; font-size: 1.3rem; opacity: 1; }
+#mf-screen .mf-card.mf-suit-s { color: #111; }
+#mf-screen .mf-card.mf-suit-h { color: #d81f2a; }
+#mf-screen .mf-card.mf-suit-d { color: #1d5fd8; }
+#mf-screen .mf-card.mf-suit-c { color: #13873f; }
+#mf-screen .mf-card.hidden-card {
+  background: radial-gradient(circle at 50% 50%, #6a7cff 0 18%, transparent 19%),
+    repeating-linear-gradient(45deg, #1d2a6b 0 5px, #24337f 5px 10px);
+  border: 2px solid #fff;
+}
+#mf-screen .mf-card.hidden-card::after { display: none; }
+#mf-screen .mf-card-btn.hidden-card { animation: a-pulse 1.2s ease-in-out infinite; }
+@keyframes a-pulse { 50% { box-shadow: 0 0 0 3px #8db4ff, 0 0 18px #4f8cff; } }
+#mf-screen .mf-card.selected {
+  outline: none; transform: translateY(-8px);
+  box-shadow: 0 0 0 3px #ffd34d, 0 8px 16px rgba(0,0,0,0.6);
+}
+
+/* Hand tray */
+#mf-screen .mf-section-heading { text-align: center; color: rgba(255,255,255,0.5); font-size: 0.65rem; letter-spacing: 0.18em; text-transform: uppercase; margin-top: 0.8rem; }
+#mf-screen .mf-hand {
+  background: linear-gradient(180deg, #1a1e27, #12151c); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px; padding: 0.7rem 0.5rem; text-align: center;
+}
+#mf-screen .mf-hand-tap { justify-content: center; gap: 0.35rem; }
+#mf-screen .mf-hand .mf-card { width: 2.6rem; height: 3.6rem; }
+#mf-screen .mf-hand .mf-card-rank { font-size: 1.25rem; }
+#mf-screen .mf-hand .mf-card-center { font-size: 1.55rem; }
+
+/* Lock status as horizontal pills */
+#mf-screen #mf-lock-status { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 0.35rem; margin: 0.5rem 0; }
+#mf-screen #mf-lock-status li {
+  background: #1a1e27; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; color: #c8d1e3; box-shadow: none;
+}
+#mf-screen #mf-lock-status li.mf-me-locked { border-color: #34d27b; color: #7ff0ae; }
+#mf-screen .mf-locked-badge { background: rgba(52,210,123,0.12); border-color: rgba(52,210,123,0.45); color: #7ff0ae; }
+
+/* Buttons: ClubGG action-bar style */
+#mf-screen button:not(.mf-card) {
+  border-radius: 12px; border: none; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  background: linear-gradient(180deg, #3ad07f, #1f9a58); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 4px 0 #136b3c, 0 8px 16px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.35);
+}
+#mf-screen button:not(.mf-card):disabled { background: #2a2f3a; color: #6c768a; box-shadow: 0 4px 0 #1b1f27; text-shadow: none; }
+#mf-screen button.secondary:not(.mf-card) {
+  background: transparent; color: #8f9bb3; box-shadow: none; border: 1px solid rgba(255,255,255,0.15);
+  font-size: 0.8rem; min-height: 0; padding: 0.55rem;
+}
+#mf-screen .mf-sticky-footer { background: linear-gradient(to bottom, transparent, #0d0f14 25%); padding-bottom: calc(0.8rem + env(safe-area-inset-bottom)); }
+
+/* Results */
+#mf-screen .mf-board-revealed { border-radius: 28px; padding: 0.8rem 1rem; }
+#mf-screen .mf-winner-line { text-align: center; color: #ffd76a; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+#mf-screen .mf-winner-line.mf-split { color: #8db4ff; }
+#mf-screen .mf-rankings li { background: rgba(0,0,0,0.25); border-radius: 12px; padding: 0.35rem 0.55rem; color: #b9c3d6; flex-direction: row; align-items: center; justify-content: space-between; }
+#mf-screen .mf-rankings li.mf-rank-win { background: rgba(255,215,106,0.12); box-shadow: inset 0 0 0 1px rgba(255,215,106,0.5); color: #fff; }
+#mf-screen .mf-rank-label { font-size: 0.78rem; }
+#mf-screen .mf-rank-cards { flex-wrap: nowrap; }
+#mf-screen .mf-card.mf-card-win { box-shadow: 0 0 0 2px #ffd34d, 0 0 12px rgba(255,211,77,0.7); }
+#mf-screen .mf-card.mf-card-lose { filter: grayscale(0.7) brightness(0.7); opacity: 1; }
+#mf-screen .mf-burn-row { background: #161a22; border: 1px dashed rgba(255,255,255,0.15); border-radius: 14px; }
+#mf-screen .mf-round-points { text-align: center; color: #ffd76a; font-size: 0.85rem; }

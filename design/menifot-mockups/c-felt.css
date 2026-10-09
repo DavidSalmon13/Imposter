@@ -1,0 +1,164 @@
+/* Option C — "Casino Felt": the whole screen is one green baize table inside a padded
+   wooden rail (keeps Shorot's wood brand), boards are printed betting-box outlines on
+   the felt, classic full-pip cards, cream-and-gold type. */
+#mf-screen {
+  position: fixed; inset: 0; z-index: 50; max-width: none; margin: 0; border-radius: 0; backdrop-filter: none;
+  padding: 0.9rem 0.9rem 0; gap: 0.3rem; overflow-y: auto;
+  border: 12px solid #5a3119;
+  box-shadow: inset 0 0 0 3px #2a1408, inset 0 0 0 5px #c9993f, inset 0 0 40px rgba(0,0,0,0.6);
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.1) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23000' fill-opacity='0'/%3E%3Crect width='1' height='1' fill='%23fff' fill-opacity='0.03'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at center, #237a4b 0%, #155c37 55%, #0b3f25 100%);
+  background-attachment: fixed;
+  color: #fff6e0;
+}
+#mf-screen #mf-title {
+  margin: 0; text-align: center; font-size: 1.6rem; color: #f6d27a;
+  text-shadow: 0 2px 0 #0b3f25, 0 0 18px rgba(246,210,122,0.35);
+}
+#mf-screen #mf-subtitle { margin: 0; text-align: center; font-size: 0.78rem; color: rgba(255,246,224,0.75); }
+#mf-screen .muted { color: rgba(255,246,224,0.7); }
+/* Scoreboard: a row of poker "seats" — avatar, name, score chip, race bar to 10 */
+#mf-screen .mf-scores {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 0.45rem;
+  margin: 0.45rem 0 0.6rem; padding: 0.55rem 0.5rem 0.6rem;
+  background: rgba(0,0,0,0.22); border: 1px solid rgba(246,210,122,0.35); border-radius: 16px;
+}
+#mf-screen .mf-sb-seat {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 0;
+}
+#mf-screen .mf-sb-avatar {
+  position: relative; width: 2.6rem; height: 2.6rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.15rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  border: 2px solid #2a1408; box-shadow: 0 0 0 2px rgba(246,210,122,0.6), 0 3px 6px rgba(0,0,0,0.45);
+}
+#mf-screen .mf-sb-tone0 { background: linear-gradient(160deg, #5b7fd6, #2f4d99); }
+#mf-screen .mf-sb-tone1 { background: linear-gradient(160deg, #d67f5b, #99502f); }
+#mf-screen .mf-sb-tone2 { background: linear-gradient(160deg, #b45bd6, #6f2f99); }
+#mf-screen .mf-sb-tone3 { background: linear-gradient(160deg, #d6c05b, #99852f); }
+#mf-screen .mf-sb-tone4 { background: linear-gradient(160deg, #5bc4d6, #2f7f99); }
+#mf-screen .mf-sb-tone5 { background: linear-gradient(160deg, #d65b7f, #992f4d); }
+#mf-screen .mf-sb-me .mf-sb-avatar { box-shadow: 0 0 0 3px #fff1b8, 0 0 14px rgba(246,210,122,0.7); }
+#mf-screen .mf-sb-leader::before {
+  content: '♛'; position: absolute; top: -0.85rem; left: 50%; transform: translateX(-50%);
+  font-size: 1rem; color: #f6d27a; text-shadow: 0 1px 0 #2a1408; z-index: 1;
+}
+#mf-screen .mf-sb-name {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.72rem; color: #fff6e0;
+}
+#mf-screen .mf-sb-score {
+  position: absolute; top: 1.85rem; left: calc(50% + 0.75rem);
+  min-width: 1.35rem; height: 1.35rem; padding: 0 0.3rem; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 700; color: #2a1408; font-variant-numeric: tabular-nums;
+  background: radial-gradient(circle at 35% 30%, #fff1b8, #f6d27a 55%, #c9993f);
+  border: 2px dashed #fffdf6; outline: 2px solid #2a1408;
+}
+#mf-screen .mf-sb-gain {
+  position: absolute; top: -0.2rem; right: 0.1rem; padding: 0.05rem 0.35rem; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 700; color: #0b3f25; background: #9ff0b8; box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+  animation: c-gain-pop 0.6s var(--ease-bounce) both;
+}
+@keyframes c-gain-pop { from { transform: translateY(6px) scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
+#mf-screen .mf-sb-track {
+  width: 88%; height: 5px; border-radius: 999px; background: rgba(0,0,0,0.4); overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(246,210,122,0.25);
+}
+#mf-screen .mf-sb-fill {
+  display: block; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, #c9993f, #fff1b8); transition: width 0.6s var(--ease);
+}
+#mf-screen #mf-alloc-hint { text-align: center; font-size: 0.72rem; margin-bottom: 0.6rem; }
+
+/* Boards: printed outlines on the felt, no separate surface */
+#mf-screen .mf-boards { gap: 0.7rem; }
+#mf-screen .mf-board {
+  background: transparent; border: 2px solid rgba(246,210,122,0.75); border-radius: 18px;
+  box-shadow: none; padding: 1rem 0.7rem 0.6rem; margin-top: 0.5rem;
+}
+#mf-screen .mf-board::before { inset: 4px; border: 1px solid rgba(246,210,122,0.3); border-radius: 14px; }
+#mf-screen .mf-board .mf-board-title, #mf-screen .mf-burn-row .mf-board-title {
+  position: absolute; top: -0.65rem; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap;
+  padding: 0.1rem 0.7rem; border-radius: 999px; background: #155c37; border: 2px solid rgba(246,210,122,0.75);
+  color: #f6d27a; font-size: 0.62rem; text-shadow: none;
+}
+#mf-screen .mf-board > .mf-card-row:first-of-type { justify-content: center; }
+#mf-screen .mf-hole-label { text-align: center; color: rgba(255,246,224,0.6); font-style: italic; }
+#mf-screen .mf-hole-row {
+  justify-content: center; background: rgba(0,0,0,0.18); border: 1px dashed rgba(246,210,122,0.35); border-radius: 12px;
+}
+#mf-screen .mf-board-target {
+  border-color: #fff1b8; background: rgba(246,210,122,0.08);
+  box-shadow: 0 0 0 3px rgba(246,210,122,0.35), 0 0 22px rgba(246,210,122,0.35);
+}
+#mf-screen .mf-board-disabled { opacity: 0.4; }
+
+/* Classic cards: corner index both ends + pip centre, red/black only */
+#mf-screen .mf-card {
+  width: 2.3rem; height: 3.2rem; border-radius: 5px; background: #fffdf6; border: 1px solid #d8d0bd;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.45); font-family: Georgia, 'Times New Roman', serif;
+}
+#mf-screen .mf-card-rank { font-size: 0.72rem; }
+#mf-screen .mf-card-pip { font-size: 0.62rem; }
+#mf-screen .mf-card-center { font-size: 1.35rem; opacity: 1; }
+#mf-screen .mf-card.mf-suit-s, #mf-screen .mf-card.mf-suit-c { color: #1b1b1b; }
+#mf-screen .mf-card.mf-suit-h, #mf-screen .mf-card.mf-suit-d { color: #c4161c; }
+#mf-screen .mf-card.hidden-card {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 3px, rgba(255,255,255,0.12) 3px 4px),
+    repeating-linear-gradient(-45deg, transparent 0 3px, rgba(255,255,255,0.12) 3px 4px),
+    #9c1c22;
+  border: 3px solid #fffdf6;
+}
+#mf-screen .mf-card.hidden-card::after { inset: 1px; border-color: rgba(255,255,255,0.5); }
+#mf-screen .mf-card-btn.hidden-card { box-shadow: 0 0 0 2px #f6d27a, 0 4px 10px rgba(0,0,0,0.5); }
+#mf-screen .mf-card.selected { outline: 2px solid #f6d27a; outline-offset: 2px; box-shadow: 0 0 14px rgba(246,210,122,0.8); transform: translateY(-5px); }
+
+/* Hand as a wooden card rack */
+#mf-screen .mf-section-heading { text-align: center; color: #f6d27a; margin-top: 0.8rem; }
+#mf-screen .mf-hand {
+  padding: 0.7rem 0.5rem 0.9rem; border-radius: 14px; text-align: center;
+  background: var(--plank); border: 3px solid #2a1408; box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25), 0 6px 14px rgba(0,0,0,0.45);
+}
+#mf-screen .mf-hand-tap { justify-content: center; }
+#mf-screen .mf-hand .mf-card { width: 2.6rem; height: 3.6rem; }
+
+#mf-screen #mf-lock-status { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 0.3rem; margin: 0.5rem 0; }
+#mf-screen #mf-lock-status li { background: rgba(0,0,0,0.25); border: 1px solid rgba(246,210,122,0.35); border-radius: 999px; color: #fff6e0; box-shadow: none; }
+#mf-screen .mf-locked-badge { background: rgba(0,0,0,0.25); border-color: #f6d27a; color: #f6d27a; }
+#mf-screen .mf-sticky-footer { background: linear-gradient(to bottom, transparent, #0f4a2c 25%); padding-bottom: calc(0.8rem + env(safe-area-inset-bottom)); }
+#mf-screen button.secondary:not(.mf-card) { min-height: 0; padding: 0.55rem; font-size: 0.85rem; }
+
+/* Results */
+#mf-screen .mf-board-revealed { padding-top: 1.1rem; }
+#mf-screen .mf-winner-line { text-align: center; color: #f6d27a; font-size: 1.05rem; }
+#mf-screen .mf-winner-line.mf-split { color: #bfe3ff; }
+#mf-screen .mf-rankings li {
+  flex-direction: row; align-items: center; justify-content: space-between; color: rgba(255,246,224,0.75);
+  padding: 0.25rem 0.5rem; border-bottom: 1px dotted rgba(246,210,122,0.3);
+}
+#mf-screen .mf-rankings li.mf-rank-win { color: #fff; }
+#mf-screen .mf-rankings li.mf-rank-win .mf-rank-label::before { content: '★ '; color: #f6d27a; }
+#mf-screen .mf-rank-label { font-size: 0.8rem; }
+#mf-screen .mf-rank-cards { flex-wrap: nowrap; }
+#mf-screen .mf-board-revealed > .mf-card-row:last-child { justify-content: center; }
+#mf-screen .mf-card.mf-card-win { box-shadow: 0 0 0 2px #f6d27a, 0 0 10px rgba(246,210,122,0.8); }
+#mf-screen .mf-card.mf-card-lose { opacity: 0.55; filter: grayscale(0.6); }
+#mf-screen .mf-burn-row { position: relative; margin-top: 1.2rem; padding-top: 1rem; background: transparent; border: 2px dashed rgba(246,210,122,0.5); border-radius: 14px; }
+#mf-screen .mf-burn-row .mf-card-row { justify-content: center; }
+#mf-screen .mf-round-points { text-align: center; color: #f6d27a; }
+
+/* "All players ready" banner once everyone has locked */
+#mf-screen #mf-subtitle.mf-all-ready {
+  align-self: center; margin: 0.35rem auto 0.2rem; padding: 0.45rem 1.4rem;
+  font-size: 1.35rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2a1408;
+  background: linear-gradient(180deg, #fff1b8 0%, #f6d27a 45%, #c9993f 100%);
+  border: 3px solid #2a1408; border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.6), 0 4px 0 #2a1408, 0 0 26px rgba(246,210,122,0.55);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+  animation: c-ready-pop 0.5s var(--ease-bounce) both;
+}
+@keyframes c-ready-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }

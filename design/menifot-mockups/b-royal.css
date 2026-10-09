@@ -1,0 +1,144 @@
+/* Option B — "Royal Compact" (club-app look, 7XL / PPPoker style): black-and-gold on deep
+   purple, slim glass board rails, big-face cards, everything fits one phone screen,
+   hand docked at the bottom like a club client's action area. */
+#mf-screen {
+  position: fixed; inset: 0; z-index: 50; max-width: none; margin: 0;
+  border: none; border-radius: 0; box-shadow: none; backdrop-filter: none;
+  padding: 0.6rem 0.65rem 0; gap: 0.2rem; overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(176, 110, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 110%, rgba(255, 190, 70, 0.12) 0%, transparent 50%),
+    linear-gradient(180deg, #1b0f2e 0%, #0e0818 100%);
+  color: #f3eaff;
+}
+#mf-screen #mf-title {
+  margin: 0; text-align: center; font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff3c4, #e9b43c 60%, #b5791a); -webkit-background-clip: text; background-clip: text;
+  color: transparent; text-shadow: none;
+}
+#mf-screen #mf-subtitle { margin: 0; text-align: center; font-size: 0.72rem; color: #b9a6d8; }
+#mf-screen .muted { color: #a996c8; }
+#mf-screen .mf-scores {
+  margin: 0.35rem auto 0.3rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; color: #ffe08a; text-align: center;
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(233,180,60,0.45); border-radius: 8px;
+}
+#mf-screen #mf-alloc-hint { text-align: center; font-size: 0.7rem; margin: 0 0 0.3rem; }
+
+#mf-screen .mf-boards { gap: 0.45rem; margin-bottom: 0.3rem; }
+#mf-screen .mf-board {
+  display: grid; grid-template-columns: 1.6rem 1fr; grid-template-rows: auto auto; column-gap: 0.45rem; row-gap: 0.3rem;
+  align-items: center; padding: 0.45rem 0.55rem;
+  border-radius: 14px; border: 1px solid rgba(233,180,60,0.55);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 40%),
+    linear-gradient(135deg, #2c1a4a 0%, #1a0f2e 100%);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.5), 0 6px 16px rgba(0,0,0,0.5);
+}
+#mf-screen .mf-board::before { display: none; }
+#mf-screen .mf-board .mf-board-title {
+  grid-row: 1 / span 3; grid-column: 1; align-self: stretch; margin: 0;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 0.6rem; letter-spacing: 0.16em; color: #1a0f2e; text-shadow: none;
+  background: linear-gradient(180deg, #ffe08a, #d9a030); border-radius: 8px;
+}
+#mf-screen .mf-board > .mf-card-row { grid-column: 2; }
+#mf-screen .mf-hole-label { display: none; }
+#mf-screen .mf-hole-row {
+  grid-column: 2; min-height: 2.6rem; padding: 0.25rem 0.35rem; border-radius: 9px;
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08);
+}
+#mf-screen .mf-hole-row::before { content: 'YOU'; font-size: 0.55rem; letter-spacing: 0.12em; color: #a996c8; margin-right: 0.25rem; }
+#mf-screen .mf-board-target {
+  border-color: #ffd256;
+  box-shadow: 0 0 0 2px rgba(255,210,86,0.6), 0 0 22px rgba(255,190,60,0.45);
+}
+#mf-screen .mf-board-disabled { opacity: 0.35; }
+
+/* Big-face cards: rank + suit stacked, filling the card */
+#mf-screen .mf-card {
+  width: 2.15rem; height: 2.85rem; border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #f1ecf8 100%); border: none;
+  box-shadow: 0 2px 0 #cfc3e2, 0 4px 8px rgba(0,0,0,0.5);
+  flex-direction: column; font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+}
+#mf-screen .mf-card-corner-br, #mf-screen .mf-card-pip { display: none; }
+#mf-screen .mf-card-corner-tl { position: static; }
+#mf-screen .mf-card-rank { font-size: 1.15rem; font-weight: 900; letter-spacing: -0.05em; }
+#mf-screen .mf-card-center { font-size: 1.05rem; opacity: 1; line-height: 1; margin-top: -0.05rem; }
+#mf-screen .mf-card.mf-suit-s { color: #15121c; }
+#mf-screen .mf-card.mf-suit-h { color: #e0263a; }
+#mf-screen .mf-card.mf-suit-d { color: #e0263a; }
+#mf-screen .mf-card.mf-suit-c { color: #15121c; }
+#mf-screen .mf-card.hidden-card {
+  background:
+    radial-gradient(circle, #ffd256 0 16%, transparent 17%),
+    repeating-linear-gradient(135deg, #3b1f66 0 4px, #2a1450 4px 8px);
+  box-shadow: inset 0 0 0 2px #d9a030, 0 4px 8px rgba(0,0,0,0.5);
+}
+#mf-screen .mf-card.hidden-card::after { display: none; }
+#mf-screen .mf-card-btn.hidden-card { animation: b-glint 1.4s ease-in-out infinite; }
+@keyframes b-glint { 50% { box-shadow: inset 0 0 0 2px #ffe08a, 0 0 16px 2px rgba(255,210,86,0.8); } }
+#mf-screen .mf-card.selected {
+  outline: none; transform: translateY(-6px);
+  box-shadow: 0 0 0 3px #ffd256, 0 0 14px rgba(255,210,86,0.8);
+}
+
+/* Docked hand */
+#mf-screen .mf-section-heading { margin: 0.4rem 0 0.15rem; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: #ffe08a; text-align: center; }
+#mf-screen .mf-hand {
+  padding: 0.55rem 0.4rem; border-radius: 16px 16px 12px 12px; text-align: center;
+  background: linear-gradient(180deg, #2a1846, #160c28); border: 1px solid rgba(233,180,60,0.4);
+}
+#mf-screen .mf-hand-tap { justify-content: center; gap: 0; padding-left: 0.6rem; }
+#mf-screen .mf-hand .mf-card { width: 2.7rem; height: 3.7rem; margin-left: -0.55rem; }
+#mf-screen .mf-hand .mf-card-rank { font-size: 1.45rem; }
+#mf-screen .mf-hand .mf-card-center { font-size: 1.3rem; }
+
+#mf-screen #mf-lock-status { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
+#mf-screen #mf-lock-status li {
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; color: #d9cbef; box-shadow: none;
+}
+#mf-screen #mf-lock-status li.mf-me-locked { border-color: #ffd256; color: #ffe08a; }
+#mf-screen .mf-locked-badge { background: rgba(255,210,86,0.12); border-color: rgba(255,210,86,0.5); color: #ffe08a; }
+
+#mf-screen button:not(.mf-card) {
+  border-radius: 999px; border: none; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #2a1600; background: linear-gradient(180deg, #fff0b0 0%, #f2c14e 45%, #c98a1c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 0 #7a4f0c, 0 8px 18px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+}
+#mf-screen button:not(.mf-card):disabled { background: #2b2140; color: #6e5e8c; box-shadow: 0 3px 0 #160c28; text-shadow: none; }
+#mf-screen button.secondary:not(.mf-card) {
+  background: transparent; color: #b9a6d8; border: 1px solid rgba(185,166,216,0.35); box-shadow: none; font-size: 0.75rem; min-height: 0; padding: 0.5rem;
+}
+#mf-screen .mf-sticky-footer { background: linear-gradient(to bottom, transparent, #0e0818 25%); padding-bottom: calc(0.7rem + env(safe-area-inset-bottom)); }
+
+/* Results: board winner ribbon + compact ranking rows */
+#mf-screen .mf-board-revealed { display: block; padding: 0.6rem 0.7rem; }
+#mf-screen .mf-board.mf-board-revealed .mf-board-title {
+  writing-mode: horizontal-tb; transform: none; display: inline-block; padding: 0.15rem 0.6rem; margin-bottom: 0.4rem;
+}
+#mf-screen .mf-board-revealed > .mf-card-row:first-of-type { justify-content: center; }
+#mf-screen .mf-board-revealed .mf-hole-label { display: block; color: #a996c8; font-size: 0.6rem; text-align: center; }
+#mf-screen .mf-board-revealed > .mf-card-row:last-child { justify-content: center; }
+#mf-screen .mf-winner-line {
+  margin: 0.5rem auto 0.35rem; padding: 0.25rem 0.8rem; width: fit-content; border-radius: 6px; font-size: 0.85rem;
+  color: #2a1600; background: linear-gradient(180deg, #ffe08a, #d9a030); text-transform: uppercase; letter-spacing: 0.05em;
+}
+#mf-screen .mf-winner-line.mf-split { background: linear-gradient(180deg, #d9c3ff, #9a6be0); color: #1a0f2e; }
+#mf-screen .mf-rankings li {
+  flex-direction: row; align-items: center; justify-content: space-between; color: #b9a6d8;
+  padding: 0.25rem 0.45rem; border-radius: 9px; background: rgba(0,0,0,0.3);
+}
+#mf-screen .mf-rankings li.mf-rank-win { color: #fff; background: rgba(255,210,86,0.14); box-shadow: inset 0 0 0 1px rgba(255,210,86,0.55); }
+#mf-screen .mf-rank-label { font-size: 0.75rem; }
+#mf-screen .mf-rank-cards { flex-wrap: nowrap; }
+#mf-screen .mf-rank-cards .mf-card { width: 1.8rem; height: 2.4rem; }
+#mf-screen .mf-rank-cards .mf-card-rank { font-size: 0.95rem; }
+#mf-screen .mf-rank-cards .mf-card-center { font-size: 0.85rem; }
+#mf-screen .mf-card.mf-card-win { box-shadow: 0 0 0 2px #ffd256, 0 0 10px rgba(255,210,86,0.8); }
+#mf-screen .mf-card.mf-card-lose { filter: grayscale(0.8) brightness(0.65); opacity: 1; }
+#mf-screen .mf-burn-row { background: rgba(0,0,0,0.3); border: 1px dashed rgba(233,180,60,0.4); border-radius: 12px; }
+#mf-screen .mf-burn-row .mf-board-title { color: #ffe08a; }
+#mf-screen .mf-round-points { text-align: center; color: #ffe08a; font-size: 0.85rem; }

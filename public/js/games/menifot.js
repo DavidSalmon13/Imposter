@@ -6,6 +6,8 @@ import { renderScoreboard } from '../shared/scoreboard.js';
 
 const MF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const MF_SUIT_CLASS = { s: 'mf-suit-s', h: 'mf-suit-h', d: 'mf-suit-d', c: 'mf-suit-c' };
+// Mirrors MF_TARGET_SCORE in server/games/menifot.js (only used to draw the race bars).
+const MF_TARGET_SCORE = 10;
 const MF_RANK_ORDER = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
   T: 10, J: 11, Q: 12, K: 13, A: 14,
@@ -114,12 +116,51 @@ function makeMfCardEl(code, { hidden = false, selected = false, interactive = fa
 }
 
 function renderMfScoresLine(scores, players, { awarded = null } = {}) {
-  const parts = (players || []).map((n) => {
-    const total = scores && scores[n] != null ? scores[n] : 0;
-    if (awarded && awarded[n]) return `${n} ${total} (+${awarded[n]})`;
-    return `${n} ${total}`;
+  mfScores.innerHTML = '';
+  const list = players || [];
+  if (!list.length) return;
+  const myName = ctx.getMyName();
+  const totals = list.map((n) => (scores && scores[n] != null ? scores[n] : 0));
+  const top = Math.max(...totals);
+  list.forEach((n, i) => {
+    const total = totals[i];
+    const seat = document.createElement('div');
+    seat.className = 'mf-sb-seat';
+    if (n === myName) seat.classList.add('mf-sb-me');
+    if (top > 0 && total === top) seat.classList.add('mf-sb-leader');
+
+    const avatar = document.createElement('span');
+    avatar.className = `mf-sb-avatar mf-sb-tone${i % 6}`;
+    avatar.textContent = (n || '?').trim().charAt(0).toUpperCase();
+    seat.appendChild(avatar);
+
+    const name = document.createElement('span');
+    name.className = 'mf-sb-name';
+    name.textContent = n;
+    seat.appendChild(name);
+
+    const score = document.createElement('span');
+    score.className = 'mf-sb-score';
+    score.textContent = total;
+    seat.appendChild(score);
+
+    if (awarded && awarded[n]) {
+      const gain = document.createElement('span');
+      gain.className = 'mf-sb-gain';
+      gain.textContent = `+${awarded[n]}`;
+      seat.appendChild(gain);
+    }
+
+    const track = document.createElement('span');
+    track.className = 'mf-sb-track';
+    const fill = document.createElement('span');
+    fill.className = 'mf-sb-fill';
+    fill.style.width = `${Math.min(100, (total / MF_TARGET_SCORE) * 100)}%`;
+    track.appendChild(fill);
+    seat.appendChild(track);
+
+    mfScores.appendChild(seat);
   });
-  mfScores.textContent = parts.length ? parts.join(' · ') : '';
 }
 
 function boardIndexForCard(allocation, card, boardCount) {
@@ -407,6 +448,7 @@ function applyState(data) {
   ctx.setHost(data.host);
   mfError.textContent = '';
 
+  mfSubtitle.classList.remove('mf-all-ready');
   mfReadyPanel.classList.add('hidden');
   mfAllocPanel.classList.add('hidden');
   mfResultsPanel.classList.add('hidden');
@@ -460,6 +502,7 @@ function applyState(data) {
   if (data.phase === 'allocating') {
     mfTitle.textContent = `Round ${data.roundNumber}`;
     mfSubtitle.textContent = lockedSubtitle(data);
+    mfSubtitle.classList.toggle('mf-all-ready', mfAllLocked(data));
     mfAllocPanel.classList.remove('hidden');
     renderMfAllocating(data);
     return;
@@ -510,11 +553,7 @@ function mfAllLocked(data) {
 }
 
 function lockedSubtitle(data) {
-  if (mfAllLocked(data)) {
-    return ctx.getIsHost()
-      ? 'Everyone is locked — tap the boards below to reveal'
-      : 'Everyone is locked — waiting for the host to reveal';
-  }
+  if (mfAllLocked(data)) return 'ALL PLAYERS READY';
   if (data.myHand && data.myHand.locked) {
     return 'Your hand is locked — waiting for the rest of the table';
   }
