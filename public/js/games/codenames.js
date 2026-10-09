@@ -5,6 +5,7 @@
 
 import { capitalize, formatCnTimer } from '../shared/format.js';
 import { renderScoreboard } from '../shared/scoreboard.js';
+import { selectChip } from '../shared/dom.js';
 
 const redList = document.getElementById('red-list');
 const blueList = document.getElementById('blue-list');
@@ -231,8 +232,12 @@ export const Codenames = {
       btn.addEventListener('click', () => {
         if (!ctx.getIsHost()) return;
         const seconds = Number(btn.dataset.seconds);
+        selectChip(cnTimerBtns, btn);
         socket.emit('setCnTimer', seconds, (res) => {
-          if (res && !res.ok) cnTeamError.textContent = res.error;
+          if (res && !res.ok) {
+            cnTeamError.textContent = res.error;
+            cnTimerBtns.forEach((b) => b.classList.toggle('selected', Number(b.dataset.seconds) === cnTimerSeconds));
+          }
         });
       });
     });

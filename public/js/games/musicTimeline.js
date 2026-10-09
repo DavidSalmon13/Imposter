@@ -1,6 +1,7 @@
 /** Music Timeline client module: team-select/setup and the full match loop. */
 
 import { renderScoreboard } from '../shared/scoreboard.js';
+import { selectChip } from '../shared/dom.js';
 
 const mtSetupPanel = document.getElementById('mt-setup-panel');
 const mtModeBtns = Array.from(document.querySelectorAll('.mt-mode-btn'));
@@ -114,7 +115,16 @@ function renderTimeline(container, timeline, opts = {}) {
   });
 }
 
+// Last setup payload, so a rejected setting can roll its optimistic highlight back.
+let mtLastSetupData = null;
+
+function showSetupError(res) {
+  if (mtLastSetupData) renderTeamSelect(mtLastSetupData);
+  mtSetupError.textContent = res.error;
+}
+
 function renderTeamSelect(data) {
+  mtLastSetupData = data;
   ctx.setHost(data.host);
   mtSetupError.textContent = '';
   mtMatchPanel.classList.add('hidden');
@@ -409,8 +419,9 @@ export const MusicTimeline = {
       btn.addEventListener('click', () => {
         if (!ctx.getIsHost()) return;
         mtSetupError.textContent = '';
+        selectChip(mtModeBtns, btn);
         socket.emit('setMtMode', btn.dataset.mode, (res) => {
-          if (res && !res.ok) mtSetupError.textContent = res.error;
+          if (res && !res.ok) showSetupError(res);
         });
       });
     });
@@ -419,8 +430,9 @@ export const MusicTimeline = {
       btn.addEventListener('click', () => {
         if (!ctx.getIsHost()) return;
         mtSetupError.textContent = '';
+        selectChip(mtTeamCountBtns, btn);
         socket.emit('setMtTeamCount', Number(btn.dataset.count), (res) => {
-          if (res && !res.ok) mtSetupError.textContent = res.error;
+          if (res && !res.ok) showSetupError(res);
         });
       });
     });
@@ -429,8 +441,9 @@ export const MusicTimeline = {
       btn.addEventListener('click', () => {
         if (!ctx.getIsHost()) return;
         mtSetupError.textContent = '';
+        selectChip(mtDifficultyBtns, btn);
         socket.emit('setMtDifficulty', btn.dataset.difficulty, (res) => {
-          if (res && !res.ok) mtSetupError.textContent = res.error;
+          if (res && !res.ok) showSetupError(res);
         });
       });
     });

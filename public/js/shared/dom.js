@@ -47,3 +47,12 @@ export function showGenerating(game) {
   }
   showScreen('generating');
 }
+
+/**
+ * Marks `picked` as the selected chip among `buttons` right away, before the server
+ * confirms - otherwise the highlight lags a full network round trip behind the tap.
+ * The next state update from the server re-applies the real selection either way.
+ */
+export function selectChip(buttons, picked) {
+  buttons.forEach((btn) => btn.classList.toggle('selected', btn === picked));
+}

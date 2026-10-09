@@ -11,7 +11,7 @@ import { AllInOrFold } from './games/allInOrFold.js';
 import { MindMeld } from './games/mindMeld.js';
 import { Bluff } from './games/bluff.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
-import { showScreen, showGenerating } from './shared/dom.js';
+import { showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
 
@@ -22,6 +22,10 @@ if ('serviceWorker' in navigator) {
 }
 
 const socket = io();
+
+// iOS Safari only applies :active (the pressed look) when a touchstart listener exists, so
+// without this a tap shows no feedback until the click lands.
+document.addEventListener('touchstart', () => {}, { passive: true });
 
 // Surfaces socket connectivity instead of leaving actions (like the Join button)
 // looking dead while a drop is being retried - see CLAUDE.md's note that reconnect
@@ -661,7 +665,10 @@ exitLobbyBtn.addEventListener('click', async () => {
 wordLanguageBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     if (!isHost) return;
-    socket.emit('setWordLanguage', btn.dataset.lang, () => {});
+    selectChip(wordLanguageBtns, btn);
+    socket.emit('setWordLanguage', btn.dataset.lang, (res) => {
+      if (res && res.ok === false) applyWordLanguage(wordLanguage);
+    });
   });
 });
 

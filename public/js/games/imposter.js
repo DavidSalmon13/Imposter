@@ -103,10 +103,15 @@ function bindButtons() {
   levelButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const level = btn.dataset.level;
+      const previousVote = myVote;
+      // Highlight immediately; roll back if the server rejects the vote.
+      myVote = level;
+      renderVoting();
       ctx.socket.emit('vote', level, (res) => {
-        if (res && res.ok === false) return;
-        myVote = level;
-        renderVoting();
+        if (res && res.ok === false) {
+          myVote = previousVote;
+          renderVoting();
+        }
       });
     });
   });
