@@ -1292,6 +1292,19 @@ button.secondary:active:not(:disabled) {
   font-size: 1.1rem;
 }
 
+.cn-remaining {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin: 0.25rem 0 0.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#cn-random-teams-btn {
+  margin-bottom: 0.75rem;
+}
+
 .cn-turn-red {
   color: var(--team-red);
 }

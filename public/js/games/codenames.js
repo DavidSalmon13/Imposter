@@ -13,6 +13,7 @@ const joinRedBtn = document.getElementById('join-red-btn');
 const joinBlueBtn = document.getElementById('join-blue-btn');
 const leaderRedBtn = document.getElementById('leader-red-btn');
 const leaderBlueBtn = document.getElementById('leader-blue-btn');
+const cnRandomTeamsBtn = document.getElementById('cn-random-teams-btn');
 const cnStartBtn = document.getElementById('cn-start-btn');
 const cnStartWaiting = document.getElementById('cn-start-waiting');
 const cnTeamError = document.getElementById('cn-team-error');
@@ -25,6 +26,8 @@ const cnNameBankError = document.getElementById('cn-name-bank-error');
 
 const cnTurnLabel = document.getElementById('cn-turn-label');
 const cnScore = document.getElementById('cn-score');
+const cnRemainingRed = document.getElementById('cn-remaining-red');
+const cnRemainingBlue = document.getElementById('cn-remaining-blue');
 const cnGrid = document.getElementById('cn-grid');
 const cnEndTurnBtn = document.getElementById('cn-end-turn-btn');
 const cnTimerDisplay = document.getElementById('cn-timer-display');
@@ -105,6 +108,7 @@ function renderTeamSelect(data) {
   const ready = redValid && blueValid;
 
   const isHost = ctx.getIsHost();
+  cnRandomTeamsBtn.classList.toggle('hidden', !isHost);
   cnStartBtn.classList.toggle('hidden', !isHost);
   cnStartBtn.disabled = !ready;
   cnStartWaiting.classList.toggle('hidden', isHost);
@@ -182,6 +186,8 @@ function applyCodenamesState(data) {
       : `${capitalize(data.activeTeam)}'s turn`;
     cnTurnLabel.className = `cn-turn cn-turn-${data.activeTeam}`;
     cnScore.textContent = `Red ${data.scores.red} — Blue ${data.scores.blue}`;
+    cnRemainingRed.textContent = data.remaining ? data.remaining.red : '';
+    cnRemainingBlue.textContent = data.remaining ? data.remaining.blue : '';
 
     const waitingToStart = cnTimerSeconds > 0 && !cnTurnEndsAt;
     const interactive = mine && !isLeader && !waitingToStart;
@@ -224,6 +230,13 @@ export const Codenames = {
 
     leaderBlueBtn.addEventListener('click', () => {
       socket.emit('claimLeader', (res) => {
+        if (res && !res.ok) cnTeamError.textContent = res.error;
+      });
+    });
+
+    cnRandomTeamsBtn.addEventListener('click', () => {
+      cnTeamError.textContent = '';
+      socket.emit('randomizeCnTeams', (res) => {
         if (res && !res.ok) cnTeamError.textContent = res.error;
       });
     });
