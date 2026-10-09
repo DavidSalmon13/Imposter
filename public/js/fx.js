@@ -17,8 +17,9 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-// Browsers block audio until a user gesture; prime the context on the first one.
-['pointerdown', 'keydown'].forEach((evt) => {
+// Browsers block audio until a user gesture; prime the context on the first one. A touch
+// pointerdown doesn't count as a gesture on Android Chrome, so touchend/click cover that.
+['pointerdown', 'touchend', 'click', 'keydown'].forEach((evt) => {
   window.addEventListener(evt, () => getAudioCtx(), { once: true, passive: true });
 });
 

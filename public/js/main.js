@@ -514,12 +514,18 @@ muteBtn.addEventListener('click', () => {
 });
 refreshMuteBtn();
 
-// Light tap feedback on every button press.
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
+// Light tap feedback on every button press. Fires on pointerdown (finger touching the
+// glass) rather than click, which on touchscreens only fires after the finger lifts.
+function tapFeedback(e) {
+  const btn = e.target.closest && e.target.closest('button');
   if (!btn || btn.disabled) return;
   sfx.click();
   haptics.tap();
+}
+document.addEventListener('pointerdown', tapFeedback, { passive: true });
+// Keyboard-activated buttons (Enter/Space) never get a pointerdown; their click has detail 0.
+document.addEventListener('click', (e) => {
+  if (e.detail === 0) tapFeedback(e);
 });
 
 joinBtn.addEventListener('click', () => {
