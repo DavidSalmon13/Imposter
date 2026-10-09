@@ -26,6 +26,7 @@ lobby (shared) → team-select → generating → playing → gameover
 
 - Players self-select Red or Blue from a live-updating team-select screen (same live-list pattern as the existing lobby).
 - Each team needs **at least 2 connected players** (1 leader + ≥1 guesser) before Start is enabled. Uneven teams are allowed (e.g. 3v2) — no balance requirement beyond the 2-per-team floor.
+- The host can press **Random Teams** to shuffle every connected player onto a team: sizes differ by at most one (with an odd count, a random team gets the extra player). Leader claims are cleared, so each team claims a leader again afterwards. Players can still switch teams manually after randomizing.
 - Each team has a **"Become Leader" claim button**, hidden/disabled once that team already has a leader. First click wins. Leader gets a badge in the team list, same visual pattern as the existing "(host)" tag.
 - Global minimum player count is therefore implied by team minimums: 2 + 2 = 4.
 
@@ -55,7 +56,7 @@ lobby (shared) → team-select → generating → playing → gameover
 
 ## Turn flow
 
-- Header shows whose turn it is ("Red's turn" / "Blue's turn"). Only the active team's **non-leader** players can touch the grid; the leader never touches the board (gives their clue out loud, outside the app).
+- Header shows whose turn it is ("Red's turn" / "Blue's turn"), plus how many unrevealed cards each team still has to find ("Red: 5 left · Blue: 3 left") — visible to everyone, since the counts are computed server-side. Only the active team's **non-leader** players can touch the grid; the leader never touches the board (gives their clue out loud, outside the app).
 - Clicking a card:
   - **Own team's word** → revealed to everyone in that team's color; turn continues, same team keeps guessing.
   - **Opponent's word** → revealed to everyone in the opponent's color (a small free gift to them); turn ends immediately.

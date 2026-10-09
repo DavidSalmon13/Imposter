@@ -151,6 +151,15 @@ function buildBoard(words, startingTeam) {
   return words.map((word, i) => ({ word, color: colors[i], revealed: false }));
 }
 
+// Counted server-side because non-leaders' boards hide unrevealed colors.
+function cardsRemaining(room) {
+  const remaining = { red: 0, blue: 0 };
+  for (const cell of room.cnBoard) {
+    if (!cell.revealed && (cell.color === 'red' || cell.color === 'blue')) remaining[cell.color] += 1;
+  }
+  return remaining;
+}
+
 function boardForViewer(room, p) {
   return room.cnBoard.map((cell) => {
     if (cell.revealed || p.leader) {
@@ -169,6 +178,7 @@ function broadcastCodenamesState(ctx, roomCode, room) {
       winner: room.cnWinner,
       scores: room.cnScores,
       board: boardForViewer(room, p),
+      remaining: cardsRemaining(room),
       isLeader: p.leader,
       myTeam: p.team,
       red: teamPlayersInfo(ctx, room, 'red'),
@@ -287,6 +297,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       winner: room.cnWinner,
       scores: room.cnScores,
       board: boardForViewer(room, existingPlayer),
+      remaining: cardsRemaining(room),
       isLeader: existingPlayer.leader,
       myTeam: existingPlayer.team,
       red: teamPlayersInfo(ctx, room, 'red'),
@@ -390,6 +401,32 @@ function registerHandlers(ctx, io, socket) {
     }
 
     p.leader = true;
+    callback({ ok: true });
+    broadcastTeamSelect(ctx, roomCode, room);
+  });
+
+  socket.on('randomizeCnTeams', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can randomize teams' });
+    }
+
+    // Alternate over a shuffled roster so sizes differ by at most one; which
+    // team gets the odd player out is itself random. Leaders are cleared since
+    // the teams they led no longer exist.
+    const first = Math.random() < 0.5 ? 'red' : 'blue';
+    const second = first === 'red' ? 'blue' : 'red';
+    shuffle(ctx.connectedNames(room)).forEach((name, i) => {
+      const p = room.players.get(name);
+      p.team = i % 2 === 0 ? first : second;
+      p.leader = false;
+    });
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
   });
