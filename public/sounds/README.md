@@ -7,3 +7,6 @@ Only add clips you have the right to use (public domain / CC0, or CC-BY with
 credit listed below).
 
 ## Credits
+
+- `cat.mp3` — "Meow of a Siamese cat" by freemaster2, CC0,
+  https://commons.wikimedia.org/wiki/File:Meow_of_a_Siamese_cat_-_freemaster2.wav
