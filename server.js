@@ -59,6 +59,17 @@ app.post('/api/stickers', express.raw({ type: 'image/*', limit: '2mb' }), (req, 
   res.json({ ok: true, sticker: result.id });
 });
 
+// Tap sounds: any audio file dropped into public/sounds/ is picked up at boot, so adding
+// or swapping a sound needs no code change. Clients play a random one per button press.
+const SOUNDS_DIR = path.join(__dirname, 'public', 'sounds');
+const SOUND_FILES = fs.existsSync(SOUNDS_DIR)
+  ? fs.readdirSync(SOUNDS_DIR).filter((f) => /\.(mp3|ogg|wav|m4a)$/i.test(f)).sort()
+  : [];
+
+app.get('/api/sounds', (req, res) => {
+  res.json({ sounds: SOUND_FILES });
+});
+
 const BACKGROUND_MIME_EXT = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
