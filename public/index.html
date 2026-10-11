@@ -39,6 +39,23 @@
       <p id="join-error" class="error"></p>
     </section>
 
+    <section id="restoring-screen" class="screen hidden">
+      <h1>Loading&hellip;</h1>
+      <p class="muted">Getting you back into the game.</p>
+      <div class="spinner"></div>
+    </section>
+    <script>
+      // A returning player auto-rejoins as soon as the socket connects (main.js), so show
+      // a loading screen instead of flashing the guest join form first. Inline and
+      // synchronous so it runs before first paint, unlike the deferred module script.
+      try {
+        if (localStorage.getItem('imposterName')) {
+          document.getElementById('join-screen').classList.add('hidden');
+          document.getElementById('restoring-screen').classList.remove('hidden');
+        }
+      } catch (e) {}
+    </script>
+
     <section id="lobby-screen" class="screen hidden">
       <div class="lobby-top-row">
         <p id="lobby-count" class="muted">0 joined</p>

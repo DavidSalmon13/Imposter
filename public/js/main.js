@@ -11,7 +11,7 @@ import { AllInOrFold } from './games/allInOrFold.js';
 import { MindMeld } from './games/mindMeld.js';
 import { Bluff } from './games/bluff.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
-import { showScreen, showGenerating, selectChip } from './shared/dom.js';
+import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
 
@@ -759,6 +759,15 @@ if (myName) nameInput.value = myName;
 socket.on('connect', () => {
   if (myName) attemptJoin(myName);
 });
+
+// index.html swaps in the loading screen for a returning player before first paint. If the
+// rejoin hasn't landed after a while (server down, slow network), fall back to the join form
+// with the name prefilled rather than spinning forever; a late rejoin still routes normally.
+if (myName) {
+  setTimeout(() => {
+    if (screens.restoring && !screens.restoring.classList.contains('hidden')) showScreen('join');
+  }, 8000);
+}
 
 // A phone that kept the tab open across a deploy reconnects its socket to the new server
 // while still running the old JS - which silently ignores any new game's events (e.g. a

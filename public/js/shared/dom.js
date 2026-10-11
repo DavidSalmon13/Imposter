@@ -8,6 +8,7 @@ const bgControls = document.getElementById('bg-controls');
 
 export const screens = {
   join: document.getElementById('join-screen'),
+  restoring: document.getElementById('restoring-screen'),
   lobby: document.getElementById('lobby-screen'),
   voting: document.getElementById('voting-screen'),
   generating: document.getElementById('generating-screen'),
@@ -26,9 +27,11 @@ export const screens = {
 };
 
 export function showScreen(name) {
-  Object.values(screens).forEach((el) => el.classList.add('hidden'));
+  // Null-safe: the service worker can briefly pair this module with a cached index.html
+  // that predates a screen (e.g. #restoring-screen).
+  Object.values(screens).forEach((el) => el && el.classList.add('hidden'));
   screens[name].classList.remove('hidden');
-  bgControls.classList.toggle('hidden', name === 'join');
+  bgControls.classList.toggle('hidden', name === 'join' || name === 'restoring');
 }
 
 export function showGenerating(game) {
