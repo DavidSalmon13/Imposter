@@ -96,6 +96,14 @@ function flashChooseError(msg) {
   }
 }
 
+// A non-host tapping a host-only lobby control (game tile, language, reset) - checked
+// client-side for an instant response; the server enforces the same rule.
+function flashHostOnly(msg) {
+  sfx.error();
+  haptics.warn();
+  flashChooseError(msg);
+}
+
 const bgChangeBtn = document.getElementById('bg-change-btn');
 const bgClearBtn = document.getElementById('bg-clear-btn');
 const bgFileInput = document.getElementById('bg-file-input');
@@ -119,8 +127,6 @@ const scoreboardToggleBtn = document.getElementById('scoreboard-toggle-btn');
 const scoreboardDropdown = document.getElementById('scoreboard-dropdown');
 const scoreboardList = document.getElementById('scoreboard-list');
 const resetScoreboardBtn = document.getElementById('reset-scoreboard-btn');
-const gameChoice = document.getElementById('game-choice');
-const chooseWaiting = document.getElementById('choose-waiting');
 const chooseError = document.getElementById('choose-error');
 const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
@@ -131,9 +137,7 @@ const chooseMindMeldBtn = document.getElementById('choose-mindmeld-btn');
 const chooseBluffBtn = document.getElementById('choose-bluff-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
 const chooseAllInOrFoldName = document.getElementById('choose-allinorfold-name');
-const aiofTileWrap = document.getElementById('aiof-tile-wrap');
 const exitLobbyBtn = document.getElementById('exit-lobby-btn');
-const wordLanguageSection = document.getElementById('word-language-section');
 const wordLanguageBtns = Array.from(document.querySelectorAll('.word-lang-btn'));
 const wordThemeSection = document.getElementById('word-theme-section');
 const wordThemeInput = document.getElementById('word-theme-input');
@@ -300,7 +304,8 @@ stickerFileInput.addEventListener('change', async () => {
 function setHost(hostName) {
   currentHostName = hostName || null;
   isHost = !!hostName && hostName === myName;
-  gameChoice.classList.toggle('hidden', !isHost);
+  // Every player sees the host's lobby (game tiles, language, reset); non-hosts get an
+  // "only the host" error when they tap a host-only control instead of not seeing it.
   updateAiofTile();
   endRoundBtn.classList.toggle('hidden', !isHost);
   playAgainWaiting.classList.toggle('hidden', isHost);
@@ -316,8 +321,6 @@ function setHost(hostName) {
   aiofBackBtn.classList.remove('hidden');
   mmBackBtn.classList.remove('hidden');
   bfBackBtn.classList.remove('hidden');
-  resetScoreboardBtn.classList.toggle('hidden', !isHost);
-  wordLanguageSection.classList.toggle('hidden', !isHost);
   wordThemeSection.classList.toggle('hidden', !isHost);
 }
 
@@ -373,13 +376,6 @@ function updateAiofTile() {
   const rejoin = currentGame === 'allinorfold';
   chooseAllInOrFoldName.textContent = rejoin ? 'Rejoin All-In or Fold' : 'All-In or Fold';
   chooseAllInOrFoldBtn.classList.toggle('tile-underfilled', !rejoin && lastLobbyPlayerCount < AIOF_MIN_PLAYERS);
-  // Every other game's tile is host-only and disappears once picked (the whole room
-  // navigates away together). AIOF is the one game where non-host players can stay behind
-  // on the shared lobby screen (see implementation/all-in-or-fold-plan.md's architecture
-  // note), so its tile must stay visible/actionable to them too once the host has started
-  // the table — otherwise they're stuck seeing "waiting for the host" forever.
-  aiofTileWrap.classList.toggle('hidden', !(isHost || rejoin));
-  chooseWaiting.classList.toggle('hidden', isHost || rejoin);
 }
 
 function renderLobby(players, scoreboard, playerStickers) {
@@ -422,7 +418,6 @@ function renderLobby(players, scoreboard, playerStickers) {
     .map((name) => ({ name, points: scoreMap.get(name) || 0 }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   renderScoreboard(scoreboardList, entries);
-  resetScoreboardBtn.classList.toggle('hidden', !isHost);
 }
 
 const gameCtx = {
@@ -552,54 +547,24 @@ stickerBtn.addEventListener('click', () => {
   stickerBtn.classList.toggle('open', open);
 });
 
-chooseImposterBtn.addEventListener('click', () => {
+function chooseGame(game) {
   flashChooseError('');
-  socket.emit('chooseGame', 'imposter', (res) => {
+  if (!isHost) {
+    flashHostOnly('Only the host can pick a game');
+    return;
+  }
+  socket.emit('chooseGame', game, (res) => {
     if (!res.ok) flashChooseError(res.error);
   });
-});
+}
 
-chooseCodenamesBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'codenames', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
-
-chooseTensSecondsBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'tenseconds', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
-
-chooseMenifotBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'menifot', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
-
-chooseMusicTimelineBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'musictimeline', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
-
-chooseMindMeldBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'mindmeld', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
-
-chooseBluffBtn.addEventListener('click', () => {
-  flashChooseError('');
-  socket.emit('chooseGame', 'bluff', (res) => {
-    if (!res.ok) flashChooseError(res.error);
-  });
-});
+chooseImposterBtn.addEventListener('click', () => chooseGame('imposter'));
+chooseCodenamesBtn.addEventListener('click', () => chooseGame('codenames'));
+chooseTensSecondsBtn.addEventListener('click', () => chooseGame('tenseconds'));
+chooseMenifotBtn.addEventListener('click', () => chooseGame('menifot'));
+chooseMusicTimelineBtn.addEventListener('click', () => chooseGame('musictimeline'));
+chooseMindMeldBtn.addEventListener('click', () => chooseGame('mindmeld'));
+chooseBluffBtn.addEventListener('click', () => chooseGame('bluff'));
 
 chooseAllInOrFoldBtn.addEventListener('click', () => {
   flashChooseError('');
@@ -613,6 +578,10 @@ chooseAllInOrFoldBtn.addEventListener('click', () => {
     });
     return;
   }
+  if (!isHost) {
+    flashHostOnly('Only the host can pick a game');
+    return;
+  }
   socket.emit('chooseGame', 'allinorfold', (res) => {
     if (!res.ok) {
       flashChooseError(res.error);
@@ -623,6 +592,10 @@ chooseAllInOrFoldBtn.addEventListener('click', () => {
 });
 
 resetScoreboardBtn.addEventListener('click', async () => {
+  if (!isHost) {
+    flashHostOnly('Only the host can reset the scoreboard');
+    return;
+  }
   const ok = await confirmDialog('Everyone in this room goes back to zero.', {
     title: 'Reset the scoreboard?',
     confirmLabel: 'Reset',
@@ -670,7 +643,10 @@ exitLobbyBtn.addEventListener('click', async () => {
 
 wordLanguageBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
-    if (!isHost) return;
+    if (!isHost) {
+      flashHostOnly('Only the host can change the language');
+      return;
+    }
     selectChip(wordLanguageBtns, btn);
     socket.emit('setWordLanguage', btn.dataset.lang, (res) => {
       if (res && res.ok === false) applyWordLanguage(wordLanguage);

@@ -70,7 +70,7 @@
           </div>
         </div>
       </div>
-      <div id="word-language-section" class="cn-timer-section hidden">
+      <div id="word-language-section" class="cn-timer-section">
         <p class="muted">Pick board language</p>
         <div id="word-language-choices" class="cn-timer-choices">
           <button class="level-btn word-lang-btn" data-lang="english">English</button>
@@ -80,7 +80,7 @@
       <!-- One shared grid: both wrappers below are display: contents, so every tile
            (including All-In or Fold) lays out in the same 2-up grid at the same size. -->
       <div class="game-grid">
-      <div id="game-choice" class="game-choice hidden">
+      <div id="game-choice" class="game-choice">
         <button id="choose-imposter-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🕵️</span>
           <span class="game-tile-name">Imposter</span>
@@ -110,23 +110,21 @@
           <span class="game-tile-name">Bluff</span>
         </button>
       </div>
-      <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: unlike every
-           other game (host-only, hidden from everyone else), this tile must stay visible to
-           every player once the host has started the table, so they can tap in themselves
-           (the "dual-entry" flow — see implementation/all-in-or-fold-plan.md). -->
-      <div id="aiof-tile-wrap" class="game-choice hidden">
+      <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: once the host
+           has started the table, any player can tap it to join themselves (the "dual-entry"
+           flow — see implementation/all-in-or-fold-plan.md). -->
+      <div id="aiof-tile-wrap" class="game-choice">
         <button id="choose-allinorfold-btn" class="game-tile" type="button">
           <span class="game-tile-icon">🎰</span>
           <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
         </button>
       </div>
       </div>
-      <p id="choose-waiting" class="muted hidden">Waiting for the host to choose a game&hellip;</p>
       <p id="choose-error" class="error"></p>
       <div class="icon-row">
         <button id="rename-btn" class="icon-btn" type="button" title="Change my name" aria-label="Change my name">✏️</button>
         <button id="sticker-btn" class="icon-btn" type="button" title="Change my sticker" aria-label="Change my sticker">🧸</button>
-        <button id="reset-scoreboard-btn" class="icon-btn hidden" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
+        <button id="reset-scoreboard-btn" class="icon-btn" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
         <button id="exit-lobby-btn" class="icon-btn" type="button" title="Exit Lobby" aria-label="Exit Lobby">🚪</button>
       </div>
       <div id="sticker-dropdown" class="scoreboard-dropdown">

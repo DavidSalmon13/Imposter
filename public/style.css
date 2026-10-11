@@ -243,10 +243,6 @@ body::before {
   margin-bottom: 0.15rem;
 }
 
-#lobby-screen > #choose-waiting {
-  align-self: center;
-}
-
 #join-screen .error,
 #lobby-screen .error {
   text-shadow: 0 2px 4px rgba(10, 4, 1, 0.9);
@@ -623,14 +619,6 @@ button.secondary:active:not(:disabled) {
 
 .game-choice {
   display: contents;
-}
-
-/* A non-host rejoining All-In or Fold sees only that tile - center it rather than
-   leaving it stuck in the left column. */
-#game-choice.hidden + #aiof-tile-wrap .game-tile {
-  grid-column: 1 / -1;
-  justify-self: center;
-  width: calc(50% - 0.375rem);
 }
 
 .game-tile {
