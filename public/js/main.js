@@ -21,7 +21,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const socket = io();
+// clientId lets the server count unique daily visitors (server/stats.js) - see getClientId.
+const socket = io({ auth: { clientId: getClientId() } });
 
 // iOS Safari only applies :active (the pressed look) when a touchstart listener exists, so
 // without this a tap shows no feedback until the click lands.

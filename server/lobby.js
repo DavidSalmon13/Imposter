@@ -12,6 +12,7 @@ const {
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
+const stats = require('./stats');
 
 // Single shared room for now - no room codes to create or join, everyone
 // who connects lands in the same game.
@@ -272,8 +273,11 @@ function registerLobbyHandlers(socket) {
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
 
-    getSharedRoom();
-    joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, callback, sticker);
+    const room = getSharedRoom();
+    joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, (res) => {
+      if (res && res.ok) stats.recordPlayer(clientId, connectedNames(room).length);
+      callback(res);
+    }, sticker);
   });
 
   socket.on('changeSticker', (data, callback) => {
@@ -363,6 +367,7 @@ function registerLobbyHandlers(socket) {
     }
 
     room.game = game.id;
+    stats.recordGame(game.id);
     roomEmit(roomCode, 'gameChosen', { game: game.id });
     game.onChoose(ctx, roomCode, room);
     return callback({ ok: true });

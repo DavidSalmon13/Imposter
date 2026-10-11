@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Shorot Stats</title>
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+  <style>
+    :root {
+      --bg: #1f0d06;
+      --surface: #34180c;
+      --border: #5a2f17;
+      --ink: #fbeedd;
+      --ink-2: #d9bfa3;
+      --muted: #a58a70;
+      --bar: #f08a3c;
+      --bar-hover: #ffb070;
+      --error: #ff8a7a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 28px 0 10px; color: var(--ink-2); font-weight: 600; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 0.85rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    form { display: flex; gap: 8px; flex-wrap: wrap; }
+    input, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+    }
+    input { flex: 1 1 200px; background: var(--bg); color: var(--ink); }
+    button { background: var(--bar); color: #2a1208; font-weight: 700; border: none; cursor: pointer; }
+    button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; padding: 6px 10px; }
+    .error { color: var(--error); min-height: 1.4em; margin: 8px 0 0; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile .label { color: var(--muted); font-size: 0.8rem; }
+    .tile .value { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tile .note { color: var(--muted); font-size: 0.78rem; }
+    .chart { position: relative; }
+    .chart svg { display: block; width: 100%; height: 180px; overflow: visible; }
+    .chart .axis { fill: var(--muted); font-size: 10px; }
+    .chart .grid { stroke: var(--border); stroke-width: 1; }
+    .chart .bar { fill: var(--bar); pointer-events: none; }
+    .chart .hit:hover + .bar, .chart .bar.active { fill: var(--bar-hover); }
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      transform: translate(-50%, -100%);
+      display: none;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+    td.num, th.num { text-align: right; }
+    td.games { color: var(--ink-2); font-size: 0.85rem; }
+    td.day { white-space: nowrap; }
+    .top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .hidden { display: none !important; }
+    .empty { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top-row">
+      <div>
+        <h1>Shorot stats</h1>
+        <p class="sub" id="sub">Owner only.</p>
+      </div>
+      <button id="logout-btn" class="ghost hidden" type="button">Lock</button>
+    </div>
+
+    <section id="login" class="card">
+      <form id="login-form">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+        <button type="submit">Open</button>
+      </form>
+      <p id="login-error" class="error"></p>
+    </section>
+
+    <section id="dashboard" class="hidden">
+      <div class="tiles" id="tiles"></div>
+
+      <h2>Visitors per day &mdash; last 30 days</h2>
+      <div class="card chart" id="chart">
+        <svg id="chart-svg" role="img" aria-label="Unique visitors per day, last 30 days"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+
+      <h2>By day</h2>
+      <div class="card table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th class="num">Visitors</th>
+              <th class="num">Players</th>
+              <th class="num">Games</th>
+              <th class="num">Peak</th>
+              <th>Games played</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const GAME_NAMES = {
+      imposter: 'Imposter',
+      codenames: 'Codenames',
+      tenseconds: '10 Seconds',
+      menifot: 'Menifot',
+      musictimeline: 'Music Timeline',
+      allinorfold: 'All-In or Fold',
+      mindmeld: 'Mind Meld',
+      bluff: 'Bluff',
+    };
+    const PW_KEY = 'shorotStatsPassword';
+    const $ = (id) => document.getElementById(id);
+
+    function storage(fn) {
+      try { return fn(sessionStorage); } catch (e) { return null; }
+    }
+
+    async function load(password) {
+      $('login-error').textContent = '';
+      let res;
+      try {
+        res = await fetch('/api/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+      } catch (e) {
+        $('login-error').textContent = 'Could not reach the server';
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        storage((s) => s.removeItem(PW_KEY));
+        showLogin(body.error || 'Something went wrong');
+        return;
+      }
+      storage((s) => s.setItem(PW_KEY, password));
+      render(body);
+    }
+
+    function showLogin(error) {
+      $('dashboard').classList.add('hidden');
+      $('logout-btn').classList.add('hidden');
+      $('login').classList.remove('hidden');
+      $('login-error').textContent = error || '';
+      $('password').focus();
+    }
+
+    function addDays(day, n) {
+      const d = new Date(day + 'T12:00:00Z');
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function totalGames(entry) {
+      return Object.values(entry.games || {}).reduce((a, b) => a + b, 0);
+    }
+
+    function fmtDay(day, opts) {
+      return new Date(day + 'T12:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC', ...opts });
+    }
+
+    function tile(label, value, note) {
+      return `<div class="card tile"><div class="label">${label}</div><div class="value">${value}</div><div class="note">${note || '&nbsp;'}</div></div>`;
+    }
+
+    function render({ today, timeZone, days }) {
+      $('login').classList.add('hidden');
+      $('dashboard').classList.remove('hidden');
+      $('logout-btn').classList.remove('hidden');
+      $('sub').textContent = `Days follow ${timeZone} time. Visitors = unique devices that opened the app; players = unique devices that joined.`;
+
+      const empty = { visitors: 0, players: 0, games: {}, peakPlayers: 0 };
+      const t = days[today] || empty;
+      const last30 = [];
+      for (let i = 29; i >= 0; i--) {
+        const day = addDays(today, -i);
+        last30.push({ day, ...(days[day] || empty) });
+      }
+      const sum = (key) => last30.reduce((a, d) => a + (key === 'games' ? totalGames(d) : d[key]), 0);
+
+      $('tiles').innerHTML =
+        tile('Visitors today', t.visitors, `${sum('visitors')} in last 30 days`) +
+        tile('Players today', t.players, `${sum('players')} in last 30 days`) +
+        tile('Games today', totalGames(t), `${sum('games')} in last 30 days`) +
+        tile('Peak in room today', t.peakPlayers, 'most players at once');
+
+      renderChart(last30);
+
+      const rows = Object.keys(days).sort().reverse();
+      $('table-body').innerHTML = rows.length
+        ? rows.map((day) => {
+            const d = days[day];
+            const games = Object.entries(d.games || {})
+              .sort((a, b) => b[1] - a[1])
+              .map(([id, n]) => `${GAME_NAMES[id] || id} ×${n}`)
+              .join(', ');
+            return `<tr><td class="day">${fmtDay(day, { weekday: 'short', day: 'numeric', month: 'short' })}</td>` +
+              `<td class="num">${d.visitors}</td><td class="num">${d.players}</td>` +
+              `<td class="num">${totalGames(d)}</td><td class="num">${d.peakPlayers}</td>` +
+              `<td class="games">${games || '<span class="empty">—</span>'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="6" class="empty">No data yet.</td></tr>';
+    }
+
+    function renderChart(series) {
+      const svg = $('chart-svg');
+      const W = svg.clientWidth || 600;
+      const H = 180;
+      const padL = 28, padB = 20, padT = 8;
+      const plotW = W - padL, plotH = H - padB - padT;
+      const max = Math.max(1, ...series.map((d) => d.visitors));
+      const step = Math.max(1, Math.ceil(max / 4));
+      const top = step * Math.ceil(max / step);
+      const slot = plotW / series.length;
+      const gap = 2;
+      const barW = Math.max(2, slot - gap);
+      const y = (v) => padT + plotH - (v / top) * plotH;
+
+      let out = '';
+      for (let v = 0; v <= top; v += step) {
+        out += `<line class="grid" x1="${padL}" x2="${W}" y1="${y(v)}" y2="${y(v)}" />`;
+        out += `<text class="axis" x="${padL - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+      }
+      series.forEach((d, i) => {
+        const x = padL + i * slot + gap / 2;
+        const h = Math.max(0, y(0) - y(d.visitors));
+        const r = Math.min(4, barW / 2, h);
+        // Rounded data-end, square at the baseline.
+        const path = h > 0
+          ? `M${x},${y(0)} V${y(0) - h + r} Q${x},${y(0) - h} ${x + r},${y(0) - h} H${x + barW - r} Q${x + barW},${y(0) - h} ${x + barW},${y(0) - h + r} V${y(0)} Z`
+          : '';
+        out += `<rect class="hit" data-i="${i}" x="${padL + i * slot}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent" />`;
+        out += `<path class="bar" d="${path}" />`;
+        if ((series.length - 1 - i) % 7 === 0) {
+          out += `<text class="axis" x="${x + barW / 2}" y="${H - 4}" text-anchor="middle">${fmtDay(d.day, { day: 'numeric', month: 'short' })}</text>`;
+        }
+      });
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.innerHTML = out;
+
+      const tip = $('tooltip');
+      svg.querySelectorAll('.hit').forEach((hit) => {
+        const show = () => {
+          const d = series[+hit.dataset.i];
+          tip.innerHTML = `<strong>${fmtDay(d.day, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><br>${d.visitors} visitors · ${d.players} players · ${totalGames(d)} games`;
+          const bx = +hit.getAttribute('x') + slot / 2;
+          tip.style.left = `${Math.min(Math.max(bx + 16, 90), W - 60)}px`;
+          tip.style.top = `${Math.max(y(d.visitors) + 8, 56)}px`;
+          tip.style.display = 'block';
+        };
+        hit.addEventListener('mouseenter', show);
+        hit.addEventListener('click', show);
+        hit.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      });
+    }
+
+    $('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      load($('password').value);
+    });
+
+    $('logout-btn').addEventListener('click', () => {
+      storage((s) => s.removeItem(PW_KEY));
+      $('password').value = '';
+      showLogin();
+    });
+
+    const saved = storage((s) => s.getItem(PW_KEY));
+    if (saved) load(saved);
+  </script>
+</body>
+</html>

@@ -30,13 +30,19 @@ const {
 } = require('./server/lobby');
 const { registerAllHandlers } = require('./server/gameRegistry');
 const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./server/stickers');
+const stats = require('./server/stats');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 initRoomStore(io);
 
+// Railway (and most hosts) sit one reverse proxy in front of the app; trust its
+// X-Forwarded-For so req.ip is the real client (used by the /api/stats login lockout).
+app.set('trust proxy', 1);
+
 app.use(express.static(path.join(__dirname, 'public')));
+stats.registerStatsRoutes(app);
 
 // Falls through from the public/ static above, so uploaded stickers share the
 // built-ins' /images/stickers URL.
@@ -97,6 +103,7 @@ const SERVER_BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || String(Date.now());
 
 io.on('connection', (socket) => {
   socket.emit('serverBuild', SERVER_BUILD);
+  stats.recordVisit(String((socket.handshake.auth && socket.handshake.auth.clientId) || '').slice(0, 64));
   registerLobbyHandlers(socket);
   registerAllHandlers(ctx, io, socket);
 });
@@ -105,7 +112,7 @@ loadRoomsFromDisk({ ctx });
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 
 async function shutdown() {
-  await saveRoomsToDisk();
+  await Promise.all([saveRoomsToDisk(), stats.saveStatsToDisk()]);
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);

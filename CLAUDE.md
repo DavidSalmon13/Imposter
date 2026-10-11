@@ -26,6 +26,9 @@ Requires Node >=18. Environment variables (see `.env.example`):
 - `DATA_DIR` — where `rooms.json` (room state snapshot), uploaded
   background images, and player-uploaded stickers (`DATA_DIR/stickers`) are persisted; point this at a mounted volume in
   production (e.g. Railway) so state survives redeploys.
+- `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
+  visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
+  Unset = the stats API is disabled.
 
 ## Architecture
 
