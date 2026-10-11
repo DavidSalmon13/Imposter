@@ -5,7 +5,7 @@
  * reconnects, and only today's ids are kept (to dedupe); past days keep just counts.
  *
  * Persisted to DATA_DIR/stats.json, separate from rooms.json, and viewed at /stats
- * behind the STATS_PASSWORD env var (the page and API are disabled when it's unset).
+ * behind a password: the STATS_PASSWORD env var, or the hardcoded fallback below.
  */
 const fs = require('fs');
 const fsp = fs.promises;
@@ -19,6 +19,8 @@ const TIME_ZONE = 'Asia/Jerusalem';
 const SAVE_DELAY_MS = 5000;
 const MAX_FAILED_LOGINS = 10;
 const LOCKOUT_MS = 15 * 60 * 1000;
+// Temporary hardcoded password until STATS_PASSWORD is set on the host; the env var wins.
+const STATS_PASSWORD = process.env.STATS_PASSWORD || 'MaCaBiTA';
 
 const dayFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE,
@@ -118,7 +120,7 @@ function recordGame(gameId) {
 }
 
 function passwordMatches(given) {
-  const expected = process.env.STATS_PASSWORD;
+  const expected = STATS_PASSWORD;
   if (!expected || typeof given !== 'string') return false;
   // Hash both so timingSafeEqual gets equal-length buffers regardless of input length.
   const a = crypto.createHash('sha256').update(given).digest();
@@ -135,8 +137,6 @@ function registerStatsRoutes(app) {
   });
 
   app.post('/api/stats', express.json({ limit: '1kb' }), (req, res) => {
-    if (!process.env.STATS_PASSWORD) return res.status(404).json({ ok: false, error: 'Stats are disabled' });
-
     const ip = req.ip;
     const now = Date.now();
     const fails = failedLogins.get(ip);

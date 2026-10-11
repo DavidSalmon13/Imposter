@@ -28,7 +28,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
   production (e.g. Railway) so state survives redeploys.
 - `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
   visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
-  Unset = the stats API is disabled.
+  Unset = falls back to a temporary hardcoded password in `server/stats.js`.
 
 ## Architecture
 
