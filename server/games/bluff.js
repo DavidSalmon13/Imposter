@@ -69,6 +69,16 @@ function computeBluffRanking(room) {
 function finishBluffMatch(ctx, roomCode, room) {
   const ranking = computeBluffRanking(room);
   for (const row of ranking) ctx.addScore(room, row.name, row.points);
+  ctx.recordGameResult(
+    room,
+    'bluff',
+    ranking.map((row, index) => ({
+      name: row.name,
+      won: index === 0,
+      points: row.points,
+      details: { place: index + 1 },
+    }))
+  );
   room.phase = 'gameover';
   broadcastBluff(ctx, roomCode, room);
 }

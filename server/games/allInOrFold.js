@@ -497,7 +497,20 @@ function computeAiofRanking(room) {
 }
 
 function awardAiofScoreboard(ctx, room) {
-  for (const row of computeAiofRanking(room)) ctx.addScore(room, row.name, row.points);
+  const ranking = computeAiofRanking(room);
+  for (const row of ranking) ctx.addScore(room, row.name, row.points);
+  // Top points = first place (ties share it).
+  const best = ranking.length ? ranking[0].points : 0;
+  ctx.recordGameResult(
+    room,
+    'allinorfold',
+    ranking.map((row) => ({
+      name: row.name,
+      won: row.points === best,
+      points: row.points,
+      details: { netProfit: row.netProfit, totalBoughtIn: row.totalBoughtIn },
+    }))
+  );
 }
 
 function seatsPayload(room) {

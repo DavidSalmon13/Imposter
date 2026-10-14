@@ -103,7 +103,18 @@ const ctx = {
   broadcastLobby,
   attachToRoom,
   saveRoomsToDisk,
-  recordGameResult: accounts.recordGameResult,
+  // Games pass names; this fills in each player's clientId (their device identity).
+  recordGameResult(room, gameType, participants) {
+    const roomCode = [...rooms.entries()].find(([, r]) => r === room)?.[0] || '';
+    accounts.recordGameResult({
+      roomCode,
+      gameType,
+      participants: participants.map((p) => ({
+        ...p,
+        clientId: room.players.get(p.name)?.clientId,
+      })),
+    });
+  },
 };
 
 initLobby({

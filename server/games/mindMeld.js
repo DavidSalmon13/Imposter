@@ -531,9 +531,20 @@ function mmFinalStandings(room) {
 
 /** Fans final standings points into the shared room scoreboard. */
 function awardMmScoreboard(ctx, room) {
-  for (const s of mmFinalStandings(room)) {
+  const standings = mmFinalStandings(room);
+  for (const s of standings) {
     ctx.addScore(room, s.name, s.points);
   }
+  ctx.recordGameResult(
+    room,
+    'mindmeld',
+    standings.map((s) => ({
+      name: s.name,
+      won: s.rank === 1,
+      points: s.points,
+      details: { score: s.score, place: s.rank },
+    }))
+  );
 }
 
 /**

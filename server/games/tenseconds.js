@@ -251,23 +251,31 @@ function finishTsRoundResolution(ctx, roomCode, room) {
 function awardTensSecondsScores(ctx, room) {
   const champion = room.tsActivePlayers[0];
   if (!champion) return;
-
-  ctx.addScore(room, champion, 2);
-
   const waves = room.tsEliminationWaves || [];
-  if (waves.length === 0) return;
+  const pointsByName = { [champion]: 2 };
 
   // Only one elimination wave (includes the 2-player case): that group is last place.
   if (waves.length === 1) {
-    for (const name of waves[0]) ctx.addScore(room, name, -1);
-    return;
+    for (const name of waves[0]) pointsByName[name] = -1;
+  } else if (waves.length > 1) {
+    // Last wave = most recently eliminated = second place (+1).
+    for (const name of waves[waves.length - 1]) pointsByName[name] = 1;
+    // First wave = earliest eliminated = last place (-1).
+    for (const name of waves[0]) pointsByName[name] = -1;
+    // Middle waves get 0.
   }
+  for (const [name, points] of Object.entries(pointsByName)) ctx.addScore(room, name, points);
 
-  // Last wave = most recently eliminated = second place (+1).
-  for (const name of waves[waves.length - 1]) ctx.addScore(room, name, 1);
-  // First wave = earliest eliminated = last place (-1).
-  for (const name of waves[0]) ctx.addScore(room, name, -1);
-  // Middle waves get 0.
+  // Place: champion 1st, then waves from most recently eliminated; a wave shares a place.
+  const participants = [{ name: champion, won: true, points: 2, details: { place: 1 } }];
+  let place = 2;
+  for (const wave of waves.slice().reverse()) {
+    for (const name of wave) {
+      participants.push({ name, won: false, points: pointsByName[name] || 0, details: { place } });
+    }
+    place += wave.length;
+  }
+  ctx.recordGameResult(room, 'tenseconds', participants);
 }
 
 function continueTsAfterResults(ctx, roomCode, room) {

@@ -323,9 +323,24 @@ function awardMenifotScoreboard(ctx, room) {
     let j = i + 1;
     while (j < ranked.length && ranked[j].score === ranked[i].score) j += 1;
     const points = N - i;
-    for (let k = i; k < j; k++) ctx.addScore(room, ranked[k].name, points);
+    for (let k = i; k < j; k++) {
+      ctx.addScore(room, ranked[k].name, points);
+      ranked[k].points = points;
+      ranked[k].place = i + 1;
+    }
     i = j;
   }
+  const winners = room.mfMatchWinners || [];
+  ctx.recordGameResult(
+    room,
+    'menifot',
+    ranked.map((r) => ({
+      name: r.name,
+      won: winners.includes(r.name),
+      points: r.points,
+      details: { score: r.score, place: r.place },
+    }))
+  );
 }
 
 function finalizeMenifotRound(ctx, roomCode, room) {

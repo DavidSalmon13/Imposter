@@ -11,18 +11,17 @@ Done (foundation):
   applied automatically on boot (tracked in `schema_migrations`).
 - Google sign-in (`server/accounts.js`, `public/js/shared/account.js`), httpOnly
   session cookie, only a SHA-256 of the token stored.
-- `ctx.recordGameResult(...)` hook; **only Imposter calls it so far**.
+- `ctx.recordGameResult(...)` hook, called by all eight games when a round/match
+  awards scoreboard points.
 - Lobby 👤 button → Player Card dropdown (guest stats + "Continue with Google", or the
   account's stats + Sign out).
 
 Next:
-1. Call `ctx.recordGameResult` from the other seven games (one call where each already
-   calls `ctx.addScore` at round/match end).
-2. Badges: definitions in code, evaluated after each `recordGameResult`, written to
+1. Badges: definitions in code, evaluated after each `recordGameResult`, written to
    `achievements`. Show newly earned ones on the results screen with a "save it" prompt
    for guests (the main sign-up hook).
-3. Rivalries (head-to-head from `game_participants` joined with itself on `game_id`).
-4. Unlockable stickers gated on badges.
+2. Rivalries (head-to-head from `game_participants` joined with itself on `game_id`).
+3. Unlockable stickers gated on badges.
 
 ## Design
 
@@ -53,17 +52,17 @@ skipped; the game carries on.
 **Retention.** A 6-hourly cleanup deletes expired sessions and guest `players` rows not
 seen for 60 days (with their participations), then games left with no participants.
 
-## Recording a game (for the remaining games)
+## Recording a game (for new games)
 
 ```js
-ctx.recordGameResult({
-  roomCode,
-  gameType: 'codenames',
-  participants: [{ clientId, name, role, team, won, points, details }],
-});
+ctx.recordGameResult(room, 'codenames', [
+  { name, role, team, won, points, details },
+]);
 ```
 
-`clientId` comes from `room.players.get(name).clientId`. Fire-and-forget; never await it.
+Call it right where the game calls `ctx.addScore` at round/match end. The ctx wrapper
+in `server.js` fills in each player's `clientId` and the room code. Fire-and-forget;
+it returns nothing and never throws.
 `won` may be `null` for games without a per-player winner.
 
 ## Known limitations
