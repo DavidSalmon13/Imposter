@@ -1,6 +1,6 @@
 /**
  * Google sign-in, login sessions, the Player Card, and recording finished games to
- * Postgres. See implementation/accounts_plan.md for the design.
+ * Postgres. See plans/accounts-plan.md for the design.
  *
  * Identity model: every browser already has a random `clientId` (localStorage). A
  * `players` row is keyed by it, and game results are recorded against it whether or

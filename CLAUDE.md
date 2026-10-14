@@ -33,7 +33,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
   (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
   Optional: unset or unreachable = no accounts, games still run.
 - `GOOGLE_CLIENT_ID` — enables Google sign-in and the lobby's 👤 Player Card.
-  Design and setup: `implementation/accounts_plan.md`.
+  Design and setup: `plans/accounts-plan.md`.
 
 ## Architecture
 

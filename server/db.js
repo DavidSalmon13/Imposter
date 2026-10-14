@@ -1,6 +1,6 @@
 /**
  * Postgres connection for accounts and lifetime game history (see
- * implementation/accounts_plan.md). Room state does NOT live here - it stays in the
+ * plans/accounts-plan.md). Room state does NOT live here - it stays in the
  * in-memory `rooms` Map + rooms.json snapshot.
  *
  * Optional: with DATABASE_URL unset (e.g. local dev) the pool is null, `isEnabled()`
