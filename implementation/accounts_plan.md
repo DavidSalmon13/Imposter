@@ -49,6 +49,15 @@ never re-linked (signing in can't pull someone else's stats).
 games unaffected. Postgres dying at runtime → that game's result is logged as failed and
 skipped; the game carries on.
 
+**Sign out / delete.** Sign out (`POST /api/auth/logout`) deletes the session and the
+cookie; the account and its stats stay. "Delete my account" (`DELETE /api/account`,
+behind a confirm dialog) erases everything in one transaction: every `players` row
+linked to the user (cascading their `game_participants` and `achievements`), then the
+user (cascading `user_identities` and `auth_sessions`), then games left with no
+participants. Other players' rows in shared games are kept. Signing in with the same
+Google account afterwards creates a fresh, empty account. Not touched: the room's
+temporary in-memory scoreboard and the anonymous daily counts on `/stats`.
+
 **Retention.** A 6-hourly cleanup deletes expired sessions and guest `players` rows not
 seen for 60 days (with their participations), then games left with no participants.
 

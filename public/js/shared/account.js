@@ -6,6 +6,8 @@
  * the server has no database or no GOOGLE_CLIENT_ID (GET /api/auth/config).
  */
 
+import { confirmDialog } from './confirmDialog.js';
+
 const GAME_LABELS = {
   imposter: '🕵️ Imposter',
   codenames: '🔴🔵 Codenames',
@@ -27,6 +29,7 @@ const cardGames = document.getElementById('card-games');
 const cardGuest = document.getElementById('card-guest');
 const googleBtnEl = document.getElementById('google-signin-btn');
 const signOutBtn = document.getElementById('card-signout-btn');
+const deleteBtn = document.getElementById('card-delete-btn');
 const cardError = document.getElementById('card-error');
 
 let getClientId = () => '';
@@ -95,6 +98,7 @@ function render(user, card) {
   cardProfile.classList.toggle('hidden', !user);
   cardGuest.classList.toggle('hidden', !!user);
   signOutBtn.classList.toggle('hidden', !user);
+  deleteBtn.classList.toggle('hidden', !user);
   if (user) {
     cardName.textContent = user.name;
     cardAvatar.classList.toggle('hidden', !user.avatar);
@@ -144,6 +148,24 @@ export async function refreshCard() {
 
 export async function initAccount(clientIdGetter) {
   getClientId = clientIdGetter;
+
+  deleteBtn.addEventListener('click', async () => {
+    showError('');
+    const ok = await confirmDialog(
+      'Your account, all your game history and stats will be erased for good. This cannot be undone.',
+      { title: 'Delete your account?', confirmLabel: 'Delete forever', danger: true }
+    );
+    if (!ok) return;
+    try {
+      const res = await fetch('/api/account', { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.ok) return showError(data.error || 'Could not delete your account');
+      if (window.google) window.google.accounts.id.disableAutoSelect();
+    } catch (err) {
+      return showError('Could not delete your account, check your connection');
+    }
+    refreshCard();
+  });
 
   cardBtn.addEventListener('click', () => {
     const open = cardDropdown.classList.toggle('open');

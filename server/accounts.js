@@ -215,6 +215,31 @@ function registerAccountRoutes(app) {
     }
   });
 
+  // Permanently erases the account and everything recorded for it: every linked device's
+  // game history and badges, the Google link, and all sessions. Other players' rows in
+  // shared games are kept; games left with no participants are removed.
+  app.delete('/api/account', async (req, res) => {
+    if (!db.isEnabled()) return res.status(503).json({ ok: false, error: 'Accounts are not available' });
+    try {
+      const user = await userFromRequest(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'Not signed in' });
+      await db.transaction(async (client) => {
+        // players -> game_participants/achievements cascade; users -> identities/sessions cascade.
+        await client.query('DELETE FROM players WHERE user_id = $1', [user.id]);
+        await client.query('DELETE FROM users WHERE id = $1', [user.id]);
+        await client.query(
+          `DELETE FROM games g
+            WHERE NOT EXISTS (SELECT 1 FROM game_participants gp WHERE gp.game_id = g.id)`
+        );
+      });
+      res.clearCookie(SESSION_COOKIE, { path: '/' });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Account deletion failed:', err.message);
+      res.status(500).json({ ok: false, error: 'Could not delete your account, try again' });
+    }
+  });
+
   app.post('/api/auth/logout', async (req, res) => {
     const token = readCookie(req, SESSION_COOKIE);
     if (token && db.isEnabled()) {
