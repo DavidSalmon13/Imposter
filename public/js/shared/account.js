@@ -102,6 +102,31 @@ async function onGoogleCredential({ credential }) {
   }
 }
 
+/**
+ * A badge's picture: its sticker from the app's sticker bank, or its emoji if the
+ * sticker is gone. Locked badges show the sticker as a dark silhouette with a lock.
+ */
+function badgeArt(b, locked, className) {
+  const wrap = document.createElement('span');
+  wrap.className = className;
+  if (b.sticker) {
+    const img = document.createElement('img');
+    img.src = `images/stickers/${b.sticker}`;
+    img.alt = '';
+    img.loading = 'lazy';
+    wrap.appendChild(img);
+  } else {
+    wrap.textContent = b.emoji;
+  }
+  if (locked) {
+    const lock = document.createElement('span');
+    lock.className = 'badge-lock';
+    lock.textContent = '🔒';
+    wrap.appendChild(lock);
+  }
+  return wrap;
+}
+
 function renderBadges(badges) {
   badgesGrid.innerHTML = '';
   badgeDetail.classList.add('hidden');
@@ -115,18 +140,15 @@ function renderBadges(badges) {
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = `card-badge${b.earned ? '' : ' locked'}`;
-    const emoji = document.createElement('span');
-    emoji.className = 'card-badge-emoji';
-    emoji.textContent = b.earned ? b.emoji : '🔒';
     const name = document.createElement('span');
     name.textContent = b.name;
-    tile.append(emoji, name);
+    tile.append(badgeArt(b, !b.earned, 'card-badge-art'), name);
     tile.addEventListener('click', () => {
       const wasSelected = tile.classList.contains('selected');
       badgesGrid.querySelectorAll('.card-badge.selected').forEach((t) => t.classList.remove('selected'));
       if (wasSelected) return badgeDetail.classList.add('hidden');
       tile.classList.add('selected');
-      badgeDetail.textContent = `${b.earned ? b.emoji : '🔒'} ${b.name} - ${b.description}`;
+      badgeDetail.textContent = `${b.earned ? '' : '🔒 '}${b.name} - ${b.description}`;
       badgeDetail.classList.remove('hidden');
     });
     badgesGrid.appendChild(tile);
@@ -143,12 +165,17 @@ function showBadgeToast(badges) {
   title.className = 'badge-toast-title';
   title.textContent = badges.length === 1 ? '🏅 Badge earned!' : `🏅 ${badges.length} badges earned!`;
   toast.appendChild(title);
+  const row = document.createElement('div');
+  row.className = 'badge-toast-row';
   for (const b of badges) {
-    const line = document.createElement('p');
-    line.className = 'badge-toast-badge';
-    line.textContent = `${b.emoji} ${b.name}`;
-    toast.appendChild(line);
+    const item = document.createElement('div');
+    item.className = 'badge-toast-badge';
+    const name = document.createElement('span');
+    name.textContent = b.name;
+    item.append(badgeArt(b, false, 'badge-toast-art'), name);
+    row.appendChild(item);
   }
+  toast.appendChild(row);
   if (!signedIn) {
     const note = document.createElement('p');
     note.className = 'badge-toast-note';

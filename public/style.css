@@ -3376,18 +3376,43 @@ button.confirm-danger {
   text-align: center;
 }
 
-.card-badge-emoji {
-  font-size: 1.6rem;
+/* Badge art: a sticker image (or emoji fallback), with a lock corner when locked. */
+.card-badge-art,
+.badge-toast-art {
+  position: relative;
+  display: grid;
+  place-items: center;
   line-height: 1;
 }
 
-/* Dim the contents, not the tile, so locked badges stay legible over the background. */
-.card-badge.locked > * {
-  opacity: 0.6;
+.card-badge-art {
+  width: 3.4rem;
+  height: 3.4rem;
+  font-size: 2rem;
 }
 
-.card-badge.locked .card-badge-emoji {
-  filter: grayscale(1);
+.card-badge-art img,
+.badge-toast-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(20, 8, 2, 0.5));
+}
+
+.badge-lock {
+  position: absolute;
+  right: -0.2rem;
+  bottom: -0.1rem;
+  font-size: 1rem;
+}
+
+/* Locked: the sticker becomes a dark silhouette - a teaser of whose face you'll unlock. */
+.card-badge.locked .card-badge-art img {
+  filter: brightness(0) opacity(0.8);
+}
+
+.card-badge.locked > span:last-child {
+  opacity: 0.6;
 }
 
 .card-badge.selected {
@@ -3433,10 +3458,32 @@ button.confirm-danger {
   color: var(--sun);
 }
 
+.badge-toast-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .badge-toast-badge {
-  margin: 0;
-  font-size: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
+}
+
+.badge-toast-art {
+  width: 5rem;
+  height: 5rem;
+  font-size: 3rem;
+  animation: badge-pop 0.6s 0.15s var(--ease-bounce) both;
+}
+
+@keyframes badge-pop {
+  from { transform: scale(0.3) rotate(-12deg); }
+  to { transform: scale(1) rotate(0); }
 }
 
 .badge-toast-note {

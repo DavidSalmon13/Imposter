@@ -83,6 +83,10 @@ account, or just the one browser for a guest), runs every not-yet-earned check, 
 inserts new rows into `achievements`. Because checks look at the full history, adding a
 badge later awards it retroactively on the player's next game or sign-in.
 
+Each badge's picture is one of the built-in stickers (`sticker`, a filename in
+`public/images/stickers`); locked badges show it as a dark silhouette. If that file is
+removed, the badge falls back to its `emoji` and the server logs a warning at boot.
+
 To add a badge: append an entry to `BADGES`. Never rename or reuse an `id` once shipped.
 If it needs data a game doesn't record yet, add it to that game's `details`.
 
