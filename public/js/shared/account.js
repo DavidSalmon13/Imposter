@@ -42,8 +42,15 @@ const TOAST_MS = 6000;
 
 let getClientId = () => '';
 let googleClientId = null;
+let historyEnabled = false;
 let googleReady = null;
 let signedIn = false;
+let lockListener = null;
+
+/** cb(Map sticker -> badge name) whenever the set of locked stickers is (re)loaded. */
+export function onLockedStickers(cb) {
+  lockListener = cb;
+}
 
 function showError(msg) {
   cardError.textContent = msg || '';
@@ -211,16 +218,49 @@ function renderBadges(badges) {
   }
 }
 
-/** Celebrates freshly earned badges over whatever screen is showing. */
-function showBadgeToast(badges) {
-  document.querySelectorAll('.badge-toast').forEach((t) => t.remove());
+// Pop-ups (badges, rivalry news) show one at a time, each until tapped or TOAST_MS.
+const toastQueue = [];
+let toastShowing = false;
+
+function queueToast(toast, onShow) {
+  toastQueue.push({ toast, onShow });
+  if (!toastShowing) showNextToast();
+}
+
+function showNextToast() {
+  const next = toastQueue.shift();
+  if (!next) {
+    toastShowing = false;
+    return;
+  }
+  toastShowing = true;
+  let done = false;
+  const dismiss = () => {
+    if (done) return;
+    done = true;
+    next.toast.remove();
+    showNextToast();
+  };
+  next.toast.addEventListener('click', dismiss);
+  document.body.appendChild(next.toast);
+  if (next.onShow) next.onShow();
+  setTimeout(dismiss, TOAST_MS);
+}
+
+function makeToast(titleText) {
   const toast = document.createElement('div');
   toast.className = 'badge-toast';
   toast.setAttribute('role', 'status');
   const title = document.createElement('p');
   title.className = 'badge-toast-title';
-  title.textContent = badges.length === 1 ? '🏅 Badge earned!' : `🏅 ${badges.length} badges earned!`;
+  title.textContent = titleText;
   toast.appendChild(title);
+  return toast;
+}
+
+/** Celebrates freshly earned badges over whatever screen is showing. */
+function showBadgeToast(badges) {
+  const toast = makeToast(badges.length === 1 ? '🏅 Badge earned!' : `🏅 ${badges.length} badges earned!`);
   const row = document.createElement('div');
   row.className = 'badge-toast-row';
   for (const b of badges) {
@@ -232,17 +272,34 @@ function showBadgeToast(badges) {
     row.appendChild(item);
   }
   toast.appendChild(row);
-  if (!signedIn) {
+  const notes = [];
+  if (badges.some((b) => b.sticker)) {
+    notes.push(badges.length === 1 ? 'Sticker unlocked! Wear it from 🧸 in the lobby.' : 'Stickers unlocked! Wear them from 🧸 in the lobby.');
+  }
+  if (!signedIn && googleClientId) notes.push('Sign in with Google from 👤 in the lobby to keep it forever.');
+  for (const text of notes) {
     const note = document.createElement('p');
     note.className = 'badge-toast-note';
-    note.textContent = 'Sign in with Google from 👤 in the lobby to keep it forever.';
+    note.textContent = text;
     toast.appendChild(note);
   }
-  toast.addEventListener('click', () => toast.remove());
-  document.body.appendChild(toast);
-  sfx.win();
-  haptics.success();
-  setTimeout(() => toast.remove(), TOAST_MS);
+  queueToast(toast, () => {
+    sfx.win();
+    haptics.success();
+  });
+  // The badge's sticker is now unlocked - refresh the picker's locks.
+  refreshCard();
+}
+
+/** Head-to-head news after a game, e.g. "You beat Dana again: 15–9 all-time". */
+function showRivalryToast({ text, beat }) {
+  const toast = makeToast(beat ? '⚔️ Rivalry' : '😤 Rivalry');
+  toast.classList.add(beat ? 'rivalry-win' : 'rivalry-loss');
+  const line = document.createElement('p');
+  line.className = 'rivalry-toast-text';
+  line.textContent = text;
+  toast.appendChild(line);
+  queueToast(toast, () => (beat ? sfx.scoreUp() : sfx.scoreDown()));
 }
 
 function render(user, card) {
@@ -285,12 +342,25 @@ function render(user, card) {
   renderRivals((card && card.rivals) || []);
   renderBadges((card && card.badges) || []);
 
-  if (!user) renderGoogleButton();
+  if (!user && cardDropdown.classList.contains('open')) renderGoogleButton();
+
+  if (lockListener) {
+    // sticker -> name of a badge that unlocks it, for the picker's "earn X" hint.
+    const locked = new Map();
+    for (const sticker of (card && card.lockedStickers) || []) {
+      const badge = ((card && card.badges) || []).find((b) => b.sticker === sticker);
+      locked.set(sticker, badge ? badge.name : '');
+    }
+    lockListener(locked);
+  }
 }
 
-/** Re-fetches the card while its dropdown is open (on open, and on returning to the lobby). */
+/**
+ * Re-fetches the card (on opening it, returning to the lobby, earning a badge, and at
+ * startup) - it also carries which stickers are still locked.
+ */
 export async function refreshCard() {
-  if (!googleClientId || !cardDropdown.classList.contains('open')) return;
+  if (!historyEnabled) return;
   try {
     const res = await fetch(`/api/me?clientId=${encodeURIComponent(getClientId())}`);
     const data = await res.json();
@@ -306,6 +376,9 @@ export async function initAccount(clientIdGetter, socket) {
 
   socket.on('badgesEarned', ({ badges }) => {
     if (badges && badges.length) showBadgeToast(badges);
+  });
+  socket.on('rivalryUpdate', (update) => {
+    if (update && update.text) showRivalryToast(update);
   });
 
   deleteBtn.addEventListener('click', async () => {
@@ -347,12 +420,14 @@ export async function initAccount(clientIdGetter, socket) {
   try {
     const res = await fetch('/api/auth/config');
     const config = await res.json();
-    if (!config.enabled) return;
-    googleClientId = config.googleClientId;
-    cardBtn.classList.remove('hidden');
-    // Learn whether we're signed in up front, so a badge pop-up knows whether to nudge.
-    const me = await (await fetch('/api/me')).json();
-    signedIn = !!me.user;
+    historyEnabled = !!config.history;
+    if (config.enabled) {
+      googleClientId = config.googleClientId;
+      cardBtn.classList.remove('hidden');
+    }
+    // Load up front: badge pop-ups need to know whether we're signed in, and the
+    // sticker picker needs the locks.
+    await refreshCard();
   } catch (err) {
     // No config = no accounts this session; the lobby works as before.
   }

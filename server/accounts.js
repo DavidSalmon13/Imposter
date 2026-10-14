@@ -129,10 +129,11 @@ const MAX_RIVALS = 5;
  * opponent is their account if they have one (all their devices together), else their
  * device. In each shared game the better result wins: a win beats a loss, and with the
  * same outcome more points beats fewer; anything else (e.g. teammates) is a draw.
- * Returns the MAX_RIVALS most-played opponents:
- * [{ name, games, wins, losses, byGame: { [type]: { games, wins, losses } } }]
+ * Returns opponents most-played first (the top `limit`, or all with limit = Infinity):
+ * [{ key, name, games, wins, losses, byGame: { [type]: { games, wins, losses } } }]
+ * `key` is 'u<userId>' or 'p<playerId>' - see opponentKey().
  */
-async function rivalries(scope) {
+async function rivalries(scope, limit = MAX_RIVALS) {
   const { rows } = await db.query(
     `WITH me AS (
        SELECT gp.game_id, coalesce(gp.won, false)::int AS won, gp.points
@@ -158,7 +159,7 @@ async function rivalries(scope) {
   for (const r of rows) {
     let o = byOpponent.get(r.opponent);
     if (!o) {
-      o = { name: r.name, last: r.last_played, games: 0, wins: 0, losses: 0, byGame: {} };
+      o = { key: r.opponent, name: r.name, last: r.last_played, games: 0, wins: 0, losses: 0, byGame: {} };
       byOpponent.set(r.opponent, o);
     }
     // Show the name they used most recently across all game types.
@@ -173,8 +174,77 @@ async function rivalries(scope) {
   }
   return [...byOpponent.values()]
     .sort((a, b) => b.games - a.games || b.last - a.last)
-    .slice(0, MAX_RIVALS)
+    .slice(0, limit)
     .map(({ last, ...o }) => o);
+}
+
+/** Same identity key rivalries() uses for an opponent. */
+function opponentKey(player) {
+  return player.user_id ? `u${player.user_id}` : `p${player.id}`;
+}
+
+/** +1 if a beat b in a game, -1 if b beat a, 0 for a draw (same rule as rivalries()). */
+function compareResults(a, b) {
+  const aw = a.won ? 1 : 0;
+  const bw = b.won ? 1 : 0;
+  if (aw !== bw) return aw > bw ? 1 : -1;
+  if (a.points !== b.points) return a.points > b.points ? 1 : -1;
+  return 0;
+}
+
+const MIN_RIVALRY_GAMES = 3;
+
+/** One-line story of what this game did to a head-to-head record (after the game). */
+function rivalryLine(opponent, beat, wins, losses) {
+  const record = `${wins}–${losses}`;
+  if (beat) {
+    if (wins === losses) return `You drew level with ${opponent}: ${record} all-time`;
+    if (wins === losses + 1) return `You took the lead over ${opponent}! ${record} all-time`;
+    if (wins > losses) return `You beat ${opponent} again: ${record} all-time`;
+    return `You beat ${opponent}, closing in: ${record} all-time`;
+  }
+  if (wins === losses) return `${opponent} drew level with you: ${record} all-time`;
+  if (losses === wins + 1) return `${opponent} took the lead over you: ${record} all-time`;
+  if (losses > wins) return `${opponent} beat you again: ${record} all-time`;
+  return `${opponent} got you, but you still lead: ${record} all-time`;
+}
+
+/**
+ * For each participant of a just-recorded game, picks the opponent in it they've
+ * played most (among those this game had a winner between, with at least
+ * MIN_RIVALRY_GAMES together) and calls onRivalry(name, { text, beat }). Never throws.
+ */
+async function announceRivalries(recorded, onRivalry) {
+  try {
+    const ids = recorded.map((r) => r.playerId);
+    const { rows } = await db.query('SELECT id, client_id, user_id FROM players WHERE id = ANY($1)', [ids]);
+    const players = new Map(rows.map((p) => [String(p.id), p]));
+    for (const me of recorded) {
+      const mine = players.get(String(me.playerId));
+      if (!mine) continue;
+      const records = new Map(
+        (await rivalries(scopeFor({ userId: mine.user_id, clientId: mine.client_id }), Infinity))
+          .map((r) => [r.key, r])
+      );
+      let best = null;
+      for (const other of recorded) {
+        const theirs = players.get(String(other.playerId));
+        if (!theirs || opponentKey(theirs) === opponentKey(mine)) continue;
+        const result = compareResults(me, other);
+        const record = records.get(opponentKey(theirs));
+        if (!result || !record || record.games < MIN_RIVALRY_GAMES) continue;
+        if (!best || record.games > best.record.games) best = { other, record, beat: result > 0 };
+      }
+      if (best) {
+        onRivalry(me.name, {
+          beat: best.beat,
+          text: rivalryLine(best.other.name, best.beat, best.record.wins, best.record.losses),
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Rivalry announcement failed:', err.message);
+  }
 }
 
 /** Badge ids already earned anywhere in this scope. */
@@ -236,6 +306,36 @@ async function evaluateBadges(playerId, gameId = null) {
   }
 }
 
+/** sticker filename -> ids of the badges that unlock it. */
+const BADGE_STICKERS = new Map();
+for (const b of BADGES) {
+  if (!b.sticker) continue;
+  if (!BADGE_STICKERS.has(b.sticker)) BADGE_STICKERS.set(b.sticker, []);
+  BADGE_STICKERS.get(b.sticker).push(b.id);
+}
+
+/**
+ * Whether this browser may wear `sticker`. Stickers used as badge art are locked until
+ * one of their badges is earned (by this device, or by the account it's linked to);
+ * every other sticker is free. Fails open: no database, or a database error, means
+ * nothing is locked.
+ */
+async function canUseSticker(clientId, sticker) {
+  const badgeIds = BADGE_STICKERS.get(sticker);
+  if (!badgeIds || !db.isEnabled()) return true;
+  const id = cleanClientId(clientId);
+  if (!id) return false;
+  try {
+    const { rows } = await db.query('SELECT user_id FROM players WHERE client_id = $1', [id]);
+    if (!rows.length) return false;
+    const earned = await earnedBadgeIds(scopeFor({ userId: rows[0].user_id, clientId: id }));
+    return badgeIds.some((b) => earned.has(b));
+  } catch (err) {
+    console.error('Sticker unlock check failed:', err.message);
+    return true;
+  }
+}
+
 /**
  * Lifetime stats for the user (every device they've claimed) or, for a guest, for
  * this one browser. Shape: { gamesPlayed, wins, points, byGame: { [type]: {...} },
@@ -270,7 +370,18 @@ async function playerCard({ userId, clientId }) {
   }
   const earned = await earnedBadgeIds(scope);
   const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
-  return { gamesPlayed, wins, points, byGame, badges, rivals: await rivalries(scope) };
+  const lockedStickers = [...BADGE_STICKERS]
+    .filter(([, ids]) => !ids.some((id) => earned.has(id)))
+    .map(([sticker]) => sticker);
+  return {
+    gamesPlayed,
+    wins,
+    points,
+    byGame,
+    badges,
+    lockedStickers,
+    rivals: await rivalries(scope),
+  };
 }
 
 function publicUser(u) {
@@ -289,7 +400,12 @@ function setSessionCookie(req, res, token) {
 
 function registerAccountRoutes(app) {
   app.get('/api/auth/config', (req, res) => {
-    res.json({ enabled: signInEnabled(), googleClientId: signInEnabled() ? GOOGLE_CLIENT_ID : null });
+    res.json({
+      enabled: signInEnabled(),
+      // Game history (and so badges and sticker locks) works even without sign-in.
+      history: db.isEnabled(),
+      googleClientId: signInEnabled() ? GOOGLE_CLIENT_ID : null,
+    });
   });
 
   // Returns the signed-in user (if any) and the Player Card - the account's, or this
@@ -394,9 +510,10 @@ function registerAccountRoutes(app) {
  *
  * participants: [{ clientId, name, role?, team?, won?, points?, details? }]
  * Participants without a clientId (very old clients) are skipped.
- * onBadges(name, badges) is called for each participant who earned new badges.
+ * onBadges(name, badges) is called for each participant who earned new badges, and
+ * onRivalry(name, { text, beat }) with a head-to-head update (see announceRivalries).
  */
-function recordGameResult({ roomCode, gameType, participants, onBadges }) {
+function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalry }) {
   if (!db.isEnabled()) return;
   const rows = (participants || []).filter((p) => cleanClientId(p.clientId));
   if (!rows.length) return;
@@ -429,7 +546,12 @@ function recordGameResult({ roomCode, gameType, participants, onBadges }) {
           JSON.stringify(p.details || {}),
         ]
       );
-      recorded.push({ name: p.name, playerId: player.rows[0].id });
+      recorded.push({
+        name: p.name,
+        playerId: player.rows[0].id,
+        won: p.won === true,
+        points: Number(p.points) || 0,
+      });
     }
     return gameId;
   })
@@ -438,6 +560,7 @@ function recordGameResult({ roomCode, gameType, participants, onBadges }) {
         const badges = await evaluateBadges(playerId, gameId);
         if (badges.length && onBadges) onBadges(name, badges);
       }
+      if (onRivalry) await announceRivalries(recorded, onRivalry);
     })
     .catch((err) => console.error(`Failed to record ${gameType} result:`, err.message));
 }
@@ -466,4 +589,4 @@ function startCleanup() {
   setInterval(cleanup, CLEANUP_INTERVAL_MS).unref();
 }
 
-module.exports = { registerAccountRoutes, recordGameResult, startCleanup };
+module.exports = { registerAccountRoutes, recordGameResult, canUseSticker, startCleanup };

@@ -19,8 +19,7 @@ Done (foundation):
   ones pop up on the player's phone (`badgesEarned` socket event), with a "sign in to
   keep it" nudge for guests.
 
-Next:
-1. Unlockable stickers gated on badges.
+Next: nothing planned yet - see Known limitations.
 
 ## Design
 
@@ -98,6 +97,24 @@ account if they have one (all their devices merged), otherwise their device; the
 shown is the one they used most recently with you. Per shared game: a win beats a loss;
 with the same outcome, more points wins; otherwise it's a draw (e.g. teammates in
 Codenames). Deleted accounts disappear from everyone's rivals, since their rows are gone.
+
+## Sticker unlocks
+
+A sticker that is some badge's art is locked until one of those badges is earned; all
+other stickers (and player uploads) stay free. Enforced server-side by
+`canUseSticker(clientId, sticker)` (`server/accounts.js`): `join` silently drops a locked
+sticker, `changeSticker` refuses it. The picker gets the locked list from the Player
+Card (`card.lockedStickers`) and shows those as silhouettes with a 🔒 and an "Earn the X
+badge" hint. Earned per identity: a device's own badges, or its account's. With no
+database nothing is locked; a database error fails open.
+
+## Rivalry news after a game
+
+After a game is recorded (and badges evaluated), `announceRivalries` gives each
+participant one line about the opponent in that game they've played most - only where
+this game had a winner between them and they've shared at least 3 games - e.g. "You
+took the lead over Dana! 10–9 all-time". Sent as `rivalryUpdate` to that player's
+socket; the client queues it after any badge pop-up.
 
 ## Known limitations
 

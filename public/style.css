@@ -504,6 +504,23 @@ button.secondary:active:not(:disabled) {
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
 }
 
+/* Badge-art stickers not yet unlocked: dark silhouette + lock, like the Player Card. */
+.sticker-option.locked {
+  position: relative;
+}
+
+.sticker-option.locked img {
+  filter: brightness(0) opacity(0.6);
+}
+
+.sticker-lock {
+  position: absolute;
+  right: 0.15rem;
+  bottom: 0.1rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
 .sticker-add {
   font-size: 2.6rem;
   line-height: 1;
@@ -3533,6 +3550,20 @@ button.confirm-danger {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--sun);
+}
+
+.rivalry-toast-text {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.badge-toast.rivalry-win {
+  border-color: var(--success);
+}
+
+.badge-toast.rivalry-loss {
+  border-color: var(--danger);
 }
 
 .badge-toast-row {

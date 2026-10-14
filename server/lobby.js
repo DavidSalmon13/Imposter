@@ -12,6 +12,7 @@ const {
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
+const { canUseSticker } = require('./accounts');
 const stats = require('./stats');
 
 // Single shared room for now - no room codes to create or join, everyone
@@ -263,12 +264,14 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
 function registerLobbyHandlers(socket) {
   const { BACKGROUNDS_DIR } = hooks;
 
-  socket.on('join', (data, callback) => {
+  socket.on('join', async (data, callback) => {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
     const clientId = String((data && data.clientId) || '').slice(0, 64);
     const rawSticker = data && data.sticker;
-    const sticker = isValidSticker(rawSticker) ? rawSticker : null;
+    // A badge sticker this player hasn't unlocked is dropped (joining still succeeds).
+    const sticker =
+      isValidSticker(rawSticker) && (await canUseSticker(clientId, rawSticker)) ? rawSticker : null;
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
@@ -280,7 +283,7 @@ function registerLobbyHandlers(socket) {
     }, sticker);
   });
 
-  socket.on('changeSticker', (data, callback) => {
+  socket.on('changeSticker', async (data, callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
     const room = getRoom(socket);
@@ -294,6 +297,9 @@ function registerLobbyHandlers(socket) {
     if (!player) return callback({ ok: false, error: 'Not in a room' });
 
     const rawSticker = data && data.sticker;
+    if (isValidSticker(rawSticker) && !(await canUseSticker(player.clientId, rawSticker))) {
+      return callback({ ok: false, error: 'Earn its badge to unlock this sticker' });
+    }
     // Empty/invalid clears back to the emoji fallback rather than erroring - "no sticker"
     // is always a valid choice, not just an invalid one.
     player.sticker = isValidSticker(rawSticker) ? rawSticker : null;

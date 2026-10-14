@@ -92,6 +92,11 @@ fs.mkdirSync(BACKGROUNDS_DIR, { recursive: true });
 app.use('/backgrounds', express.static(BACKGROUNDS_DIR));
 registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT });
 
+function emitToPlayer(room, name, event, payload) {
+  const player = room.players.get(name);
+  if (player && player.connected && player.socketId) io.to(player.socketId).emit(event, payload);
+}
+
 const ctx = {
   rooms,
   roomEmit,
@@ -115,10 +120,11 @@ const ctx = {
       })),
       // Pops a "badge earned" celebration on that player's own phone.
       onBadges(name, badges) {
-        const player = room.players.get(name);
-        if (player && player.connected && player.socketId) {
-          io.to(player.socketId).emit('badgesEarned', { badges });
-        }
+        emitToPlayer(room, name, 'badgesEarned', { badges });
+      },
+      // "You beat Dana again: 15–9 all-time" on that player's phone.
+      onRivalry(name, update) {
+        emitToPlayer(room, name, 'rivalryUpdate', update);
       },
     });
   },
