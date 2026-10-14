@@ -31,6 +31,8 @@ const {
 const { registerAllHandlers } = require('./server/gameRegistry');
 const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./server/stickers');
 const stats = require('./server/stats');
+const db = require('./server/db');
+const accounts = require('./server/accounts');
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +45,7 @@ app.set('trust proxy', 1);
 
 app.use(express.static(path.join(__dirname, 'public')));
 stats.registerStatsRoutes(app);
+accounts.registerAccountRoutes(app);
 
 // Falls through from the public/ static above, so uploaded stickers share the
 // built-ins' /images/stickers URL.
@@ -100,6 +103,7 @@ const ctx = {
   broadcastLobby,
   attachToRoom,
   saveRoomsToDisk,
+  recordGameResult: accounts.recordGameResult,
 };
 
 initLobby({
@@ -120,10 +124,12 @@ io.on('connection', (socket) => {
 });
 
 loadRoomsFromDisk({ ctx });
+db.initDb().then(accounts.startCleanup);
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 
 async function shutdown() {
   await Promise.all([saveRoomsToDisk(), stats.saveStatsToDisk()]);
+  await db.closeDb();
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);

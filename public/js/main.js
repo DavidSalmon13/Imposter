@@ -14,6 +14,7 @@ import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
+import { initAccount, refreshCard } from './shared/account.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -548,6 +549,8 @@ stickerBtn.addEventListener('click', () => {
   stickerBtn.classList.toggle('open', open);
 });
 
+initAccount(getClientId);
+
 function chooseGame(game) {
   flashChooseError('');
   if (!isHost) {
@@ -726,6 +729,7 @@ socket.on('backToLobby', () => {
     if (game && typeof game.stop === 'function') game.stop();
   });
   showScreen('lobby');
+  refreshCard();
 });
 
 if (myName) nameInput.value = myName;

@@ -3284,3 +3284,74 @@ button.confirm-danger {
   padding: 0.4rem 0.3rem;
   font-size: 0.95rem;
 }
+
+/* Player Card (lobby 👤 dropdown) - see public/js/shared/account.js. */
+/* Same glass panel as the row lists so text stays readable over busy backgrounds. */
+.card-profile,
+.card-summary,
+.card-guest {
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 0.5rem 0.8rem;
+}
+
+.card-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.card-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--bark);
+}
+
+.card-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.card-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.card-games {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.card-games li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.65rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 0.5rem 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-guest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.card-guest p {
+  margin: 0;
+}
+
+.google-signin-btn {
+  min-height: 44px;
+}
