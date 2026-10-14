@@ -549,7 +549,7 @@ stickerBtn.addEventListener('click', () => {
   stickerBtn.classList.toggle('open', open);
 });
 
-initAccount(getClientId);
+initAccount(getClientId, socket);
 
 function chooseGame(game) {
   flashChooseError('');

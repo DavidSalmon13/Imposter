@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
+const { BADGES, publicBadge } = require('./badges');
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const SESSION_COOKIE = 'shorot_session';
@@ -110,13 +111,83 @@ async function claimClientId(client, userId, clientId) {
 }
 
 /**
+ * Whose data a query covers, as a WHERE clause on `players p`: a signed-in user spans
+ * every device they've claimed; a guest is just one browser.
+ */
+function scopeFor({ userId, clientId }) {
+  if (userId) return { where: 'p.user_id = $1', param: userId };
+  if (clientId) return { where: 'p.client_id = $1', param: clientId };
+  return null;
+}
+
+/** Badge ids already earned anywhere in this scope. */
+async function earnedBadgeIds(scope) {
+  const { rows } = await db.query(
+    `SELECT DISTINCT a.badge_id FROM achievements a JOIN players p ON p.id = a.player_id
+      WHERE ${scope.where}`,
+    [scope.param]
+  );
+  return new Set(rows.map((r) => r.badge_id));
+}
+
+/**
+ * Checks every badge against the full history of the identity that `playerId` belongs
+ * to (the whole account if it's claimed), records newly earned ones on `playerId`, and
+ * returns them. Never throws.
+ */
+async function evaluateBadges(playerId, gameId = null) {
+  try {
+    const owner = await db.query('SELECT client_id, user_id FROM players WHERE id = $1', [playerId]);
+    if (!owner.rows.length) return [];
+    const scope = scopeFor({ userId: owner.rows[0].user_id, clientId: owner.rows[0].client_id });
+    const earned = await earnedBadgeIds(scope);
+    const pending = BADGES.filter((b) => !earned.has(b.id));
+    if (!pending.length) return [];
+
+    const { rows } = await db.query(
+      `SELECT g.game_type, gp.role, gp.team, gp.won, gp.points, gp.details
+         FROM game_participants gp
+         JOIN players p ON p.id = gp.player_id
+         JOIN games g   ON g.id = gp.game_id
+        WHERE ${scope.where}
+        ORDER BY g.ended_at, g.id`,
+      [scope.param]
+    );
+    const history = rows.map((r) => ({
+      gameType: r.game_type,
+      role: r.role,
+      team: r.team,
+      won: r.won,
+      points: r.points,
+      details: r.details || {},
+    }));
+
+    const fresh = [];
+    for (const badge of pending) {
+      if (!badge.check(history)) continue;
+      const ins = await db.query(
+        `INSERT INTO achievements (player_id, badge_id, game_id) VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [playerId, badge.id, gameId]
+      );
+      if (ins.rowCount) fresh.push(publicBadge(badge));
+    }
+    return fresh;
+  } catch (err) {
+    console.error('Badge evaluation failed:', err.message);
+    return [];
+  }
+}
+
+/**
  * Lifetime stats for the user (every device they've claimed) or, for a guest, for
- * this one browser. Shape: { gamesPlayed, wins, points, byGame: { [type]: {...} } }.
+ * this one browser. Shape: { gamesPlayed, wins, points, byGame: { [type]: {...} },
+ * badges: [{ id, emoji, name, description, earned }] }.
  */
 async function playerCard({ userId, clientId }) {
-  const where = userId ? 'p.user_id = $1' : 'p.client_id = $1';
-  const param = userId || clientId;
-  if (!param) return null;
+  const scope = scopeFor({ userId, clientId });
+  if (!scope) return null;
+  const { where, param } = scope;
   const { rows } = await db.query(
     `SELECT g.game_type,
             count(*)::int                              AS played,
@@ -139,7 +210,9 @@ async function playerCard({ userId, clientId }) {
     wins += r.won;
     points += r.points;
   }
-  return { gamesPlayed, wins, points, byGame };
+  const earned = await earnedBadgeIds(scope);
+  const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
+  return { gamesPlayed, wins, points, byGame, badges };
 }
 
 function publicUser(u) {
@@ -204,11 +277,17 @@ function registerAccountRoutes(app) {
         return id;
       });
       setSessionCookie(req, res, token);
+      // Merging this device's history into the account can complete new badges.
+      const device = await db.query(
+        'SELECT id FROM players WHERE client_id = $1 AND user_id = $2',
+        [cleanClientId(req.body.clientId), userId]
+      );
+      const newBadges = device.rows.length ? await evaluateBadges(device.rows[0].id) : [];
       const { rows } = await db.query(
         'SELECT id, display_name, email, avatar_url FROM users WHERE id = $1',
         [userId]
       );
-      res.json({ ok: true, user: publicUser(rows[0]), card: await playerCard({ userId }) });
+      res.json({ ok: true, user: publicUser(rows[0]), card: await playerCard({ userId }), newBadges });
     } catch (err) {
       console.error('Google sign-in failed:', err.message);
       res.status(500).json({ ok: false, error: 'Sign-in failed, try again' });
@@ -257,11 +336,13 @@ function registerAccountRoutes(app) {
  *
  * participants: [{ clientId, name, role?, team?, won?, points?, details? }]
  * Participants without a clientId (very old clients) are skipped.
+ * onBadges(name, badges) is called for each participant who earned new badges.
  */
-function recordGameResult({ roomCode, gameType, participants }) {
+function recordGameResult({ roomCode, gameType, participants, onBadges }) {
   if (!db.isEnabled()) return;
   const rows = (participants || []).filter((p) => cleanClientId(p.clientId));
   if (!rows.length) return;
+  const recorded = [];
   db.transaction(async (client) => {
     const game = await client.query(
       'INSERT INTO games (room_code, game_type) VALUES ($1, $2) RETURNING id',
@@ -290,8 +371,17 @@ function recordGameResult({ roomCode, gameType, participants }) {
           JSON.stringify(p.details || {}),
         ]
       );
+      recorded.push({ name: p.name, playerId: player.rows[0].id });
     }
-  }).catch((err) => console.error(`Failed to record ${gameType} result:`, err.message));
+    return gameId;
+  })
+    .then(async (gameId) => {
+      for (const { name, playerId } of recorded) {
+        const badges = await evaluateBadges(playerId, gameId);
+        if (badges.length && onBadges) onBadges(name, badges);
+      }
+    })
+    .catch((err) => console.error(`Failed to record ${gameType} result:`, err.message));
 }
 
 /** Drops expired sessions and long-idle guests (and games left with no participants). */

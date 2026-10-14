@@ -14,14 +14,14 @@ Done (foundation):
 - `ctx.recordGameResult(...)` hook, called by all eight games when a round/match
   awards scoreboard points.
 - Lobby 👤 button → Player Card dropdown (guest stats + "Continue with Google", or the
-  account's stats + Sign out).
+  account's stats + Sign out / Delete my account), with a badge grid.
+- Badges (`server/badges.js`): checked after every recorded game and on sign-in; new
+  ones pop up on the player's phone (`badgesEarned` socket event), with a "sign in to
+  keep it" nudge for guests.
 
 Next:
-1. Badges: definitions in code, evaluated after each `recordGameResult`, written to
-   `achievements`. Show newly earned ones on the results screen with a "save it" prompt
-   for guests (the main sign-up hook).
-2. Rivalries (head-to-head from `game_participants` joined with itself on `game_id`).
-3. Unlockable stickers gated on badges.
+1. Rivalries (head-to-head from `game_participants` joined with itself on `game_id`).
+2. Unlockable stickers gated on badges.
 
 ## Design
 
@@ -42,7 +42,7 @@ never re-linked (signing in can't pull someone else's stats).
 - `games` + `game_participants` — one row per finished game and per participant
   (role, team, won, points, game-specific `details` JSONB). All stats are computed
   from these; no running totals to drift.
-- `achievements` — earned badges (unused until badges ship).
+- `achievements` — earned badges (badge definitions live in `server/badges.js`).
 - `auth_sessions` — hashed session tokens, 180-day expiry.
 
 **Failure mode.** No `DATABASE_URL`, or Postgres unreachable at boot → accounts hidden,
@@ -73,6 +73,18 @@ Call it right where the game calls `ctx.addScore` at round/match end. The ctx wr
 in `server.js` fills in each player's `clientId` and the room code. Fire-and-forget;
 it returns nothing and never throws.
 `won` may be `null` for games without a per-player winner.
+
+## Badges
+
+Each badge in `server/badges.js` has an `id`, emoji, name, description and a
+`check(history)` over the player's games (oldest first). After each recorded game,
+`evaluateBadges` loads the history of that player's whole identity (all devices of the
+account, or just the one browser for a guest), runs every not-yet-earned check, and
+inserts new rows into `achievements`. Because checks look at the full history, adding a
+badge later awards it retroactively on the player's next game or sign-in.
+
+To add a badge: append an entry to `BADGES`. Never rename or reuse an `id` once shipped.
+If it needs data a game doesn't record yet, add it to that game's `details`.
 
 ## Known limitations
 

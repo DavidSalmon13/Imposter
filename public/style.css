@@ -3352,6 +3352,104 @@ button.confirm-danger {
   margin: 0;
 }
 
+.card-badges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.card-badge {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.45rem 0.25rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.card-badge-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* Dim the contents, not the tile, so locked badges stay legible over the background. */
+.card-badge.locked > * {
+  opacity: 0.6;
+}
+
+.card-badge.locked .card-badge-emoji {
+  filter: grayscale(1);
+}
+
+.card-badge.selected {
+  border-color: var(--sun);
+}
+
+.card-badge-detail {
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* "Badge earned" pop-up, shown over any screen. */
+.badge-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 150;
+  width: min(calc(100% - 2rem), 22rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  background: var(--plank);
+  border: 3px solid var(--sun);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lift);
+  text-align: center;
+  animation: badge-toast-in 0.4s var(--ease-bounce);
+}
+
+.badge-toast-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sun);
+}
+
+.badge-toast-badge {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.badge-toast-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+@keyframes badge-toast-in {
+  from { opacity: 0; transform: translate(-50%, 1.5rem) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
 /* Deliberately low-key: a text link, not a big button, so it isn't tapped by accident. */
 .card-delete-btn {
   align-self: center;

@@ -113,6 +113,13 @@ const ctx = {
         ...p,
         clientId: room.players.get(p.name)?.clientId,
       })),
+      // Pops a "badge earned" celebration on that player's own phone.
+      onBadges(name, badges) {
+        const player = room.players.get(name);
+        if (player && player.connected && player.socketId) {
+          io.to(player.socketId).emit('badgesEarned', { badges });
+        }
+      },
     });
   },
 };

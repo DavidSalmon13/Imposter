@@ -7,6 +7,7 @@
  */
 
 import { confirmDialog } from './confirmDialog.js';
+import { sfx, haptics } from '../fx.js';
 
 const GAME_LABELS = {
   imposter: '🕵️ Imposter',
@@ -31,10 +32,16 @@ const googleBtnEl = document.getElementById('google-signin-btn');
 const signOutBtn = document.getElementById('card-signout-btn');
 const deleteBtn = document.getElementById('card-delete-btn');
 const cardError = document.getElementById('card-error');
+const badgesHeading = document.getElementById('card-badges-heading');
+const badgesGrid = document.getElementById('card-badges');
+const badgeDetail = document.getElementById('card-badge-detail');
+
+const TOAST_MS = 6000;
 
 let getClientId = () => '';
 let googleClientId = null;
 let googleReady = null;
+let signedIn = false;
 
 function showError(msg) {
   cardError.textContent = msg || '';
@@ -89,12 +96,74 @@ async function onGoogleCredential({ credential }) {
     const data = await res.json();
     if (!data.ok) return showError(data.error || 'Sign-in failed');
     render(data.user, data.card);
+    if (data.newBadges && data.newBadges.length) showBadgeToast(data.newBadges);
   } catch (err) {
     showError('Sign-in failed, check your connection');
   }
 }
 
+function renderBadges(badges) {
+  badgesGrid.innerHTML = '';
+  badgeDetail.classList.add('hidden');
+  badgesHeading.classList.toggle('hidden', !badges.length);
+  if (!badges.length) return;
+  const earnedCount = badges.filter((b) => b.earned).length;
+  badgesHeading.textContent = `Badges ${earnedCount}/${badges.length}`;
+  // Earned first, then locked, each keeping the server's order.
+  const ordered = [...badges.filter((b) => b.earned), ...badges.filter((b) => !b.earned)];
+  for (const b of ordered) {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = `card-badge${b.earned ? '' : ' locked'}`;
+    const emoji = document.createElement('span');
+    emoji.className = 'card-badge-emoji';
+    emoji.textContent = b.earned ? b.emoji : '🔒';
+    const name = document.createElement('span');
+    name.textContent = b.name;
+    tile.append(emoji, name);
+    tile.addEventListener('click', () => {
+      const wasSelected = tile.classList.contains('selected');
+      badgesGrid.querySelectorAll('.card-badge.selected').forEach((t) => t.classList.remove('selected'));
+      if (wasSelected) return badgeDetail.classList.add('hidden');
+      tile.classList.add('selected');
+      badgeDetail.textContent = `${b.earned ? b.emoji : '🔒'} ${b.name} - ${b.description}`;
+      badgeDetail.classList.remove('hidden');
+    });
+    badgesGrid.appendChild(tile);
+  }
+}
+
+/** Celebrates freshly earned badges over whatever screen is showing. */
+function showBadgeToast(badges) {
+  document.querySelectorAll('.badge-toast').forEach((t) => t.remove());
+  const toast = document.createElement('div');
+  toast.className = 'badge-toast';
+  toast.setAttribute('role', 'status');
+  const title = document.createElement('p');
+  title.className = 'badge-toast-title';
+  title.textContent = badges.length === 1 ? '🏅 Badge earned!' : `🏅 ${badges.length} badges earned!`;
+  toast.appendChild(title);
+  for (const b of badges) {
+    const line = document.createElement('p');
+    line.className = 'badge-toast-badge';
+    line.textContent = `${b.emoji} ${b.name}`;
+    toast.appendChild(line);
+  }
+  if (!signedIn) {
+    const note = document.createElement('p');
+    note.className = 'badge-toast-note';
+    note.textContent = 'Sign in with Google from 👤 in the lobby to keep it forever.';
+    toast.appendChild(note);
+  }
+  toast.addEventListener('click', () => toast.remove());
+  document.body.appendChild(toast);
+  sfx.win();
+  haptics.success();
+  setTimeout(() => toast.remove(), TOAST_MS);
+}
+
 function render(user, card) {
+  signedIn = !!user;
   cardProfile.classList.toggle('hidden', !user);
   cardGuest.classList.toggle('hidden', !!user);
   signOutBtn.classList.toggle('hidden', !user);
@@ -130,6 +199,8 @@ function render(user, card) {
       cardGames.appendChild(li);
     });
 
+  renderBadges((card && card.badges) || []);
+
   if (!user) renderGoogleButton();
 }
 
@@ -146,8 +217,12 @@ export async function refreshCard() {
   }
 }
 
-export async function initAccount(clientIdGetter) {
+export async function initAccount(clientIdGetter, socket) {
   getClientId = clientIdGetter;
+
+  socket.on('badgesEarned', ({ badges }) => {
+    if (badges && badges.length) showBadgeToast(badges);
+  });
 
   deleteBtn.addEventListener('click', async () => {
     showError('');
@@ -177,6 +252,7 @@ export async function initAccount(clientIdGetter) {
     showError('');
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+      signedIn = false;
       if (window.google) window.google.accounts.id.disableAutoSelect();
     } catch (err) {
       return showError('Sign-out failed, check your connection');
@@ -190,6 +266,9 @@ export async function initAccount(clientIdGetter) {
     if (!config.enabled) return;
     googleClientId = config.googleClientId;
     cardBtn.classList.remove('hidden');
+    // Learn whether we're signed in up front, so a badge pop-up knows whether to nudge.
+    const me = await (await fetch('/api/me')).json();
+    signedIn = !!me.user;
   } catch (err) {
     // No config = no accounts this session; the lobby works as before.
   }
