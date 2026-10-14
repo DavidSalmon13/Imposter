@@ -41,8 +41,79 @@ function tone(freq, duration, { type = 'sine', gain = 0.12, delay = 0 } = {}) {
   osc.stop(start + duration + 0.02);
 }
 
+// --- Animal tap sounds: clips from public/sounds/, listed by GET /api/sounds ---
+
+const TAP_GAIN = 0.6;
+let tapBuffers = [];
+let tapLoadStarted = false;
+let tapSource = null;
+let lastTapIndex = -1;
+
+// Decoding needs a running AudioContext, so this is kicked off on the first gesture
+// rather than at import. Missing or undecodable files are skipped.
+function loadTapSounds() {
+  if (tapLoadStarted) return;
+  tapLoadStarted = true;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  fetch('/api/sounds')
+    .then((res) => (res.ok ? res.json() : { sounds: [] }))
+    .then(({ sounds }) =>
+      Promise.all(
+        (sounds || []).map((file) =>
+          fetch(`/sounds/${encodeURIComponent(file)}`)
+            .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject()))
+            // Callback form: Safari < 14.1 doesn't return a promise from decodeAudioData.
+            .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
+            .catch(() => null)
+        )
+      )
+    )
+    .then((buffers) => {
+      tapBuffers = buffers.filter(Boolean);
+    })
+    .catch(() => {});
+}
+
+['pointerdown', 'touchend', 'click', 'keydown'].forEach((evt) => {
+  window.addEventListener(evt, loadTapSounds, { once: true, passive: true });
+});
+
+// Plays a random clip (never the same one twice in a row), cutting off the previous
+// one so fast tapping doesn't pile sounds on top of each other. Returns false if no
+// clips are loaded so the caller can fall back.
+function playTapSound() {
+  if (!tapBuffers.length) return false;
+  const ctx = getAudioCtx();
+  if (!ctx) return false;
+  let i = Math.floor(Math.random() * tapBuffers.length);
+  if (tapBuffers.length > 1 && i === lastTapIndex) i = (i + 1) % tapBuffers.length;
+  lastTapIndex = i;
+  if (tapSource) {
+    try {
+      tapSource.stop();
+    } catch (e) {
+      // already ended
+    }
+  }
+  const src = ctx.createBufferSource();
+  const g = ctx.createGain();
+  src.buffer = tapBuffers[i];
+  g.gain.value = TAP_GAIN;
+  src.connect(g);
+  g.connect(ctx.destination);
+  src.onended = () => {
+    if (tapSource === src) tapSource = null;
+  };
+  src.start();
+  tapSource = src;
+  return true;
+}
+
 export const sfx = {
   click() {
+    if (muted) return;
+    if (playTapSound()) return;
     tone(520, 0.06, { type: 'square', gain: 0.05 });
   },
   scoreUp() {
