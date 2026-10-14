@@ -31,6 +31,8 @@ const {
 const { registerAllHandlers } = require('./server/gameRegistry');
 const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./server/stickers');
 const stats = require('./server/stats');
+const db = require('./server/db');
+const accounts = require('./server/accounts');
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +45,7 @@ app.set('trust proxy', 1);
 
 app.use(express.static(path.join(__dirname, 'public')));
 stats.registerStatsRoutes(app);
+accounts.registerAccountRoutes(app);
 
 // Falls through from the public/ static above, so uploaded stickers share the
 // built-ins' /images/stickers URL.
@@ -89,6 +92,11 @@ fs.mkdirSync(BACKGROUNDS_DIR, { recursive: true });
 app.use('/backgrounds', express.static(BACKGROUNDS_DIR));
 registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT });
 
+function emitToPlayer(room, name, event, payload) {
+  const player = room.players.get(name);
+  if (player && player.connected && player.socketId) io.to(player.socketId).emit(event, payload);
+}
+
 const ctx = {
   rooms,
   roomEmit,
@@ -100,6 +108,26 @@ const ctx = {
   broadcastLobby,
   attachToRoom,
   saveRoomsToDisk,
+  // Games pass names; this fills in each player's clientId (their device identity).
+  recordGameResult(room, gameType, participants) {
+    const roomCode = [...rooms.entries()].find(([, r]) => r === room)?.[0] || '';
+    accounts.recordGameResult({
+      roomCode,
+      gameType,
+      participants: participants.map((p) => ({
+        ...p,
+        clientId: room.players.get(p.name)?.clientId,
+      })),
+      // Pops a "badge earned" celebration on that player's own phone.
+      onBadges(name, badges) {
+        emitToPlayer(room, name, 'badgesEarned', { badges });
+      },
+      // "You beat Dana again: 15–9 all-time" on that player's phone.
+      onRivalry(name, update) {
+        emitToPlayer(room, name, 'rivalryUpdate', update);
+      },
+    });
+  },
 };
 
 initLobby({
@@ -120,10 +148,12 @@ io.on('connection', (socket) => {
 });
 
 loadRoomsFromDisk({ ctx });
+db.initDb().then(accounts.startCleanup);
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 
 async function shutdown() {
   await Promise.all([saveRoomsToDisk(), stats.saveStatsToDisk()]);
+  await db.closeDb();
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);

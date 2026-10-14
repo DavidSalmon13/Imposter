@@ -209,11 +209,21 @@ function checkTeamWin(room) {
 
 function awardCodenamesScores(ctx, room) {
   if (!room.cnWinner) return;
+  const participants = [];
   for (const [name, p] of room.players.entries()) {
     if (!p.team) continue;
-    if (p.team === room.cnWinner) ctx.addScore(room, name, 2);
+    const won = p.team === room.cnWinner;
+    if (won) ctx.addScore(room, name, 2);
     // Losing team gets 0 — no scoreboard write needed.
+    participants.push({
+      name,
+      role: p.leader ? 'spymaster' : 'operative',
+      team: p.team,
+      won,
+      points: won ? 2 : 0,
+    });
   }
+  ctx.recordGameResult(room, 'codenames', participants);
 }
 
 function finishCodenamesGame(ctx, roomCode, room) {

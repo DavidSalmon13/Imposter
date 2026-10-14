@@ -122,10 +122,22 @@ function awardMtScoreboard(ctx, room) {
     i = j;
   }
 
+  const winners = room.mtMatchWinners || [];
+  const participants = [];
   for (const [name, p] of room.players.entries()) {
     const points = p.team ? pointsByTeam[p.team] : undefined;
     if (points) ctx.addScore(room, name, points);
+    if (p.team && room.mtTeams[p.team]) {
+      participants.push({
+        name,
+        team: p.team,
+        won: winners.includes(p.team),
+        points: points || 0,
+        details: { cards: (room.mtTeams[p.team].timeline || []).length },
+      });
+    }
   }
+  ctx.recordGameResult(room, 'musictimeline', participants);
 }
 
 /** Advances mtActiveTeamIndex to the next team (wrapping) with >=1 connected member. */

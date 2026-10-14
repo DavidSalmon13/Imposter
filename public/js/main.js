@@ -14,6 +14,7 @@ import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
+import { initAccount, refreshCard, onLockedStickers } from './shared/account.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -198,6 +199,9 @@ function rememberSession(name, roomCode) {
 // never hardcodes filenames - dropping a new .webp into public/images/stickers/, or a
 // player uploading one, is enough to add it here too.
 let stickerFiles = [];
+// sticker -> badge name, for stickers that are badge art this player hasn't earned yet
+// (from the Player Card, see shared/account.js). Empty when accounts are off.
+let lockedStickers = new Map();
 
 function markSelectedSticker(container) {
   Array.from(container.children).forEach((btn) => {
@@ -205,7 +209,7 @@ function markSelectedSticker(container) {
   });
 }
 
-function buildStickerGrid(container, onPick, onAdd) {
+function buildStickerGrid(container, onPick, onAdd, errorEl) {
   container.innerHTML = '';
   stickerFiles.forEach((file) => {
     const btn = document.createElement('button');
@@ -216,6 +220,22 @@ function buildStickerGrid(container, onPick, onAdd) {
     img.src = `images/stickers/${file}`;
     img.alt = '';
     btn.appendChild(img);
+    if (lockedStickers.has(file)) {
+      btn.classList.add('locked');
+      const lock = document.createElement('span');
+      lock.className = 'sticker-lock';
+      lock.textContent = '🔒';
+      btn.appendChild(lock);
+      btn.addEventListener('click', () => {
+        const badge = lockedStickers.get(file);
+        errorEl.textContent = badge
+          ? `🔒 Earn the "${badge}" badge to unlock this sticker`
+          : '🔒 Earn its badge to unlock this sticker';
+        errorEl.classList.remove('hidden');
+      });
+      container.appendChild(btn);
+      return;
+    }
     btn.addEventListener('click', () => {
       // Tapping the already-selected sticker clears it back to the emoji fallback.
       onPick(mySticker === file ? null : file);
@@ -244,7 +264,13 @@ function selectJoinSticker(sticker) {
 
 function pickLobbySticker(sticker) {
   socket.emit('changeSticker', { sticker }, (res) => {
-    if (!res || !res.ok) return;
+    if (!res) return;
+    if (!res.ok) {
+      stickerError.textContent = res.error || 'Could not change sticker';
+      stickerError.classList.remove('hidden');
+      return;
+    }
+    stickerError.classList.add('hidden');
     mySticker = res.sticker;
     if (res.sticker) localStorage.setItem('imposterSticker', res.sticker);
     else localStorage.removeItem('imposterSticker');
@@ -256,10 +282,21 @@ function pickLobbySticker(sticker) {
 }
 
 function renderStickerGrids() {
-  buildStickerGrid(joinStickerGrid, selectJoinSticker);
+  buildStickerGrid(joinStickerGrid, selectJoinSticker, null, joinError);
   // Uploading needs to be a player in the room, so the "+" tile only lives in the lobby picker.
-  buildStickerGrid(lobbyStickerGrid, pickLobbySticker, () => stickerFileInput.click());
+  buildStickerGrid(lobbyStickerGrid, pickLobbySticker, () => stickerFileInput.click(), stickerError);
 }
+
+onLockedStickers((locked) => {
+  lockedStickers = locked;
+  // A saved choice that's locked here (e.g. picked before badges existed) would just be
+  // dropped by the server on join, so forget it locally too.
+  if (mySticker && lockedStickers.has(mySticker)) {
+    mySticker = null;
+    localStorage.removeItem('imposterSticker');
+  }
+  renderStickerGrids();
+});
 
 function applyStickerFiles(files) {
   stickerFiles = files || [];
@@ -548,6 +585,8 @@ stickerBtn.addEventListener('click', () => {
   stickerBtn.classList.toggle('open', open);
 });
 
+initAccount(getClientId, socket);
+
 function chooseGame(game) {
   flashChooseError('');
   if (!isHost) {
@@ -726,6 +765,7 @@ socket.on('backToLobby', () => {
     if (game && typeof game.stop === 'function') game.stop();
   });
   showScreen('lobby');
+  refreshCard();
 });
 
 if (myName) nameInput.value = myName;

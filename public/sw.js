@@ -25,6 +25,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/socket.io/')) return;
+  // Per-player account data must never be served stale from the cache.
+  if (url.pathname === '/api/me' || url.pathname.startsWith('/api/auth/')) return;
 
   // Stale-while-revalidate: serve cached shell instantly, refresh in the background.
   event.respondWith(

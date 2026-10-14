@@ -29,6 +29,11 @@ Requires Node >=18. Environment variables (see `.env.example`):
 - `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
   visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
   Unset = falls back to a temporary hardcoded password in `server/stats.js`.
+- `DATABASE_URL` — Postgres for accounts and lifetime game history
+  (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
+  Optional: unset or unreachable = no accounts, games still run.
+- `GOOGLE_CLIENT_ID` — enables Google sign-in and the lobby's 👤 Player Card.
+  Design and setup: `implementation/accounts_plan.md`.
 
 ## Architecture
 
@@ -54,7 +59,7 @@ every game's fields at the top level (`cnBoard`, `tsActivePlayers`, `mfHands`,
 ...) plus shared fields (`scoreboard`, `hostName`, `phase`) — deliberately not
 namespaced per game yet. A `ctx` object (`{ rooms, roomEmit, io, getRoom,
 connectedNames, scoreboardEntries, addScore, broadcastLobby, attachToRoom,
-saveRoomsToDisk }`) is built once in `server.js` and passed into every game
+saveRoomsToDisk, recordGameResult }`) is built once in `server.js` and passed into every game
 module's functions, so games never `require` the room store or lobby
 directly — this avoids circular requires and keeps each game's dependencies
 explicit.

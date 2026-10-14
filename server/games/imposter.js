@@ -261,6 +261,18 @@ function finishImposterReporting(ctx, roomCode, room) {
     });
   }
   room.imposterRoundResults = results;
+  // Surviving the round is the win condition for both roles (see imposterPointsFor).
+  ctx.recordGameResult(
+    room,
+    'imposter',
+    results.map((r) => ({
+      name: r.name,
+      role: r.role,
+      won: !r.eliminated,
+      points: r.points,
+      details: { eliminated: r.eliminated },
+    }))
+  );
   room.phase = 'roundResults';
   broadcastImposterResults(ctx, roomCode, room);
 }
