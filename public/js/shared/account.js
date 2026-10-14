@@ -32,6 +32,8 @@ const googleBtnEl = document.getElementById('google-signin-btn');
 const signOutBtn = document.getElementById('card-signout-btn');
 const deleteBtn = document.getElementById('card-delete-btn');
 const cardError = document.getElementById('card-error');
+const rivalsHeading = document.getElementById('card-rivals-heading');
+const rivalsList = document.getElementById('card-rivals');
 const badgesHeading = document.getElementById('card-badges-heading');
 const badgesGrid = document.getElementById('card-badges');
 const badgeDetail = document.getElementById('card-badge-detail');
@@ -99,6 +101,60 @@ async function onGoogleCredential({ credential }) {
     if (data.newBadges && data.newBadges.length) showBadgeToast(data.newBadges);
   } catch (err) {
     showError('Sign-in failed, check your connection');
+  }
+}
+
+function rivalStatus(r) {
+  if (r.wins > r.losses) return { icon: '👑', cls: 'ahead', text: 'You lead' };
+  if (r.wins < r.losses) return { icon: '😤', cls: 'behind', text: 'They lead' };
+  return { icon: '🤝', cls: '', text: 'Dead even' };
+}
+
+/** Head-to-head records; tap a rival to see the record per game. */
+function renderRivals(rivals) {
+  rivalsList.innerHTML = '';
+  rivalsHeading.classList.toggle('hidden', !rivals.length);
+  for (const r of rivals) {
+    const status = rivalStatus(r);
+    const li = document.createElement('li');
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'card-rival';
+
+    const main = document.createElement('span');
+    main.className = 'card-rival-main';
+    const icon = document.createElement('span');
+    icon.textContent = status.icon;
+    const name = document.createElement('span');
+    name.className = 'card-rival-name';
+    name.textContent = `vs ${r.name}`;
+    const record = document.createElement('span');
+    record.className = `card-rival-record ${status.cls}`;
+    record.textContent = `${r.wins}–${r.losses}`;
+    main.append(icon, name, record);
+
+    const sub = document.createElement('span');
+    sub.className = 'card-rival-sub';
+    sub.textContent = `${status.text} · ${r.games === 1 ? '1 game' : `${r.games} games`} together`;
+
+    const games = document.createElement('ul');
+    games.className = 'card-rival-games';
+    Object.entries(r.byGame)
+      .sort((a, b) => b[1].games - a[1].games)
+      .forEach(([type, s]) => {
+        const g = document.createElement('li');
+        const label = document.createElement('span');
+        label.textContent = GAME_LABELS[type] || type;
+        const value = document.createElement('span');
+        value.textContent = `${s.wins}–${s.losses}`;
+        g.append(label, value);
+        games.appendChild(g);
+      });
+
+    row.append(main, sub, games);
+    row.addEventListener('click', () => row.classList.toggle('open'));
+    li.appendChild(row);
+    rivalsList.appendChild(li);
   }
 }
 
@@ -226,6 +282,7 @@ function render(user, card) {
       cardGames.appendChild(li);
     });
 
+  renderRivals((card && card.rivals) || []);
   renderBadges((card && card.badges) || []);
 
   if (!user) renderGoogleButton();

@@ -20,8 +20,7 @@ Done (foundation):
   keep it" nudge for guests.
 
 Next:
-1. Rivalries (head-to-head from `game_participants` joined with itself on `game_id`).
-2. Unlockable stickers gated on badges.
+1. Unlockable stickers gated on badges.
 
 ## Design
 
@@ -89,6 +88,16 @@ removed, the badge falls back to its `emoji` and the server logs a warning at bo
 
 To add a badge: append an entry to `BADGES`. Never rename or reuse an `id` once shipped.
 If it needs data a game doesn't record yet, add it to that game's `details`.
+
+## Rivalries
+
+The Player Card lists the 5 opponents you've shared the most games with, each with a
+win–loss record and a per-game breakdown (`rivalries()` in `server/accounts.js`, one
+query joining `game_participants` with itself on `game_id`). An opponent is their
+account if they have one (all their devices merged), otherwise their device; the name
+shown is the one they used most recently with you. Per shared game: a win beats a loss;
+with the same outcome, more points wins; otherwise it's a draw (e.g. teammates in
+Codenames). Deleted accounts disappear from everyone's rivals, since their rows are gone.
 
 ## Known limitations
 

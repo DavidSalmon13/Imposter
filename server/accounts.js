@@ -115,9 +115,66 @@ async function claimClientId(client, userId, clientId) {
  * every device they've claimed; a guest is just one browser.
  */
 function scopeFor({ userId, clientId }) {
-  if (userId) return { where: 'p.user_id = $1', param: userId };
-  if (clientId) return { where: 'p.client_id = $1', param: clientId };
+  if (userId) {
+    return { where: 'p.user_id = $1', notWhere: 'tp.user_id IS DISTINCT FROM $1', param: userId };
+  }
+  if (clientId) return { where: 'p.client_id = $1', notWhere: 'tp.client_id <> $1', param: clientId };
   return null;
+}
+
+const MAX_RIVALS = 5;
+
+/**
+ * Head-to-head records against everyone this identity has shared a game with. An
+ * opponent is their account if they have one (all their devices together), else their
+ * device. In each shared game the better result wins: a win beats a loss, and with the
+ * same outcome more points beats fewer; anything else (e.g. teammates) is a draw.
+ * Returns the MAX_RIVALS most-played opponents:
+ * [{ name, games, wins, losses, byGame: { [type]: { games, wins, losses } } }]
+ */
+async function rivalries(scope) {
+  const { rows } = await db.query(
+    `WITH me AS (
+       SELECT gp.game_id, coalesce(gp.won, false)::int AS won, gp.points
+         FROM game_participants gp JOIN players p ON p.id = gp.player_id
+        WHERE ${scope.where}
+     )
+     SELECT CASE WHEN tp.user_id IS NOT NULL THEN 'u' || tp.user_id ELSE 'p' || tp.id END AS opponent,
+            g.game_type,
+            count(*)::int AS games,
+            count(*) FILTER (WHERE (me.won, me.points) > (coalesce(t.won, false)::int, t.points))::int AS wins,
+            count(*) FILTER (WHERE (me.won, me.points) < (coalesce(t.won, false)::int, t.points))::int AS losses,
+            (array_agg(t.name_used ORDER BY g.ended_at DESC, g.id DESC))[1] AS name,
+            max(g.ended_at) AS last_played
+       FROM me
+       JOIN game_participants t ON t.game_id = me.game_id
+       JOIN players tp ON tp.id = t.player_id
+       JOIN games g ON g.id = me.game_id
+      WHERE ${scope.notWhere}
+      GROUP BY opponent, g.game_type`,
+    [scope.param]
+  );
+  const byOpponent = new Map();
+  for (const r of rows) {
+    let o = byOpponent.get(r.opponent);
+    if (!o) {
+      o = { name: r.name, last: r.last_played, games: 0, wins: 0, losses: 0, byGame: {} };
+      byOpponent.set(r.opponent, o);
+    }
+    // Show the name they used most recently across all game types.
+    if (r.last_played > o.last) {
+      o.name = r.name;
+      o.last = r.last_played;
+    }
+    o.games += r.games;
+    o.wins += r.wins;
+    o.losses += r.losses;
+    o.byGame[r.game_type] = { games: r.games, wins: r.wins, losses: r.losses };
+  }
+  return [...byOpponent.values()]
+    .sort((a, b) => b.games - a.games || b.last - a.last)
+    .slice(0, MAX_RIVALS)
+    .map(({ last, ...o }) => o);
 }
 
 /** Badge ids already earned anywhere in this scope. */
@@ -182,7 +239,8 @@ async function evaluateBadges(playerId, gameId = null) {
 /**
  * Lifetime stats for the user (every device they've claimed) or, for a guest, for
  * this one browser. Shape: { gamesPlayed, wins, points, byGame: { [type]: {...} },
- * badges: [{ id, emoji, name, description, earned }] }.
+ * badges: [{ id, emoji, sticker, name, description, earned }], rivals: [...] }
+ * (rivals: see rivalries()).
  */
 async function playerCard({ userId, clientId }) {
   const scope = scopeFor({ userId, clientId });
@@ -212,7 +270,7 @@ async function playerCard({ userId, clientId }) {
   }
   const earned = await earnedBadgeIds(scope);
   const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
-  return { gamesPlayed, wins, points, byGame, badges };
+  return { gamesPlayed, wins, points, byGame, badges, rivals: await rivalries(scope) };
 }
 
 function publicUser(u) {

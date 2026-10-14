@@ -3352,6 +3352,83 @@ button.confirm-danger {
   margin: 0;
 }
 
+.card-rivals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.card-rival {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+}
+
+.card-rival.open {
+  border-color: var(--sun);
+}
+
+.card-rival-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.card-rival-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-rival-record {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rival-record.ahead { color: var(--success); }
+.card-rival-record.behind { color: var(--danger); }
+
+.card-rival-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.card-rival-games {
+  display: none;
+  margin: 0;
+  padding: 0.3rem 0 0;
+  list-style: none;
+  border-top: 1px solid var(--glass-border);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rival.open .card-rival-games {
+  display: block;
+}
+
+.card-rival-games li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.1rem 0;
+}
+
 .card-badges {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
