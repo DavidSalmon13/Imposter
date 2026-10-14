@@ -424,6 +424,7 @@ export async function initAccount(clientIdGetter, socket) {
     if (config.enabled) {
       googleClientId = config.googleClientId;
       cardBtn.classList.remove('hidden');
+      cardDropdown.classList.remove('hidden');
     }
     // Load up front: badge pop-ups need to know whether we're signed in, and the
     // sticker picker needs the locks.
