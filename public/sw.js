@@ -1,7 +1,7 @@
 // App-shell cache for installability + faster repeat loads. Deliberately does
 // NOT cache /socket.io/ traffic or API responses — this app is real-time and
 // server-state-driven, so stale game data would be worse than no cache.
-const CACHE_NAME = 'shorot-shell-v2';
+const CACHE_NAME = 'shorot-shell-v3';
 const SHELL_URLS = ['/', '/index.html', '/style.css', '/js/main.js', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -28,19 +28,28 @@ self.addEventListener('fetch', (event) => {
   // Per-player account data must never be served stale from the cache.
   if (url.pathname === '/api/me' || url.pathname.startsWith('/api/auth/')) return;
 
-  // Stale-while-revalidate: serve cached shell instantly, refresh in the background.
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
-  );
+  const fromNetwork = () =>
+    fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    });
+
+  // Images and fonts rarely change: stale-while-revalidate, serve cached instantly.
+  if (/^\/(images|icons|fonts|backgrounds)\//.test(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const network = fromNetwork().catch(() => cached);
+        return cached || network;
+      })
+    );
+    return;
+  }
+
+  // Code, pages and API: network-first so a deploy takes effect on the next load
+  // (stale-while-revalidate kept serving old JS for a load after every deploy).
+  // The cache is only an offline fallback.
+  event.respondWith(fromNetwork().catch(() => caches.match(request).then((r) => r || Response.error())));
 });

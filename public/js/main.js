@@ -549,16 +549,28 @@ refreshMuteBtn();
 
 // Light tap feedback on every button press. Fires on pointerdown (finger touching the
 // glass) rather than click, which on touchscreens only fires after the finger lifts.
+let lastPointerTap = 0;
 function tapFeedback(e) {
   const btn = e.target.closest && e.target.closest('button');
   if (!btn || btn.disabled) return;
   sfx.click();
   haptics.tap();
 }
-document.addEventListener('pointerdown', tapFeedback, { passive: true });
-// Keyboard-activated buttons (Enter/Space) never get a pointerdown; their click has detail 0.
+document.addEventListener(
+  'pointerdown',
+  (e) => {
+    // Only the primary finger / left mouse button, so a second finger or right-click doesn't re-fire.
+    if (!e.isPrimary || e.button !== 0) return;
+    lastPointerTap = Date.now();
+    tapFeedback(e);
+  },
+  { passive: true }
+);
+// Keyboard-activated buttons (Enter/Space) never get a pointerdown. Some mobile browsers
+// also report detail 0 on the click that follows a tap, so ignore clicks right after one.
 document.addEventListener('click', (e) => {
-  if (e.detail === 0) tapFeedback(e);
+  if (e.detail !== 0 || Date.now() - lastPointerTap < 1000) return;
+  tapFeedback(e);
 });
 
 joinBtn.addEventListener('click', () => {
