@@ -45,6 +45,14 @@ const bfCheckPicked = document.getElementById('bf-check-picked');
 const bfCheckRanks = document.getElementById('bf-check-ranks');
 const bfCheckCancelBtn = document.getElementById('bf-check-cancel-btn');
 const bfCheckSubmitBtn = document.getElementById('bf-check-submit-btn');
+const bfEditOpenBtn = document.getElementById('bf-edit-open-btn');
+const bfEditPanel = document.getElementById('bf-edit-panel');
+const bfEditHint = document.getElementById('bf-edit-hint');
+const bfEditList = document.getElementById('bf-edit-list');
+const bfEditError = document.getElementById('bf-edit-error');
+const bfEditActions = document.getElementById('bf-edit-actions');
+const bfEditCancelBtn = document.getElementById('bf-edit-cancel-btn');
+const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
 
 const BF_RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 // Mirrors server/games/bluffHands.js - the server re-validates.
@@ -351,16 +359,79 @@ function applyCheck(check) {
   renderCheckCountdown();
 }
 
+/** name -> current draft count +/- buttons post to, while an edit is in progress. */
+function adjustEditCount(name, delta) {
+  bfEditError.textContent = '';
+  ctx.socket.emit('bfAdjustEditCount', { name, delta }, (res) => {
+    if (res && !res.ok) bfEditError.textContent = res.error;
+  });
+}
+
+/** Host-only "Edit card counts" entry button + the draft list, visible to everyone once open. */
+function renderEditPanel(data) {
+  const isHost = ctx.getIsHost();
+  bfEditOpenBtn.classList.toggle('hidden', !data.canEdit || bfBuilderOpen);
+
+  if (!data.editing) {
+    bfEditPanel.classList.add('hidden');
+    return;
+  }
+  bfEditPanel.classList.remove('hidden');
+  bfEditHint.textContent = isHost
+    ? 'Tap − / + to adjust, then Ready to deal the next round.'
+    : 'The host is adjusting card counts…';
+  bfEditActions.classList.toggle('hidden', !isHost);
+
+  const counts = data.editCounts || {};
+  bfEditList.innerHTML = '';
+  (data.seats || []).forEach((seat) => {
+    const li = document.createElement('li');
+    li.className = 'bf-edit-row';
+    const name = document.createElement('span');
+    name.className = 'bf-edit-name';
+    name.textContent = seat.name;
+    li.appendChild(name);
+
+    if (isHost) {
+      const minus = document.createElement('button');
+      minus.type = 'button';
+      minus.className = 'bf-edit-step-btn';
+      minus.textContent = '−';
+      minus.addEventListener('click', () => adjustEditCount(seat.name, -1));
+      li.appendChild(minus);
+    }
+
+    const count = document.createElement('span');
+    count.className = 'bf-edit-count';
+    count.textContent = counts[seat.name] || 0;
+    li.appendChild(count);
+
+    if (isHost) {
+      const plus = document.createElement('button');
+      plus.type = 'button';
+      plus.className = 'bf-edit-step-btn';
+      plus.textContent = '+';
+      plus.addEventListener('click', () => adjustEditCount(seat.name, 1));
+      li.appendChild(plus);
+    }
+
+    bfEditList.appendChild(li);
+  });
+}
+
 function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
+  bfEditError.textContent = '';
   runResultSequence(data);
   applyCheck(data.check);
+  renderEditPanel(data);
 
-  // Host can check the called cards while a round is live and no check is counting down.
+  // Host can check the called cards while a round is live, no check is counting down,
+  // and no card-count edit is in progress (bfEditing blocks bfCheckHand server-side too).
   const isHost = ctx.getIsHost();
   const checkCounting = !!data.check && data.check.present === null;
-  const canCheck = isHost && !data.lastResult && !checkCounting;
+  const canCheck = isHost && !data.lastResult && !checkCounting && !data.editing;
   if (!canCheck && bfBuilderOpen) resetBuilder();
   bfCheckOpenBtn.classList.toggle('hidden', !canCheck || bfBuilderOpen);
   bfCheckOpenBtn.textContent = data.check ? '🔍 Check other cards' : '🔍 Check the called cards';
@@ -410,6 +481,8 @@ function applyState(data) {
     bfDealing = false;
     bfHandledResultKey = null;
     bfTableFelt.classList.remove('bf-dealing');
+    bfEditOpenBtn.classList.add('hidden');
+    bfEditPanel.classList.add('hidden');
   }
 
   if (data.phase === 'seating') {
@@ -484,6 +557,24 @@ export const Bluff = {
       bfCheckBuilder.classList.add('hidden');
     });
 
+    bfEditOpenBtn.addEventListener('click', () => {
+      bfEditError.textContent = '';
+      socket.emit('bfStartEdit', (res) => {
+        if (res && !res.ok) bfEditError.textContent = res.error;
+      });
+    });
+
+    bfEditCancelBtn.addEventListener('click', () => {
+      socket.emit('bfCancelEdit', () => {});
+    });
+
+    bfEditReadyBtn.addEventListener('click', () => {
+      bfEditError.textContent = '';
+      socket.emit('bfConfirmEdit', (res) => {
+        if (res && !res.ok) bfEditError.textContent = res.error;
+      });
+    });
+
     bfBackBtn.addEventListener('click', () => {
       socket.emit('backToLobby', () => {});
     });
@@ -514,5 +605,8 @@ export const Bluff = {
     if (bfSeatingError) bfSeatingError.textContent = '';
     if (bfTableError) bfTableError.textContent = '';
     if (bfResetError) bfResetError.textContent = '';
+    if (bfEditError) bfEditError.textContent = '';
+    if (bfEditOpenBtn) bfEditOpenBtn.classList.add('hidden');
+    if (bfEditPanel) bfEditPanel.classList.add('hidden');
   },
 };

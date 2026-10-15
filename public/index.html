@@ -248,6 +248,8 @@
       <div id="cn-grid" class="cn-grid"></div>
       <button id="cn-start-timer-btn" class="hidden">Start Timer</button>
       <button id="cn-end-turn-btn" class="secondary hidden">End Turn</button>
+      <button id="cn-restart-btn" class="secondary hidden" type="button">Restart Round</button>
+      <p id="cn-restart-error" class="error hidden"></p>
     </section>
 
     <section id="codenames-gameover-screen" class="screen hidden">
@@ -627,6 +629,17 @@
           <div class="btn-row">
             <button id="bf-check-cancel-btn" class="secondary" type="button">Cancel</button>
             <button id="bf-check-submit-btn" type="button" disabled>Check!</button>
+          </div>
+        </div>
+        <button id="bf-edit-open-btn" class="secondary hidden" type="button">✏️ Edit card counts</button>
+        <div id="bf-edit-panel" class="bf-edit-panel hidden">
+          <h2 class="mf-section-heading">Adjust card counts</h2>
+          <p id="bf-edit-hint" class="muted"></p>
+          <ul id="bf-edit-list" class="bf-edit-list"></ul>
+          <p id="bf-edit-error" class="error"></p>
+          <div id="bf-edit-actions" class="btn-row hidden">
+            <button id="bf-edit-cancel-btn" class="secondary" type="button">Cancel</button>
+            <button id="bf-edit-ready-btn" type="button">Ready</button>
           </div>
         </div>
         <h2 class="mf-section-heading">Your hand</h2>

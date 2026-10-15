@@ -102,6 +102,8 @@ function createRoomState() {
     bfHands: {}, // name -> this round's dealt cards (NOT persisted, see ROOM_SAVED_FIELDS below)
     bfLastResult: null, // { loserName, newCount, eliminated } during the highlight/deal pause (NOT persisted)
     bfCheck: null, // { id, ranks, label, revealAt, present } for the host's "are the called cards there?" check (NOT persisted)
+    bfEditing: false, // host is adjusting card counts via Edit Game (NOT persisted)
+    bfEditCounts: {}, // name -> draft count while bfEditing (NOT persisted)
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)

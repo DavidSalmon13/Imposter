@@ -84,6 +84,19 @@ lobby (shared) → team-select → generating → playing → gameover
 - Keeps the same teams and leaders, deals a fresh 25-word board, alternates the starting team, resets to `generating` → `playing`.
 - Score persists across Play Again rounds.
 
+## Restart Round (mid-game, host-only)
+
+- Available only during `playing` (not `teamSelect`, `generating`, or `gameover` - that's
+  what Play Again is for). A **host-only "Restart Round" button**, behind a confirm
+  dialog since it discards the live board.
+- Same validation as Start/Play Again (both teams still at least 2 players including a
+  leader), then deals a fresh board to the **same teams and leaders**.
+- Unlike Play Again, the starting team does **not** alternate - the round never
+  properly finished, so no team "used" a turn - and no score changes (no winner was
+  ever decided).
+- Meant for a mis-tap or an in-person dispute over the board, not a normal way to end a
+  round.
+
 ## Back to Lobby (ending the session)
 
 - Host-only action (from team-select or game-over).

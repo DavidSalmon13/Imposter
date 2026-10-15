@@ -48,6 +48,13 @@ function clearState(room, roomCode) {
   room.bfHands = {};
   room.bfLastResult = null;
   room.bfCheck = null;
+  room.bfEditing = false;
+  room.bfEditCounts = {};
+}
+
+/** A round is dealt and settled - not mid-highlight, not between rounds. */
+function hasActiveRound(room) {
+  return Object.keys(room.bfHands).length > 0 && room.bfLastResult == null;
 }
 
 function activeBluffPlayers(room) {
@@ -136,6 +143,14 @@ function bluffStatePayload(ctx, room, viewerName) {
       connectedCount <= BF_MAX_PLAYERS,
     canResetGame:
       viewerName === room.hostName && (room.phase === 'playing' || room.phase === 'gameover'),
+    canEdit:
+      viewerName === room.hostName &&
+      room.phase === 'playing' &&
+      !room.bfEditing &&
+      hasActiveRound(room) &&
+      !checkPending(room),
+    editing: room.bfEditing,
+    editCounts: room.bfEditing ? { ...room.bfEditCounts } : null,
     ranking: room.phase === 'gameover' ? computeBluffRanking(room) : undefined,
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
   };
@@ -294,6 +309,9 @@ function registerHandlers(ctx, io, socket) {
     if (checkPending(room)) {
       return callback({ ok: false, error: 'Wait for the hand check to finish' });
     }
+    if (room.bfEditing) {
+      return callback({ ok: false, error: 'Finish editing card counts first' });
+    }
 
     const name = data && data.name;
     if (!room.bfPlayers.includes(name) || (room.bfCounts[name] || 0) <= 0) {
@@ -322,6 +340,9 @@ function registerHandlers(ctx, io, socket) {
     }
     if (checkPending(room)) {
       return callback({ ok: false, error: 'Already checking - wait for the result' });
+    }
+    if (room.bfEditing) {
+      return callback({ ok: false, error: 'Finish editing card counts first' });
     }
 
     const ranks = normalizeCalledRanks(data && data.ranks);
@@ -371,10 +392,141 @@ function registerHandlers(ctx, io, socket) {
     room.bfEliminationOrder = [];
     room.bfHands = {};
     room.bfLastResult = null;
+    room.bfEditing = false;
+    room.bfEditCounts = {};
     room.phase = 'seating';
 
     callback({ ok: true });
     broadcastBluff(ctx, roomCode, room);
+  });
+
+  // Host-only correction tool: opens a draft of every player's card count (starting
+  // from their current counts) that only takes effect on bfConfirmEdit - see
+  // specs/bluff-specs.md "Editing card counts mid-match".
+  socket.on('bfStartEdit', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can edit card counts' });
+    }
+    if (room.bfEditing) return callback({ ok: false, error: 'Already editing' });
+    if (!hasActiveRound(room) || checkPending(room)) {
+      return callback({ ok: false, error: 'Wait for the current round to settle first' });
+    }
+
+    room.bfEditing = true;
+    room.bfEditCounts = { ...room.bfCounts };
+    callback({ ok: true });
+    broadcastBluff(ctx, roomCode, room);
+  });
+
+  // +/- one card on a single seat's draft count. Bounded at 0 and by the 52-card deck
+  // (the sum of every seat's draft count can never exceed it).
+  socket.on('bfAdjustEditCount', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || !room.bfEditing) {
+      return callback({ ok: false, error: 'Not editing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can edit card counts' });
+    }
+
+    const name = data && data.name;
+    const delta = Number(data && data.delta);
+    if (!room.bfPlayers.includes(name) || (delta !== 1 && delta !== -1)) {
+      return callback({ ok: false, error: 'Invalid edit' });
+    }
+
+    const next = (room.bfEditCounts[name] || 0) + delta;
+    if (next < 0) return callback({ ok: false, error: 'Out of range' });
+    const totalOthers = Object.entries(room.bfEditCounts).reduce(
+      (sum, [n, c]) => (n === name ? sum : sum + c),
+      0
+    );
+    if (totalOthers + next > 52) return callback({ ok: false, error: 'Not enough cards in the deck' });
+
+    room.bfEditCounts[name] = next;
+    callback({ ok: true });
+    broadcastBluff(ctx, roomCode, room);
+  });
+
+  socket.on('bfCancelEdit', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || !room.bfEditing) {
+      return callback({ ok: false, error: 'Not editing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can edit card counts' });
+    }
+
+    room.bfEditing = false;
+    room.bfEditCounts = {};
+    callback({ ok: true });
+    broadcastBluff(ctx, roomCode, room);
+  });
+
+  // Applies the draft and deals the next round off the adjusted counts - or, if the
+  // edit leaves exactly one player with cards, ends the match the same way a normal
+  // loss would.
+  socket.on('bfConfirmEdit', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || !room.bfEditing) {
+      return callback({ ok: false, error: 'Not editing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can edit card counts' });
+    }
+
+    const nextCounts = room.bfEditCounts;
+    const activeAfter = room.bfPlayers.filter((n) => (nextCounts[n] || 0) > 0);
+    if (activeAfter.length < 1) {
+      return callback({ ok: false, error: 'At least one player needs cards' });
+    }
+
+    // Revived players (edited back above 0) come out of the elimination order; players
+    // the edit newly zeroed go on the end of it, in seat order - keeps the final
+    // ranking (computeBluffRanking) consistent with whatever the host just set.
+    const revived = new Set(
+      room.bfPlayers.filter((n) => (room.bfCounts[n] || 0) === 0 && (nextCounts[n] || 0) > 0)
+    );
+    room.bfEliminationOrder = room.bfEliminationOrder.filter((n) => !revived.has(n));
+    for (const n of room.bfPlayers) {
+      const wasActive = (room.bfCounts[n] || 0) > 0;
+      const isActive = (nextCounts[n] || 0) > 0;
+      if (wasActive && !isActive && !room.bfEliminationOrder.includes(n)) {
+        room.bfEliminationOrder.push(n);
+      }
+    }
+
+    room.bfCounts = { ...nextCounts };
+    room.bfEditing = false;
+    room.bfEditCounts = {};
+    clearBluffTimer(roomCode);
+    clearCheckTimer(roomCode);
+    room.bfCheck = null;
+    callback({ ok: true });
+
+    if (activeAfter.length === 1) {
+      room.bfHands = {};
+      room.bfLastResult = null;
+      finishBluffMatch(ctx, roomCode, room);
+    } else {
+      dealBluffRound(ctx, roomCode, room);
+    }
   });
 }
 

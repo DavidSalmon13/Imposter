@@ -139,6 +139,35 @@ called are actually there among **every active player's cards pooled together**.
 - `room.bfCheck` (`{ id, ranks, label, revealAt, present }`) is **not persisted**, like
   `bfHands`: after a restart the round is re-dealt, so any check is moot.
 
+## Editing card counts mid-match (host-controlled)
+
+A correction tool for when the app's tracked counts drift from reality (a miscounted
+hand, a card dropped on the floor, etc.) - not a gameplay mechanic.
+
+- Host taps **"Edit card counts"**, available whenever a round is live (hands dealt,
+  no pending loser-pick result, no hand check counting down) - same availability rule
+  as picking a round's loser. Unavailable during a check or the highlight/deal-
+  animation window.
+- This opens a **draft** of every seat's count, starting from their current counts.
+  Every connected client sees the draft list live (read-only for everyone but the
+  host) with a banner that the host is adjusting counts.
+- The host taps **−/+ next to any seat** (including eliminated ones, to revive them)
+  to adjust that seat's draft count by one. Bounded at 0, and the draft counts across
+  every seat can never together exceed 52 (the deck size).
+- **Cancel** discards the draft and returns to the normal round-table view, nothing
+  changes.
+- **Ready** applies the draft as the new `bfCounts` and immediately deals the next
+  round off them (a fresh `dealBluffRound`, round number increments as normal) - unless
+  the edit leaves exactly one player with cards, in which case the match ends the same
+  way a normal loss would (that lone player wins). At least one player must end up
+  with cards, or Ready is rejected.
+  - A player the edit brought back above 0 (revived) is removed from the elimination
+    order. A player the edit brought down to exactly 0 (manually eliminated) is added
+    to the end of it, in seat order - keeping the final ranking consistent with
+    whatever the host just set.
+- While editing is open, the normal round actions (picking a loser, checking called
+  cards) are blocked for the host until Cancel or Ready.
+
 ## Ending the match & scoreboard integration
 
 - The lone player with cards remaining is the **winner**.
@@ -183,6 +212,9 @@ called are actually there among **every active player's cards pooled together**.
 - `room.bfLastResult`: `{ loserName, newCount, eliminated }` for the brief highlight/animation
   window between a loser pick and the next deal — **not persisted**, cleared the moment the
   next round deals.
+- `room.bfEditing`: whether the host currently has the "Edit card counts" draft open —
+  **not persisted**; a server restart mid-edit just drops back to normal play.
+- `room.bfEditCounts`: name → draft count while `bfEditing` — **not persisted**.
 
 `ROOM_SAVED_FIELDS` includes `bfPlayers`, `bfCounts`, `bfRoundNumber`, `bfEliminationOrder` —
 enough to resume a match cleanly after a restart. `bfHands`/`bfLastResult` are deliberately

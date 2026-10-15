@@ -6,6 +6,7 @@
 import { capitalize, formatCnTimer } from '../shared/format.js';
 import { renderScoreboard } from '../shared/scoreboard.js';
 import { selectChip } from '../shared/dom.js';
+import { confirmDialog } from '../shared/confirmDialog.js';
 
 const redList = document.getElementById('red-list');
 const blueList = document.getElementById('blue-list');
@@ -32,6 +33,8 @@ const cnGrid = document.getElementById('cn-grid');
 const cnEndTurnBtn = document.getElementById('cn-end-turn-btn');
 const cnTimerDisplay = document.getElementById('cn-timer-display');
 const cnStartTimerBtn = document.getElementById('cn-start-timer-btn');
+const cnRestartBtn = document.getElementById('cn-restart-btn');
+const cnRestartError = document.getElementById('cn-restart-error');
 
 const cnWinnerTitle = document.getElementById('cn-winner-title');
 const cnFinalScore = document.getElementById('cn-final-score');
@@ -179,7 +182,9 @@ function applyCodenamesState(data) {
     renderScoreboard(cnScoreboard, data.scoreboard || []);
     cnPlayAgainBtn.classList.toggle('hidden', !isLeader);
     cnPlayAgainWaiting.classList.toggle('hidden', isLeader);
+    cnRestartBtn.classList.add('hidden');
   } else {
+    cnRestartBtn.classList.toggle('hidden', !ctx.getIsHost());
     const mine = data.activeTeam === myTeam;
     cnTurnLabel.textContent = mine
       ? `${capitalize(data.activeTeam)}'s turn (yours!)`
@@ -285,6 +290,18 @@ export const Codenames = {
       socket.emit('endTurn', () => {});
     });
 
+    cnRestartBtn.addEventListener('click', async () => {
+      cnRestartError.textContent = '';
+      const ok = await confirmDialog(
+        'The current board will be discarded and a fresh one dealt to the same teams.',
+        { title: 'Restart this round?', confirmLabel: 'Restart', danger: true }
+      );
+      if (!ok) return;
+      socket.emit('restartCodenamesRound', (res) => {
+        if (res && !res.ok) cnRestartError.textContent = res.error;
+      });
+    });
+
     cnPlayAgainBtn.addEventListener('click', () => {
       socket.emit('playAgainCodenames', () => {});
     });
@@ -338,5 +355,6 @@ export const Codenames = {
     cnTurnEndsAt = null;
     cnTeamError.textContent = '';
     cnNameBankError.textContent = '';
+    cnRestartError.textContent = '';
   },
 };

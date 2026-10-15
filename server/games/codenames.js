@@ -623,14 +623,38 @@ function registerHandlers(ctx, io, socket) {
     if (room.game !== 'codenames' || room.phase !== 'gameover') {
       return callback({ ok: false, error: 'Game is not over yet' });
     }
-    if (socket.data.name !== room.hostName) {
-      return callback({ ok: false, error: 'Only the host can play again' });
+    const player = room.players.get(socket.data.name);
+    if (!player || !player.leader) {
+      return callback({ ok: false, error: 'Only a team leader can play again' });
     }
     if (!cnTeamValid(ctx, room, 'red') || !cnTeamValid(ctx, room, 'blue')) {
       return callback({ ok: false, error: 'Both teams need at least 2 players including a leader' });
     }
 
     room.cnStartingTeam = room.cnStartingTeam === 'red' ? 'blue' : 'red';
+    callback({ ok: true });
+    generateCodenamesRound(ctx, roomCode, room);
+  });
+
+  // Host-only: abandon the current board mid-round and deal a fresh one to the same
+  // teams/leaders, e.g. after a mis-tap or a dispute. Unlike Play Again, the starting
+  // team does NOT alternate - the round never properly finished, so nobody "used" a
+  // starting-team turn. No score change either (no winner was ever decided).
+  socket.on('restartCodenamesRound', (callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can restart the round' });
+    }
+    if (!cnTeamValid(ctx, room, 'red') || !cnTeamValid(ctx, room, 'blue')) {
+      return callback({ ok: false, error: 'Both teams need at least 2 players including a leader' });
+    }
+
     callback({ ok: true });
     generateCodenamesRound(ctx, roomCode, room);
   });
