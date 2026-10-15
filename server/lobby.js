@@ -12,7 +12,13 @@ const {
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
-const { canUseSticker, accountStickerForClient, setAccountStickerForClient } = require('./accounts');
+const {
+  canUseSticker,
+  accountStickerForClient,
+  setAccountStickerForClient,
+  isSignedInClient,
+  playerCardForClient,
+} = require('./accounts');
 const stats = require('./stats');
 
 // Single shared room for now - no room codes to create or join, everyone
@@ -47,6 +53,15 @@ function connectedStickers(room) {
   return out;
 }
 
+// name -> true, only for connected players whose device is linked to a signed-in account.
+function connectedSignedIn(room) {
+  const out = {};
+  for (const [name, p] of room.players.entries()) {
+    if (p.connected && p.signedIn) out[name] = true;
+  }
+  return out;
+}
+
 function scoreboardEntries(room) {
   return Object.entries(room.scoreboard || {})
     .map(([name, points]) => ({ name, points: Number(points) || 0 }))
@@ -63,6 +78,7 @@ function broadcastLobby(roomCode, room) {
   roomEmit(roomCode, 'lobbyUpdate', {
     players: connectedNames(room),
     playerStickers: connectedStickers(room),
+    playerSignedIn: connectedSignedIn(room),
     host: room.hostName,
     roomCode,
     scoreboard: scoreboardEntries(room),
@@ -114,6 +130,7 @@ function reconnectPayload(room, existing) {
     phase: 'lobby',
     players: connectedNames(room),
     playerStickers: connectedStickers(room),
+    playerSignedIn: connectedSignedIn(room),
     host: room.hostName,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
@@ -130,7 +147,7 @@ function getSharedRoom() {
   return room;
 }
 
-function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
+function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, signedIn) {
   const room = rooms.get(roomCode);
   if (!room) return callback({ ok: false, error: 'Room not found' });
 
@@ -141,6 +158,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
     // also doubles as how a picker change made via `changeSticker` survives a
     // dropped connection.
     if (sticker !== undefined) existing.sticker = sticker;
+    if (signedIn !== undefined) existing.signedIn = signedIn;
     let staleSocket = null;
     if (existing.connected) {
       // The `connected` flag can lag behind reality for up to ~45s (socket.io's
@@ -200,6 +218,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker) {
     connected: true,
     clientId: clientId || null,
     sticker: sticker || null,
+    signedIn: signedIn || false,
     role: null,
     word: null,
     hint: null,
@@ -274,6 +293,7 @@ function registerLobbyHandlers(socket) {
     // A badge sticker this player hasn't unlocked is dropped (joining still succeeds).
     const sticker =
       isValidSticker(rawSticker) && (await canUseSticker(clientId, rawSticker)) ? rawSticker : null;
+    const signedIn = await isSignedInClient(clientId);
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
@@ -282,7 +302,22 @@ function registerLobbyHandlers(socket) {
     joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, (res) => {
       if (res && res.ok) stats.recordPlayer(clientId, connectedNames(room).length);
       callback(res);
-    }, sticker);
+    }, sticker, signedIn);
+  });
+
+  // Fetches another connected, signed-in player's rating card for the lobby's
+  // click-to-view popup (see the glowing avatar in public/js/main.js's renderLobby).
+  socket.on('viewPlayerCard', async (name, callback) => {
+    callback = callback || (() => {});
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    const player = room.players.get(String(name || ''));
+    if (!player || !player.connected || !player.signedIn) {
+      return callback({ ok: false, error: 'Player card not available' });
+    }
+    const result = await playerCardForClient(player.clientId);
+    if (!result) return callback({ ok: false, error: 'Could not load card' });
+    callback({ ok: true, ...result });
   });
 
   socket.on('changeSticker', async (data, callback) => {

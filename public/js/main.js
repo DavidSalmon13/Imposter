@@ -14,7 +14,7 @@ import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
-import { initAccount, refreshCard, onLockedStickers } from './shared/account.js';
+import { initAccount, refreshCard, onLockedStickers, openPlayerCard } from './shared/account.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -416,7 +416,7 @@ function updateAiofTile() {
   chooseAllInOrFoldBtn.classList.toggle('tile-underfilled', !rejoin && lastLobbyPlayerCount < AIOF_MIN_PLAYERS);
 }
 
-function renderLobby(players, scoreboard, playerStickers) {
+function renderLobby(players, scoreboard, playerStickers, playerSignedIn) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
@@ -431,6 +431,18 @@ function renderLobby(players, scoreboard, playerStickers) {
       avatar = document.createElement('span');
       avatar.className = 'player-emoji';
       avatar.textContent = emojiForName(n);
+    }
+    if (playerSignedIn && playerSignedIn[n]) {
+      avatar.classList.add('player-avatar-signedin');
+      avatar.setAttribute('role', 'button');
+      avatar.setAttribute('tabindex', '0');
+      avatar.title = `View ${n}'s card`;
+      avatar.addEventListener('click', () => openPlayerCard(n));
+      avatar.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        openPlayerCard(n);
+      });
     }
     const label = document.createElement('span');
     label.textContent = n === currentHostName ? `${n} (host)` : n;
@@ -527,7 +539,7 @@ function routeFromJoin(res) {
 
   applyWordLanguage(res.wordLanguage);
   applyWordTheme(res.wordTheme);
-  renderLobby(res.players || [], res.scoreboard || [], res.playerStickers || {});
+  renderLobby(res.players || [], res.scoreboard || [], res.playerStickers || {}, res.playerSignedIn || {});
   showScreen('lobby');
 }
 
@@ -750,11 +762,11 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers }) => {
+socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers, playerSignedIn }) => {
   setHost(host);
   applyWordLanguage(lang);
   applyWordTheme(theme);
-  renderLobby(players, scoreboard, playerStickers);
+  renderLobby(players, scoreboard, playerStickers, playerSignedIn);
 });
 
 socket.on('hostUpdate', ({ host }) => {

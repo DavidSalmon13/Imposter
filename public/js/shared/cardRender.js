@@ -4,6 +4,58 @@
  * (public/js/account-page.js), so neither duplicates the other's markup.
  */
 
+const RATING_STATS = ['SPD', 'COM', 'STR', 'TAC', 'NRV', 'DEC'];
+
+/**
+ * Builds a standalone FIFA Ultimate Team-style rating card element for `user`/`card`
+ * (same shape GET /api/me returns) - used by the lobby's click-to-view popup
+ * (public/js/shared/account.js). The full account page (account-page.js) renders its
+ * own copy into fixed page elements instead of using this.
+ */
+export function buildRatingCard(user, card) {
+  const ratings = (card && card.ratings) || { ovr: 50, tier: 'bronze', stats: {} };
+  const strongGold = ratings.tier === 'gold' && ratings.ovr >= 85;
+  const el = document.createElement('div');
+  el.className = `rating-card rating-card-${ratings.tier}${strongGold ? ' rating-card-gold-strong' : ''}`;
+
+  const top = document.createElement('div');
+  top.className = 'rating-card-top';
+  if (user && user.sticker) {
+    const img = document.createElement('img');
+    img.className = 'rating-photo';
+    img.src = `images/stickers/${user.sticker}`;
+    img.alt = '';
+    top.appendChild(img);
+  }
+  const ovr = document.createElement('span');
+  ovr.className = 'rating-ovr';
+  ovr.textContent = ratings.ovr;
+  top.appendChild(ovr);
+  el.appendChild(top);
+
+  const name = document.createElement('p');
+  name.className = 'rating-name';
+  name.textContent = (user && user.name) || '';
+  el.appendChild(name);
+
+  const stats = document.createElement('div');
+  stats.className = 'rating-stats';
+  for (const stat of RATING_STATS) {
+    const wrap = document.createElement('div');
+    wrap.className = 'rating-stat';
+    const val = document.createElement('span');
+    val.className = 'rating-stat-val';
+    val.textContent = ratings.stats[stat] ?? 50;
+    const abbr = document.createElement('span');
+    abbr.className = 'rating-stat-abbr';
+    abbr.textContent = stat;
+    wrap.append(val, abbr);
+    stats.appendChild(wrap);
+  }
+  el.appendChild(stats);
+  return el;
+}
+
 export const GAME_LABELS = {
   imposter: '🕵️ Imposter',
   codenames: '🔴🔵 Codenames',

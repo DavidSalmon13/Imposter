@@ -9,7 +9,7 @@
  * The whole feature stays inert when the server has no database (GET /api/auth/config).
  */
 
-import { badgeArt } from './cardRender.js';
+import { badgeArt, buildRatingCard } from './cardRender.js';
 import { sfx, haptics } from '../fx.js';
 
 const cardBtn = document.getElementById('card-btn');
@@ -20,6 +20,7 @@ let getClientId = () => '';
 let historyEnabled = false;
 let signedIn = false;
 let lockListener = null;
+let socketRef = null;
 
 /** cb(Map sticker -> badge name) whenever the set of locked stickers is (re)loaded. */
 export function onLockedStickers(cb) {
@@ -138,8 +139,60 @@ export async function refreshCard() {
   }
 }
 
+/** Closes any open player-card popup, if one is showing. */
+function closePlayerCardModal() {
+  const existing = document.querySelector('.player-card-overlay');
+  if (existing) existing.remove();
+}
+
+function showPlayerCardModal(user, card) {
+  closePlayerCardModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay player-card-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'confirm-panel player-card-panel';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'player-card-close';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.textContent = '✕';
+  closeBtn.addEventListener('click', closePlayerCardModal);
+  panel.appendChild(closeBtn);
+
+  panel.appendChild(buildRatingCard(user, card));
+  overlay.appendChild(panel);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closePlayerCardModal();
+  });
+  function onKey(e) {
+    if (e.key !== 'Escape') return;
+    document.removeEventListener('keydown', onKey);
+    closePlayerCardModal();
+  }
+  document.addEventListener('keydown', onKey);
+
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Opens a popup with `name`'s rating card - called when a lobby player taps a glowing
+ * (signed-in) avatar, see renderLobby in public/js/main.js. No-ops quietly if the
+ * player isn't signed in or the card can't be loaded (e.g. they just disconnected).
+ */
+export function openPlayerCard(name) {
+  if (!socketRef) return;
+  socketRef.emit('viewPlayerCard', name, (res) => {
+    if (!res || !res.ok) return;
+    showPlayerCardModal(res.user, res.card);
+  });
+}
+
 export async function initAccount(clientIdGetter, socket) {
   getClientId = clientIdGetter;
+  socketRef = socket;
 
   socket.on('badgesEarned', ({ badges }) => {
     if (badges && badges.length) showBadgeToast(badges);

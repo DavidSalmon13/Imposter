@@ -469,6 +469,27 @@ button.secondary:active:not(:disabled) {
   flex: none;
 }
 
+/* Signed-in players get a glowing ring on their lobby avatar, tappable to view their card. */
+@keyframes signedin-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffd54a, 0 0 8px 2px rgba(255, 213, 74, 0.55); }
+  50% { box-shadow: 0 0 0 2px #ffe27a, 0 0 14px 5px rgba(255, 213, 74, 0.85); }
+}
+
+.player-emoji.player-avatar-signedin,
+.player-emoji-img.player-avatar-signedin {
+  cursor: pointer;
+  border-radius: 50%;
+  animation: signedin-glow-pulse 2.2s ease-in-out infinite;
+}
+
+.player-emoji.player-avatar-signedin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
 .sticker-picker-label {
   margin-top: 0.4rem;
 }
@@ -3752,6 +3773,27 @@ button.confirm-danger {
   color: var(--muted);
   font-weight: 600;
   text-align: center;
+}
+
+/* Lobby click-to-view popup for another player's rating card (public/js/shared/account.js). */
+.player-card-panel {
+  position: relative;
+  padding-top: 2.2rem;
+}
+
+.player-card-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--glass-bg-strong);
+  color: var(--bark);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .history-table {

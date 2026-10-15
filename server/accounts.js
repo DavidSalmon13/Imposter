@@ -367,6 +367,44 @@ async function accountStickerForClient(clientId) {
   }
 }
 
+/** Whether this device is linked to a signed-in account. False if unlinked/no DB. */
+async function isSignedInClient(clientId) {
+  const id = cleanClientId(clientId);
+  if (!id || !db.isEnabled()) return false;
+  try {
+    const { rows } = await db.query(
+      `SELECT 1 FROM players WHERE client_id = $1 AND user_id IS NOT NULL`,
+      [id]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    console.error('Signed-in check failed:', err.message);
+    return false;
+  }
+}
+
+/**
+ * The public profile + lifetime Player Card for the account `clientId` is linked to, for
+ * showing another player's rating card from the lobby. Null if unlinked/no DB/not found.
+ */
+async function playerCardForClient(clientId) {
+  const id = cleanClientId(clientId);
+  if (!id || !db.isEnabled()) return null;
+  try {
+    const { rows } = await db.query(
+      `SELECT u.id, u.display_name, u.avatar_url, u.sticker
+         FROM players p JOIN users u ON u.id = p.user_id WHERE p.client_id = $1`,
+      [id]
+    );
+    if (!rows.length) return null;
+    const user = rows[0];
+    return { user: publicUser(user), card: await playerCard({ userId: user.id }) };
+  } catch (err) {
+    console.error('Player card lookup failed:', err.message);
+    return null;
+  }
+}
+
 /** Persists `sticker` as the account's sticker, if `clientId` is linked to one. No-op otherwise. */
 async function setAccountStickerForClient(clientId, sticker) {
   const id = cleanClientId(clientId);
@@ -664,5 +702,7 @@ module.exports = {
   canUseSticker,
   accountStickerForClient,
   setAccountStickerForClient,
+  isSignedInClient,
+  playerCardForClient,
   startCleanup,
 };
