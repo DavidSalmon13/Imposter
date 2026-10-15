@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Account - Shorot</title>
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+  <meta name="theme-color" content="#341008" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <img class="app-logo" src="images/logo-shorot.png" alt="Shorot" />
+  </header>
+
+  <main class="app-main">
+    <section class="screen account-screen">
+      <h1 class="account-title">My Account</h1>
+
+      <div id="acct-guest" class="card-guest hidden">
+        <p class="muted">Sign in with Google to keep your stats forever, on any device.</p>
+        <div id="acct-google-btn" class="google-signin-btn"></div>
+      </div>
+      <p id="acct-name" class="card-name hidden"></p>
+
+      <div id="acct-rating-card" class="rating-card hidden">
+        <div class="rating-card-top">
+          <img id="acct-card-sticker" class="rating-photo" alt="" />
+          <span id="acct-ovr" class="rating-ovr"></span>
+        </div>
+        <p id="acct-card-name" class="rating-name"></p>
+        <div class="rating-stats">
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-SPD"></span><span class="rating-stat-abbr">SPD</span></div>
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-COM"></span><span class="rating-stat-abbr">COM</span></div>
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-STR"></span><span class="rating-stat-abbr">STR</span></div>
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-TAC"></span><span class="rating-stat-abbr">TAC</span></div>
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-NRV"></span><span class="rating-stat-abbr">NRV</span></div>
+          <div class="rating-stat"><span class="rating-stat-val" id="acct-stat-DEC"></span><span class="rating-stat-abbr">DEC</span></div>
+        </div>
+      </div>
+      <div id="acct-rating-locked" class="rating-card rating-card-locked hidden">
+        <p>🔒 Sign in to unlock your card</p>
+      </div>
+
+      <div id="acct-sticker-switcher" class="hidden">
+        <h2 class="scoreboard-heading">Your sticker</h2>
+        <div id="acct-sticker-grid" class="sticker-grid"></div>
+        <p id="acct-sticker-error" class="error hidden"></p>
+      </div>
+
+      <p id="acct-summary" class="card-summary"></p>
+
+      <h2 class="scoreboard-heading">Match history</h2>
+      <table class="history-table">
+        <thead><tr><th>Game</th><th>Played</th><th>Won</th><th>Lost</th></tr></thead>
+        <tbody id="acct-history-body"></tbody>
+      </table>
+
+      <h2 id="acct-badges-heading" class="scoreboard-heading hidden">Badges</h2>
+      <div id="acct-badges" class="card-badges"></div>
+      <p id="acct-badge-detail" class="card-badge-detail hidden"></p>
+
+      <h2 id="acct-rivals-heading" class="scoreboard-heading hidden">Rivals</h2>
+      <ul id="acct-rivals" class="card-rivals"></ul>
+
+      <button id="acct-signout-btn" class="secondary hidden" type="button">Sign out</button>
+      <button id="acct-delete-btn" class="card-delete-btn hidden" type="button">Delete my account</button>
+      <p id="acct-error" class="error hidden"></p>
+    </section>
+  </main>
+  <script type="module" src="js/account-page.js"></script>
+</body>
+</html>

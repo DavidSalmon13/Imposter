@@ -3302,28 +3302,15 @@ button.confirm-danger {
   font-size: 0.95rem;
 }
 
-/* Player Card (lobby 👤 dropdown) - see public/js/shared/account.js. */
+/* Account page (public/account.html) - see public/js/account-page.js. */
 /* Same glass panel as the row lists so text stays readable over busy backgrounds. */
-.card-profile,
+.card-name,
 .card-summary,
 .card-guest {
   background: var(--glass-bg-strong);
   border: 2px solid var(--glass-border);
   border-radius: 16px;
   padding: 0.5rem 0.8rem;
-}
-
-.card-profile {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.card-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid var(--bark);
 }
 
 .card-name {
@@ -3334,27 +3321,6 @@ button.confirm-danger {
 .card-summary {
   margin: 0;
   font-weight: 600;
-}
-
-.card-games {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.card-games li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.65rem;
-  background: var(--glass-bg-strong);
-  border: 2px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 0.5rem 0.8rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .card-guest {
@@ -3621,4 +3587,153 @@ button.confirm-danger {
 
 .google-signin-btn {
   min-height: 44px;
+}
+
+/* Account page (public/account.html, public/js/account-page.js). */
+.account-title {
+  margin: 0;
+  text-align: center;
+}
+
+/* FIFA Ultimate Team-style rating card. Tier (bronze/silver/gold) and the brighter
+   "strong gold" variant at OVR 85+ are purely visual - see
+   specs/account-page-specs.md. */
+.rating-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 220px;
+  margin: 0 auto;
+  padding: 1rem 0.8rem 1.1rem;
+  border-radius: 20px;
+  border: 3px solid var(--bark);
+  box-shadow: var(--shadow-lift);
+  background: linear-gradient(160deg, #c08a55 0%, #8a5a30 55%, #5c3a1d 100%);
+}
+
+.rating-card-silver {
+  background: linear-gradient(160deg, #eef2f5 0%, #b9c2cb 55%, #868f98 100%);
+}
+
+.rating-card-gold {
+  background: linear-gradient(160deg, #fff1b8 0%, #f6d27a 45%, #c9993f 100%);
+}
+
+.rating-card-gold-strong {
+  background: linear-gradient(160deg, #fffbe0 0%, #ffe18a 35%, #e8b63c 65%, #a9781f 100%);
+  box-shadow: var(--shadow-lift), 0 0 18px rgba(255, 216, 120, 0.55);
+}
+
+.rating-card-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 96px;
+}
+
+.rating-ovr {
+  position: absolute;
+  left: 0.1rem;
+  top: -0.2rem;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--bark);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.rating-photo {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+}
+
+.rating-name {
+  margin: 0.15rem 0 0;
+  font-weight: 700;
+  color: var(--bark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.rating-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem 0.2rem;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 2px solid rgba(42, 20, 8, 0.25);
+}
+
+.rating-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rating-stat-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--bark);
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-stat-abbr {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--bark);
+  opacity: 0.75;
+}
+
+.rating-card-locked {
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  background: var(--glass-bg-strong);
+  border: 2px dashed var(--glass-border);
+}
+
+.rating-card-locked p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.history-table th {
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 2px solid var(--glass-border);
+}
+
+.history-table td:not(:first-child),
+.history-table th:not(:first-child) {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
 }

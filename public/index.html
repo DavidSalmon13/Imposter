@@ -124,7 +124,7 @@
       <div class="icon-row">
         <button id="rename-btn" class="icon-btn" type="button" title="Change my name" aria-label="Change my name">✏️</button>
         <button id="sticker-btn" class="icon-btn" type="button" title="Change my sticker" aria-label="Change my sticker">🧸</button>
-        <button id="card-btn" class="icon-btn hidden" type="button" title="My Player Card" aria-label="My Player Card">👤</button>
+        <button id="card-btn" class="icon-btn hidden" type="button" title="My Account" aria-label="My Account">👤</button>
         <button id="reset-scoreboard-btn" class="icon-btn" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
         <button id="exit-lobby-btn" class="icon-btn" type="button" title="Exit Lobby" aria-label="Exit Lobby">🚪</button>
       </div>
@@ -135,32 +135,6 @@
             <div id="lobby-sticker-grid" class="sticker-grid"></div>
             <input id="sticker-file-input" type="file" accept="image/*" class="hidden" />
             <p id="sticker-error" class="error hidden"></p>
-          </div>
-        </div>
-      </div>
-      <!-- Hidden (not just collapsed) until accounts are on, so it takes no layout gap. -->
-      <div id="card-dropdown" class="scoreboard-dropdown hidden">
-        <div class="scoreboard-dropdown-inner">
-          <div class="scoreboard-section">
-            <h2 class="scoreboard-heading">My Player Card</h2>
-            <div id="card-profile" class="card-profile hidden">
-              <img id="card-avatar" class="card-avatar hidden" alt="" referrerpolicy="no-referrer" />
-              <span id="card-name" class="card-name"></span>
-            </div>
-            <p id="card-summary" class="card-summary"></p>
-            <ul id="card-games" class="card-games"></ul>
-            <h2 id="card-rivals-heading" class="scoreboard-heading hidden">Rivals</h2>
-            <ul id="card-rivals" class="card-rivals"></ul>
-            <h2 id="card-badges-heading" class="scoreboard-heading hidden">Badges</h2>
-            <div id="card-badges" class="card-badges"></div>
-            <p id="card-badge-detail" class="card-badge-detail hidden"></p>
-            <div id="card-guest" class="card-guest hidden">
-              <p class="muted">Sign in with Google to keep your stats forever, on any device.</p>
-              <div id="google-signin-btn" class="google-signin-btn"></div>
-            </div>
-            <button id="card-signout-btn" class="secondary hidden" type="button">Sign out</button>
-            <button id="card-delete-btn" class="card-delete-btn hidden" type="button">Delete my account</button>
-            <p id="card-error" class="error hidden"></p>
           </div>
         </div>
       </div>

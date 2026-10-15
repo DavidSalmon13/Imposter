@@ -12,7 +12,7 @@ const {
 const { saveRoomsToDisk } = require('./persistence');
 const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
-const { canUseSticker } = require('./accounts');
+const { canUseSticker, accountStickerForClient, setAccountStickerForClient } = require('./accounts');
 const stats = require('./stats');
 
 // Single shared room for now - no room codes to create or join, everyone
@@ -268,7 +268,9 @@ function registerLobbyHandlers(socket) {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
     const clientId = String((data && data.clientId) || '').slice(0, 64);
-    const rawSticker = data && data.sticker;
+    // A signed-in account's sticker wins over whatever this device last had locally -
+    // see "Sticker unification" in specs/account-page-specs.md.
+    const rawSticker = (await accountStickerForClient(clientId)) || (data && data.sticker);
     // A badge sticker this player hasn't unlocked is dropped (joining still succeeds).
     const sticker =
       isValidSticker(rawSticker) && (await canUseSticker(clientId, rawSticker)) ? rawSticker : null;
@@ -303,6 +305,9 @@ function registerLobbyHandlers(socket) {
     // Empty/invalid clears back to the emoji fallback rather than erroring - "no sticker"
     // is always a valid choice, not just an invalid one.
     player.sticker = isValidSticker(rawSticker) ? rawSticker : null;
+    // Best-effort: if this device is signed in, keep the account's sticker in sync too,
+    // same as recordGameResult treats the database elsewhere.
+    setAccountStickerForClient(player.clientId, player.sticker);
 
     broadcastLobby(roomCode, room);
     callback({ ok: true, sticker: player.sticker });

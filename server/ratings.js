@@ -1,0 +1,70 @@
+/**
+ * The six-stat rating card (FIFA Ultimate Team-style). Pure function of the `byGame`
+ * shape `playerCard()` in server/accounts.js already computes ({ [gameType]: { played,
+ * won, points } }) - no DB, no HTTP. See specs/account-page-specs.md for the design.
+ *
+ * Music Timeline and Mind Meld deliberately contribute to nothing here, per the
+ * original ask to ignore them for now.
+ */
+
+const STATS = ['SPD', 'COM', 'STR', 'TAC', 'NRV', 'DEC'];
+
+// game -> { STAT: weight }. Primary 1.0, secondary 0.6, tertiary 0.3.
+const GAME_STAT_WEIGHTS = {
+  tenseconds: { SPD: 1.0, NRV: 0.6 },
+  codenames: { COM: 1.0, STR: 0.6 },
+  imposter: { DEC: 1.0, COM: 0.6 },
+  menifot: { TAC: 1.0, STR: 0.6 },
+  allinorfold: { STR: 1.0, NRV: 0.6 },
+  bluff: { NRV: 1.0, TAC: 0.6, COM: 0.3 },
+};
+
+const CONFIDENCE_GAMES = 8;
+const BASELINE = 50;
+const MAX_RATING = 99;
+
+/** 0-99 performance score for one game type the player has played at least once. */
+function perf({ played, won }) {
+  if (!played) return null;
+  const winRate = won / played;
+  const confidence = Math.min(1, played / CONFIDENCE_GAMES);
+  const raw = winRate * MAX_RATING;
+  return BASELINE + (raw - BASELINE) * confidence;
+}
+
+function tierFor(ovr) {
+  if (ovr < 65) return 'bronze';
+  if (ovr < 75) return 'silver';
+  return 'gold';
+}
+
+/**
+ * byGame: { [gameType]: { played, won, points } } (points unused here).
+ * Returns { ovr, tier, stats: { SPD, COM, STR, TAC, NRV, DEC } }, each stat and ovr
+ * rounded to an integer in [0, 99].
+ */
+function computeRatings(byGame) {
+  const perfByGame = {};
+  for (const [gameType, weights] of Object.entries(GAME_STAT_WEIGHTS)) {
+    const g = byGame[gameType];
+    if (g && g.played) perfByGame[gameType] = perf(g);
+  }
+
+  const stats = {};
+  for (const stat of STATS) {
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (const [gameType, weights] of Object.entries(GAME_STAT_WEIGHTS)) {
+      const w = weights[stat];
+      if (!w || !(gameType in perfByGame)) continue;
+      weightedSum += perfByGame[gameType] * w;
+      weightTotal += w;
+    }
+    stats[stat] = Math.round(weightTotal ? weightedSum / weightTotal : BASELINE);
+  }
+
+  const ovr = Math.round(STATS.reduce((sum, s) => sum + stats[s], 0) / STATS.length);
+  return { ovr, tier: tierFor(ovr), stats };
+}
+
+module.exports = { computeRatings, GAME_STAT_WEIGHTS, STATS };

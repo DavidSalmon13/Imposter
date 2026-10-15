@@ -15,6 +15,8 @@ const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
 const { BADGES, publicBadge } = require('./badges');
+const { computeRatings } = require('./ratings');
+const { isValidSticker } = require('./stickers');
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const SESSION_COOKIE = 'shorot_session';
@@ -53,7 +55,7 @@ async function userFromRequest(req) {
   const token = readCookie(req, SESSION_COOKIE);
   if (!token) return null;
   const { rows } = await db.query(
-    `SELECT u.id, u.display_name, u.email, u.avatar_url
+    `SELECT u.id, u.display_name, u.email, u.avatar_url, u.sticker
        FROM auth_sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = $1 AND s.expires_at > now()`,
     [hashToken(token)]
@@ -320,6 +322,20 @@ for (const b of BADGES) {
  * every other sticker is free. Fails open: no database, or a database error, means
  * nothing is locked.
  */
+/** Same check as canUseSticker(), from a scope (see scopeFor()) instead of a clientId. */
+async function canUseStickerForScope(scope, sticker) {
+  const badgeIds = BADGE_STICKERS.get(sticker);
+  if (!badgeIds || !db.isEnabled()) return true;
+  if (!scope) return false;
+  try {
+    const earned = await earnedBadgeIds(scope);
+    return badgeIds.some((b) => earned.has(b));
+  } catch (err) {
+    console.error('Sticker unlock check failed:', err.message);
+    return true;
+  }
+}
+
 async function canUseSticker(clientId, sticker) {
   const badgeIds = BADGE_STICKERS.get(sticker);
   if (!badgeIds || !db.isEnabled()) return true;
@@ -328,11 +344,40 @@ async function canUseSticker(clientId, sticker) {
   try {
     const { rows } = await db.query('SELECT user_id FROM players WHERE client_id = $1', [id]);
     if (!rows.length) return false;
-    const earned = await earnedBadgeIds(scopeFor({ userId: rows[0].user_id, clientId: id }));
-    return badgeIds.some((b) => earned.has(b));
+    return canUseStickerForScope(scopeFor({ userId: rows[0].user_id, clientId: id }), sticker);
   } catch (err) {
     console.error('Sticker unlock check failed:', err.message);
     return true;
+  }
+}
+
+/** The signed-in account's sticker for this device, or null if unlinked/unset/no DB. */
+async function accountStickerForClient(clientId) {
+  const id = cleanClientId(clientId);
+  if (!id || !db.isEnabled()) return null;
+  try {
+    const { rows } = await db.query(
+      `SELECT u.sticker FROM players p JOIN users u ON u.id = p.user_id WHERE p.client_id = $1`,
+      [id]
+    );
+    return (rows[0] && rows[0].sticker) || null;
+  } catch (err) {
+    console.error('Account sticker lookup failed:', err.message);
+    return null;
+  }
+}
+
+/** Persists `sticker` as the account's sticker, if `clientId` is linked to one. No-op otherwise. */
+async function setAccountStickerForClient(clientId, sticker) {
+  const id = cleanClientId(clientId);
+  if (!id || !db.isEnabled()) return;
+  try {
+    await db.query(
+      `UPDATE users SET sticker = $2 WHERE id = (SELECT user_id FROM players WHERE client_id = $1)`,
+      [id, sticker || null]
+    );
+  } catch (err) {
+    console.error('Account sticker update failed:', err.message);
   }
 }
 
@@ -381,11 +426,12 @@ async function playerCard({ userId, clientId }) {
     badges,
     lockedStickers,
     rivals: await rivalries(scope),
+    ratings: computeRatings(byGame),
   };
 }
 
 function publicUser(u) {
-  return { id: String(u.id), name: u.display_name, avatar: u.avatar_url || null };
+  return { id: String(u.id), name: u.display_name, avatar: u.avatar_url || null, sticker: u.sticker || null };
 }
 
 function setSessionCookie(req, res, token) {
@@ -425,6 +471,29 @@ function registerAccountRoutes(app) {
     }
   });
 
+  // Sets or clears the signed-in account's sticker - the one used everywhere once signed
+  // in (see "Sticker unification" in specs/account-page-specs.md). `sticker: null`/omitted
+  // clears it back to the default.
+  app.post('/api/account/sticker', express.json({ limit: '4kb' }), async (req, res) => {
+    if (!db.isEnabled()) return res.status(503).json({ ok: false, error: 'Accounts are not available' });
+    try {
+      const user = await userFromRequest(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'Not signed in' });
+      const sticker = req.body && req.body.sticker;
+      if (sticker != null && (typeof sticker !== 'string' || !isValidSticker(sticker))) {
+        return res.status(400).json({ ok: false, error: 'Invalid sticker' });
+      }
+      if (sticker && !(await canUseStickerForScope(scopeFor({ userId: user.id }), sticker))) {
+        return res.status(403).json({ ok: false, error: 'Earn its badge to unlock this sticker' });
+      }
+      await db.query('UPDATE users SET sticker = $2 WHERE id = $1', [user.id, sticker || null]);
+      res.json({ ok: true, sticker: sticker || null });
+    } catch (err) {
+      console.error('Setting account sticker failed:', err.message);
+      res.status(500).json({ ok: false, error: 'Could not update your sticker' });
+    }
+  });
+
   app.post('/api/auth/google', express.json({ limit: '16kb' }), async (req, res) => {
     if (!signInEnabled()) return res.status(503).json({ ok: false, error: 'Sign-in is not available' });
     const credential = req.body && req.body.credential;
@@ -458,7 +527,7 @@ function registerAccountRoutes(app) {
       );
       const newBadges = device.rows.length ? await evaluateBadges(device.rows[0].id) : [];
       const { rows } = await db.query(
-        'SELECT id, display_name, email, avatar_url FROM users WHERE id = $1',
+        'SELECT id, display_name, email, avatar_url, sticker FROM users WHERE id = $1',
         [userId]
       );
       res.json({ ok: true, user: publicUser(rows[0]), card: await playerCard({ userId }), newBadges });
@@ -589,4 +658,11 @@ function startCleanup() {
   setInterval(cleanup, CLEANUP_INTERVAL_MS).unref();
 }
 
-module.exports = { registerAccountRoutes, recordGameResult, canUseSticker, startCleanup };
+module.exports = {
+  registerAccountRoutes,
+  recordGameResult,
+  canUseSticker,
+  accountStickerForClient,
+  setAccountStickerForClient,
+  startCleanup,
+};
