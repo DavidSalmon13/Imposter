@@ -137,8 +137,8 @@ Signed-in players have **one sticker everywhere**, not a per-device choice.
   below the card letting the player pick any sticker they've unlocked (same lock
   rules as the lobby picker — badge-locked stickers show 🔒 and are rejected
   server-side).
-- **Joining a room**: if the joining `clientId` is linked to a signed-in account
-  with a non-null `users.sticker`, that sticker is used for the room **regardless
+- **Joining a room**: if the joining connection carries a valid login cookie for an
+  account with a non-null `users.sticker`, that sticker is used for the room **regardless
   of what the client's local sticker selection was** — the account sticker always
   wins once signed in.
 - **Changing it**: from either the account page's switcher *or* the lobby's 🧸

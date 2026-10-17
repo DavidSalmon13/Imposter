@@ -316,7 +316,7 @@ for (const b of BADGES) {
   BADGE_STICKERS.get(b.sticker).push(b.id);
 }
 
-/** Same check as canUseSticker(), from a scope (see scopeFor()) instead of a clientId. */
+/** Same check as canUseSticker(), from a scope (see scopeFor()) instead of a userId. */
 async function canUseStickerForScope(scope, sticker) {
   const badgeIds = BADGE_STICKERS.get(sticker);
   if (!badgeIds || !db.isEnabled()) return true;
@@ -331,89 +331,55 @@ async function canUseStickerForScope(scope, sticker) {
 }
 
 /**
- * Whether this browser may wear `sticker`. Stickers used as badge art are locked until
- * one of their badges is earned by the account this device is linked to; every other
- * sticker is free, and guests (devices not linked to an account) can wear them all.
- * Fails open: no database, or a database error, means nothing is locked.
+ * Whether a player signed in as `userId` (null for a guest) may wear `sticker`. Stickers
+ * used as badge art are locked until the account earns one of their badges; every other
+ * sticker is free, and guests can wear them all. Fails open: no database, or a database
+ * error, means nothing is locked.
  */
-async function canUseSticker(clientId, sticker) {
-  const badgeIds = BADGE_STICKERS.get(sticker);
-  if (!badgeIds || !db.isEnabled()) return true;
-  const id = cleanClientId(clientId);
-  if (!id) return true;
-  try {
-    const { rows } = await db.query('SELECT user_id FROM players WHERE client_id = $1', [id]);
-    if (!rows.length || !rows[0].user_id) return true;
-    return canUseStickerForScope(scopeFor({ userId: rows[0].user_id }), sticker);
-  } catch (err) {
-    console.error('Sticker unlock check failed:', err.message);
-    return true;
-  }
+async function canUseSticker(userId, sticker) {
+  if (!userId) return true;
+  return canUseStickerForScope(scopeFor({ userId }), sticker);
 }
 
-/** The signed-in account's sticker for this device, or null if unlinked/unset/no DB. */
-async function accountStickerForClient(clientId) {
-  const id = cleanClientId(clientId);
-  if (!id || !db.isEnabled()) return null;
+/**
+ * The user a socket is signed in as, from the login cookie sent with its handshake, or
+ * null for a guest (no/expired login, no DB). Signing out clears that cookie, so a
+ * signed-out device is a guest even though it stays linked to its account.
+ */
+async function userFromSocket(socket) {
+  if (!db.isEnabled()) return null;
   try {
-    const { rows } = await db.query(
-      `SELECT u.sticker FROM players p JOIN users u ON u.id = p.user_id WHERE p.client_id = $1`,
-      [id]
-    );
-    return (rows[0] && rows[0].sticker) || null;
+    return await userFromRequest({ headers: socket.handshake.headers || {} });
   } catch (err) {
-    console.error('Account sticker lookup failed:', err.message);
+    console.error('Socket sign-in check failed:', err.message);
     return null;
   }
 }
 
-/** Whether this device is linked to a signed-in account. False if unlinked/no DB. */
-async function isSignedInClient(clientId) {
-  const id = cleanClientId(clientId);
-  if (!id || !db.isEnabled()) return false;
-  try {
-    const { rows } = await db.query(
-      `SELECT 1 FROM players WHERE client_id = $1 AND user_id IS NOT NULL`,
-      [id]
-    );
-    return rows.length > 0;
-  } catch (err) {
-    console.error('Signed-in check failed:', err.message);
-    return false;
-  }
-}
-
 /**
- * The public profile + lifetime Player Card for the account `clientId` is linked to, for
- * showing another player's rating card from the lobby. Null if unlinked/no DB/not found.
+ * The public profile + lifetime Player Card for `userId`, for showing another player's
+ * rating card from the lobby. Null if no DB/not found.
  */
-async function playerCardForClient(clientId) {
-  const id = cleanClientId(clientId);
-  if (!id || !db.isEnabled()) return null;
+async function playerCardForUser(userId) {
+  if (!userId || !db.isEnabled()) return null;
   try {
     const { rows } = await db.query(
-      `SELECT u.id, u.display_name, u.avatar_url, u.sticker
-         FROM players p JOIN users u ON u.id = p.user_id WHERE p.client_id = $1`,
-      [id]
+      'SELECT id, display_name, avatar_url, sticker FROM users WHERE id = $1',
+      [userId]
     );
     if (!rows.length) return null;
-    const user = rows[0];
-    return { user: publicUser(user), card: await playerCard({ userId: user.id }) };
+    return { user: publicUser(rows[0]), card: await playerCard({ userId }) };
   } catch (err) {
     console.error('Player card lookup failed:', err.message);
     return null;
   }
 }
 
-/** Persists `sticker` as the account's sticker, if `clientId` is linked to one. No-op otherwise. */
-async function setAccountStickerForClient(clientId, sticker) {
-  const id = cleanClientId(clientId);
-  if (!id || !db.isEnabled()) return;
+/** Persists `sticker` as the account's sticker. No-op for a guest (no `userId`). */
+async function setAccountSticker(userId, sticker) {
+  if (!userId || !db.isEnabled()) return;
   try {
-    await db.query(
-      `UPDATE users SET sticker = $2 WHERE id = (SELECT user_id FROM players WHERE client_id = $1)`,
-      [id, sticker || null]
-    );
+    await db.query('UPDATE users SET sticker = $2 WHERE id = $1', [userId, sticker || null]);
   } catch (err) {
     console.error('Account sticker update failed:', err.message);
   }
@@ -454,8 +420,7 @@ async function playerCard({ userId, clientId }) {
   const earned = await earnedBadgeIds(scope);
   const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
   // Guests can wear every sticker (see canUseSticker()); only accounts earn them.
-  const guest = !userId && !(await isSignedInClient(clientId));
-  const lockedStickers = guest ? [] : [...BADGE_STICKERS]
+  const lockedStickers = !userId ? [] : [...BADGE_STICKERS]
     .filter(([, ids]) => !ids.some((id) => earned.has(id)))
     .map(([sticker]) => sticker);
   return {
@@ -617,8 +582,11 @@ function registerAccountRoutes(app) {
  * round/match that produced a result. Fire-and-forget: it never throws and never
  * delays the game - if the database is down the game just isn't recorded.
  *
- * participants: [{ clientId, name, role?, team?, won?, points?, details? }]
- * Participants without a clientId (very old clients) are skipped.
+ * participants: [{ clientId, userId?, name, role?, team?, won?, points?, details? }]
+ * userId is the account the player was signed in as (null for a guest). Participants
+ * without a clientId (very old clients) are skipped, and so is a device linked to an
+ * account it isn't signed in to right now - games only count for an account while
+ * signed in (a signed-out phone may be someone else's hands).
  * onBadges(name, badges) is called for each participant who earned new badges, and
  * onRivalry(name, { text, beat }) with a head-to-head update (see announceRivalries).
  */
@@ -637,9 +605,11 @@ function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalr
       const player = await client.query(
         `INSERT INTO players (client_id) VALUES ($1)
          ON CONFLICT (client_id) DO UPDATE SET last_seen = now()
-         RETURNING id`,
+         RETURNING id, user_id`,
         [cleanClientId(p.clientId)]
       );
+      const linkedTo = player.rows[0].user_id;
+      if (linkedTo != null && String(linkedTo) !== String(p.userId || '')) continue;
       await client.query(
         `INSERT INTO game_participants (game_id, player_id, name_used, role, team, won, points, details)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -702,9 +672,8 @@ module.exports = {
   registerAccountRoutes,
   recordGameResult,
   canUseSticker,
-  accountStickerForClient,
-  setAccountStickerForClient,
-  isSignedInClient,
-  playerCardForClient,
+  userFromSocket,
+  setAccountSticker,
+  playerCardForUser,
   startCleanup,
 };

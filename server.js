@@ -129,6 +129,7 @@ const ctx = {
       participants: participants.map((p) => ({
         ...p,
         clientId: room.players.get(p.name)?.clientId,
+        userId: room.players.get(p.name)?.userId,
       })),
       // Pops a "badge earned" celebration on that player's own phone.
       onBadges(name, badges) {

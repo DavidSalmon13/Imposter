@@ -103,8 +103,8 @@ Display:
 
 - The 14 stickers used as badge art are **locked** for signed-in players until they earn
   that badge. The other built-in stickers and all player-uploaded stickers stay free.
-- **Guests** (devices not linked to an account) can wear every sticker — nothing is
-  locked for them.
+- **Guests** (anyone not signed in on this browser, including after Sign out) can wear
+  every sticker — nothing is locked for them.
 - Locked stickers appear in both pickers (join screen and lobby 🧸) as silhouettes with
   🔒. Tapping one shows: 🔒 Earn the "<badge>" badge to unlock this sticker.
 - Earned per account once signed in (any linked device's badge unlocks it everywhere).
@@ -154,8 +154,12 @@ Each player may get one rivalry pop-up about one opponent from that game:
 
 - **Sign out** on the card ends the login on this browser. The account and stats are
   kept, and signing in again brings everything back.
-- The device stays linked to the account, so later games on it still count for that
-  account.
+- In the lobby the player is a guest from then on: no signed-in glow, no account
+  sticker, every sticker free. "Signed in" always means a valid login on this browser,
+  not just a device that was once linked.
+- The device stays linked to the account, but games played on it while signed out
+  are **not** counted for anyone (a signed-out phone may be in someone else's hands).
+  Signing in again brings the account back on it.
 
 ## Delete my account
 

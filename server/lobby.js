@@ -14,10 +14,9 @@ const { getGame, clearAllGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
 const {
   canUseSticker,
-  accountStickerForClient,
-  setAccountStickerForClient,
-  isSignedInClient,
-  playerCardForClient,
+  userFromSocket,
+  setAccountSticker,
+  playerCardForUser,
 } = require('./accounts');
 const stats = require('./stats');
 
@@ -147,7 +146,7 @@ function getSharedRoom() {
   return room;
 }
 
-function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, signedIn) {
+function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, userId) {
   const room = rooms.get(roomCode);
   if (!room) return callback({ ok: false, error: 'Room not found' });
 
@@ -158,7 +157,10 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, s
     // also doubles as how a picker change made via `changeSticker` survives a
     // dropped connection.
     if (sticker !== undefined) existing.sticker = sticker;
-    if (signedIn !== undefined) existing.signedIn = signedIn;
+    if (userId !== undefined) {
+      existing.userId = userId;
+      existing.signedIn = !!userId;
+    }
     let staleSocket = null;
     if (existing.connected) {
       // The `connected` flag can lag behind reality for up to ~45s (socket.io's
@@ -218,7 +220,9 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, s
     connected: true,
     clientId: clientId || null,
     sticker: sticker || null,
-    signedIn: signedIn || false,
+    // The account this player is signed in to on this connection (null = guest).
+    userId: userId || null,
+    signedIn: !!userId,
     role: null,
     word: null,
     hint: null,
@@ -287,13 +291,16 @@ function registerLobbyHandlers(socket) {
     callback = callback || (() => {});
     const name = ((data && data.name) || '').trim();
     const clientId = String((data && data.clientId) || '').slice(0, 64);
+    // Signed in = a valid login cookie on this connection, not merely a device that was
+    // once linked to an account - so signing out makes this phone a guest again.
+    const user = await userFromSocket(socket);
+    const userId = user ? String(user.id) : null;
     // A signed-in account's sticker wins over whatever this device last had locally -
     // see "Sticker unification" in specs/account-page-specs.md.
-    const rawSticker = (await accountStickerForClient(clientId)) || (data && data.sticker);
+    const rawSticker = (user && user.sticker) || (data && data.sticker);
     // A badge sticker this player hasn't unlocked is dropped (joining still succeeds).
     const sticker =
-      isValidSticker(rawSticker) && (await canUseSticker(clientId, rawSticker)) ? rawSticker : null;
-    const signedIn = await isSignedInClient(clientId);
+      isValidSticker(rawSticker) && (await canUseSticker(userId, rawSticker)) ? rawSticker : null;
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
@@ -302,7 +309,7 @@ function registerLobbyHandlers(socket) {
     joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, (res) => {
       if (res && res.ok) stats.recordPlayer(clientId, connectedNames(room).length);
       callback(res);
-    }, sticker, signedIn);
+    }, sticker, userId);
   });
 
   // Fetches another connected, signed-in player's rating card for the lobby's
@@ -315,7 +322,7 @@ function registerLobbyHandlers(socket) {
     if (!player || !player.connected || !player.signedIn) {
       return callback({ ok: false, error: 'Player card not available' });
     }
-    const result = await playerCardForClient(player.clientId);
+    const result = await playerCardForUser(player.userId);
     if (!result) return callback({ ok: false, error: 'Could not load card' });
     callback({ ok: true, ...result });
   });
@@ -334,7 +341,7 @@ function registerLobbyHandlers(socket) {
     if (!player) return callback({ ok: false, error: 'Not in a room' });
 
     const rawSticker = data && data.sticker;
-    if (isValidSticker(rawSticker) && !(await canUseSticker(player.clientId, rawSticker))) {
+    if (isValidSticker(rawSticker) && !(await canUseSticker(player.userId, rawSticker))) {
       return callback({ ok: false, error: 'Earn its badge to unlock this sticker' });
     }
     // Empty/invalid clears back to the emoji fallback rather than erroring - "no sticker"
@@ -342,7 +349,7 @@ function registerLobbyHandlers(socket) {
     player.sticker = isValidSticker(rawSticker) ? rawSticker : null;
     // Best-effort: if this device is signed in, keep the account's sticker in sync too,
     // same as recordGameResult treats the database elsewhere.
-    setAccountStickerForClient(player.clientId, player.sticker);
+    setAccountSticker(player.userId, player.sticker);
 
     broadcastLobby(roomCode, room);
     callback({ ok: true, sticker: player.sticker });
