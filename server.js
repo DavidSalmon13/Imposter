@@ -43,7 +43,30 @@ initRoomStore(io);
 // X-Forwarded-For so req.ip is the real client (used by the /api/stats login lockout).
 app.set('trust proxy', 1);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Identifies the code this process is serving, so clients still running JS from before a
+// deploy know to reload (see the 'serverBuild' listener in public/js/main.js). Prefer the
+// deploy's commit so a plain restart of the same code doesn't force everyone to reload.
+const SERVER_BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || String(Date.now());
+
+// index.html carries the build it was served with, so a page that loaded stale code
+// (e.g. from cache) still notices it's out of date on its first connect.
+const INDEX_HTML = fs
+  .readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8')
+  .replace('__SERVER_BUILD__', SERVER_BUILD);
+app.get(['/', '/index.html'], (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(INDEX_HTML);
+});
+
+// Pages, code and styles change on every deploy: `no-cache` lets the browser keep them but
+// makes it check with the server (a cheap 304 when unchanged) before each use, instead of
+// guessing they're still fresh. Images and fonts keep the default heuristic caching.
+const REVALIDATE_RE = /\.(html|js|css|webmanifest)$/;
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (REVALIDATE_RE.test(filePath)) res.set('Cache-Control', 'no-cache');
+  },
+}));
 stats.registerStatsRoutes(app);
 accounts.registerAccountRoutes(app);
 
@@ -123,11 +146,6 @@ initLobby({
   ctx,
   BACKGROUNDS_DIR,
 });
-
-// Identifies the code this process is serving, so clients still running JS from before a
-// deploy know to reload (see the 'serverBuild' listener in public/js/main.js). Prefer the
-// deploy's commit so a plain restart of the same code doesn't force everyone to reload.
-const SERVER_BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || String(Date.now());
 
 io.on('connection', (socket) => {
   socket.emit('serverBuild', SERVER_BUILD);

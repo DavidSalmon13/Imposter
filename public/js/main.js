@@ -813,12 +813,23 @@ if (myName) {
 // A phone that kept the tab open across a deploy reconnects its socket to the new server
 // while still running the old JS - which silently ignores any new game's events (e.g. a
 // newly added game's state broadcasts), leaving that player stuck. Reload onto the new
-// code instead; the saved session rejoins automatically after the reload.
-let loadedServerBuild = null;
+// code instead; the saved session rejoins automatically after the reload. The page's own
+// build (stamped into index.html by server.js) also catches a page that loaded stale code.
+const pageBuildMeta = document.querySelector('meta[name="server-build"]');
+let loadedServerBuild =
+  pageBuildMeta && pageBuildMeta.content !== '__SERVER_BUILD__' ? pageBuildMeta.content : null;
 socket.on('serverBuild', (build) => {
   if (loadedServerBuild && build !== loadedServerBuild) {
-    window.location.reload();
-    return;
+    // Reload at most once per build, so a cache that keeps serving old files can't loop.
+    let alreadyTried = false;
+    try {
+      alreadyTried = sessionStorage.getItem('reloadedForBuild') === build;
+      sessionStorage.setItem('reloadedForBuild', build);
+    } catch (e) {}
+    if (!alreadyTried) {
+      window.location.reload();
+      return;
+    }
   }
   loadedServerBuild = build;
 });

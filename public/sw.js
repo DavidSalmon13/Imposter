@@ -1,7 +1,7 @@
 // App-shell cache for installability + faster repeat loads. Deliberately does
 // NOT cache /socket.io/ traffic or API responses — this app is real-time and
 // server-state-driven, so stale game data would be worse than no cache.
-const CACHE_NAME = 'shorot-shell-v3';
+const CACHE_NAME = 'shorot-shell-v4';
 const SHELL_URLS = ['/', '/index.html', '/style.css', '/js/main.js', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -28,8 +28,11 @@ self.addEventListener('fetch', (event) => {
   // Per-player account data must never be served stale from the cache.
   if (url.pathname === '/api/me' || url.pathname.startsWith('/api/auth/')) return;
 
+  // `no-cache` makes even this network fetch skip any copy the browser's HTTP cache still
+  // thinks is fresh (it revalidates with the server instead). Navigations can't take
+  // fetch options in older browsers, and get `no-cache` headers from the server anyway.
   const fromNetwork = () =>
-    fetch(request).then((response) => {
+    fetch(request, request.mode === 'navigate' ? undefined : { cache: 'no-cache' }).then((response) => {
       if (response.ok) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
