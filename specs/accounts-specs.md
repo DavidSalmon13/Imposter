@@ -101,12 +101,13 @@ Display:
 
 ## Sticker unlocks
 
-- The 14 stickers used as badge art are **locked** until you earn that badge. The other
-  built-in stickers and all player-uploaded stickers stay free.
+- The 14 stickers used as badge art are **locked** for signed-in players until they earn
+  that badge. The other built-in stickers and all player-uploaded stickers stay free.
+- **Guests** (devices not linked to an account) can wear every sticker — nothing is
+  locked for them.
 - Locked stickers appear in both pickers (join screen and lobby 🧸) as silhouettes with
   🔒. Tapping one shows: 🔒 Earn the "<badge>" badge to unlock this sticker.
-- Earned per device for guests, or per account once signed in (any linked device's
-  badge unlocks it everywhere).
+- Earned per account once signed in (any linked device's badge unlocks it everywhere).
 - The server enforces it: a locked sticker sent on join is dropped (the join still
   succeeds, with no sticker), and choosing one in the lobby is refused.
 - A previously saved choice that's now locked is cleared when the page loads.

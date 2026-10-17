@@ -316,12 +316,6 @@ for (const b of BADGES) {
   BADGE_STICKERS.get(b.sticker).push(b.id);
 }
 
-/**
- * Whether this browser may wear `sticker`. Stickers used as badge art are locked until
- * one of their badges is earned (by this device, or by the account it's linked to);
- * every other sticker is free. Fails open: no database, or a database error, means
- * nothing is locked.
- */
 /** Same check as canUseSticker(), from a scope (see scopeFor()) instead of a clientId. */
 async function canUseStickerForScope(scope, sticker) {
   const badgeIds = BADGE_STICKERS.get(sticker);
@@ -336,15 +330,21 @@ async function canUseStickerForScope(scope, sticker) {
   }
 }
 
+/**
+ * Whether this browser may wear `sticker`. Stickers used as badge art are locked until
+ * one of their badges is earned by the account this device is linked to; every other
+ * sticker is free, and guests (devices not linked to an account) can wear them all.
+ * Fails open: no database, or a database error, means nothing is locked.
+ */
 async function canUseSticker(clientId, sticker) {
   const badgeIds = BADGE_STICKERS.get(sticker);
   if (!badgeIds || !db.isEnabled()) return true;
   const id = cleanClientId(clientId);
-  if (!id) return false;
+  if (!id) return true;
   try {
     const { rows } = await db.query('SELECT user_id FROM players WHERE client_id = $1', [id]);
-    if (!rows.length) return false;
-    return canUseStickerForScope(scopeFor({ userId: rows[0].user_id, clientId: id }), sticker);
+    if (!rows.length || !rows[0].user_id) return true;
+    return canUseStickerForScope(scopeFor({ userId: rows[0].user_id }), sticker);
   } catch (err) {
     console.error('Sticker unlock check failed:', err.message);
     return true;
@@ -453,7 +453,9 @@ async function playerCard({ userId, clientId }) {
   }
   const earned = await earnedBadgeIds(scope);
   const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
-  const lockedStickers = [...BADGE_STICKERS]
+  // Guests can wear every sticker (see canUseSticker()); only accounts earn them.
+  const guest = !userId && !(await isSignedInClient(clientId));
+  const lockedStickers = guest ? [] : [...BADGE_STICKERS]
     .filter(([, ids]) => !ids.some((id) => earned.has(id)))
     .map(([sticker]) => sticker);
   return {
