@@ -4,6 +4,7 @@
 
 import { renderScoreboard } from '../shared/scoreboard.js';
 import { confirmDialog } from '../shared/confirmDialog.js';
+import { emojiForName } from '../shared/playerEmoji.js';
 
 const BF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const BF_SUIT_CLASS = { s: 'bf-suit-s', h: 'bf-suit-h', d: 'bf-suit-d', c: 'bf-suit-c' };
@@ -28,6 +29,7 @@ const bfRoundLabel = document.getElementById('bf-round-label');
 const bfTableHint = document.getElementById('bf-table-hint');
 const bfTableFelt = document.querySelector('.bf-table-felt');
 const bfSeatsEl = document.getElementById('bf-seats');
+const bfInPlayEl = document.getElementById('bf-in-play');
 const bfHandEl = document.getElementById('bf-hand');
 const bfTableError = document.getElementById('bf-table-error');
 const bfGameoverPanel = document.getElementById('bf-gameover-panel');
@@ -159,48 +161,80 @@ async function trySelectLoser(name) {
   });
 }
 
-/** Places each seat on a circle, seat 0 at the top, clockwise - seatCount is fixed for
- * the whole match (bfPlayers never reflows), so this is safe to recompute every render. */
+/** Places each seat on an oval around the stadium table, seat 0 at the bottom, clockwise -
+ * seatCount is fixed for the whole match (bfPlayers never reflows), so this is safe to
+ * recompute every render. Each seat shows the player's lobby icon (sticker, or their
+ * name-hashed emoji), with the lobby's gold ring when signed in. For the host, tapping
+ * any active player's icon marks them as the round's loser - signed in or not, it never
+ * opens their player card here. */
 function renderBfSeats(seats, { tappable, highlightName } = {}) {
   bfSeatsEl.innerHTML = '';
   const n = seats.length;
-  const radius = 42;
+  const radiusX = 37;
+  const radiusY = 41;
+  let inPlay = 0;
   seats.forEach((seat, i) => {
-    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-    const left = 50 + radius * Math.cos(angle);
-    const top = 50 + radius * Math.sin(angle);
+    inPlay += seat.count || 0;
+    const angle = (2 * Math.PI * i) / n + Math.PI / 2;
+    const left = 50 + radiusX * Math.cos(angle);
+    const top = 50 + radiusY * Math.sin(angle);
+    const canTap = tappable && !seat.eliminated;
 
-    const seatEl = document.createElement(tappable && !seat.eliminated ? 'button' : 'div');
+    const seatEl = document.createElement('div');
     seatEl.className = 'bf-seat';
-    if (tappable && !seat.eliminated) seatEl.type = 'button';
     seatEl.style.left = `${left}%`;
     seatEl.style.top = `${top}%`;
-    seatEl.style.transform = 'translate(-50%, -50%)';
     if (!seat.connected) seatEl.classList.add('bf-seat-offline');
     if (seat.eliminated) seatEl.classList.add('bf-seat-eliminated');
     if (seat.name === highlightName) seatEl.classList.add('bf-seat-highlight');
-    if (tappable && !seat.eliminated) {
-      seatEl.classList.add('bf-seat-tappable');
-      seatEl.addEventListener('click', () => trySelectLoser(seat.name));
+
+    const avatar = document.createElement(canTap ? 'button' : 'div');
+    avatar.className = 'bf-seat-avatar';
+    if (seat.signedIn) avatar.classList.add('bf-seat-avatar-signedin');
+    if (canTap) {
+      avatar.type = 'button';
+      avatar.classList.add('bf-seat-tappable');
+      avatar.setAttribute('aria-label', `Mark ${seat.name} as this round's loser`);
+      avatar.addEventListener('click', () => trySelectLoser(seat.name));
     }
+    if (seat.sticker) {
+      const img = document.createElement('img');
+      img.src = `images/stickers/${seat.sticker}`;
+      img.alt = '';
+      avatar.appendChild(img);
+    } else {
+      const emoji = document.createElement('span');
+      emoji.className = 'bf-seat-emoji';
+      emoji.textContent = emojiForName(seat.name);
+      avatar.appendChild(emoji);
+    }
+    seatEl.appendChild(avatar);
 
-    const number = document.createElement('span');
-    number.className = 'bf-seat-number';
-    number.textContent = `#${seat.seatIndex + 1}`;
-    seatEl.appendChild(number);
-
-    const name = document.createElement('span');
-    name.className = 'bf-seat-name';
-    name.textContent = seat.name;
-    seatEl.appendChild(name);
-
+    const chip = document.createElement('div');
+    chip.className = 'bf-seat-chip';
     const count = document.createElement('span');
     count.className = 'bf-seat-count';
     count.textContent = seat.count;
-    seatEl.appendChild(count);
+    const name = document.createElement('span');
+    name.className = 'bf-seat-name';
+    name.textContent = seat.name;
+    chip.append(count, name);
+    seatEl.appendChild(chip);
+
+    let tag = '';
+    if (seat.eliminated) tag = 'Out';
+    else if (seat.name === highlightName) tag = '−1 card';
+    else if (!seat.connected) tag = 'Offline';
+    if (tag) {
+      const tagEl = document.createElement('span');
+      tagEl.className = 'bf-seat-tag';
+      tagEl.textContent = tag;
+      seatEl.appendChild(tagEl);
+    }
 
     bfSeatsEl.appendChild(seatEl);
   });
+  if (bfInPlayEl) bfInPlayEl.textContent = inPlay;
 }
 
 function renderTableHint(isHost, lastResult) {

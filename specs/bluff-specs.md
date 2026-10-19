@@ -79,11 +79,14 @@ Dealt whenever a match starts (round 1) and automatically again after every lose
 - Players are arranged in a **circle**, one seat per frozen roster slot, in the fixed order
   captured at Start Match — seat positions are computed once and never reflow for the rest of
   the match (an elimination does not shrink or re-space the circle).
+- The table is a tall stadium-shaped felt (fills a portrait phone better than a circle),
+  seats spaced around it on an oval, seat 0 at the bottom; the felt's center shows the total
+  cards still in play (sum of `bfCounts`).
 - Each seat shows:
-  - Player name.
-  - Seat number (1..N, clockwise from an arbitrary start — purely a position label, no
-    gameplay meaning).
-  - Current card count (`bfCounts[name]`).
+  - The player's **lobby icon**: their sticker, or the same name-hashed emoji fallback the
+    lobby uses. Signed-in players keep the lobby's pulsing **gold ring** — cosmetic only:
+    unlike the lobby, tapping it never opens the player card here.
+  - A pill under the icon with their current card count (`bfCounts[name]`) and name.
   - A dim "offline" indicator if that player is currently disconnected — cosmetic only; see
     "Disconnects" below for why it never blocks anything.
 - **Eliminated players** (`bfCounts[name] === 0`) stay in their seat, visually grayed out,
@@ -92,7 +95,7 @@ Dealt whenever a match starts (round 1) and automatically again after every lose
   private hand**, face-up, as a simple row of cards. This is read-only display; there is no
   drag/drop, no allocation, nothing to interact with on a hand.
 - The **host's screen additionally overlays the control panel**: tapping any active (non-
-  eliminated) seat opens a brief confirm ("Mark `<name>` as this round's loser?") before
+  eliminated) player's icon — signed in or not — opens a brief confirm ("Mark `<name>` as this round's loser?") before
   committing — guards against mis-taps, since this is the single most consequential action in
   the game.
 

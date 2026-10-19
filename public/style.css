@@ -3285,25 +3285,54 @@ button.aiof-seat-open:hover {
   min-height: 0;
   width: auto;
   max-width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 2 / 3;
   align-self: center;
   margin: 0.4rem 0;
 }
 
+/* Stadium-shaped felt with a wooden rail - taller than wide so it fills a phone screen. */
 .bf-table-felt {
   position: absolute;
-  inset: 12%;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 55%),
-    radial-gradient(ellipse at center, #1d7c50 0%, #0e5637 58%, #073a24 100%);
-  border: 8px solid #3a3f4a;
+  inset: 13% 16%;
+  border-radius: 999px;
+  background: #1f5a3a;
+  border: 12px solid var(--wood);
   box-shadow:
-    inset 0 0 0 2px rgba(120, 130, 150, 0.5),
-    inset 0 3px 3px rgba(255, 255, 255, 0.12),
-    inset 0 -3px 4px rgba(0, 0, 0, 0.55),
-    inset 0 2px 22px rgba(0, 0, 0, 0.55),
-    0 12px 26px rgba(0, 0, 0, 0.6);
+    0 0 0 3px var(--bark),
+    0 6px 0 3px var(--bark),
+    inset 0 0 0 2px rgba(246, 199, 104, 0.35),
+    inset 0 6px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bf-table-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.bf-table-center-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 243, 220, 0.65);
+}
+
+.bf-table-center-count {
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sun);
+}
+
+.bf-table-center-sub {
+  font-size: 0.8rem;
+  color: rgba(255, 243, 220, 0.8);
 }
 
 .bf-seats {
@@ -3313,37 +3342,91 @@ button.aiof-seat-open:hover {
 
 .bf-seat {
   position: absolute;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  width: 4.4rem;
-  padding: 0.3rem 0.2rem;
-  border-radius: 10px;
-  background: rgba(12, 16, 24, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.9);
+  gap: 0.3rem;
+  width: 6rem;
   text-align: center;
 }
 
-.bf-seat-name {
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
+/* Same look as the lobby roster icon: sticker (or emoji) on a soft rounded square. */
+.bf-seat-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 243, 220, 0.12);
+  font-family: inherit;
+  box-shadow: none;
 }
 
-.bf-seat-number {
-  font-size: 0.6rem;
-  color: var(--muted);
+.bf-seat-avatar img {
+  width: 3.3rem;
+  height: 3.3rem;
+  object-fit: contain;
+}
+
+.bf-seat-emoji {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+/* Lobby's signed-in gold ring - cosmetic only here, the tap never opens the player card. */
+.bf-seat-avatar.bf-seat-avatar-signedin {
+  border-radius: 50%;
+  animation: signedin-glow-pulse 2.2s ease-in-out infinite;
+}
+
+.bf-seat-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.15rem 0.6rem 0.15rem 0.25rem;
+  border-radius: 999px;
+  background: var(--wood-mid);
+  border: 2px solid var(--bark);
 }
 
 .bf-seat-count {
+  flex: none;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--accent-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bf-seat-name {
   font-size: 0.85rem;
-  font-weight: 800;
-  color: var(--accent-2);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.bf-seat-tag {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bf-seat-offline .bf-seat-chip {
+  border-color: rgba(255, 213, 154, 0.3);
 }
 
 .bf-seat-offline .bf-seat-name {
@@ -3352,28 +3435,37 @@ button.aiof-seat-open:hover {
 
 .bf-seat-eliminated {
   opacity: 0.4;
-  filter: grayscale(0.6);
+}
+
+.bf-seat-eliminated .bf-seat-avatar {
+  filter: grayscale(1);
+  animation: none;
 }
 
 .bf-seat-tappable {
-  font-family: inherit;
   cursor: pointer;
-  transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
+  transition: transform 0.12s var(--ease);
 }
 
 .bf-seat-tappable:hover {
-  border-color: rgba(255, 176, 32, 0.5);
-  transform: translate(-50%, -50%) translateY(-2px);
+  transform: translateY(-2px);
 }
 
 .bf-seat-tappable:active {
-  transform: translate(-50%, -50%) translateY(0);
+  transform: translateY(0);
 }
 
-.bf-seat-highlight {
-  border-color: rgba(255, 107, 120, 0.9);
-  box-shadow: 0 0 0 3px rgba(255, 107, 120, 0.5), 0 0 16px 4px rgba(255, 107, 120, 0.35);
+.bf-seat-highlight .bf-seat-avatar {
   animation: bf-highlight-pulse 0.5s ease-in-out infinite;
+  box-shadow: 0 0 0 3px var(--rose), 0 0 16px 4px rgba(236, 139, 120, 0.45);
+}
+
+.bf-seat-highlight .bf-seat-chip {
+  border-color: var(--rose);
+}
+
+.bf-seat-highlight .bf-seat-tag {
+  color: var(--rose);
 }
 
 @keyframes bf-highlight-pulse {

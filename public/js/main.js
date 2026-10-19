@@ -14,6 +14,7 @@ import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
+import { emojiForName } from './shared/playerEmoji.js';
 import { initAccount, refreshCard, onLockedStickers, openPlayerCard } from './shared/account.js';
 
 if ('serviceWorker' in navigator) {
@@ -76,14 +77,6 @@ const AIOF_MIN_PLAYERS = 2;
 const MM_MIN_PLAYERS = 3;
 const BF_MIN_PLAYERS = 2;
 const MF_MIN_PLAYERS = 2;
-
-// Deterministic per-name emoji so the lobby list feels alive without any server-side state.
-const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🐯', '🐨', '🐷', '🐙', '🦁', '🐮', '🐰', '🐻', '🐔', '🦄', '🐢', '🦉', '🐝', '🐳', '🦋', '🐺'];
-function emojiForName(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return PLAYER_EMOJIS[hash % PLAYER_EMOJIS.length];
-}
 
 // Choose-game errors (e.g. "Need at least N players") should flash briefly, not sit
 // on screen permanently — see lobby fix 2.

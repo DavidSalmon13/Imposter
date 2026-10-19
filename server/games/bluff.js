@@ -107,6 +107,10 @@ function bluffSeats(room) {
       count: room.bfCounts[name] || 0,
       eliminated: (room.bfCounts[name] || 0) === 0,
       connected: !!(p && p.connected),
+      // Same icon the lobby shows: their sticker (or null for the name-hashed emoji
+      // fallback), with the gold signed-in ring - purely cosmetic here.
+      sticker: (p && p.sticker) || null,
+      signedIn: !!(p && p.signedIn),
     };
   });
 }
