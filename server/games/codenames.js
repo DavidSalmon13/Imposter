@@ -13,7 +13,8 @@ const CN_NEUTRAL_COUNT = CN_WORD_COUNT - CN_START_COUNT - CN_OTHER_COUNT - CN_AS
 const CN_TIMER_OPTIONS = [0, 60, 120]; // seconds; 0 = no timer
 const CN_NAME_BANK_WORD_MAX_LEN = 30;
 const CN_NAME_BANK_LIMIT = 200;
-const CN_BANK_PICK_COUNT = 2;
+const CN_BANK_PICK_COUNT = 2; // default count of bank words mixed into a board
+const CN_BANK_PICK_MAX = 10; // host-adjustable upper bound
 
 const SAVED_FIELDS = [
   'cnUsedWords',
@@ -25,6 +26,7 @@ const SAVED_FIELDS = [
   'cnTimerSeconds',
   'cnTurnEndsAt',
   'cnNameBank',
+  'cnBankPickCount',
 ];
 
 /** @type {Map<string, NodeJS.Timeout>} */
@@ -45,6 +47,7 @@ function clearState(room, roomCode) {
   room.cnScores = { red: 0, blue: 0 };
   room.cnTimerSeconds = null;
   room.cnTurnEndsAt = null;
+  room.cnBankPickCount = null;
 }
 
 function startCnTimer(ctx, roomCode, room) {
@@ -88,6 +91,8 @@ function broadcastTeamSelect(ctx, roomCode, room) {
     timerSeconds: room.cnTimerSeconds || 0,
     wordTheme: room.wordTheme || '',
     nameBank: room.cnNameBank || [],
+    bankPickCount: resolveBankPickCount(room),
+    bankPickMax: CN_BANK_PICK_MAX,
   });
 }
 
@@ -99,6 +104,16 @@ function cnTeamValid(ctx, room, color) {
 function pickFromNameBank(bank, count) {
   if (!bank || bank.length === 0) return [];
   return shuffle(bank).slice(0, Math.min(count, bank.length));
+}
+
+function clampBankPickCount(value) {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return CN_BANK_PICK_COUNT;
+  return Math.max(0, Math.min(CN_BANK_PICK_MAX, n));
+}
+
+function resolveBankPickCount(room) {
+  return room.cnBankPickCount == null ? CN_BANK_PICK_COUNT : room.cnBankPickCount;
 }
 
 async function generateWordGrid(room, count, avoidExtra = []) {
@@ -239,7 +254,7 @@ async function generateCodenamesRound(ctx, roomCode, room) {
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'codenames' });
 
-  const bankPicks = pickFromNameBank(room.cnNameBank, CN_BANK_PICK_COUNT);
+  const bankPicks = pickFromNameBank(room.cnNameBank, resolveBankPickCount(room));
   let aiWords;
   try {
     aiWords = await generateWordGrid(room, CN_WORD_COUNT - bankPicks.length, bankPicks);
@@ -292,6 +307,8 @@ function reconnectPayload(ctx, room, existingPlayer) {
       timerSeconds: room.cnTimerSeconds || 0,
       wordTheme: room.wordTheme || '',
       nameBank: room.cnNameBank || [],
+      bankPickCount: resolveBankPickCount(room),
+      bankPickMax: CN_BANK_PICK_MAX,
     };
   }
   if (room.phase === 'generating') {
@@ -456,6 +473,23 @@ function registerHandlers(ctx, io, socket) {
     if (!CN_TIMER_OPTIONS.includes(value)) return callback({ ok: false, error: 'Invalid timer option' });
 
     room.cnTimerSeconds = value || null;
+    callback({ ok: true });
+    broadcastTeamSelect(ctx, roomCode, room);
+  });
+
+  socket.on('setCnBankPickCount', (count, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'codenames' || room.phase !== 'teamSelect') {
+      return callback({ ok: false, error: 'Not choosing teams right now' });
+    }
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can set the bank word count' });
+    }
+
+    room.cnBankPickCount = clampBankPickCount(count);
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
   });

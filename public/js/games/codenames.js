@@ -20,10 +20,13 @@ const cnStartWaiting = document.getElementById('cn-start-waiting');
 const cnTeamError = document.getElementById('cn-team-error');
 const cnTeamBackBtn = document.getElementById('cn-team-back-btn');
 const cnTimerBtns = Array.from(document.querySelectorAll('.cn-timer-btn'));
+const cnNameBankLabel = document.getElementById('cn-name-bank-label');
 const cnNameBankList = document.getElementById('cn-name-bank-list');
 const cnNameBankInput = document.getElementById('cn-name-bank-input');
 const cnNameBankAddBtn = document.getElementById('cn-name-bank-add-btn');
 const cnNameBankError = document.getElementById('cn-name-bank-error');
+const cnBankPickSlider = document.getElementById('cn-bank-pick-slider');
+const cnBankPickValue = document.getElementById('cn-bank-pick-value');
 
 const cnTurnLabel = document.getElementById('cn-turn-label');
 const cnScore = document.getElementById('cn-score');
@@ -51,6 +54,7 @@ let isLeader = false;
 let cnTimerSeconds = 0;
 let cnTurnEndsAt = null;
 let cnTimerTickHandle = null;
+let bankPickSliderDragging = false;
 
 function tickCnTimer() {
   if (!cnTurnEndsAt) return;
@@ -130,6 +134,16 @@ function renderTeamSelect(data) {
     li.textContent = word;
     cnNameBankList.appendChild(li);
   });
+
+  const bankPickMax = data.bankPickMax || 10;
+  const bankPickCount = data.bankPickCount ?? 2;
+  cnNameBankLabel.textContent = `Room name bank — ${bankPickCount} random one${bankPickCount === 1 ? '' : 's'} mixed into every board`;
+  cnBankPickSlider.max = bankPickMax;
+  cnBankPickSlider.disabled = !isHost;
+  if (!bankPickSliderDragging) {
+    cnBankPickSlider.value = bankPickCount;
+  }
+  cnBankPickValue.textContent = cnBankPickSlider.value;
 }
 
 // container -> words revealed as of its last render, so a re-render only animates new reveals.
@@ -275,6 +289,18 @@ export const Codenames = {
       if (e.key === 'Enter') addNameBankWord();
     });
 
+    cnBankPickSlider.addEventListener('input', () => {
+      bankPickSliderDragging = true;
+      cnBankPickValue.textContent = cnBankPickSlider.value;
+    });
+
+    cnBankPickSlider.addEventListener('change', () => {
+      bankPickSliderDragging = false;
+      socket.emit('setCnBankPickCount', Number(cnBankPickSlider.value), (res) => {
+        if (res && !res.ok) cnTeamError.textContent = res.error;
+      });
+    });
+
     cnStartBtn.addEventListener('click', () => {
       cnTeamError.textContent = '';
       socket.emit('startCodenames', (res) => {
@@ -353,6 +379,7 @@ export const Codenames = {
     isLeader = false;
     cnTimerSeconds = 0;
     cnTurnEndsAt = null;
+    bankPickSliderDragging = false;
     cnTeamError.textContent = '';
     cnNameBankError.textContent = '';
     cnRestartError.textContent = '';
