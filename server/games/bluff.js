@@ -10,7 +10,7 @@ const BF_LOSER_HIGHLIGHT_MS = 1500;
 const BF_DEAL_ANIMATION_MS = 2200;
 const BF_CHECK_COUNTDOWN_MS = 3000;
 
-const SAVED_FIELDS = ['bfPlayers', 'bfCounts', 'bfRoundNumber', 'bfEliminationOrder', 'bfWinnerPicks'];
+const SAVED_FIELDS = ['bfPlayers', 'bfCounts', 'bfRoundNumber', 'bfEliminationOrder'];
 
 /** @type {Map<string, NodeJS.Timeout>} */
 const bfTimers = new Map();
@@ -50,7 +50,6 @@ function clearState(room, roomCode) {
   room.bfCheck = null;
   room.bfEditing = false;
   room.bfEditCounts = {};
-  room.bfWinnerPicks = {};
 }
 
 /** A round is dealt and settled - not mid-highlight, not between rounds. */
@@ -72,33 +71,6 @@ function computeBluffRanking(room) {
   const winner = activeBluffPlayers(room)[0] || null;
   const order = [winner, ...room.bfEliminationOrder.slice().reverse()].filter(Boolean);
   return order.map((name, index) => ({ name, points: N - index }));
-}
-
-/**
- * Live "who wins the match?" side-bet tally, counting only players still in the running -
- * a pick pointing at someone already eliminated simply drops out of the count until its
- * owner repicks. Sorted most-picked first.
- */
-function bfWinnerPickTally(room) {
-  const active = activeBluffPlayers(room);
-  const counts = {};
-  for (const name of active) counts[name] = 0;
-  for (const pick of Object.values(room.bfWinnerPicks || {})) {
-    if (Object.prototype.hasOwnProperty.call(counts, pick)) counts[pick] += 1;
-  }
-  return active
-    .map((name) => ({ name, count: counts[name] }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-}
-
-/** Who actually won, plus which side-bet pickers called it right - gameover flavor only. */
-function bfWinnerPickResult(room) {
-  const winnerRow = computeBluffRanking(room)[0];
-  const winner = winnerRow ? winnerRow.name : null;
-  const correctPickers = Object.entries(room.bfWinnerPicks || {})
-    .filter(([, pick]) => pick === winner)
-    .map(([picker]) => picker);
-  return { winner, correctPickers };
 }
 
 function finishBluffMatch(ctx, roomCode, room) {
@@ -185,9 +157,6 @@ function bluffStatePayload(ctx, room, viewerName) {
     editCounts: room.bfEditing ? { ...room.bfEditCounts } : null,
     ranking: room.phase === 'gameover' ? computeBluffRanking(room) : undefined,
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
-    winnerPickTally: room.phase === 'playing' ? bfWinnerPickTally(room) : undefined,
-    myWinnerPick: room.phase === 'playing' ? room.bfWinnerPicks[viewerName] || null : undefined,
-    winnerPickResult: room.phase === 'gameover' ? bfWinnerPickResult(room) : undefined,
   };
 }
 
@@ -321,40 +290,10 @@ function registerHandlers(ctx, io, socket) {
     for (const name of names) room.bfCounts[name] = startCount;
     room.bfRoundNumber = 0;
     room.bfEliminationOrder = [];
-    room.bfWinnerPicks = {};
     room.phase = 'playing';
 
     callback({ ok: true });
     dealBluffRound(ctx, roomCode, room);
-  });
-
-  // Side-bet: any player can (re)pick who they think wins the whole match, as long as that
-  // pick is still active. Purely for fun - never touches scoring. Pass name: null to clear.
-  socket.on('bfPickWinner', (name, callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'bluff' || room.phase !== 'playing') {
-      return callback({ ok: false, error: 'Not playing right now' });
-    }
-
-    const picker = socket.data.name;
-
-    if (name === null || name === undefined) {
-      delete room.bfWinnerPicks[picker];
-      callback({ ok: true });
-      broadcastBluff(ctx, roomCode, room);
-      return;
-    }
-
-    if (!activeBluffPlayers(room).includes(name)) {
-      return callback({ ok: false, error: 'Invalid pick' });
-    }
-
-    room.bfWinnerPicks[picker] = name;
-    callback({ ok: true });
-    broadcastBluff(ctx, roomCode, room);
   });
 
   socket.on('bfSelectLoser', (data, callback) => {
@@ -459,7 +398,6 @@ function registerHandlers(ctx, io, socket) {
     room.bfLastResult = null;
     room.bfEditing = false;
     room.bfEditCounts = {};
-    room.bfWinnerPicks = {};
     room.phase = 'seating';
 
     callback({ ok: true });

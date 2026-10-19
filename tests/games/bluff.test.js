@@ -4,14 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const bluff = require('../../server/games/bluff');
-const {
-  createTestCtx,
-  createRoom,
-  makeHandlerSocket,
-  registerGame,
-  call,
-  emissionsFor,
-} = require('../helpers/harness');
+const { createTestCtx, createRoom, makeHandlerSocket, registerGame, call } = require('../helpers/harness');
 
 test('contract shape', () => {
   assert.equal(bluff.id, 'bluff');
@@ -153,44 +146,4 @@ test('bfStartEdit / bfAdjustEditCount / bfConfirmEdit: host-only draft counts, c
   assert.equal(room.bfCounts.Ann, 3);
   assert.equal(room.bfCounts.Bob, 1);
   assert.equal(room.bfEditing, false);
-});
-
-test('bfPickWinner: side-bet tallies remaining players, rejects eliminated picks, pays off at gameover', async () => {
-  const { ctx, io } = createTestCtx();
-  // Cid is a connected room member but not seated in this match - any connected player can
-  // still place a side bet, not just active participants.
-  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 1, Bob: 1 };
-  room.bfHands = { Ann: ['Ah'], Bob: ['2c'] };
-  room.bfRoundNumber = 1;
-  room.bfEliminationOrder = [];
-
-  const sockets = Object.fromEntries(
-    ['Ann', 'Bob', 'Cid'].map((n) => [n, registerGame(bluff, ctx, makeHandlerSocket('AAAA', n))])
-  );
-
-  const invalidPick = await call(sockets.Ann, 'bfPickWinner', 'Nobody');
-  assert.equal(invalidPick.ok, false);
-
-  assert.equal((await call(sockets.Ann, 'bfPickWinner', 'Ann')).ok, true, 'self-picks are allowed');
-  assert.equal((await call(sockets.Bob, 'bfPickWinner', 'Ann')).ok, true);
-  assert.equal((await call(sockets.Cid, 'bfPickWinner', 'Ann')).ok, true, 'spectators can bet too');
-
-  const annEmits = emissionsFor(io, room, 'Ann').filter((e) => e.event === 'bluffState');
-  const tally = annEmits[annEmits.length - 1].payload.winnerPickTally;
-  assert.deepEqual(tally.map((t) => [t.name, t.count]).sort(), [['Ann', 3], ['Bob', 0]].sort());
-
-  const host = sockets[room.hostName];
-  const loserRes = await call(host, 'bfSelectLoser', { name: 'Bob' });
-  assert.equal(loserRes.ok, true);
-
-  assert.equal(room.phase, 'gameover');
-  const latePick = await call(sockets.Ann, 'bfPickWinner', 'Bob');
-  assert.equal(latePick.ok, false, 'no picks once the match is over');
-
-  const finalEmits = emissionsFor(io, room, 'Ann').filter((e) => e.event === 'bluffState');
-  const result = finalEmits[finalEmits.length - 1].payload.winnerPickResult;
-  assert.equal(result.winner, 'Ann');
-  assert.deepEqual(new Set(result.correctPickers), new Set(['Ann', 'Bob', 'Cid']));
 });

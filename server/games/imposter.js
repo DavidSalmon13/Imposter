@@ -60,13 +60,11 @@ const SAVED_FIELDS = [
   'lastImposterNames',
   'usedWords',
   'imposterRoundResults',
-  'imposterPicks',
 ];
 
 function clearState(room) {
   room.currentLevel = null;
   room.imposterRoundResults = null;
-  room.imposterPicks = {};
 }
 
 function broadcastVoting(ctx, roomCode, room) {
@@ -135,7 +133,6 @@ function failImposterRound(ctx, roomCode, room, error) {
 async function finishVoting(ctx, roomCode, room) {
   const level = tallyLevel(ctx, room);
   room.currentLevel = level;
-  room.imposterPicks = {};
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'imposter', level });
 
@@ -194,7 +191,6 @@ async function finishVoting(ctx, roomCode, room) {
       ctx.io.to(p.socketId).emit('role', { role: p.role, word: p.word, hint: p.hint });
     }
   }
-  broadcastImposterPicks(ctx, roomCode, room);
 }
 
 function maybeFinishVoting(ctx, roomCode, room) {
@@ -214,33 +210,6 @@ function playersInImposterRound(room) {
   return Array.from(room.players.entries())
     .filter(([, p]) => p.role === 'imposter' || p.role === 'crew')
     .map(([name]) => name);
-}
-
-/**
- * Live "who do you suspect?" side-bet tally for the current round - every round
- * participant's name plus how many picks they've received, sorted most-suspected first.
- */
-function imposterPickTally(room) {
-  const names = playersInImposterRound(room);
-  const counts = {};
-  for (const name of names) counts[name] = 0;
-  for (const suspect of Object.values(room.imposterPicks || {})) {
-    if (Object.prototype.hasOwnProperty.call(counts, suspect)) counts[suspect] += 1;
-  }
-  return names
-    .map((name) => ({ name, count: counts[name] }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-}
-
-function broadcastImposterPicks(ctx, roomCode, room) {
-  const tally = imposterPickTally(room);
-  for (const [name, p] of room.players.entries()) {
-    if (!p.connected || !p.socketId) continue;
-    ctx.io.to(p.socketId).emit('imposterPicksUpdate', {
-      tally,
-      myPick: room.imposterPicks[name] || null,
-    });
-  }
 }
 
 function broadcastImposterReporting(ctx, roomCode, room) {
@@ -330,13 +299,6 @@ function onChoose(ctx, roomCode, room) {
 
 function reconnectPayload(ctx, room, existingPlayer) {
   if (room.phase === 'playing') {
-    let viewerName = null;
-    for (const [n, p] of room.players.entries()) {
-      if (p === existingPlayer) {
-        viewerName = n;
-        break;
-      }
-    }
     return {
       ok: true,
       game: room.game,
@@ -346,8 +308,6 @@ function reconnectPayload(ctx, room, existingPlayer) {
       word: existingPlayer.word,
       hint: existingPlayer.hint,
       host: room.hostName,
-      pickTally: imposterPickTally(room),
-      myPick: (viewerName && room.imposterPicks[viewerName]) || null,
     };
   }
   if (room.phase === 'reporting') {
@@ -482,39 +442,6 @@ function registerHandlers(ctx, io, socket) {
     callback({ ok: true });
     broadcastVoting(ctx, roomCode, room);
     maybeFinishVoting(ctx, roomCode, room);
-  });
-
-  // Side-bet: any round participant can (re)pick who they suspect is the imposter, purely
-  // for fun - never touches scoring. Pass name: null to clear a pick.
-  socket.on('imposterPick', (name, callback) => {
-    callback = callback || (() => {});
-    const roomCode = socket.data.roomCode;
-    const room = ctx.getRoom(socket);
-    if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.game !== 'imposter' || room.phase !== 'playing') {
-      return callback({ ok: false, error: 'Not playing right now' });
-    }
-
-    const picker = socket.data.name;
-    const participants = playersInImposterRound(room);
-    if (!participants.includes(picker)) {
-      return callback({ ok: false, error: 'Not in this round' });
-    }
-
-    if (name === null || name === undefined) {
-      delete room.imposterPicks[picker];
-      callback({ ok: true });
-      broadcastImposterPicks(ctx, roomCode, room);
-      return;
-    }
-
-    if (name === picker || !participants.includes(name)) {
-      return callback({ ok: false, error: 'Invalid pick' });
-    }
-
-    room.imposterPicks[picker] = name;
-    callback({ ok: true });
-    broadcastImposterPicks(ctx, roomCode, room);
   });
 
   socket.on('endImposterRound', (callback) => {

@@ -636,15 +636,6 @@ stickerBtn.addEventListener('click', () => {
 initAccount(getClientId, socket);
 initReactions(socket);
 
-// Side-bet corner panels (Imposter suspect picks, Bluff winner picks) start collapsed
-// to just their title bar; tapping it expands/collapses the pick list. Delegated here
-// since both panels share the same .corner-pick-title/.corner-pick-panel markup.
-document.addEventListener('click', (e) => {
-  const title = e.target.closest('.corner-pick-title');
-  if (!title) return;
-  title.closest('.corner-pick-panel').classList.toggle('open');
-});
-
 function chooseGame(game) {
   flashChooseError('');
   if (!isHost) {

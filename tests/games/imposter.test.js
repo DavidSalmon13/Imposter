@@ -133,37 +133,3 @@ test('non-host cannot end the round', async () => {
   assert.equal(res.ok, false);
   assert.equal(room.phase, 'playing');
 });
-
-test('imposterPick: suspect side-bet rejects self-picks and non-participants, tallies correctly', async () => {
-  const { ctx, io } = createTestCtx();
-  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'imposter', phase: 'playing' });
-  room.players.get('Ann').role = 'crew';
-  room.players.get('Bob').role = 'imposter';
-  room.players.get('Cid').role = 'crew';
-  const sockets = Object.fromEntries(
-    ['Ann', 'Bob', 'Cid'].map((n) => [n, registerGame(imposter, ctx, makeHandlerSocket('AAAA', n))])
-  );
-
-  const selfPick = await call(sockets.Ann, 'imposterPick', 'Ann');
-  assert.equal(selfPick.ok, false);
-
-  const bogus = await call(sockets.Ann, 'imposterPick', 'Nobody');
-  assert.equal(bogus.ok, false);
-
-  assert.equal((await call(sockets.Ann, 'imposterPick', 'Bob')).ok, true);
-  assert.equal((await call(sockets.Cid, 'imposterPick', 'Bob')).ok, true);
-
-  const annEmits = emissionsFor(io, room, 'Ann').filter((e) => e.event === 'imposterPicksUpdate');
-  const lastForAnn = annEmits[annEmits.length - 1];
-  assert.deepEqual(
-    lastForAnn.payload.tally.map((t) => [t.name, t.count]).sort(),
-    [['Ann', 0], ['Bob', 2], ['Cid', 0]].sort()
-  );
-  assert.equal(lastForAnn.payload.myPick, 'Bob');
-
-  // Clearing a pick (name: null) removes it from the tally.
-  await call(sockets.Cid, 'imposterPick', null);
-  const afterClear = emissionsFor(io, room, 'Ann').filter((e) => e.event === 'imposterPicksUpdate');
-  const tallyAfterClear = afterClear[afterClear.length - 1].payload.tally;
-  assert.deepEqual(tallyAfterClear.find((t) => t.name === 'Bob').count, 1);
-});

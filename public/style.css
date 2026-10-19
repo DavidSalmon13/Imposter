@@ -4331,8 +4331,6 @@ button.confirm-danger {
   bottom: calc(0.8rem + env(safe-area-inset-bottom));
   z-index: 90;
   display: flex;
-  flex-wrap: wrap;
-  max-width: 44vw;
   gap: 0.4rem;
   padding: 0.35rem;
   background: var(--glass-bg-strong);
@@ -4416,86 +4414,4 @@ button.confirm-danger {
     transform: translateY(-220px) scale(0.9);
     opacity: 0;
   }
-}
-
-/* ---------- Side-bet corner tables (Imposter suspect picks, Bluff winner picks) ---------- */
-/* Collapsed by default (just the title bar) so it doesn't eat screen space all round;
-   tapping the title expands the pick list. See the delegated click handler in main.js. */
-
-.corner-pick-panel {
-  position: fixed;
-  right: 0.8rem;
-  bottom: calc(0.8rem + env(safe-area-inset-bottom));
-  z-index: 40;
-  width: min(150px, 44vw);
-  padding: 0.3rem 0;
-  background: var(--glass-bg-strong);
-  border: 2px solid var(--glass-border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-soft);
-}
-
-.corner-pick-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  width: 100%;
-  margin: 0;
-  padding: 0.2rem 0.6rem;
-  background: none;
-  border: none;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  text-align: left;
-  cursor: pointer;
-}
-
-.corner-pick-chevron {
-  flex: none;
-  transition: transform 0.2s var(--ease);
-}
-
-.corner-pick-panel.open .corner-pick-chevron {
-  transform: rotate(180deg);
-}
-
-.corner-pick-list {
-  display: none;
-  list-style: none;
-  margin: 0.35rem 0 0;
-  padding: 0 0.6rem 0.5rem;
-  max-height: 34vh;
-  overflow-y: auto;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.corner-pick-panel.open .corner-pick-list {
-  display: flex;
-}
-
-.corner-pick-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.corner-pick-list li.corner-pick-mine {
-  background: rgba(246, 199, 104, 0.22);
-  box-shadow: inset 0 0 0 2px var(--sun);
-}
-
-.corner-pick-list li span:last-child {
-  font-weight: 700;
-  color: var(--muted);
 }
