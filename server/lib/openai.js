@@ -1,12 +1,14 @@
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+// Read per call rather than at module load, so a key set after startup (the test
+// harness's OpenAI mock sets it around each mocked call) is picked up.
+const apiKey = () => process.env.OPENAI_API_KEY;
+const model = () => process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 /**
  * Shared OpenAI chat-completions call that returns the parsed JSON body
  * from the model message. Callers own prompt-building and response validation.
  */
 async function chatCompletionJson(prompt, { temperature } = {}) {
-  if (!OPENAI_API_KEY) {
+  if (!apiKey()) {
     throw new Error('OPENAI_API_KEY is not configured on the server');
   }
 
@@ -16,10 +18,10 @@ async function chatCompletionJson(prompt, { temperature } = {}) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey()}`,
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: model(),
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature,
