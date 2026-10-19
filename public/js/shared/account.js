@@ -83,10 +83,10 @@ function showBadgeToast(badges) {
   toast.appendChild(row);
   const notes = [];
   if (badges.some((b) => b.sticker)) {
-    notes.push(badges.length === 1 ? 'Sticker unlocked! Wear it from 👤 in the lobby.' : 'Stickers unlocked! Wear them from 👤 in the lobby.');
+    notes.push(badges.length === 1 ? 'Sticker unlocked! Wear it from Account in the lobby.' : 'Stickers unlocked! Wear them from Account in the lobby.');
   }
   if (!signedIn && !cardBtn.classList.contains('hidden')) {
-    notes.push('Open your Account page (👤) to sign in and keep it forever.');
+    notes.push('Open your Account page from the lobby to sign in and keep it forever.');
   }
   for (const text of notes) {
     const note = document.createElement('p');

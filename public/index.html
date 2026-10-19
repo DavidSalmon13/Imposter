@@ -66,7 +66,7 @@
     <section id="lobby-screen" class="screen hidden">
       <div class="lobby-top-row">
         <p id="lobby-count" class="muted">0 joined</p>
-        <button id="scoreboard-toggle-btn" class="icon-btn scoreboard-toggle-btn" type="button" title="Scoreboard" aria-label="Show scoreboard">🏆</button>
+        <button id="scoreboard-toggle-btn" class="icon-btn scoreboard-toggle-btn" type="button" title="Scoreboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg><span>Scores</span></button>
       </div>
       <ul id="lobby-list" class="player-list"></ul>
       <div id="scoreboard-dropdown" class="scoreboard-dropdown">
@@ -89,32 +89,39 @@
       <div class="game-grid">
       <div id="game-choice" class="game-choice">
         <button id="choose-imposter-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🕵️</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11h18M5 11l2-6h10l2 6"/><circle cx="7.5" cy="16" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path d="M10 16h4"/></svg></span>
           <span class="game-tile-name">Imposter</span>
+          <span class="game-tile-sub">3+ players</span>
         </button>
         <button id="choose-codenames-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🔴🔵</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
           <span class="game-tile-name">Codenames</span>
+          <span class="game-tile-sub">4+ players</span>
         </button>
         <button id="choose-tenseconds-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">⏱️</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2h4"/></svg></span>
           <span class="game-tile-name">10 Seconds</span>
+          <span class="game-tile-sub">2+ players</span>
         </button>
         <button id="choose-menifot-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🃏</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="11" height="14" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v12"/></svg></span>
           <span class="game-tile-name">Menifot</span>
+          <span class="game-tile-sub">2–8 players</span>
         </button>
         <button id="choose-musictimeline-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🎵</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></span>
           <span class="game-tile-name">Music Timeline</span>
+          <span class="game-tile-sub">2–10 players</span>
         </button>
         <button id="choose-mindmeld-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🧠</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg></span>
           <span class="game-tile-name">Mind Meld</span>
+          <span class="game-tile-sub">3–10 players</span>
         </button>
         <button id="choose-bluff-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🂠</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17h.01"/></svg></span>
           <span class="game-tile-name">Bluff</span>
+          <span class="game-tile-sub">2–10 players</span>
         </button>
       </div>
       <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: once the host
@@ -122,18 +129,19 @@
            flow — see implementation/all-in-or-fold-plan.md). -->
       <div id="aiof-tile-wrap" class="game-choice">
         <button id="choose-allinorfold-btn" class="game-tile" type="button">
-          <span class="game-tile-icon">🎰</span>
+          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
           <span class="game-tile-name" id="choose-allinorfold-name">All-In or Fold</span>
+          <span class="game-tile-sub">2–6 players</span>
         </button>
       </div>
       </div>
       <p id="choose-error" class="error"></p>
       <div class="icon-row">
-        <button id="rename-btn" class="icon-btn" type="button" title="Change my name" aria-label="Change my name">✏️</button>
-        <button id="sticker-btn" class="icon-btn" type="button" title="Change my sticker" aria-label="Change my sticker">🧸</button>
-        <button id="card-btn" class="icon-btn hidden" type="button" title="My Account" aria-label="My Account">👤</button>
-        <button id="reset-scoreboard-btn" class="icon-btn" type="button" title="Reset Scoreboard" aria-label="Reset Scoreboard">🔄</button>
-        <button id="exit-lobby-btn" class="icon-btn" type="button" title="Exit Lobby" aria-label="Exit Lobby">🚪</button>
+        <button id="rename-btn" class="icon-btn labeled-btn" type="button" title="Change my name"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><span>Name</span></button>
+        <button id="sticker-btn" class="icon-btn labeled-btn" type="button" title="Change my shora"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/></svg><span>Shora</span></button>
+        <button id="card-btn" class="icon-btn labeled-btn hidden" type="button" title="My Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Account</span></button>
+        <button id="reset-scoreboard-btn" class="icon-btn labeled-btn" type="button" title="Reset Scoreboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>Reset</span></button>
+        <button id="exit-lobby-btn" class="icon-btn labeled-btn danger-btn" type="button" title="Exit Lobby"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Leave</span></button>
       </div>
       <div id="sticker-dropdown" class="scoreboard-dropdown">
         <div class="scoreboard-dropdown-inner">

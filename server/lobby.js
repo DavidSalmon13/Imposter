@@ -77,6 +77,40 @@ function connectedSignedIn(room) {
   return out;
 }
 
+// name -> { ovr, tier } for connected, signed-in players whose rating card has been
+// looked up (see refreshRatings) - drives the lobby's mini rating card next to each name.
+function connectedRatings(room) {
+  const out = {};
+  for (const [name, p] of room.players.entries()) {
+    if (p.connected && p.signedIn && p.rating) out[name] = p.rating;
+  }
+  return out;
+}
+
+// Looks up the overall rating + tier for the named signed-in players and re-broadcasts
+// the lobby if any changed. Cached on the player (not fetched per lobbyUpdate) because
+// ratings only move when a game is recorded: called on join and on every return to the
+// lobby. Best-effort - a failed lookup just leaves the previous value (or none).
+async function refreshRatings(roomCode, room, names) {
+  const targets = names
+    .map((n) => [n, room.players.get(n)])
+    .filter(([, p]) => p && p.signedIn && p.userId);
+  if (!targets.length) return;
+  let changed = false;
+  await Promise.all(
+    targets.map(async ([, p]) => {
+      const result = await playerCardForUser(p.userId);
+      const r = result && result.card && result.card.ratings;
+      if (!r) return;
+      if (!p.rating || p.rating.ovr !== r.ovr || p.rating.tier !== r.tier) {
+        p.rating = { ovr: r.ovr, tier: r.tier };
+        changed = true;
+      }
+    })
+  );
+  if (changed && room.phase === 'lobby') broadcastLobby(roomCode, room);
+}
+
 function scoreboardEntries(room) {
   return Object.entries(room.scoreboard || {})
     .map(([name, points]) => ({ name, points: Number(points) || 0 }))
@@ -94,6 +128,7 @@ function broadcastLobby(roomCode, room) {
     players: connectedNames(room),
     playerStickers: connectedStickers(room),
     playerSignedIn: connectedSignedIn(room),
+    playerRatings: connectedRatings(room),
     host: room.hostName,
     roomCode,
     scoreboard: scoreboardEntries(room),
@@ -122,6 +157,8 @@ function resetToLobby(roomCode, room) {
   for (const p of room.players.values()) p.eliminatedReport = null;
   roomEmit(roomCode, 'backToLobby');
   broadcastLobby(roomCode, room);
+  // The game that just ended may have moved signed-in players' ratings.
+  refreshRatings(roomCode, room, connectedNames(room)).catch(() => {});
 }
 
 function attachToRoom(socket, roomCode, room, name) {
@@ -146,6 +183,7 @@ function reconnectPayload(room, existing) {
     players: connectedNames(room),
     playerStickers: connectedStickers(room),
     playerSignedIn: connectedSignedIn(room),
+    playerRatings: connectedRatings(room),
     host: room.hostName,
     scoreboard: scoreboardEntries(room),
     wordLanguage: room.wordLanguage || 'english',
@@ -323,7 +361,10 @@ function registerLobbyHandlers(socket) {
 
     const room = getSharedRoom();
     joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, (res) => {
-      if (res && res.ok) stats.recordPlayer(clientId, connectedNames(room).length);
+      if (res && res.ok) {
+        stats.recordPlayer(clientId, connectedNames(room).length);
+        if (userId) refreshRatings(SHARED_ROOM_CODE, room, [name]).catch(() => {});
+      }
       callback(res);
     }, sticker, userId);
   });

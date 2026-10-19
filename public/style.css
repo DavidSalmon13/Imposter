@@ -694,14 +694,25 @@ button.secondary:active:not(:disabled) {
 }
 
 .game-tile.tile-underfilled .game-tile-icon,
-.game-tile.tile-underfilled .game-tile-name {
+.game-tile.tile-underfilled .game-tile-name,
+.game-tile.tile-underfilled .game-tile-sub {
   opacity: 0.6;
 }
 
+/* Outline icon, drawn in the tile's text colour. */
 .game-tile-icon {
-  font-size: 2.1rem;
-  line-height: 1;
-  filter: drop-shadow(0 2px 0 rgba(42, 20, 8, 0.35));
+  line-height: 0;
+  color: var(--accent-text);
+  opacity: 0.85;
+}
+
+.game-tile-sub {
+  font-family: var(--font);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--accent-text);
+  opacity: 0.72;
 }
 
 .game-tile-name {
@@ -747,6 +758,96 @@ button.secondary:active:not(:disabled) {
   box-shadow: var(--shadow-press);
 }
 
+/* Lobby action buttons: outline icon over a word, sharing the row equally. */
+.icon-btn.labeled-btn {
+  flex: 1 1 0;
+  width: auto;
+  max-width: 96px;
+  height: auto;
+  min-height: 64px;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.45rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.icon-btn.labeled-btn svg {
+  color: var(--peach);
+}
+
+.icon-btn.danger-btn,
+.icon-btn.danger-btn svg {
+  color: #ff9aa4;
+}
+
+/* Mini rating card at the end of a signed-in player's lobby row - same tier colours
+   as the full card (.rating-card), which it opens when tapped. */
+.mini-card {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+  width: 46px;
+  height: 58px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 2.5px solid var(--bark);
+  background: linear-gradient(160deg, #c08a55 0%, #8a5a30 55%, #5c3a1d 100%);
+  box-shadow: 0 3px 0 var(--bark), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.mini-card-silver {
+  background: linear-gradient(160deg, #eef2f5 0%, #b9c2cb 55%, #868f98 100%);
+}
+
+.mini-card-gold {
+  background: linear-gradient(160deg, #fff1b8 0%, #f6d27a 45%, #c9993f 100%);
+}
+
+.mini-card-gold-strong {
+  background: linear-gradient(160deg, #fffbe0 0%, #ffe18a 35%, #e8b63c 65%, #a9781f 100%);
+  box-shadow: 0 3px 0 var(--bark), 0 0 10px rgba(255, 216, 120, 0.6);
+}
+
+.mini-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--bark), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.mini-card-ovr {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  z-index: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bark);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.mini-card-photo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  margin-bottom: 1px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+
+.mini-card-initial {
+  margin-bottom: 7px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--bark);
+}
+
 /* Cycles through the sunset-meadow palette so new tiles stay on-theme automatically. */
 .game-tile:nth-of-type(4n + 1) {
   --tile-a: var(--orange);
@@ -776,16 +877,30 @@ button.secondary:active:not(:disabled) {
 }
 
 .scoreboard-toggle-btn {
-  width: 48px;
+  width: auto;
   height: 48px;
   min-height: 48px;
-  font-size: 1.2rem;
+  gap: 0.4rem;
+  padding: 0 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.scoreboard-toggle-btn svg {
+  color: var(--sun);
 }
 
 .scoreboard-toggle-btn.open,
 #sticker-btn.open {
   background: linear-gradient(180deg, #ffd88f 0%, var(--sun) 100%);
   border-color: var(--bark);
+  color: var(--accent-text);
+}
+
+.scoreboard-toggle-btn.open svg,
+#sticker-btn.open svg {
+  color: var(--accent-text);
 }
 
 /* Grid-rows 0fr->1fr trick: animates to auto content height ("falls down") without JS measuring. */

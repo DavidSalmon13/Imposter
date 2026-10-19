@@ -410,7 +410,35 @@ function updateAiofTile() {
   chooseAllInOrFoldBtn.classList.toggle('tile-underfilled', !rejoin && lastLobbyPlayerCount < AIOF_MIN_PLAYERS);
 }
 
-function renderLobby(players, scoreboard, playerStickers, playerSignedIn) {
+// Tiny version of the player's rating card (tier colour, sticker, overall) shown at the
+// end of their lobby row; tapping it opens the full card, same as the glowing avatar.
+function buildMiniCard(name, rating, sticker) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  const strong = rating.tier === 'gold' && rating.ovr >= 85;
+  btn.className = `mini-card mini-card-${rating.tier}${strong ? ' mini-card-gold-strong' : ''}`;
+  btn.setAttribute('aria-label', `${name}'s card: ${rating.ovr} overall, ${rating.tier}`);
+  const ovr = document.createElement('span');
+  ovr.className = 'mini-card-ovr';
+  ovr.textContent = rating.ovr;
+  btn.appendChild(ovr);
+  if (sticker) {
+    const img = document.createElement('img');
+    img.className = 'mini-card-photo';
+    img.src = `images/stickers/${sticker}`;
+    img.alt = '';
+    btn.appendChild(img);
+  } else {
+    const initial = document.createElement('span');
+    initial.className = 'mini-card-initial';
+    initial.textContent = name.charAt(0).toUpperCase();
+    btn.appendChild(initial);
+  }
+  btn.addEventListener('click', () => openPlayerCard(name));
+  return btn;
+}
+
+function renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
@@ -442,6 +470,8 @@ function renderLobby(players, scoreboard, playerStickers, playerSignedIn) {
     label.textContent = n === currentHostName ? `${n} (host)` : n;
     li.appendChild(avatar);
     li.appendChild(label);
+    const rating = playerSignedIn && playerSignedIn[n] && playerRatings && playerRatings[n];
+    if (rating) li.appendChild(buildMiniCard(n, rating, sticker));
     lobbyList.appendChild(li);
   });
   lobbyCount.textContent = `${players.length} joined`;
@@ -533,7 +563,7 @@ function routeFromJoin(res) {
 
   applyWordLanguage(res.wordLanguage);
   applyWordTheme(res.wordTheme);
-  renderLobby(res.players || [], res.scoreboard || [], res.playerStickers || {}, res.playerSignedIn || {});
+  renderLobby(res.players || [], res.scoreboard || [], res.playerStickers || {}, res.playerSignedIn || {}, res.playerRatings || {});
   showScreen('lobby');
 }
 
@@ -757,11 +787,11 @@ socket.on('backgroundChanged', ({ background }) => {
   applyBackground(background);
 });
 
-socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers, playerSignedIn }) => {
+socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordTheme: theme, playerStickers, playerSignedIn, playerRatings }) => {
   setHost(host);
   applyWordLanguage(lang);
   applyWordTheme(theme);
-  renderLobby(players, scoreboard, playerStickers, playerSignedIn);
+  renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings);
 });
 
 socket.on('hostUpdate', ({ host }) => {
