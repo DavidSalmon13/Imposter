@@ -168,7 +168,11 @@ export function renderScoreboardFx(listEl, entries) {
 
   scoreboardPrev.set(listEl, next);
 
-  const visible = listEl.offsetParent !== null;
+  // offsetParent alone isn't enough: the header scoreboard dropdown stays attached
+  // and laid out (grid-template-rows: 0fr, not display:none) while closed, so it
+  // reports a non-null offsetParent even at zero height. Measure the actual box.
+  const rect = listEl.getBoundingClientRect();
+  const visible = rect.width > 0 && rect.height > 0;
   if (visible) {
     if (anyUp) {
       sfx.scoreUp();
