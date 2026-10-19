@@ -1268,13 +1268,6 @@ button.secondary:active:not(:disabled) {
   font-weight: 700;
 }
 
-.cn-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
 .cn-timer-section {
   margin-bottom: 0.75rem;
 }
@@ -1305,26 +1298,12 @@ button.secondary:active:not(:disabled) {
   margin: 0;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  color: var(--cream);
 }
 
 .cn-timer-display.cn-timer-low {
   color: var(--danger);
-}
-
-.cn-turn {
-  margin: 0;
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.cn-remaining {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  margin: 0.25rem 0 0.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 #cn-random-teams-btn {
@@ -1345,38 +1324,310 @@ button.secondary:active:not(:disabled) {
   padding-right: 0.75rem;
 }
 
-.cn-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.35rem;
+/* ---------- Codenames play screen: "tug of war" layout ---------- */
+
+#codenames-screen {
+  /* Roughly the height of everything around the 5x5 grid (app header, paddings,
+     score bar, team lists, buttons). Cards grow into whatever the viewport has
+     left; lower this to make cards taller, raise it if the page starts scrolling. */
+  --cn-chrome: 540px;
+  background: var(--bark);
+  padding-top: 1.1rem;
+  gap: 0.8rem;
 }
 
-.cn-card {
-  aspect-ratio: 4 / 5;
-  width: 100%;
-  padding: 0.3rem 0.2rem;
-  font-size: 0.82rem;
+.cn-scorebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cn-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cn-side-blue {
+  align-items: flex-end;
+}
+
+.cn-side-name {
+  font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1.2;
-  border-radius: 10px;
-  background: rgba(40, 44, 58, 0.65);
-  border: 1px solid var(--glass-border);
-  color: var(--text);
+  letter-spacing: 0.1em;
+}
+
+.cn-side-red .cn-side-name,
+.cn-wins-red,
+.cn-team-red .cn-team-title {
+  color: #ff8a95;
+}
+
+.cn-side-blue .cn-side-name,
+.cn-wins-blue,
+.cn-team-blue .cn-team-title {
+  color: #8fb4ff;
+}
+
+.cn-side-found {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cn-wins {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cn-wins-score {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.cn-wins-sep {
+  color: var(--wood-light);
+  padding: 0 0.5rem;
+}
+
+.cn-wins-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+/* Found-cards bar: red fills from the left edge inward, blue from the right. */
+.cn-tug {
+  display: flex;
+  gap: 3px;
+}
+
+.cn-seg {
+  flex: 1;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  transition: background-color 0.3s var(--ease);
+}
+
+.cn-seg-red {
+  border: 1.5px solid rgba(255, 107, 120, 0.55);
+}
+
+.cn-seg-blue {
+  border: 1.5px solid rgba(92, 147, 255, 0.6);
+}
+
+.cn-seg-red.filled {
+  background: var(--team-red);
+  border-color: var(--team-red);
+}
+
+.cn-seg-blue.filled {
+  background: var(--team-blue);
+  border-color: var(--team-blue);
+}
+
+.cn-seg-gap {
+  flex: 0 0 6px;
+}
+
+/* The board frame glows in the colour of the team that is guessing. */
+.cn-board {
+  --cn-team: var(--team-red);
+  --cn-team-glow: rgba(255, 107, 120, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 18px;
+  background: #3a1d0c;
+  border: 3px solid var(--cn-team);
+  box-shadow: 0 0 0 4px var(--cn-team-glow);
+  transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+.cn-board.cn-board-blue {
+  --cn-team: var(--team-blue);
+  --cn-team-glow: rgba(92, 147, 255, 0.2);
+}
+
+.cn-board-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cn-turn-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--cn-team);
+  color: #1a0b04;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.cn-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cn-team {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #3a1d0c;
+  border: 1.5px solid rgba(255, 213, 154, 0.12);
+  transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+.cn-team-red.active {
+  background: rgba(255, 107, 120, 0.18);
+  border-color: var(--team-red);
+}
+
+.cn-team-blue.active {
+  background: rgba(92, 147, 255, 0.2);
+  border-color: var(--team-blue);
+}
+
+.cn-team-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cn-team-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cn-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.cn-member {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--wood-mid);
+  color: var(--cream);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.cn-member.me {
+  box-shadow: 0 0 0 1.5px var(--cream);
+}
+
+.cn-member svg {
+  flex: none;
+}
+
+.cn-leader-note {
+  flex: 1;
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--wood-mid);
+  color: var(--muted);
+  text-align: center;
+  font-weight: 600;
+}
+
+.cn-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cn-actions:not(:has(> :not(.hidden))) {
+  display: none;
+}
+
+.cn-actions #cn-end-turn-btn {
+  flex: 1;
+  width: auto;
+}
+
+.cn-actions .cn-restart-btn {
+  flex: none;
+  width: 52px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---------- Codenames cards (play grid + game-over grid) ---------- */
+
+.cn-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cn-card {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  width: 100%;
+  min-height: unset;
+  box-sizing: border-box;
+  padding: 0.3rem 0.15rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
   text-align: center;
   overflow-wrap: break-word;
   -webkit-hyphens: auto;
   hyphens: auto;
-  min-height: unset;
-  box-shadow: none;
-  transition: transform 0.15s var(--ease), background-color 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.15s var(--ease);
+  background: var(--wood);
+  color: var(--cream);
+  border: 1px solid rgba(255, 213, 154, 0.28);
+  box-shadow: inset 0 2px 0 rgba(255, 236, 200, 0.14), 0 3px 0 #1a0b04;
+  transition: transform 0.15s var(--ease), background-color 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.15s var(--ease), opacity 0.25s var(--ease);
+}
+
+/* Long words drop a size so they fit on one line instead of splitting. */
+.cn-card.cn-card-long {
+  font-size: 0.68rem;
+}
+
+/* On the live board the cards stretch to use the spare screen height. */
+.cn-board .cn-card {
+  aspect-ratio: 5 / 6;
+  min-height: calc((100dvh - var(--cn-chrome)) / 5);
 }
 
 .cn-card:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 2px 0 rgba(255, 236, 200, 0.14), 0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
 .cn-card:active:not(:disabled) {
@@ -1394,28 +1645,61 @@ button.secondary:active:not(:disabled) {
   transform: scale(0.96);
 }
 
+/* Leader view: unrevealed cards keep the wood face, outlined in their colour. */
 .cn-card.cn-leader-hint.cn-red {
-  background: rgba(255, 107, 120, 0.3);
-  border-color: var(--team-red);
+  border: 2px solid var(--team-red);
   color: #ffd4d8;
 }
 
 .cn-card.cn-leader-hint.cn-blue {
-  background: rgba(92, 147, 255, 0.3);
-  border-color: var(--team-blue);
-  color: #cfe1ff;
+  border: 2px solid var(--team-blue);
+  color: #d6e4ff;
 }
 
 .cn-card.cn-leader-hint.cn-neutral {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--glass-border);
-  color: var(--text);
+  background: #4a2a15;
+  border: 2px solid rgba(255, 213, 154, 0.25);
+  color: #e9d7b8;
 }
 
 .cn-card.cn-leader-hint.cn-assassin {
-  background: rgba(245, 245, 249, 0.18);
-  border-color: var(--team-assassin);
-  color: var(--team-assassin);
+  background: #000;
+  border: 2px solid var(--cream);
+  color: var(--cream);
+}
+
+/* Revealed cards: colour plus a pattern, so red and blue differ beyond hue. */
+.cn-card.revealed.cn-red {
+  background: repeating-linear-gradient(135deg, rgba(42, 5, 8, 0) 0 6px, rgba(42, 5, 8, 0.13) 6px 9px), var(--team-red);
+  border-color: var(--team-red);
+  color: #2a0508;
+  box-shadow: 0 1px 0 #1a0b04;
+}
+
+.cn-card.revealed.cn-blue {
+  background: radial-gradient(rgba(4, 18, 43, 0.18) 1.4px, rgba(4, 18, 43, 0) 1.8px) 0 0 / 8px 8px, var(--team-blue);
+  border-color: var(--team-blue);
+  color: #04122b;
+  box-shadow: 0 1px 0 #1a0b04;
+}
+
+.cn-card.revealed.cn-neutral {
+  background: #3b2516;
+  border: 1px dashed rgba(255, 213, 154, 0.3);
+  color: #d9c2a0;
+  box-shadow: none;
+}
+
+.cn-card.revealed.cn-assassin {
+  background: #000;
+  border-color: var(--cream);
+  color: var(--cream);
+  box-shadow: none;
+}
+
+/* Leaders: cards already found fade back so the remaining ones stand out. */
+.cn-card.revealed.cn-done {
+  opacity: 0.45;
 }
 
 /* Only the card revealed by this update pops - the board is rebuilt on every state
@@ -1435,33 +1719,37 @@ button.secondary:active:not(:disabled) {
   }
 }
 
-.cn-card.revealed.cn-red {
+/* Corner marks: dot for red, diamond for blue (colour-blind friendly). */
+.cn-mark {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 7px;
+  height: 7px;
+}
+
+.cn-red .cn-mark {
+  border-radius: 50%;
   background: var(--team-red);
-  border-color: var(--team-red);
-  color: #170406;
 }
 
-.cn-card.revealed.cn-blue {
+.cn-blue .cn-mark {
+  transform: rotate(45deg);
   background: var(--team-blue);
-  border-color: var(--team-blue);
-  color: #04122b;
 }
 
-.cn-card.revealed.cn-neutral {
-  background: #3a3d4a;
-  border-color: #3a3d4a;
-  color: #dcdee6;
+.cn-card.revealed.cn-red .cn-mark {
+  background: #2a0508;
 }
 
-.cn-card.revealed.cn-assassin {
-  background: #000;
-  border-color: #000;
-  color: #fff;
+.cn-card.revealed.cn-blue .cn-mark {
+  background: #04122b;
 }
 
-.cn-card.cn-leader-hint.cn-assassin::before,
-.cn-card.revealed.cn-assassin::before {
-  content: "\1F480 ";
+.cn-skull {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
 /* ---------- 10 Seconds ---------- */

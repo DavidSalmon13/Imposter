@@ -240,19 +240,46 @@
     </section>
 
     <section id="codenames-screen" class="screen hidden">
-      <div class="cn-header">
-        <p id="cn-turn-label" class="cn-turn"></p>
-        <p id="cn-timer-display" class="cn-timer-display hidden"></p>
-        <p id="cn-score" class="muted"></p>
+      <div class="cn-scorebar">
+        <div class="cn-side cn-side-red">
+          <span class="cn-side-name">RED</span>
+          <span class="cn-side-found"><span id="cn-found-red">0</span> of <span id="cn-total-red">0</span> found</span>
+        </div>
+        <div class="cn-wins">
+          <span class="cn-wins-score"><span id="cn-wins-red" class="cn-wins-red">0</span><span class="cn-wins-sep">:</span><span id="cn-wins-blue" class="cn-wins-blue">0</span></span>
+          <span class="cn-wins-label">ROUNDS WON</span>
+        </div>
+        <div class="cn-side cn-side-blue">
+          <span class="cn-side-name">BLUE</span>
+          <span class="cn-side-found"><span id="cn-found-blue">0</span> of <span id="cn-total-blue">0</span> found</span>
+        </div>
       </div>
-      <p class="cn-remaining">
-        <span class="cn-turn-red">Red: <span id="cn-remaining-red"></span> left</span>
-        <span class="cn-turn-blue">Blue: <span id="cn-remaining-blue"></span> left</span>
-      </p>
-      <div id="cn-grid" class="cn-grid"></div>
+      <div id="cn-tug" class="cn-tug" role="img"></div>
+      <div id="cn-board" class="cn-board">
+        <div class="cn-board-top">
+          <span id="cn-turn-label" class="cn-turn-pill"></span>
+          <span id="cn-timer-display" class="cn-timer-display hidden"></span>
+        </div>
+        <div id="cn-grid" class="cn-grid"></div>
+      </div>
+      <div class="cn-teams">
+        <div id="cn-team-red" class="cn-team cn-team-red">
+          <span class="cn-team-title">Red team</span>
+          <div id="cn-members-red" class="cn-members"></div>
+        </div>
+        <div id="cn-team-blue" class="cn-team cn-team-blue">
+          <span class="cn-team-title">Blue team</span>
+          <div id="cn-members-blue" class="cn-members"></div>
+        </div>
+      </div>
       <button id="cn-start-timer-btn" class="hidden">Start Timer</button>
-      <button id="cn-end-turn-btn" class="secondary hidden">End Turn</button>
-      <button id="cn-restart-btn" class="secondary hidden" type="button">Restart Round</button>
+      <div class="cn-actions">
+        <p id="cn-leader-note" class="cn-leader-note hidden">You're the leader &mdash; say your clue out loud</p>
+        <button id="cn-end-turn-btn" class="hidden" type="button">End Turn</button>
+        <button id="cn-restart-btn" class="secondary cn-restart-btn hidden" type="button" aria-label="Restart round" title="Restart round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
       <p id="cn-restart-error" class="error hidden"></p>
     </section>
 
