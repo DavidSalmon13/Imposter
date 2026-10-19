@@ -4331,6 +4331,8 @@ button.confirm-danger {
   bottom: calc(0.8rem + env(safe-area-inset-bottom));
   z-index: 90;
   display: flex;
+  flex-wrap: wrap;
+  max-width: 44vw;
   gap: 0.4rem;
   padding: 0.35rem;
   background: var(--glass-bg-strong);
@@ -4423,7 +4425,7 @@ button.confirm-danger {
   right: 0.8rem;
   bottom: calc(0.8rem + env(safe-area-inset-bottom));
   z-index: 40;
-  width: 150px;
+  width: min(150px, 44vw);
   max-height: 40vh;
   overflow-y: auto;
   padding: 0.5rem 0.6rem;

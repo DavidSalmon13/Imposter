@@ -17,8 +17,10 @@ const REACTION_STICKERS = [
 ];
 
 // Mirrors the client-side cooldown the row itself enforces via disabled buttons - this is
-// just a floor so a flood of 'reaction' events (e.g. a buggy/hostile client ignoring its own
-// disabled state) can't spawn unbounded floating nodes.
+// just a floor so a flood of 'reaction' events from one sender (e.g. a buggy/hostile client
+// ignoring its own disabled state) can't spawn unbounded floating nodes. Keyed per sender
+// name so one player reacting never suppresses another player's reaction landing right
+// after it.
 const FLOAT_COOLDOWN_MS = 500;
 const COOLDOWN_MS = 600;
 
@@ -27,13 +29,14 @@ const floatLayer = document.getElementById('reaction-float-layer');
 
 let socket = null;
 let cooling = false;
-let lastFloatAt = 0;
+const lastFloatAtByName = new Map();
 
 function spawnFloat(name, sticker) {
   if (!floatLayer) return;
   const now = Date.now();
+  const lastFloatAt = lastFloatAtByName.get(name) || 0;
   if (now - lastFloatAt < FLOAT_COOLDOWN_MS) return;
-  lastFloatAt = now;
+  lastFloatAtByName.set(name, now);
 
   const el = document.createElement('div');
   el.className = 'reaction-float';
