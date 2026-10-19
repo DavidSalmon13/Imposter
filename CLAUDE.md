@@ -14,11 +14,14 @@ relevant one before changing that game's logic.
 
 ```
 npm start          # node server.js — no build step, serves public/ statically
+npm test           # node --test — runs the server/games/*.js unit suite in tests/
 ```
 
-No lint or test command exists yet. There is no automated test suite — verify
-changes by manually running the affected game's full flow in a browser (see
-"Testing" below).
+No lint command exists yet. `tests/` holds Node's built-in test runner suite
+covering each game's server-side logic (one file per game under
+`tests/games/`, shared ctx/socket/room fakes and an OpenAI-call mock in
+`tests/helpers/harness.js`) — see "Testing" below for what it does and
+doesn't cover.
 
 Requires Node >=18. Environment variables (see `.env.example`):
 - `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`) — used for
@@ -76,9 +79,20 @@ disconnect/reconnect socket handlers that delegate into the active game via
 
 ## Testing
 
-No automated suite exists. After any change, manually run the affected
-game's full happy path in a browser: create room → choose game → play a full
-round → confirm scoreboard updates → back to lobby — plus one
-disconnect/reconnect mid-round, since reconnect/persistence logic is the
-most likely thing to silently regress. `implementation/refactor_plan.md` §8 has more detail
-on what's cheapest to unit-test if a suite gets added later.
+`npm test` runs the server-side unit suite (`tests/games/*.test.js`, one file
+per game, plus pure-logic tests for `pokerEval.js`/`bluffHands.js`). It drives
+each game module's real `registerHandlers`/`onChoose`/etc. against a fake
+`ctx`/`io`/socket (see `tests/helpers/harness.js`) — no real socket.io server,
+no real OpenAI calls (mocked via `global.fetch`), no real multi-second
+timers (driven with `node:test`'s `t.mock.timers` where a game schedules
+one). This catches regressions in scoring, win conditions, and handler
+guard clauses (host-only, phase checks, input validation) across all 8 games.
+
+It does **not** cover the frontend (`public/js/`), the lobby/reconnect glue
+in `server/lobby.js`, or persistence (`server/persistence.js`). After any
+change, still manually run the affected game's full happy path in a browser:
+create room → choose game → play a full round → confirm scoreboard updates →
+back to lobby — plus one disconnect/reconnect mid-round, since
+reconnect/persistence logic is the most likely thing to silently regress.
+`implementation/refactor_plan.md` §8 has more detail on what's cheapest to
+unit-test if the suite grows.
