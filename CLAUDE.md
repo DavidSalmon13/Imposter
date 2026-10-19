@@ -96,3 +96,9 @@ back to lobby — plus one disconnect/reconnect mid-round, since
 reconnect/persistence logic is the most likely thing to silently regress.
 `implementation/refactor_plan.md` §8 has more detail on what's cheapest to
 unit-test if the suite grows.
+
+`npm test` runs automatically on every push to `main` and on every PR via
+GitHub Actions (`.github/workflows/test.yml`, pinned to the Node version it
+was verified against - the suite uses `node:test`'s experimental
+`mock.timers`, which needs Node >=20, newer than this repo's own `>=18`
+app-runtime minimum).
