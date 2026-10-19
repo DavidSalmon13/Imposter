@@ -16,6 +16,7 @@ import { renderScoreboard } from './shared/scoreboard.js';
 import { confirmDialog } from './shared/confirmDialog.js';
 import { emojiForName } from './shared/playerEmoji.js';
 import { initAccount, refreshCard, onLockedStickers, openPlayerCard } from './shared/account.js';
+import { initReactions } from './shared/reactions.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -603,6 +604,7 @@ stickerBtn.addEventListener('click', () => {
 });
 
 initAccount(getClientId, socket);
+initReactions(socket);
 
 function chooseGame(game) {
   flashChooseError('');

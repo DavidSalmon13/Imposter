@@ -76,10 +76,15 @@ function createRoom(ctx, code, names, { game = null, phase = 'lobby', hostName }
   return room;
 }
 
+let nextFakeSocketId = 1;
+
 /** A socket stand-in that records registered handlers, for registerHandlers(ctx, io, socket). */
 function makeHandlerSocket(roomCode, name) {
   const handlers = {};
   return {
+    // Real socket.io sockets have a unique id; some handlers (e.g. lobby.js's sendReaction
+    // rate limit) key per-socket state off it, so each fake socket needs its own too.
+    id: `fake-socket-${nextFakeSocketId++}`,
     data: { roomCode, name },
     on(event, handler) {
       handlers[event] = handler;

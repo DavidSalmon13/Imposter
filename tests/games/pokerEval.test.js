@@ -59,12 +59,18 @@ test('computeEquities: a complete 5-card board is exact, not sampled', () => {
   assert.equal(equities.Bob, 0);
 });
 
-test('computeEquities: identical hole cards on an empty board split evenly', () => {
+test('computeEquities: suit-mirrored hole cards on a flush-proof board tie every trial', () => {
+  // Ann/Bob's hole cards are a heart<->diamond mirror of each other, and the board carries
+  // only spades/clubs - so no river card can ever complete a flush for either of them, which
+  // means every possible river produces a rank-identical (tied) hand for both. With just 1
+  // card left to come (44 possibilities) and sampleSize comfortably above that, computeEquities
+  // takes its exact-enumeration path (see "a complete 5-card board is exact" above) rather than
+  // Monte Carlo sampling - so this is a deterministic 50/50, not a statistical approximation.
   const equities = computeEquities({
     liveHoleCards: { Ann: ['Ah', 'Kh'], Bob: ['Ad', 'Kd'] },
-    boardCards: [],
-    sampleSize: 50,
+    boardCards: ['2s', '3c', '4s', '5c'],
+    sampleSize: 100,
   });
-  assert.ok(Math.abs(equities.Ann - equities.Bob) < 5, 'should be roughly even');
-  assert.ok(equities.Ann > 40 && equities.Ann < 60);
+  assert.equal(equities.Ann, 50);
+  assert.equal(equities.Bob, 50);
 });

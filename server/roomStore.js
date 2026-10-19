@@ -109,6 +109,8 @@ function createRoomState() {
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)
     imposterRoundResults: null, // [{ name, role, eliminated, points }]
+    imposterPicks: {}, // name -> suspected imposter's name, reset every round
+    bfWinnerPicks: {}, // name -> who they bet wins the match, reset at match start
     backgroundImage: null,
   };
 }

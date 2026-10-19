@@ -5,6 +5,7 @@
 const generatingTitle = document.getElementById('generating-title');
 const generatingSubtitle = document.getElementById('generating-subtitle');
 const bgControls = document.getElementById('bg-controls');
+const reactionRow = document.getElementById('reaction-row');
 
 export const screens = {
   join: document.getElementById('join-screen'),
@@ -31,7 +32,9 @@ export function showScreen(name) {
   // that predates a screen (e.g. #restoring-screen).
   Object.values(screens).forEach((el) => el && el.classList.add('hidden'));
   screens[name].classList.remove('hidden');
-  bgControls.classList.toggle('hidden', name === 'join' || name === 'restoring');
+  const atEntry = name === 'join' || name === 'restoring';
+  bgControls.classList.toggle('hidden', atEntry);
+  if (reactionRow) reactionRow.classList.toggle('hidden', atEntry);
 }
 
 export function showGenerating(game) {

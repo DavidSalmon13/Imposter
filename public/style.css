@@ -4207,3 +4207,153 @@ button.confirm-danger {
 .history-table tbody tr:nth-child(even) {
   background: rgba(255, 255, 255, 0.03);
 }
+
+/* ---------- Shared reaction row (public/js/shared/reactions.js) ---------- */
+
+.reaction-row {
+  position: fixed;
+  left: 0.8rem;
+  bottom: calc(0.8rem + env(safe-area-inset-bottom));
+  z-index: 90;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-soft);
+}
+
+.reaction-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--wood-mid);
+  transition: transform 0.12s var(--ease);
+}
+
+.reaction-btn:active {
+  transform: scale(0.88);
+}
+
+.reaction-btn:disabled {
+  opacity: 0.5;
+}
+
+.reaction-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reaction-float-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.reaction-float {
+  position: absolute;
+  bottom: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  animation: reaction-float-up 2.2s ease-out forwards;
+}
+
+.reaction-float img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.reaction-float span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes reaction-float-up {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(-20px) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-220px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* ---------- Side-bet corner tables (Imposter suspect picks, Bluff winner picks) ---------- */
+
+.corner-pick-panel {
+  position: fixed;
+  right: 0.8rem;
+  bottom: calc(0.8rem + env(safe-area-inset-bottom));
+  z-index: 40;
+  width: 150px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.corner-pick-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.corner-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.corner-pick-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.corner-pick-list li.corner-pick-mine {
+  background: rgba(246, 199, 104, 0.22);
+  box-shadow: inset 0 0 0 2px var(--sun);
+}
+
+.corner-pick-list li span:last-child {
+  font-weight: 700;
+  color: var(--muted);
+}

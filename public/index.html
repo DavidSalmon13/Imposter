@@ -29,6 +29,12 @@
   </header>
   <p id="bg-error" class="error bg-error hidden"></p>
 
+  <!-- Shared reaction row: visible on every screen once joined (toggled by showScreen in
+       shared/dom.js), independent of whichever game is active. Floating reactions render
+       into reaction-float-layer, a full-viewport overlay so they aren't clipped by the row. -->
+  <div id="reaction-row" class="reaction-row hidden"></div>
+  <div id="reaction-float-layer" class="reaction-float-layer" aria-hidden="true"></div>
+
   <main class="app-main">
     <section id="join-screen" class="screen">
       <input id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
@@ -164,6 +170,10 @@
         <button id="play-again-btn" class="secondary hidden" type="button">Back to Lobby</button>
       </div>
       <p id="play-again-waiting" class="muted hidden">Waiting for the host to end the round&hellip;</p>
+      <div id="imposter-pick-panel" class="corner-pick-panel hidden">
+        <p class="corner-pick-title">Who's the imposter?</p>
+        <ul id="imposter-pick-list" class="corner-pick-list"></ul>
+      </div>
     </section>
 
     <section id="imposter-reporting-screen" class="screen hidden">
@@ -657,6 +667,10 @@
           </div>
           <div id="bf-seats" class="bf-seats"></div>
         </div>
+        <div id="bf-pick-panel" class="corner-pick-panel hidden">
+          <p class="corner-pick-title">Who wins the match?</p>
+          <ul id="bf-pick-list" class="corner-pick-list"></ul>
+        </div>
         <button id="bf-check-open-btn" class="secondary hidden" type="button">🔍 Check the called cards</button>
         <div id="bf-check-builder" class="bf-check-builder hidden">
           <h2 class="mf-section-heading">Which cards were called?</h2>
@@ -686,6 +700,7 @@
 
       <div id="bf-gameover-panel" class="hidden">
         <h2 id="bf-champion" class="ts-champion"></h2>
+        <p id="bf-pick-result" class="muted hidden"></p>
         <ol id="bf-standings" class="ts-standings"></ol>
         <h2 class="scoreboard-heading">Scoreboard</h2>
         <ol id="bf-scoreboard" class="scoreboard-list"></ol>

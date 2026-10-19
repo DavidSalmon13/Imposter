@@ -24,9 +24,12 @@ let reportError;
 let imposterResultsBody;
 let imposterResultsScoreboard;
 let imposterResultsBackBtn;
+let imposterPickPanel;
+let imposterPickList;
 
 let myVote = null;
 let pendingLevel = null;
+let myPick = null;
 
 function queryDom() {
   levelButtons = Array.from(
@@ -49,6 +52,34 @@ function queryDom() {
   imposterResultsBody = document.getElementById('imposter-results-body');
   imposterResultsScoreboard = document.getElementById('imposter-results-scoreboard');
   imposterResultsBackBtn = document.getElementById('imposter-results-back-btn');
+  imposterPickPanel = document.getElementById('imposter-pick-panel');
+  imposterPickList = document.getElementById('imposter-pick-list');
+}
+
+function renderImposterPicks({ tally, myPick: nextMyPick }) {
+  imposterPickPanel.classList.remove('hidden');
+  myPick = nextMyPick;
+  const myName = ctx.getMyName();
+  imposterPickList.innerHTML = '';
+  (tally || []).forEach(({ name, count }) => {
+    const li = document.createElement('li');
+    li.classList.toggle('corner-pick-mine', name === myPick);
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = name;
+    const countSpan = document.createElement('span');
+    countSpan.textContent = count;
+    li.appendChild(nameSpan);
+    li.appendChild(countSpan);
+    if (name !== myName) {
+      li.addEventListener('click', () => {
+        const next = myPick === name ? null : name;
+        myPick = next;
+        renderImposterPicks({ tally, myPick: next });
+        ctx.socket.emit('imposterPick', next, () => {});
+      });
+    }
+    imposterPickList.appendChild(li);
+  });
 }
 
 function renderVoting() {
@@ -176,6 +207,8 @@ function bindSocket() {
     showScreen('game');
   });
 
+  socket.on('imposterPicksUpdate', renderImposterPicks);
+
   socket.on('imposterReporting', (data) => {
     renderImposterReporting(data);
     showScreen('imposterReporting');
@@ -203,6 +236,7 @@ export const Imposter = {
   applyJoin(res) {
     if (res.phase === 'playing') {
       renderGame(res.level, res.role, res.word, res.hint);
+      renderImposterPicks({ tally: res.pickTally, myPick: res.myPick });
       ctx.showScreen('game');
     } else if (res.phase === 'reporting') {
       renderImposterReporting(res);
@@ -222,6 +256,8 @@ export const Imposter = {
   stop() {
     myVote = null;
     pendingLevel = null;
+    myPick = null;
     if (reportError) reportError.textContent = '';
+    if (imposterPickPanel) imposterPickPanel.classList.add('hidden');
   },
 };

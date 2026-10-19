@@ -32,8 +32,11 @@ const bfSeatsEl = document.getElementById('bf-seats');
 const bfInPlayEl = document.getElementById('bf-in-play');
 const bfHandEl = document.getElementById('bf-hand');
 const bfTableError = document.getElementById('bf-table-error');
+const bfPickPanel = document.getElementById('bf-pick-panel');
+const bfPickList = document.getElementById('bf-pick-list');
 const bfGameoverPanel = document.getElementById('bf-gameover-panel');
 const bfChampion = document.getElementById('bf-champion');
+const bfPickResult = document.getElementById('bf-pick-result');
 const bfStandings = document.getElementById('bf-standings');
 const bfScoreboard = document.getElementById('bf-scoreboard');
 const bfResetBtn = document.getElementById('bf-reset-btn');
@@ -453,6 +456,32 @@ function renderEditPanel(data) {
   });
 }
 
+/** Live "who wins the match?" side-bet: tap a remaining player to (re)place or clear your pick. */
+function renderBfPickPanel(data) {
+  const tally = data.winnerPickTally || [];
+  if (!tally.length) {
+    bfPickPanel.classList.add('hidden');
+    return;
+  }
+  bfPickPanel.classList.remove('hidden');
+  bfPickList.innerHTML = '';
+  tally.forEach(({ name, count }) => {
+    const li = document.createElement('li');
+    li.classList.toggle('corner-pick-mine', name === data.myWinnerPick);
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = name;
+    const countSpan = document.createElement('span');
+    countSpan.textContent = count;
+    li.appendChild(nameSpan);
+    li.appendChild(countSpan);
+    li.addEventListener('click', () => {
+      const next = data.myWinnerPick === name ? null : name;
+      ctx.socket.emit('bfPickWinner', next, () => {});
+    });
+    bfPickList.appendChild(li);
+  });
+}
+
 function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
@@ -460,6 +489,7 @@ function applyTable(data) {
   runResultSequence(data);
   applyCheck(data.check);
   renderEditPanel(data);
+  renderBfPickPanel(data);
 
   // Host can check the called cards while a round is live, no check is counting down,
   // and no card-count edit is in progress (bfEditing blocks bfCheckHand server-side too).
@@ -486,6 +516,15 @@ function applyGameover(data) {
   const ranking = data.ranking || [];
   const champion = ranking[0];
   bfChampion.textContent = champion ? `${champion.name} wins Bluff!` : 'No champion';
+
+  const correctPickers = (data.winnerPickResult && data.winnerPickResult.correctPickers) || [];
+  bfPickResult.classList.toggle('hidden', correctPickers.length === 0);
+  if (correctPickers.length) {
+    bfPickResult.textContent =
+      correctPickers.length === 1
+        ? `🎉 ${correctPickers[0]} called it!`
+        : `🎉 ${correctPickers.join(', ')} called it!`;
+  }
 
   bfStandings.innerHTML = '';
   ranking.forEach((row, i) => {
@@ -517,6 +556,7 @@ function applyState(data) {
     bfTableFelt.classList.remove('bf-dealing');
     bfEditOpenBtn.classList.add('hidden');
     bfEditPanel.classList.add('hidden');
+    bfPickPanel.classList.add('hidden');
   }
 
   if (data.phase === 'seating') {
@@ -642,5 +682,7 @@ export const Bluff = {
     if (bfEditError) bfEditError.textContent = '';
     if (bfEditOpenBtn) bfEditOpenBtn.classList.add('hidden');
     if (bfEditPanel) bfEditPanel.classList.add('hidden');
+    if (bfPickPanel) bfPickPanel.classList.add('hidden');
+    if (bfPickResult) bfPickResult.classList.add('hidden');
   },
 };

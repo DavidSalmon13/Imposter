@@ -24,6 +24,22 @@ const stats = require('./stats');
 // who connects lands in the same game.
 const SHARED_ROOM_CODE = 'MAIN';
 
+// Curated subset of the built-in sticker bank usable as reactions (see the shared
+// reaction row in public/js/shared/reactions.js) - a hand-picked spread of expressions,
+// not the full picker (which includes outfit/pose stickers that don't read as a reaction),
+// and deliberately excludes player-uploaded custom-* stickers.
+const REACTION_STICKERS = [
+  '7818f961-efbf-41e6-94ee-99d8934cf823.webp', // big laugh
+  'ff6eca8a-9135-4b94-85e9-04ab02f464e6.webp', // shocked
+  '1fc18b9d-116d-4b73-840e-ccc8ddb1a45c.webp', // kiss / love it
+  'bf45b8f8-461a-4b2a-a697-377c8d7ad371.webp', // hype / crazy
+  '65e3b128-db99-4452-bc02-45d7d1602674.webp', // dead / oof
+  '34252cf1-c888-481a-a846-359f70cc47aa.webp', // money
+];
+const REACTION_COOLDOWN_MS = 600;
+/** @type {Map<string, number>} socket.id -> epoch ms of its last accepted reaction */
+const lastReactionAt = new Map();
+
 /** @type {object | null} */
 let hooks = null;
 /** @type {object | null} */
@@ -444,6 +460,24 @@ function registerLobbyHandlers(socket) {
     broadcastLobby(roomCode, room);
   });
 
+  // Shared reaction row (any screen, any game) - broadcasts a curated sticker to the room
+  // as a floating reaction. Purely cosmetic, not persisted, rate-limited per socket.
+  socket.on('sendReaction', (sticker, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (!REACTION_STICKERS.includes(sticker)) return callback({ ok: false, error: 'Invalid reaction' });
+
+    const now = Date.now();
+    const last = lastReactionAt.get(socket.id) || 0;
+    if (now - last < REACTION_COOLDOWN_MS) return callback({ ok: false, error: 'Too fast' });
+    lastReactionAt.set(socket.id, now);
+
+    callback({ ok: true });
+    roomEmit(roomCode, 'reaction', { name: socket.data.name, sticker });
+  });
+
   socket.on('resetScoreboard', (callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -533,6 +567,7 @@ function registerLobbyHandlers(socket) {
   });
 
   socket.on('disconnect', () => {
+    lastReactionAt.delete(socket.id);
     const name = socket.data.name;
     const roomCode = socket.data.roomCode;
     if (!name || !roomCode) return;
