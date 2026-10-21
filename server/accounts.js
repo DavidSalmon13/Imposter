@@ -395,14 +395,33 @@ async function playerCard({ userId, clientId }) {
   const scope = scopeFor({ userId, clientId });
   if (!scope) return null;
   const { where, param } = scope;
+  // placement: per game, the share of the other participants this player finished
+  // ahead of (ties count half), averaged per game type - feeds the rating card. Order
+  // is details.place when both rows have one (10 Seconds, whose points don't separate
+  // middle waves), else (won, points) like rivalries().
   const { rows } = await db.query(
     `SELECT g.game_type,
             count(*)::int                              AS played,
             count(*) FILTER (WHERE gp.won)::int        AS won,
-            coalesce(sum(gp.points), 0)::int           AS points
+            coalesce(sum(gp.points), 0)::int           AS points,
+            avg(o.placement)::float8                   AS placement
        FROM game_participants gp
        JOIN players p ON p.id = gp.player_id
        JOIN games g   ON g.id = gp.game_id
+       LEFT JOIN LATERAL (
+         SELECT avg(CASE WHEN c.cmp > 0 THEN 1 WHEN c.cmp = 0 THEN 0.5 ELSE 0 END) AS placement
+           FROM (
+             SELECT CASE
+                      WHEN gp.details->>'place' IS NOT NULL AND t.details->>'place' IS NOT NULL
+                        THEN sign((t.details->>'place')::numeric - (gp.details->>'place')::numeric)
+                      WHEN (coalesce(gp.won, false), gp.points) > (coalesce(t.won, false), t.points) THEN 1
+                      WHEN (coalesce(gp.won, false), gp.points) < (coalesce(t.won, false), t.points) THEN -1
+                      ELSE 0
+                    END AS cmp
+               FROM game_participants t
+              WHERE t.game_id = gp.game_id AND t.player_id <> gp.player_id
+           ) c
+       ) o ON true
       WHERE ${where}
       GROUP BY g.game_type`,
     [param]
@@ -412,7 +431,7 @@ async function playerCard({ userId, clientId }) {
   let wins = 0;
   let points = 0;
   for (const r of rows) {
-    byGame[r.game_type] = { played: r.played, won: r.won, points: r.points };
+    byGame[r.game_type] = { played: r.played, won: r.won, points: r.points, placement: r.placement };
     gamesPlayed += r.played;
     wins += r.won;
     points += r.points;

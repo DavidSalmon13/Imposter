@@ -97,13 +97,22 @@ secondary source was forced onto them.
 played at least once:
 
 ```
-perf(gameType) = 50 + (winRate(gameType) × 99 − 50) × min(1, played(gameType) / 8)
+perf(gameType) = 50 + (placement(gameType) × 99 − 50) × min(1, played(gameType) / 8)
 ```
 
+`placement` is, per game, the share of the other participants the player finished
+ahead of (ties count half), averaged over that game type: 1 = always first, 0 = always
+last, 0.5 = average. Finishing 2nd of 7 in Bluff scores 5/6 even though only the
+winner has `won`, so big games no longer push everyone but the winner below 50, and
+finishing in the bottom half still lowers the rating. Finishing order comes from
+`details.place` when recorded (10 Seconds), otherwise from `(won, points)`, so team
+games (Codenames) rank the winning team ahead and teammates as tied. If no game of
+that type had another participant, `placement` falls back to the win rate.
+
 A brand-new game type sits at a neutral baseline of 50 and only converges toward its
-true win-rate-implied score once 8+ rounds of that specific game are played. This
-avoids "1 win in 1 round = 99 rating" noise. `winRate`/`played` come from the same
-`byGame` data the match-history table uses — no new query.
+true placement-implied score once 8+ rounds of that specific game are played. This
+avoids "1 win in 1 round = 99 rating" noise. `placement`/`played` come from the same
+`byGame` query the match-history table uses.
 
 **Step 2 — stat score**, for each of the six stats: the weighted average of
 `perf(gameType)` over every game in that stat's contributor list that the player has

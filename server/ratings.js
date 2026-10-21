@@ -1,7 +1,7 @@
 /**
  * The six-stat rating card (FIFA Ultimate Team-style). Pure function of the `byGame`
  * shape `playerCard()` in server/accounts.js already computes ({ [gameType]: { played,
- * won, points } }) - no DB, no HTTP. See specs/account-page-specs.md for the design.
+ * won, points, placement } }) - no DB, no HTTP. See specs/account-page-specs.md for the design.
  *
  * Music Timeline and Mind Meld deliberately contribute to nothing here, per the
  * original ask to ignore them for now.
@@ -23,12 +23,18 @@ const CONFIDENCE_GAMES = 8;
 const BASELINE = 50;
 const MAX_RATING = 99;
 
-/** 0-99 performance score for one game type the player has played at least once. */
-function perf({ played, won }) {
+/**
+ * 0-99 performance score for one game type the player has played at least once.
+ * `placement` is the average share of opponents finished ahead of (ties count half,
+ * 0 = always last, 1 = always first; see playerCard()), so finishing 2nd of 7 counts
+ * for a lot even though only the winner has `won`. Falls back to win rate when no
+ * game had an opponent to compare against.
+ */
+function perf({ played, won, placement }) {
   if (!played) return null;
-  const winRate = won / played;
+  const score = placement ?? won / played;
   const confidence = Math.min(1, played / CONFIDENCE_GAMES);
-  const raw = winRate * MAX_RATING;
+  const raw = score * MAX_RATING;
   return BASELINE + (raw - BASELINE) * confidence;
 }
 
@@ -39,7 +45,7 @@ function tierFor(ovr) {
 }
 
 /**
- * byGame: { [gameType]: { played, won, points } } (points unused here).
+ * byGame: { [gameType]: { played, won, points, placement } } (points unused here).
  * Returns { ovr, tier, stats: { SPD, COM, STR, TAC, NRV, DEC } }, each stat and ovr
  * rounded to an integer in [0, 99].
  */
