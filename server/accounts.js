@@ -733,4 +733,5 @@ module.exports = {
   startCleanup,
   isBanned,
   deleteUser,
+  userFromRequest,
 };

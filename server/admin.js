@@ -3,21 +3,18 @@
  * activity feed), moderation (kick, make host, end game, announce, ban), and account
  * management (search, rename, ban, delete) plus recent game history from Postgres.
  *
- * Login uses the same owner password and per-IP lockout as /stats (STATS_PASSWORD, see
- * server/stats.js). A successful login gets a random token in an httpOnly, SameSite=Strict
- * cookie; tokens live in memory only, so a restart just means logging in again. Every
- * mutating route takes JSON, which a cross-site form can't send without a preflight.
- *
- * The account/history routes need the database (server/db.js) and answer 503 without it;
- * the live view and room moderation always work.
+ * Access: only a Google-signed-in account (the normal Shorot sign-in, server/accounts.js)
+ * whose verified email is listed in ADMIN_EMAILS (comma-separated). Unset = nobody is an
+ * admin. So the page needs DATABASE_URL and GOOGLE_CLIENT_ID; the session cookie is the
+ * regular SameSite=Lax login cookie, and every mutating route takes JSON, which a
+ * cross-site form can't send without a preflight.
  */
-const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const db = require('./db');
 const stats = require('./stats');
 const { logActivity, recentActivity } = require('./activity');
-const { deleteUser } = require('./accounts');
+const accounts = require('./accounts');
 const {
   connectedNames,
   scoreboardEntries,
@@ -27,44 +24,35 @@ const {
   kickPlayer,
 } = require('./lobby');
 
-const ADMIN_COOKIE = 'shorot_admin';
-const SESSION_MS = 12 * 60 * 60 * 1000;
 const MAX_ANNOUNCEMENT = 200;
 const STARTED_AT = Date.now();
 
-/** sha256(token) -> expiry epoch ms */
-const sessions = new Map();
-
-function hashToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
+function adminEmails() {
+  return (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-function readCookie(req, name) {
-  const header = req.headers.cookie || '';
-  for (const part of header.split(';')) {
-    const eq = part.indexOf('=');
-    if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+/** The signed-in admin for this request, or null. */
+async function adminFromRequest(req) {
+  const allowed = adminEmails();
+  if (!allowed.length || !db.isEnabled()) return null;
+  const user = await accounts.userFromRequest(req);
+  // users.email is only ever stored when Google says it's verified.
+  return user && user.email && allowed.includes(String(user.email).toLowerCase()) ? user : null;
+}
+
+async function requireAdmin(req, res, next) {
+  try {
+    const user = await adminFromRequest(req);
+    if (!user) return res.status(403).json({ ok: false, error: 'Not an admin' });
+    req.admin = user;
+    next();
+  } catch (err) {
+    console.error('Admin check failed:', err.message);
+    res.status(500).json({ ok: false, error: 'Something went wrong' });
   }
-  return null;
-}
-
-function isAdmin(req) {
-  const token = readCookie(req, ADMIN_COOKIE);
-  if (!token) return false;
-  const key = hashToken(token);
-  const expires = sessions.get(key);
-  if (!expires) return false;
-  if (expires < Date.now()) {
-    sessions.delete(key);
-    return false;
-  }
-  return true;
-}
-
-function requireAdmin(req, res, next) {
-  if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Not logged in' });
-  next();
 }
 
 function requireDb(req, res, next) {
@@ -131,27 +119,21 @@ function registerAdminRoutes(app, { ctx }) {
     res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
   });
 
-  app.post('/api/admin/login', json, (req, res) => {
-    const failure = stats.checkOwnerPassword(req, req.body && req.body.password);
-    if (failure) return res.status(failure.status).json({ ok: false, error: failure.error });
-    const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(hashToken(token), Date.now() + SESSION_MS);
-    res.cookie(ADMIN_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: req.secure,
-      maxAge: SESSION_MS,
-      path: '/',
-    });
-    logActivity('admin', 'Admin logged in');
-    res.json({ ok: true });
-  });
-
-  app.post('/api/admin/logout', (req, res) => {
-    const token = readCookie(req, ADMIN_COOKIE);
-    if (token) sessions.delete(hashToken(token));
-    res.clearCookie(ADMIN_COOKIE, { path: '/' });
-    res.json({ ok: true });
+  // Who's looking at /admin: lets the page say "sign in" vs "this account isn't an admin".
+  app.get('/api/admin/me', async (req, res) => {
+    try {
+      const user = db.isEnabled() ? await accounts.userFromRequest(req) : null;
+      const admin = await adminFromRequest(req);
+      res.json({
+        ok: true,
+        signedIn: !!user,
+        name: user ? user.display_name : null,
+        admin: !!admin,
+        configured: adminEmails().length > 0,
+      });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: 'Something went wrong' });
+    }
   });
 
   // Everything the Live tab shows, polled every few seconds.
@@ -354,7 +336,7 @@ function registerAdminRoutes(app, { ctx }) {
     if (!id) return res.status(400).json({ ok: false, error: 'Bad user id' });
     const found = await db.query('SELECT display_name FROM users WHERE id = $1', [id]);
     if (!found.rows.length) return res.status(404).json({ ok: false, error: 'User not found' });
-    await deleteUser(id);
+    await accounts.deleteUser(id);
     logActivity('admin', `Admin deleted account ${found.rows[0].display_name}`);
     res.json({ ok: true });
   }));

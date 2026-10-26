@@ -32,16 +32,18 @@ Requires Node >=18. Environment variables (see `.env.example`):
 - `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
   visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
   Unset = falls back to a temporary hardcoded password in `server/stats.js`.
-  The same password opens the admin page at `/admin` (`server/admin.js`,
-  `public/admin.html`): live rooms/players with kick, make-host, end-game,
-  reset-scores and announce; an in-memory activity feed (`server/activity.js`,
-  not persisted); and, with `DATABASE_URL`, account search/rename/ban/delete,
-  device bans (enforced on `join` and Google sign-in) and recent game history.
 - `DATABASE_URL` — Postgres for accounts and lifetime game history
   (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
   Optional: unset or unreachable = no accounts, games still run.
 - `GOOGLE_CLIENT_ID` — enables Google sign-in and the lobby's 👤 Player Card.
   Design and setup: `plans/accounts-plan.md`.
+- `ADMIN_EMAILS` — comma-separated Google account emails allowed into the admin
+  page at `/admin` (`server/admin.js`, `public/admin.html`); unset = no admin.
+  Needs `DATABASE_URL` + `GOOGLE_CLIENT_ID` (the admin signs in like any player).
+  Live rooms/players with kick, make-host, end-game, reset-scores and announce;
+  an in-memory activity feed (`server/activity.js`, not persisted); account
+  search/rename/ban/delete, device bans (enforced on `join` and Google sign-in)
+  and recent game history.
 
 ## Architecture
 

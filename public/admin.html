@@ -125,15 +125,11 @@
         <h1>Shorot admin</h1>
         <p class="sub" id="sub">Owner only. <a href="/stats">Daily stats</a></p>
       </div>
-      <button id="logout-btn" class="ghost hidden" type="button">Log out</button>
+      <span id="admin-name" class="muted hidden"></span>
     </div>
 
-    <section id="login" class="card">
-      <form id="login-form">
-        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
-        <button type="submit">Open</button>
-      </form>
-      <p id="login-error" class="error"></p>
+    <section id="gate" class="card">
+      <p id="gate-msg" style="margin:0">Checking your sign-in…</p>
     </section>
 
     <section id="app" class="hidden">
@@ -319,9 +315,7 @@
         return { ok: false, error: 'Could not reach the server' };
       }
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401 && url !== '/api/admin/login') {
-        showLogin('Session expired - log in again');
-      }
+      if (res.status === 403) checkAccess();
       return { status: res.status, ...data, ok: res.ok && data.ok !== false };
     }
 
@@ -333,38 +327,36 @@
       await (after || refreshLive)();
     }
 
-    // ---- login ----
-    function showLogin(error) {
+    // ---- access ----
+    // Only the Google account(s) in the server's ADMIN_EMAILS get in; see server/admin.js.
+    function showGate(html) {
       clearInterval(pollTimer);
       $('app').classList.add('hidden');
-      $('logout-btn').classList.add('hidden');
-      $('login').classList.remove('hidden');
-      $('login-error').textContent = error || '';
-      $('password').focus();
+      $('admin-name').classList.add('hidden');
+      $('gate').classList.remove('hidden');
+      $('gate-msg').innerHTML = html;
     }
 
-    function showApp() {
-      $('login').classList.add('hidden');
+    function showApp(name) {
+      $('gate').classList.add('hidden');
       $('app').classList.remove('hidden');
-      $('logout-btn').classList.remove('hidden');
+      $('admin-name').textContent = `Signed in as ${name}`;
+      $('admin-name').classList.remove('hidden');
       clearInterval(pollTimer);
       pollTimer = setInterval(() => { if (activeTab === 'live' && !document.hidden) refreshLive(); }, POLL_MS);
       switchTab(activeTab);
     }
 
-    $('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      $('login-error').textContent = '';
-      const res = await api('POST', '/api/admin/login', { password: $('password').value });
-      if (!res.ok) return showLogin(res.error || 'Something went wrong');
-      $('password').value = '';
-      showApp();
-    });
-
-    $('logout-btn').addEventListener('click', async () => {
-      await api('POST', '/api/admin/logout');
-      showLogin();
-    });
+    async function checkAccess() {
+      const me = await api('GET', '/api/admin/me');
+      if (!me.ok) return showGate(esc(me.error || 'Could not reach the server'));
+      if (me.admin) return showApp(me.name);
+      if (!me.configured) return showGate('No admin is set up on this server yet (ADMIN_EMAILS).');
+      if (!me.signedIn) {
+        return showGate('Admins only. <a href="/account.html">Sign in with Google</a>, then come back to this page.');
+      }
+      showGate(`Signed in as ${esc(me.name)}, which isn't an admin account.`);
+    }
 
     // ---- tabs ----
     function switchTab(tab) {
@@ -654,15 +646,7 @@
         : '<tr><td colspan="3" class="empty">No games recorded yet.</td></tr>';
     }
 
-    // Already logged in (cookie still valid)? Go straight to the app.
-    api('GET', '/api/admin/overview').then((res) => {
-      if (res.ok) {
-        overview = res;
-        showApp();
-      } else {
-        showLogin();
-      }
-    });
+    checkAccess();
   </script>
 </body>
 </html>
