@@ -33,6 +33,8 @@ const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./serve
 const stats = require('./server/stats');
 const db = require('./server/db');
 const accounts = require('./server/accounts');
+const admin = require('./server/admin');
+const { logActivity } = require('./server/activity');
 
 const app = express();
 const server = http.createServer(app);
@@ -122,6 +124,8 @@ const ctx = {
   saveRoomsToDisk,
   // Games pass names; this fills in each player's clientId (their device identity).
   recordGameResult(room, gameType, participants) {
+    const winners = participants.filter((p) => p.won).map((p) => p.name);
+    logActivity('result', `${gameType} finished${winners.length ? ` - won: ${winners.join(', ')}` : ''}`);
     const roomCode = [...rooms.entries()].find(([, r]) => r === room)?.[0] || '';
     accounts.recordGameResult({
       roomCode,
@@ -147,6 +151,7 @@ initLobby({
   ctx,
   BACKGROUNDS_DIR,
 });
+admin.registerAdminRoutes(app, { ctx });
 
 io.on('connection', (socket) => {
   socket.emit('serverBuild', SERVER_BUILD);

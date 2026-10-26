@@ -17,8 +17,10 @@ const {
   userFromSocket,
   setAccountSticker,
   playerCardForUser,
+  isBanned,
 } = require('./accounts');
 const stats = require('./stats');
+const { logActivity } = require('./activity');
 
 // Single shared room for now - no room codes to create or join, everyone
 // who connects lands in the same game.
@@ -216,6 +218,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, u
       existing.signedIn = !!userId;
     }
     let staleSocket = null;
+    if (!existing.connected) logActivity('join', `${name} reconnected`);
     if (existing.connected) {
       // The `connected` flag can lag behind reality for up to ~45s (socket.io's
       // ping timeout) after a phone locks/loses signal - long enough for the same
@@ -269,6 +272,7 @@ function joinExistingRoom(socket, roomCode, name, clientId, callback, sticker, u
     return callback({ ok: false, error: 'Game already in progress, wait for the next round' });
   }
 
+  logActivity('join', `${name} joined${userId ? '' : ' (guest)'}`);
   room.players.set(name, {
     socketId: socket.id,
     connected: true,
@@ -338,6 +342,72 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
   });
 }
 
+/**
+ * Why `name` can't be taken out of the room right now, or null if they can. Game modules
+ * key their in-progress state by name, so removal is a lobby-only thing - except in
+ * All-In or Fold, whose spectators wait on the lobby screen for the whole match (see
+ * all-in-or-fold-plan.md's dual-entry note) and only need to leave their seat first.
+ */
+function removalError(room, name) {
+  if (room.game === 'allinorfold') {
+    if (room.aiofSeats.includes(name)) return 'Leave your seat at the table first';
+  } else if (room.phase !== 'lobby') {
+    return 'Only available in the lobby';
+  }
+  return null;
+}
+
+/** Takes `name` out of the room (leaving or kicked); `socket` is theirs, if connected. */
+function removePlayer(roomCode, room, name, socket) {
+  room.players.delete(name);
+  if (socket) {
+    socket.leave(roomCode);
+    socket.data.roomCode = null;
+    socket.data.name = null;
+  }
+
+  if (room.players.size === 0) {
+    // Nobody's left in the room at all. Without this, the room stays stuck on
+    // whatever game/phase it was last in (e.g. mid-AIOF-match) forever: a brand-new
+    // join is rejected outside room.phase === 'lobby', and chooseGame/backToLobby
+    // both require already being a room member to call them - so there'd be no one
+    // left who *could* reset it. Give the next joiner a clean lobby instead.
+    //
+    // resetToLobby doesn't touch hostName (normally it's called with the host still
+    // present, e.g. mid-game "Back to Lobby"), so clear it explicitly here - otherwise
+    // it'd keep pointing at a player who no longer exists, silently blocking the next
+    // joiner from ever becoming host (`join` only assigns a host when there isn't one).
+    room.hostName = null;
+    resetToLobby(roomCode, room);
+  } else {
+    if (name === room.hostName) {
+      const [nextHost] = connectedNames(room);
+      setHost(roomCode, room, nextHost || null);
+    }
+    broadcastLobby(roomCode, room);
+  }
+}
+
+/**
+ * Admin kick (server/admin.js): tells the player's phone, then removes them from the
+ * room. Outside the lobby that would desync the game, so it's refused unless `force`
+ * (a ban), which just drops their connection - the game treats it like any disconnect,
+ * and the ban stops them rejoining. Returns an error string, or null on success.
+ */
+function kickPlayer(roomCode, room, name, { reason = 'You were removed by the admin', force = false } = {}) {
+  const player = room.players.get(name);
+  if (!player) return 'No such player';
+  const error = removalError(room, name);
+  if (error && !force) return error;
+  const socket = player.connected && player.socketId && ctx.io.sockets
+    ? ctx.io.sockets.sockets.get(player.socketId)
+    : null;
+  if (socket) socket.emit('kicked', { reason });
+  if (!error) removePlayer(roomCode, room, name, socket);
+  if (socket) socket.disconnect(true);
+  return null;
+}
+
 function registerLobbyHandlers(socket) {
   const { BACKGROUNDS_DIR } = hooks;
 
@@ -358,6 +428,9 @@ function registerLobbyHandlers(socket) {
 
     const nameError = validateName(name);
     if (nameError) return callback({ ok: false, error: nameError });
+    if (await isBanned({ userId, clientId })) {
+      return callback({ ok: false, error: 'You have been banned from Shorot' });
+    }
 
     const room = getSharedRoom();
     joinExistingRoom(socket, SHARED_ROOM_CODE, name, clientId, (res) => {
@@ -478,6 +551,7 @@ function registerLobbyHandlers(socket) {
 
     room.game = game.id;
     stats.recordGame(game.id);
+    logActivity('game', `${socket.data.name} started ${game.id} with ${names.length} players`);
     roomEmit(roomCode, 'gameChosen', { game: game.id });
     game.onChoose(ctx, roomCode, room);
     return callback({ ok: true });
@@ -539,6 +613,7 @@ function registerLobbyHandlers(socket) {
     const roomCode = socket.data.roomCode;
     const room = getRoom(socket);
     if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game) logActivity('game', `${socket.data.name} ended ${room.game}, back to the lobby`);
     resetToLobby(roomCode, room);
     callback({ ok: true });
   });
@@ -550,45 +625,11 @@ function registerLobbyHandlers(socket) {
     if (!room) return callback({ ok: false, error: 'Not in a room' });
 
     const name = socket.data.name;
-    // AIOF is the one game where non-participating players stay on this shared lobby
-    // screen for the whole match, in any of its own phases ('seating'/'playing'/'gameover'),
-    // not just the room-wide 'lobby' phase (see all-in-or-fold-plan.md's dual-entry note) -
-    // so they need to be able to leave from here too. A seated player has to leave their
-    // seat first (aiofLeaveTable), since this generic path doesn't clean up
-    // aiofSeats/dealer/turn-order state the way that does.
-    if (room.game === 'allinorfold') {
-      if (room.aiofSeats.includes(name)) {
-        return callback({ ok: false, error: 'Leave your seat at the table first' });
-      }
-    } else if (room.phase !== 'lobby') {
-      return callback({ ok: false, error: 'Only available in the lobby' });
-    }
+    const error = removalError(room, name);
+    if (error) return callback({ ok: false, error });
 
-    room.players.delete(name);
-    socket.leave(roomCode);
-    socket.data.roomCode = null;
-    socket.data.name = null;
-
-    if (room.players.size === 0) {
-      // Nobody's left in the room at all. Without this, the room stays stuck on
-      // whatever game/phase it was last in (e.g. mid-AIOF-match) forever: a brand-new
-      // join is rejected outside room.phase === 'lobby', and chooseGame/backToLobby
-      // both require already being a room member to call them - so there'd be no one
-      // left who *could* reset it. Give the next joiner a clean lobby instead.
-      //
-      // resetToLobby doesn't touch hostName (normally it's called with the host still
-      // present, e.g. mid-game "Back to Lobby"), so clear it explicitly here - otherwise
-      // it'd keep pointing at a player who no longer exists, silently blocking the next
-      // joiner from ever becoming host (`join` only assigns a host when there isn't one).
-      room.hostName = null;
-      resetToLobby(roomCode, room);
-    } else {
-      if (name === room.hostName) {
-        const [nextHost] = connectedNames(room);
-        setHost(roomCode, room, nextHost || null);
-      }
-      broadcastLobby(roomCode, room);
-    }
+    removePlayer(roomCode, room, name, socket);
+    logActivity('leave', `${name} left`);
     callback({ ok: true });
   });
 
@@ -626,6 +667,7 @@ function registerLobbyHandlers(socket) {
     // either kicking them from the lobby list or treating them as a stranger
     // trying to join a game already in progress.
     p.connected = false;
+    logActivity('leave', `${name} disconnected`);
     if (name === room.hostName) {
       p.wasHost = true;
       const [nextHost] = connectedNames(room);
@@ -652,6 +694,7 @@ module.exports = {
   broadcastLobby,
   setHost,
   resetToLobby,
+  kickPlayer,
   attachToRoom,
   reconnectPayload,
   joinExistingRoom,

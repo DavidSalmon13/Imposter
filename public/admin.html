@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Shorot Admin</title>
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+  <style>
+    :root {
+      --bg: #1f0d06;
+      --surface: #34180c;
+      --surface-2: #42200f;
+      --border: #5a2f17;
+      --ink: #fbeedd;
+      --ink-2: #d9bfa3;
+      --muted: #a58a70;
+      --accent: #f08a3c;
+      --accent-hover: #ffb070;
+      --good: #7fd18b;
+      --error: #ff8a7a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 24px 0 10px; color: var(--ink-2); font-weight: 600; }
+    h3 { font-size: 0.95rem; margin: 0 0 8px; }
+    a { color: var(--accent-hover); }
+    .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.85rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card + .card { margin-top: 12px; }
+    .tiles .card + .card { margin-top: 0; }
+    form, .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input, select, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+    }
+    input, select { background: var(--bg); color: var(--ink); }
+    input { flex: 1 1 200px; min-width: 0; }
+    button { background: var(--accent); color: #2a1208; font-weight: 700; border: none; cursor: pointer; }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: default; }
+    button.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--border); font-weight: 500; }
+    button.ghost:hover { background: var(--surface-2); }
+    button.danger { background: transparent; color: var(--error); border: 1px solid var(--error); font-weight: 600; }
+    button.danger:hover { background: rgba(255, 138, 122, 0.12); }
+    button.small { padding: 4px 9px; font-size: 0.8rem; }
+    .error { color: var(--error); min-height: 1.4em; margin: 8px 0 0; }
+    .top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .hidden { display: none !important; }
+    .empty { color: var(--muted); }
+    .muted { color: var(--muted); }
+    .tabs { display: flex; gap: 6px; margin: 4px 0 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .tabs button {
+      background: transparent; color: var(--muted); border-radius: 10px 10px 0 0;
+      border: 1px solid transparent; border-bottom: none; font-weight: 600;
+    }
+    .tabs button.active { color: var(--ink); background: var(--surface); border-color: var(--border); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .tile .label { color: var(--muted); font-size: 0.8rem; }
+    .tile .value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tile .note { color: var(--muted); font-size: 0.78rem; }
+    .live-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+    @media (max-width: 820px) { .live-grid { grid-template-columns: minmax(0, 1fr); } }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+    td.num, th.num { text-align: right; }
+    td.actions { text-align: right; white-space: nowrap; }
+    td.actions button + button { margin-left: 4px; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: var(--surface-2); }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+    .dot.on { background: var(--good); }
+    .pill {
+      display: inline-block; font-size: 0.72rem; padding: 1px 7px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--ink-2); margin-left: 4px; vertical-align: 1px;
+    }
+    .pill.accent { border-color: var(--accent); color: var(--accent-hover); }
+    .pill.bad { border-color: var(--error); color: var(--error); }
+    .pill.good { border-color: var(--good); color: var(--good); }
+    .room-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .scores { color: var(--ink-2); font-size: 0.85rem; margin-top: 10px; }
+    .feed { list-style: none; margin: 0; padding: 0; max-height: 560px; overflow-y: auto; }
+    .feed li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; display: flex; gap: 8px; }
+    .feed time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .feed .t-admin { color: var(--accent-hover); }
+    .feed .t-result { color: var(--good); }
+    .feed .t-leave { color: var(--muted); }
+    .detail-head { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--surface-2); object-fit: cover; flex: 0 0 auto; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 0.88rem; margin: 10px 0 14px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; word-break: break-all; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { font-size: 0.8rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+    .chip.won { background: rgba(127, 209, 139, 0.16); color: var(--good); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+    .toast {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 14px; font-size: 0.9rem; z-index: 10;
+    }
+    .toast.bad { border-color: var(--error); color: var(--error); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top-row">
+      <div>
+        <h1>Shorot admin</h1>
+        <p class="sub" id="sub">Owner only. <a href="/stats">Daily stats</a></p>
+      </div>
+      <button id="logout-btn" class="ghost hidden" type="button">Log out</button>
+    </div>
+
+    <section id="login" class="card">
+      <form id="login-form">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+        <button type="submit">Open</button>
+      </form>
+      <p id="login-error" class="error"></p>
+    </section>
+
+    <section id="app" class="hidden">
+      <nav class="tabs" role="tablist">
+        <button type="button" data-tab="live" class="active">Live</button>
+        <button type="button" data-tab="users">Users</button>
+        <button type="button" data-tab="games">Games</button>
+      </nav>
+
+      <!-- Live -->
+      <section id="tab-live">
+        <div class="tiles" id="live-tiles"></div>
+
+        <div class="live-grid">
+          <div>
+            <h2>Rooms</h2>
+            <div id="rooms"></div>
+
+            <h2>Announce</h2>
+            <div class="card">
+              <form id="announce-form">
+                <select id="announce-room" aria-label="Room"></select>
+                <input id="announce-msg" maxlength="200" placeholder="Message shown on every phone in the room" required />
+                <button type="submit">Send</button>
+              </form>
+            </div>
+          </div>
+          <div>
+            <h2>Activity</h2>
+            <div class="card">
+              <div class="row" style="margin-bottom:8px">
+                <select id="feed-filter" aria-label="Filter activity">
+                  <option value="">Everything</option>
+                  <option value="join">Joins</option>
+                  <option value="leave">Leaves</option>
+                  <option value="game">Games started/ended</option>
+                  <option value="result">Results</option>
+                  <option value="signin">Sign-ins</option>
+                  <option value="admin">Admin actions</option>
+                </select>
+              </div>
+              <ul class="feed" id="feed"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users -->
+      <section id="tab-users" class="hidden">
+        <p id="users-nodb" class="card empty hidden">The database isn't configured (DATABASE_URL), so there are no accounts to manage. The Live tab still works.</p>
+        <div id="users-body">
+          <div class="tiles" id="user-tiles"></div>
+          <h2>Accounts</h2>
+          <div class="card">
+            <form id="user-search-form">
+              <input id="user-search" type="search" placeholder="Search name or email" />
+              <button type="submit">Search</button>
+            </form>
+          </div>
+          <div class="card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Last seen</th>
+                  <th class="num">Games</th>
+                  <th class="num">Wins</th>
+                  <th class="num">Devices</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody id="users-table"></tbody>
+            </table>
+          </div>
+
+          <div id="user-detail" class="hidden"></div>
+
+          <h2>Banned devices</h2>
+          <div class="card table-wrap" id="banned-devices"></div>
+        </div>
+      </section>
+
+      <!-- Games -->
+      <section id="tab-games" class="hidden">
+        <p id="games-nodb" class="card empty hidden">The database isn't configured (DATABASE_URL), so no game history is recorded.</p>
+        <div id="games-body">
+          <div class="card">
+            <div class="row">
+              <label for="games-filter" class="muted">Game</label>
+              <select id="games-filter"><option value="">All games</option></select>
+            </div>
+          </div>
+          <div class="card table-wrap">
+            <table>
+              <thead><tr><th>When</th><th>Game</th><th>Players</th></tr></thead>
+              <tbody id="games-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const GAME_NAMES = {
+      imposter: 'Imposter',
+      codenames: 'Codenames',
+      tenseconds: '10 Seconds',
+      menifot: 'Menifot',
+      musictimeline: 'Music Timeline',
+      allinorfold: 'All-In or Fold',
+      mindmeld: 'Mind Meld',
+      bluff: 'Bluff',
+    };
+    const POLL_MS = 3000;
+    const $ = (id) => document.getElementById(id);
+
+    let overview = null;
+    let activeTab = 'live';
+    let pollTimer = null;
+    let openUserId = null;
+
+    function esc(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[c]);
+    }
+    const gameName = (id) => GAME_NAMES[id] || id || '';
+
+    function ago(when) {
+      if (!when) return '—';
+      const ms = Date.now() - new Date(when).getTime();
+      const s = Math.round(ms / 1000);
+      if (s < 60) return `${Math.max(s, 0)}s ago`;
+      const m = Math.round(s / 60);
+      if (m < 60) return `${m}m ago`;
+      const h = Math.round(m / 60);
+      if (h < 48) return `${h}h ago`;
+      return `${Math.round(h / 24)}d ago`;
+    }
+    function fmtDate(when) {
+      return when ? new Date(when).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    }
+    function fmtDateTime(when) {
+      return when ? new Date(when).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+    }
+    function fmtUptime(ms) {
+      const m = Math.floor(ms / 60000);
+      if (m < 60) return `${m}m`;
+      const h = Math.floor(m / 60);
+      if (h < 48) return `${h}h ${m % 60}m`;
+      return `${Math.floor(h / 24)}d ${h % 24}h`;
+    }
+    function tile(label, value, note) {
+      return `<div class="card tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${note ? esc(note) : '&nbsp;'}</div></div>`;
+    }
+
+    let toastTimer = null;
+    function toast(message, bad) {
+      let el = document.querySelector('.toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = message;
+      el.classList.toggle('bad', !!bad);
+      el.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    async function api(method, url, body) {
+      let res;
+      try {
+        res = await fetch(url, {
+          method,
+          headers: body ? { 'Content-Type': 'application/json' } : {},
+          body: body ? JSON.stringify(body) : undefined,
+          credentials: 'same-origin',
+        });
+      } catch (e) {
+        return { ok: false, error: 'Could not reach the server' };
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && url !== '/api/admin/login') {
+        showLogin('Session expired - log in again');
+      }
+      return { status: res.status, ...data, ok: res.ok && data.ok !== false };
+    }
+
+    /** Runs an admin action, reporting the outcome, then refreshes what it touched. */
+    async function act(method, url, body, done, after) {
+      const res = await api(method, url, body);
+      if (!res.ok) return toast(res.error || 'Something went wrong', true);
+      if (done) toast(done);
+      await (after || refreshLive)();
+    }
+
+    // ---- login ----
+    function showLogin(error) {
+      clearInterval(pollTimer);
+      $('app').classList.add('hidden');
+      $('logout-btn').classList.add('hidden');
+      $('login').classList.remove('hidden');
+      $('login-error').textContent = error || '';
+      $('password').focus();
+    }
+
+    function showApp() {
+      $('login').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('logout-btn').classList.remove('hidden');
+      clearInterval(pollTimer);
+      pollTimer = setInterval(() => { if (activeTab === 'live' && !document.hidden) refreshLive(); }, POLL_MS);
+      switchTab(activeTab);
+    }
+
+    $('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('login-error').textContent = '';
+      const res = await api('POST', '/api/admin/login', { password: $('password').value });
+      if (!res.ok) return showLogin(res.error || 'Something went wrong');
+      $('password').value = '';
+      showApp();
+    });
+
+    $('logout-btn').addEventListener('click', async () => {
+      await api('POST', '/api/admin/logout');
+      showLogin();
+    });
+
+    // ---- tabs ----
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+      ['live', 'users', 'games'].forEach((t) => $(`tab-${t}`).classList.toggle('hidden', t !== tab));
+      if (tab === 'live') refreshLive();
+      if (tab === 'users') refreshUsers();
+      if (tab === 'games') refreshGames();
+    }
+    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+    // ---- live ----
+    async function refreshLive() {
+      const res = await api('GET', '/api/admin/overview');
+      if (!res.ok) return;
+      overview = res;
+      renderLive();
+    }
+
+    function renderLive() {
+      const { server, today, rooms } = overview;
+      const online = rooms.reduce((n, r) => n + r.players.filter((p) => p.connected).length, 0);
+      const todayGames = Object.values(today.games || {}).reduce((a, b) => a + b, 0);
+      $('live-tiles').innerHTML = [
+        tile('Players online', online, `${server.sockets ?? '?'} open connections`),
+        tile('Visitors today', today.visitors, `${today.players} joined · peak ${today.peakPlayers}`),
+        tile('Games today', todayGames, Object.entries(today.games || {}).map(([g, n]) => `${gameName(g)} ${n}`).join(', ')),
+        tile('Uptime', fmtUptime(server.uptimeMs), `${server.memoryMb} MB · DB ${server.database ? 'on' : 'off'}`),
+      ].join('');
+
+      $('rooms').innerHTML = rooms.length ? rooms.map(renderRoom).join('') : '<div class="card empty">No rooms yet.</div>';
+
+      const select = $('announce-room');
+      const selected = select.value;
+      select.innerHTML = rooms.map((r) => `<option value="${esc(r.code)}">${esc(r.code)}</option>`).join('');
+      if (rooms.some((r) => r.code === selected)) select.value = selected;
+
+      renderFeed();
+    }
+
+    function renderRoom(room) {
+      const inLobby = room.phase === 'lobby';
+      const status = room.game
+        ? `<span class="pill accent">${esc(gameName(room.game))}</span><span class="pill">${esc(room.phase)}</span>`
+        : '<span class="pill">lobby</span>';
+      const players = room.players.slice().sort((a, b) => (b.connected - a.connected) || a.name.localeCompare(b.name));
+      const rows = players.map((p) => {
+        const canKick = inLobby || room.game === 'allinorfold';
+        return `<tr>
+          <td><span class="dot ${p.connected ? 'on' : ''}" title="${p.connected ? 'Connected' : 'Disconnected'}"></span>${esc(p.name)}
+            ${p.host ? '<span class="pill accent">host</span>' : ''}
+            ${p.signedIn ? '<span class="pill good">account</span>' : '<span class="pill">guest</span>'}
+          </td>
+          <td class="actions">
+            ${p.connected && !p.host ? `<button class="ghost small" data-act="host" data-name="${esc(p.name)}">Make host</button>` : ''}
+            <button class="ghost small" data-act="kick" data-name="${esc(p.name)}" ${canKick ? '' : 'disabled title="End the game first"'}>Kick</button>
+            ${overview.server.database && p.clientId ? `<button class="danger small" data-act="ban-device" data-name="${esc(p.name)}" data-client="${esc(p.clientId)}">Ban</button>` : ''}
+            ${p.userId ? `<button class="ghost small" data-act="open-user" data-user="${esc(p.userId)}">Account</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+      const scores = room.scoreboard.length
+        ? room.scoreboard.map((s) => `${esc(s.name)} ${s.points}`).join(' · ')
+        : 'No points yet';
+      return `<div class="card" data-room="${esc(room.code)}">
+        <div class="room-head">
+          <h3>Room ${esc(room.code)} ${status}</h3>
+          <div class="row">
+            ${room.game ? '<button class="danger small" data-act="end-game">End game</button>' : ''}
+            <button class="ghost small" data-act="reset-scores">Reset scores</button>
+          </div>
+        </div>
+        ${players.length ? `<div class="table-wrap"><table><tbody>${rows}</tbody></table></div>` : '<p class="empty">Empty.</p>'}
+        <div class="scores"><strong>Scoreboard:</strong> ${scores}</div>
+      </div>`;
+    }
+
+    $('rooms').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const room = btn.closest('[data-room]').dataset.room;
+      const name = btn.dataset.name;
+      switch (btn.dataset.act) {
+        case 'host':
+          return act('POST', '/api/admin/host', { room, name }, `${name} is now host`);
+        case 'kick':
+          if (!confirm(`Kick ${name} from the room? They can rejoin.`)) return;
+          return act('POST', '/api/admin/kick', { room, name }, `Kicked ${name}`);
+        case 'ban-device':
+          if (!confirm(`Ban ${name}'s device? They're disconnected and can't rejoin from this phone.`)) return;
+          return act('POST', '/api/admin/devices/ban', { clientId: btn.dataset.client, name, banned: true }, `Banned ${name}'s device`);
+        case 'open-user':
+          switchTab('users');
+          return openUser(btn.dataset.user);
+        case 'end-game':
+          if (!confirm('End the current game and send everyone back to the lobby?')) return;
+          return act('POST', '/api/admin/end-game', { room }, 'Game ended');
+        case 'reset-scores':
+          if (!confirm(`Reset the scoreboard in room ${room}?`)) return;
+          return act('POST', '/api/admin/reset-scoreboard', { room }, 'Scoreboard reset');
+      }
+    });
+
+    $('announce-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = $('announce-msg').value.trim();
+      if (!message) return;
+      await act('POST', '/api/admin/announce', { room: $('announce-room').value, message }, 'Sent');
+      $('announce-msg').value = '';
+    });
+
+    function renderFeed() {
+      const filter = $('feed-filter').value;
+      const items = overview.activity.filter((a) => !filter || a.type === filter);
+      $('feed').innerHTML = items.length
+        ? items.map((a) => `<li><time title="${esc(new Date(a.at).toLocaleString())}">${esc(new Date(a.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))}</time><span class="t-${esc(a.type)}">${esc(a.message)}</span></li>`).join('')
+        : '<li class="empty">Nothing yet since the server started.</li>';
+    }
+    $('feed-filter').addEventListener('change', () => overview && renderFeed());
+
+    // ---- users ----
+    async function refreshUsers() {
+      const res = await api('GET', `/api/admin/users?q=${encodeURIComponent($('user-search').value.trim())}`);
+      const noDb = res.status === 503;
+      $('users-nodb').classList.toggle('hidden', !noDb);
+      $('users-body').classList.toggle('hidden', noDb);
+      if (!res.ok) return;
+      const t = res.totals;
+      $('user-tiles').innerHTML = [
+        tile('Accounts', t.users, `${t.banned_users} banned`),
+        tile('Guest devices', t.guests, 'never signed in'),
+        tile('Banned devices', t.banned_devices),
+        tile('Games recorded', t.games),
+      ].join('');
+      $('users-table').innerHTML = res.users.length
+        ? res.users.map((u) => `<tr class="clickable" data-user="${esc(u.id)}">
+            <td>${esc(u.display_name)} ${u.banned_at ? '<span class="pill bad">banned</span>' : ''}<br><span class="muted">${esc(u.email || '')}</span></td>
+            <td>${esc(ago(u.last_seen))}</td>
+            <td class="num">${u.games}</td>
+            <td class="num">${u.wins}</td>
+            <td class="num">${u.devices}</td>
+            <td>${esc(fmtDate(u.created_at))}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" class="empty">No accounts found.</td></tr>';
+      await refreshBannedDevices();
+      if (openUserId) openUser(openUserId);
+    }
+
+    $('user-search-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      refreshUsers();
+    });
+    $('users-table').addEventListener('click', (e) => {
+      const row = e.target.closest('tr[data-user]');
+      if (row) openUser(row.dataset.user);
+    });
+
+    async function openUser(id) {
+      openUserId = id;
+      const res = await api('GET', `/api/admin/users/${encodeURIComponent(id)}`);
+      const box = $('user-detail');
+      if (!res.ok) {
+        box.classList.add('hidden');
+        openUserId = null;
+        return toast(res.error || 'Could not load user', true);
+      }
+      const { user, devices, games, badges } = res;
+      const deviceRows = devices.map((d) => `<tr>
+          <td class="mono">${esc(d.client_id.slice(0, 12))}…</td>
+          <td>${esc(ago(d.last_seen))}</td>
+          <td>${d.banned_at ? '<span class="pill bad">banned</span>' : ''}</td>
+          <td class="actions"><button class="${d.banned_at ? 'ghost' : 'danger'} small" data-act="device" data-client="${esc(d.client_id)}" data-banned="${d.banned_at ? '1' : ''}">${d.banned_at ? 'Unban' : 'Ban'}</button></td>
+        </tr>`).join('');
+      const gameRows = games.map((g) => `<tr>
+          <td>${esc(fmtDateTime(g.ended_at))}</td>
+          <td>${esc(gameName(g.game_type))}</td>
+          <td>${esc(g.name_used)}${g.role ? ` <span class="pill">${esc(g.role)}</span>` : ''}${g.team ? ` <span class="pill">${esc(g.team)}</span>` : ''}</td>
+          <td>${g.won === true ? '<span class="pill good">won</span>' : g.won === false ? '<span class="muted">lost</span>' : ''}</td>
+          <td class="num">${g.points}</td>
+        </tr>`).join('');
+      box.innerHTML = `<h2>Account</h2>
+        <div class="card">
+          <div class="detail-head">
+            ${user.avatar_url ? `<img class="avatar" src="${esc(user.avatar_url)}" alt="" referrerpolicy="no-referrer">` : '<div class="avatar"></div>'}
+            <div>
+              <h3 style="margin:0">${esc(user.display_name)} ${user.banned_at ? '<span class="pill bad">banned</span>' : ''}</h3>
+              <span class="muted">${esc(user.email || 'no email')}</span>
+            </div>
+            <div style="margin-left:auto"><button class="ghost small" data-act="close">Close</button></div>
+          </div>
+          <dl class="kv">
+            <dt>User id</dt><dd>${esc(user.id)}</dd>
+            <dt>Joined</dt><dd>${esc(fmtDateTime(user.created_at))}</dd>
+            <dt>Sign-in</dt><dd>${esc((user.providers || []).join(', ') || '—')} · ${user.sessions} active session${user.sessions === 1 ? '' : 's'}</dd>
+            <dt>Badges</dt><dd>${badges.length ? esc(badges.join(', ')) : '—'}</dd>
+            ${user.banned_at ? `<dt>Banned</dt><dd>${esc(fmtDateTime(user.banned_at))}</dd>` : ''}
+          </dl>
+          <form id="rename-form">
+            <input id="rename-input" maxlength="80" value="${esc(user.display_name)}" aria-label="Display name" />
+            <button type="submit" class="ghost">Rename</button>
+            <button type="button" class="${user.banned_at ? 'ghost' : 'danger'}" data-act="ban">${user.banned_at ? 'Unban account' : 'Ban account'}</button>
+            <button type="button" class="danger" data-act="delete">Delete account</button>
+          </form>
+
+          <h2>Devices</h2>
+          ${devices.length ? `<div class="table-wrap"><table><tbody>${deviceRows}</tbody></table></div>` : '<p class="empty">No devices linked.</p>'}
+
+          <h2>Recent games</h2>
+          ${games.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Game</th><th>As</th><th>Result</th><th class="num">Points</th></tr></thead><tbody>${gameRows}</tbody></table></div>` : '<p class="empty">No games recorded.</p>'}
+        </div>`;
+      box.classList.remove('hidden');
+      box.dataset.user = user.id;
+      box.dataset.name = user.display_name;
+      box.dataset.banned = user.banned_at ? '1' : '';
+    }
+
+    $('user-detail').addEventListener('submit', async (e) => {
+      if (e.target.id !== 'rename-form') return;
+      e.preventDefault();
+      const id = $('user-detail').dataset.user;
+      await act('POST', `/api/admin/users/${id}`, { displayName: $('rename-input').value }, 'Renamed', refreshUsers);
+    });
+
+    $('user-detail').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const box = $('user-detail');
+      const id = box.dataset.user;
+      const name = box.dataset.name;
+      switch (btn.dataset.act) {
+        case 'close':
+          openUserId = null;
+          box.classList.add('hidden');
+          return;
+        case 'ban': {
+          const banned = !box.dataset.banned;
+          if (banned && !confirm(`Ban ${name}? They're signed out, disconnected, and can't sign in or join from any of their devices.`)) return;
+          return act('POST', `/api/admin/users/${id}`, { banned }, banned ? 'Account banned' : 'Account unbanned', refreshUsers);
+        }
+        case 'delete':
+          if (!confirm(`Permanently delete ${name}'s account, game history and badges? This can't be undone.`)) return;
+          openUserId = null;
+          box.classList.add('hidden');
+          return act('DELETE', `/api/admin/users/${id}`, null, 'Account deleted', refreshUsers);
+        case 'device': {
+          const banned = !btn.dataset.banned;
+          return act('POST', '/api/admin/devices/ban', { clientId: btn.dataset.client, name, banned }, banned ? 'Device banned' : 'Device unbanned', refreshUsers);
+        }
+      }
+    });
+
+    async function refreshBannedDevices() {
+      const res = await api('GET', '/api/admin/devices/banned');
+      if (!res.ok) return;
+      $('banned-devices').innerHTML = res.devices.length
+        ? `<table><thead><tr><th>Device</th><th>Last name used</th><th>Banned</th><th></th></tr></thead><tbody>${res.devices.map((d) => `<tr>
+            <td class="mono">${esc(d.client_id.slice(0, 12))}…</td>
+            <td>${esc(d.display_name || d.last_name || '—')}</td>
+            <td>${esc(fmtDateTime(d.banned_at))}</td>
+            <td class="actions"><button class="ghost small" data-client="${esc(d.client_id)}">Unban</button></td>
+          </tr>`).join('')}</tbody></table>`
+        : '<p class="empty" style="margin:0">No banned devices.</p>';
+    }
+    $('banned-devices').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-client]');
+      if (btn) act('POST', '/api/admin/devices/ban', { clientId: btn.dataset.client, banned: false }, 'Device unbanned', refreshUsers);
+    });
+
+    // ---- games ----
+    $('games-filter').innerHTML += Object.entries(GAME_NAMES).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('');
+    $('games-filter').addEventListener('change', refreshGames);
+
+    async function refreshGames() {
+      const type = $('games-filter').value;
+      const res = await api('GET', `/api/admin/games${type ? `?type=${encodeURIComponent(type)}` : ''}`);
+      const noDb = res.status === 503;
+      $('games-nodb').classList.toggle('hidden', !noDb);
+      $('games-body').classList.toggle('hidden', noDb);
+      if (!res.ok) return;
+      $('games-table').innerHTML = res.games.length
+        ? res.games.map((g) => `<tr>
+            <td style="white-space:nowrap">${esc(fmtDateTime(g.ended_at))}<br><span class="muted">${esc(ago(g.ended_at))}</span></td>
+            <td>${esc(gameName(g.game_type))}</td>
+            <td><div class="chips">${g.participants.map((p) => `<span class="chip ${p.won ? 'won' : ''}" title="${esc([p.role, p.team].filter(Boolean).join(' · '))}">${p.won ? '🏆 ' : ''}${esc(p.name)} · ${p.points}</span>`).join('')}</div></td>
+          </tr>`).join('')
+        : '<tr><td colspan="3" class="empty">No games recorded yet.</td></tr>';
+    }
+
+    // Already logged in (cookie still valid)? Go straight to the app.
+    api('GET', '/api/admin/overview').then((res) => {
+      if (res.ok) {
+        overview = res;
+        showApp();
+      } else {
+        showLogin();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -794,6 +794,40 @@ socket.on('lobbyUpdate', ({ players, host, scoreboard, wordLanguage: lang, wordT
   renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings);
 });
 
+const adminNotice = document.getElementById('admin-notice');
+let adminNoticeTimer = null;
+adminNotice.addEventListener('click', () => adminNotice.classList.add('hidden'));
+
+socket.on('adminAnnouncement', ({ message }) => {
+  clearTimeout(adminNoticeTimer);
+  adminNotice.textContent = `📣 ${message}`;
+  adminNotice.classList.remove('hidden');
+  haptics.warn();
+  adminNoticeTimer = setTimeout(() => adminNotice.classList.add('hidden'), 10000);
+});
+
+// Removed (or banned) from the admin page. The server drops this socket right after, and
+// socket.io doesn't auto-reconnect a server-side disconnect, so this stays on the join
+// form until the player rejoins by hand - which a ban then refuses.
+socket.on('kicked', ({ reason }) => {
+  Object.values(GAMES).forEach((game) => {
+    if (game && typeof game.stop === 'function') game.stop();
+  });
+  localStorage.removeItem('imposterRoom');
+  myRoomCode = '';
+  // Cleared in memory only (the name stays prefilled), so the reconnect below doesn't
+  // auto-rejoin via the 'connect' handler.
+  myName = '';
+  currentHostName = null;
+  isHost = false;
+  currentGame = null;
+  applyBackground(null);
+  joinError.textContent = reason || 'You were removed from the room';
+  showScreen('join');
+  // Reconnect the socket (but don't rejoin) so the join button works again.
+  socket.once('disconnect', () => setTimeout(() => socket.connect(), 500));
+});
+
 socket.on('hostUpdate', ({ host }) => {
   setHost(host);
 });

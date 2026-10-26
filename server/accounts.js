@@ -17,6 +17,7 @@ const db = require('./db');
 const { BADGES, publicBadge } = require('./badges');
 const { computeRatings } = require('./ratings');
 const { isValidSticker } = require('./stickers');
+const { logActivity } = require('./activity');
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const SESSION_COOKIE = 'shorot_session';
@@ -57,10 +58,50 @@ async function userFromRequest(req) {
   const { rows } = await db.query(
     `SELECT u.id, u.display_name, u.email, u.avatar_url, u.sticker
        FROM auth_sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token_hash = $1 AND s.expires_at > now()`,
+      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.banned_at IS NULL`,
     [hashToken(token)]
   );
   return rows[0] || null;
+}
+
+/**
+ * Whether this player is barred from joining by the admin page: their account is banned,
+ * this device is banned, or this device is linked to a banned account (so signing out
+ * doesn't get around an account ban). False whenever the database is unavailable.
+ */
+async function isBanned({ userId, clientId }) {
+  if (!db.isEnabled()) return false;
+  try {
+    const { rows } = await db.query(
+      `SELECT 1 FROM users WHERE id = $1 AND banned_at IS NOT NULL
+       UNION ALL
+       SELECT 1 FROM players p LEFT JOIN users u ON u.id = p.user_id
+        WHERE p.client_id = $2 AND (p.banned_at IS NOT NULL OR u.banned_at IS NOT NULL)
+       LIMIT 1`,
+      [userId || null, cleanClientId(clientId)]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    console.error('Ban check failed:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Permanently erases an account and everything recorded for it: every linked device's
+ * game history and badges, the Google link, and all sessions. Other players' rows in
+ * shared games are kept; games left with no participants are removed.
+ */
+async function deleteUser(userId) {
+  await db.transaction(async (client) => {
+    // players -> game_participants/achievements cascade; users -> identities/sessions cascade.
+    await client.query('DELETE FROM players WHERE user_id = $1', [userId]);
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+    await client.query(
+      `DELETE FROM games g
+        WHERE NOT EXISTS (SELECT 1 FROM game_participants gp WHERE gp.game_id = g.id)`
+    );
+  });
 }
 
 /** Finds or creates the user for a verified Google ID token payload. */
@@ -535,6 +576,8 @@ function registerAccountRoutes(app) {
       const token = crypto.randomBytes(32).toString('base64url');
       const userId = await db.transaction(async (client) => {
         const id = await upsertGoogleUser(client, payload);
+        const banned = await client.query('SELECT 1 FROM users WHERE id = $1 AND banned_at IS NOT NULL', [id]);
+        if (banned.rows.length) throw Object.assign(new Error('Account is banned'), { banned: true });
         await claimClientId(client, id, cleanClientId(req.body.clientId));
         await client.query(
           `INSERT INTO auth_sessions (token_hash, user_id, expires_at)
@@ -554,30 +597,22 @@ function registerAccountRoutes(app) {
         'SELECT id, display_name, email, avatar_url, sticker FROM users WHERE id = $1',
         [userId]
       );
+      logActivity('signin', `${rows[0].display_name} signed in`);
       res.json({ ok: true, user: publicUser(rows[0]), card: await playerCard({ userId }), newBadges });
     } catch (err) {
+      if (err.banned) return res.status(403).json({ ok: false, error: 'This account has been banned' });
       console.error('Google sign-in failed:', err.message);
       res.status(500).json({ ok: false, error: 'Sign-in failed, try again' });
     }
   });
 
-  // Permanently erases the account and everything recorded for it: every linked device's
-  // game history and badges, the Google link, and all sessions. Other players' rows in
-  // shared games are kept; games left with no participants are removed.
+  // Permanently erases the signed-in account - see deleteUser().
   app.delete('/api/account', async (req, res) => {
     if (!db.isEnabled()) return res.status(503).json({ ok: false, error: 'Accounts are not available' });
     try {
       const user = await userFromRequest(req);
       if (!user) return res.status(401).json({ ok: false, error: 'Not signed in' });
-      await db.transaction(async (client) => {
-        // players -> game_participants/achievements cascade; users -> identities/sessions cascade.
-        await client.query('DELETE FROM players WHERE user_id = $1', [user.id]);
-        await client.query('DELETE FROM users WHERE id = $1', [user.id]);
-        await client.query(
-          `DELETE FROM games g
-            WHERE NOT EXISTS (SELECT 1 FROM game_participants gp WHERE gp.game_id = g.id)`
-        );
-      });
+      await deleteUser(user.id);
       res.clearCookie(SESSION_COOKIE, { path: '/' });
       res.json({ ok: true });
     } catch (err) {
@@ -670,7 +705,8 @@ async function cleanup() {
     await db.query('DELETE FROM auth_sessions WHERE expires_at < now()');
     await db.query(
       `DELETE FROM players
-        WHERE user_id IS NULL AND last_seen < now() - make_interval(days => $1)`,
+        WHERE user_id IS NULL AND banned_at IS NULL
+          AND last_seen < now() - make_interval(days => $1)`,
       [GUEST_RETENTION_DAYS]
     );
     await db.query(
@@ -695,4 +731,6 @@ module.exports = {
   setAccountSticker,
   playerCardForUser,
   startCleanup,
+  isBanned,
+  deleteUser,
 };

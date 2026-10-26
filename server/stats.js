@@ -131,28 +131,43 @@ function passwordMatches(given) {
 // Per-IP lockout after repeated wrong passwords, so the password can't be brute-forced.
 const failedLogins = new Map(); // ip -> { count, since }
 
+/**
+ * Checks an owner-password login attempt (shared by /api/stats and the /admin login),
+ * counting failures per IP. Returns null on success, else { status, error }.
+ */
+function checkOwnerPassword(req, password) {
+  const ip = req.ip;
+  const now = Date.now();
+  const fails = failedLogins.get(ip);
+  if (fails && now - fails.since > LOCKOUT_MS) failedLogins.delete(ip);
+  const current = failedLogins.get(ip);
+  if (current && current.count >= MAX_FAILED_LOGINS) {
+    return { status: 429, error: 'Too many attempts - try again later' };
+  }
+  if (!passwordMatches(password)) {
+    if (current) current.count += 1;
+    else failedLogins.set(ip, { count: 1, since: now });
+    return { status: 401, error: 'Wrong password' };
+  }
+  failedLogins.delete(ip);
+  return null;
+}
+
+/** Today's counts, for the admin page's overview. */
+function todaySummary() {
+  const day = currentDay();
+  return { day: data.idsDay, timeZone: TIME_ZONE, ...day };
+}
+
 function registerStatsRoutes(app) {
   app.get('/stats', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'stats.html'));
   });
 
   app.post('/api/stats', express.json({ limit: '1kb' }), (req, res) => {
-    const ip = req.ip;
-    const now = Date.now();
-    const fails = failedLogins.get(ip);
-    if (fails && now - fails.since > LOCKOUT_MS) failedLogins.delete(ip);
-    const current = failedLogins.get(ip);
-    if (current && current.count >= MAX_FAILED_LOGINS) {
-      return res.status(429).json({ ok: false, error: 'Too many attempts - try again later' });
-    }
+    const failure = checkOwnerPassword(req, req.body && req.body.password);
+    if (failure) return res.status(failure.status).json({ ok: false, error: failure.error });
 
-    if (!passwordMatches(req.body && req.body.password)) {
-      if (current) current.count += 1;
-      else failedLogins.set(ip, { count: 1, since: now });
-      return res.status(401).json({ ok: false, error: 'Wrong password' });
-    }
-
-    failedLogins.delete(ip);
     currentDay();
     res.json({ ok: true, timeZone: TIME_ZONE, today: data.idsDay, days: data.days });
   });
@@ -165,5 +180,7 @@ module.exports = {
   recordPlayer,
   recordGame,
   registerStatsRoutes,
+  checkOwnerPassword,
+  todaySummary,
   saveStatsToDisk,
 };
