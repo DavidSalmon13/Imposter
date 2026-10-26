@@ -13,6 +13,7 @@ import { badgeArt, buildRatingCard } from './cardRender.js';
 import { sfx, haptics } from '../fx.js';
 
 const cardBtn = document.getElementById('card-btn');
+const adminBtn = document.getElementById('admin-btn');
 
 const TOAST_MS = 6000;
 
@@ -204,6 +205,12 @@ export async function initAccount(clientIdGetter, socket) {
   cardBtn.addEventListener('click', () => {
     window.open('/account.html', '_blank');
   });
+  // Same window, not a new tab: an installed iPhone app opens new tabs in Safari, which
+  // doesn't share the app's sign-in cookie. The admin page links back to '/', and the
+  // saved session rejoins the room on return.
+  adminBtn.addEventListener('click', () => {
+    window.location.href = '/admin';
+  });
 
   try {
     const res = await fetch('/api/auth/config');
@@ -213,6 +220,9 @@ export async function initAccount(clientIdGetter, socket) {
     // Load up front: badge pop-ups need to know whether we're signed in, and the
     // sticker picker needs the locks.
     await refreshCard();
+    // Only shown to the account(s) in the server's ADMIN_EMAILS (see server/admin.js).
+    const admin = await (await fetch('/api/admin/me')).json();
+    adminBtn.classList.toggle('hidden', !admin.admin);
   } catch (err) {
     // No config = no accounts this session; the lobby works as before.
   }

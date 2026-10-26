@@ -34,6 +34,7 @@ const badgeDetailEl = document.getElementById('acct-badge-detail');
 const rivalsHeadingEl = document.getElementById('acct-rivals-heading');
 const rivalsListEl = document.getElementById('acct-rivals');
 const signOutBtn = document.getElementById('acct-signout-btn');
+const adminBtn = document.getElementById('acct-admin-btn');
 const deleteBtn = document.getElementById('acct-delete-btn');
 const errorEl = document.getElementById('acct-error');
 
@@ -194,6 +195,7 @@ function render(user, card) {
   else if (signInEnabled) renderGoogleButton();
 
   renderRatingCard(user, card);
+  refreshAdminBtn(!!user);
 
   const played = (card && card.gamesPlayed) || 0;
   if (!played) {
@@ -212,6 +214,24 @@ function render(user, card) {
 
   lockedStickers = new Set((card && card.lockedStickers) || []);
 }
+
+// Only the account(s) in the server's ADMIN_EMAILS see this - the installed app has no
+// address bar, so this is how the owner gets to /admin.
+async function refreshAdminBtn(signedIn) {
+  let admin = false;
+  if (signedIn) {
+    try {
+      admin = !!(await (await fetch('/api/admin/me')).json()).admin;
+    } catch (err) {
+      // No admin button is the safe fallback.
+    }
+  }
+  adminBtn.classList.toggle('hidden', !admin);
+}
+
+adminBtn.addEventListener('click', () => {
+  window.location.href = '/admin';
+});
 
 signOutBtn.addEventListener('click', async () => {
   showError('');

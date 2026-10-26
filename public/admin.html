@@ -123,7 +123,7 @@
     <div class="top-row">
       <div>
         <h1>Shorot admin</h1>
-        <p class="sub" id="sub">Owner only. <a href="/stats">Daily stats</a></p>
+        <p class="sub" id="sub"><a href="/">&larr; Back to Shorot</a> · <a href="/stats">Daily stats</a></p>
       </div>
       <span id="admin-name" class="muted hidden"></span>
     </div>
@@ -353,7 +353,7 @@
       if (me.admin) return showApp(me.name);
       if (!me.configured) return showGate('No admin is set up on this server yet (ADMIN_EMAILS).');
       if (!me.signedIn) {
-        return showGate('Admins only. <a href="/account.html">Sign in with Google</a>, then come back to this page.');
+        return showGate('Admins only. <a href="/account.html">Sign in with Google</a> on your Account page, then tap Admin panel there.');
       }
       showGate(`Signed in as ${esc(me.name)}, which isn't an admin account.`);
     }
