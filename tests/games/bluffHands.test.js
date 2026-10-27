@@ -54,7 +54,7 @@ test('strongestHand: finds a pair with a kicker', () => {
   assert.equal(hand.type, 'pair');
   assert.deepEqual(hand.ranks, ['7']);
   assert.equal(hand.kicker, 'K');
-  assert.equal(hand.label, 'Pair of 7s (kicker: King)');
+  assert.equal(hand.label, '7 7 K');
 });
 
 test('strongestHand: two pair reports both ranks, higher first, plus a kicker', () => {
@@ -62,7 +62,7 @@ test('strongestHand: two pair reports both ranks, higher first, plus a kicker', 
   assert.equal(hand.type, 'two-pair');
   assert.deepEqual(hand.ranks, ['K', '7']);
   assert.equal(hand.kicker, '2');
-  assert.equal(hand.label, 'Two Pair, Kings and 7s (kicker: 2)');
+  assert.equal(hand.label, 'K K 7 7 2');
 });
 
 test('strongestHand: three of a kind (set) with a kicker', () => {
@@ -70,7 +70,7 @@ test('strongestHand: three of a kind (set) with a kicker', () => {
   assert.equal(hand.type, 'three-of-a-kind');
   assert.deepEqual(hand.ranks, ['7']);
   assert.equal(hand.kicker, 'K');
-  assert.equal(hand.label, 'Three of a Kind, 7s (kicker: King)');
+  assert.equal(hand.label, '7 7 7 K');
 });
 
 test('strongestHand: full house has no kicker', () => {
@@ -78,7 +78,7 @@ test('strongestHand: full house has no kicker', () => {
   assert.equal(hand.type, 'full-house');
   assert.deepEqual(hand.ranks, ['7', 'K']);
   assert.equal(hand.kicker, null);
-  assert.equal(hand.label, 'Full House, 7s full of Kings');
+  assert.equal(hand.label, '7 7 7 K K');
 });
 
 test('strongestHand: four of a kind beats a full house, with a kicker', () => {
@@ -86,7 +86,12 @@ test('strongestHand: four of a kind beats a full house, with a kicker', () => {
   assert.equal(hand.type, 'four-of-a-kind');
   assert.deepEqual(hand.ranks, ['7']);
   assert.equal(hand.kicker, 'K');
-  assert.equal(hand.label, 'Four of a Kind, 7s (kicker: King)');
+  assert.equal(hand.label, '7 7 7 7 K');
+});
+
+test('strongestHand: renders T as 10 in the card sequence', () => {
+  const hand = strongestHand(['Th', 'Td', 'Tc', 'Ts', 'Kc']);
+  assert.equal(hand.label, '10 10 10 10 K');
 });
 
 test('strongestHand: null when the pool holds no pair', () => {

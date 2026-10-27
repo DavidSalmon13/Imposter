@@ -63,16 +63,6 @@ const RANK_VALUE = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
   T: 10, J: 11, Q: 12, K: 13, A: 14,
 };
-const RANK_PLURAL = { T: '10s', J: 'Jacks', Q: 'Queens', K: 'Kings', A: 'Aces' };
-const RANK_SINGULAR = { T: '10', J: 'Jack', Q: 'Queen', K: 'King', A: 'Ace' };
-
-function rankPlural(r) {
-  return RANK_PLURAL[r] || `${r}s`;
-}
-
-function rankSingular(r) {
-  return RANK_SINGULAR[r] || r;
-}
 
 /** Ranks (from `counts`) with at least `min` copies, highest value first. */
 function ranksWithAtLeast(counts, min, exclude) {
@@ -92,8 +82,8 @@ function highestKicker(counts, excludeRanks) {
   return best;
 }
 
-function withKicker(label, kicker) {
-  return kicker ? `${label} (kicker: ${rankSingular(kicker)})` : label;
+function repeat(rank, n) {
+  return Array(n).fill(rank);
 }
 
 /**
@@ -101,7 +91,8 @@ function withKicker(label, kicker) {
  * the pool is everyone's cards combined rather than one 5-card hand. Standard strength order:
  * four of a kind > full house > three of a kind (set) > two pair > pair. Every hand but a full
  * house also reports a kicker (the next-highest card not used by the hand), when one exists.
- * Returns null if the pool doesn't even hold a pair.
+ * `label` is the plain card sequence that makes up the hand, e.g. "A A A A K" - Returns null
+ * if the pool doesn't even hold a pair.
  */
 function strongestHand(cards) {
   const counts = rankCounts(cards);
@@ -110,12 +101,8 @@ function strongestHand(cards) {
   if (quads.length) {
     const rank = quads[0];
     const kicker = highestKicker(counts, [rank]);
-    return {
-      type: 'four-of-a-kind',
-      ranks: [rank],
-      kicker,
-      label: withKicker(`Four of a Kind, ${rankPlural(rank)}`, kicker),
-    };
+    const hand = [...repeat(rank, 4), ...(kicker ? [kicker] : [])];
+    return { type: 'four-of-a-kind', ranks: [rank], kicker, label: calledRanksLabel(hand) };
   }
 
   const trips = ranksWithAtLeast(counts, 3);
@@ -123,19 +110,21 @@ function strongestHand(cards) {
     const tripRank = trips[0];
     const pairRank = ranksWithAtLeast(counts, 2, tripRank)[0] || null;
     if (pairRank) {
+      const hand = [...repeat(tripRank, 3), ...repeat(pairRank, 2)];
       return {
         type: 'full-house',
         ranks: [tripRank, pairRank],
         kicker: null,
-        label: `Full House, ${rankPlural(tripRank)} full of ${rankPlural(pairRank)}`,
+        label: calledRanksLabel(hand),
       };
     }
     const kicker = highestKicker(counts, [tripRank]);
+    const hand = [...repeat(tripRank, 3), ...(kicker ? [kicker] : [])];
     return {
       type: 'three-of-a-kind',
       ranks: [tripRank],
       kicker,
-      label: withKicker(`Three of a Kind, ${rankPlural(tripRank)}`, kicker),
+      label: calledRanksLabel(hand),
     };
   }
 
@@ -143,22 +132,14 @@ function strongestHand(cards) {
   if (pairs.length >= 2) {
     const [high, low] = pairs;
     const kicker = highestKicker(counts, [high, low]);
-    return {
-      type: 'two-pair',
-      ranks: [high, low],
-      kicker,
-      label: withKicker(`Two Pair, ${rankPlural(high)} and ${rankPlural(low)}`, kicker),
-    };
+    const hand = [...repeat(high, 2), ...repeat(low, 2), ...(kicker ? [kicker] : [])];
+    return { type: 'two-pair', ranks: [high, low], kicker, label: calledRanksLabel(hand) };
   }
   if (pairs.length === 1) {
     const rank = pairs[0];
     const kicker = highestKicker(counts, [rank]);
-    return {
-      type: 'pair',
-      ranks: [rank],
-      kicker,
-      label: withKicker(`Pair of ${rankPlural(rank)}`, kicker),
-    };
+    const hand = [...repeat(rank, 2), ...(kicker ? [kicker] : [])];
+    return { type: 'pair', ranks: [rank], kicker, label: calledRanksLabel(hand) };
   }
 
   return null;

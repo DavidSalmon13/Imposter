@@ -405,7 +405,7 @@ function renderCheckCards(perCard) {
  * player's cards pooled together, regardless of what was actually called. */
 function renderCheckStrongest(strongest) {
   bfCheckStrongest.textContent = strongest
-    ? `Strongest hand on the table: ${strongest.label}`
+    ? `Strongest hand: ${strongest.label}`
     : 'No pairs on the table right now.';
   bfCheckStrongest.classList.remove('hidden');
 }
