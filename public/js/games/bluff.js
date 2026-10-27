@@ -1126,7 +1126,6 @@ export const Bluff = {
   },
 
   stop() {
-    sliderDragging = false;
     applyCheck(null);
     resetBuilder();
     if (bfCheckBuilder) bfCheckBuilder.classList.add('hidden');
