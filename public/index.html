@@ -665,6 +665,7 @@
       <div id="bf-table-panel" class="hidden">
         <h1 id="bf-round-label"></h1>
         <p id="bf-table-hint" class="muted"></p>
+        <p id="bf-bet-balance" class="bf-bet-balance hidden"></p>
         <div id="bf-check-result" class="bf-check-result hidden" aria-live="polite">
           <p id="bf-check-label" class="bf-check-label"></p>
           <p id="bf-check-countdown" class="bf-check-countdown"></p>
@@ -706,6 +707,27 @@
         <h2 id="bf-hand-heading" class="mf-section-heading">Your hand</h2>
         <div id="bf-hand" class="mf-card-row bf-hand"></div>
         <div id="bf-spectator-hands" class="bf-spectator-hands hidden"></div>
+        <div id="bf-bet-others" class="bf-bet-others hidden"></div>
+
+        <div id="bf-bet-section" class="bf-bet-section hidden">
+          <h2 class="mf-section-heading">Side bets</h2>
+          <p class="muted">Bet tokens on who loses this round, head to head with another player.</p>
+          <div id="bf-bet-incoming" class="bf-bet-incoming"></div>
+          <div id="bf-bet-proposal" class="bf-bet-proposal hidden"></div>
+          <div id="bf-bet-composer" class="bf-bet-composer hidden">
+            <div id="bf-bet-pick-row" class="bf-chip-grid"></div>
+            <div class="bf-bet-stake-row">
+              <input id="bf-bet-stake-slider" type="range" min="10" max="10" step="10" value="10" />
+              <p id="bf-bet-stake-value" class="aiof-buyin-value">10</p>
+            </div>
+            <p class="muted bf-bet-target-label">Challenge someone specific, or leave it open:</p>
+            <div id="bf-bet-target-row" class="bf-chip-grid"></div>
+            <button id="bf-bet-propose-btn" type="button" disabled>Propose bet</button>
+          </div>
+          <ul id="bf-bet-mine" class="bf-bet-list"></ul>
+          <p id="bf-bet-error" class="error"></p>
+        </div>
+
         <p id="bf-table-error" class="error"></p>
       </div>
 

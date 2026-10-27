@@ -115,6 +115,38 @@ function showRivalryToast({ text, beat }) {
 }
 
 /**
+ * A global or side bet resolving (or, for a side bet, being voided by a host edit) -
+ * see plans/betting-implementation-plan.md S8 for the betResolved payload shape.
+ * Reuses this same toast queue rather than a second notification system, per
+ * specs/betting-specs.md "Cross-cutting UX".
+ */
+function showBetResolvedToast({ kind, won, stake, payout, pick, opponentName, voided }) {
+  let title;
+  let text;
+  if (voided) {
+    title = '↩️ Bet voided';
+    text = `Your ${stake}-token bet on ${pick} was refunded - that round got edited.`;
+  } else if (won) {
+    title = kind === 'global' ? '🏆 Bet won!' : '🤝 Bet won!';
+    text = kind === 'side' && opponentName
+      ? `You won ${payout} tokens off ${opponentName} - ${pick} really did lose that round!`
+      : `You won ${payout} tokens! Your bet on ${pick} paid off.`;
+  } else {
+    title = '💸 Bet lost';
+    text = kind === 'side' && opponentName
+      ? `Lost your ${stake}-token bet on ${pick} to ${opponentName}.`
+      : `Lost your ${stake}-token bet on ${pick}.`;
+  }
+  const toast = makeToast(title);
+  if (!voided) toast.classList.add(won ? 'rivalry-win' : 'rivalry-loss');
+  const line = document.createElement('p');
+  line.className = 'rivalry-toast-text';
+  line.textContent = text;
+  toast.appendChild(line);
+  queueToast(toast, () => (won && !voided ? sfx.scoreUp() : sfx.scoreDown()));
+}
+
+/**
  * Re-fetches /api/me - on startup and whenever a badge is earned - purely to keep the
  * sticker pickers' lock data and the `signedIn` toast-copy flag current. No DOM render:
  * the full card lives on the account page, fetched independently from there.
@@ -200,6 +232,9 @@ export async function initAccount(clientIdGetter, socket) {
   });
   socket.on('rivalryUpdate', (update) => {
     if (update && update.text) showRivalryToast(update);
+  });
+  socket.on('betResolved', (payload) => {
+    if (payload) showBetResolvedToast(payload);
   });
 
   // Same window, not a new tab: an installed iPhone app opens new tabs in Safari, which

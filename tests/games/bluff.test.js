@@ -3,14 +3,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// Must be set before server/betting.js is first required (by bluff.js below) - it reads
+// this once at module load, same pattern tests/games/betting.test.js uses.
+process.env.BETTING_ENABLED = 'true';
+const db = require('../../server/db');
+const betting = require('../../server/betting');
 const bluff = require('../../server/games/bluff');
 const {
   createTestCtx,
   createRoom,
+  addPlayer,
   makeHandlerSocket,
   registerGame,
   call,
   emissionsFor,
+  flush,
 } = require('../helpers/harness');
 
 test('contract shape', () => {
@@ -181,4 +188,236 @@ test('an eliminated player becomes a spectator who sees every active hand', asyn
   const annState = annEmits[annEmits.length - 1].payload;
   assert.equal(annState.isSpectator, false);
   assert.equal(annState.allHands, null);
+});
+
+// --- Betting integration (plans/betting-implementation-plan.md section 5) ---
+// Most of these spy on server/betting.js's functions rather than mocking the whole
+// database stack - betting.js's own logic is already exhaustively covered by
+// tests/games/betting.test.js; what matters here is that bluff.js calls it from the
+// right place with the right arguments. A couple of tests do run the real thing
+// end to end (with the database itself mocked) for integration confidence.
+
+test('startBluffMatch opens a start global-bet window for the whole frozen roster', async (t) => {
+  const calls = [];
+  t.mock.method(betting, 'openGlobalBetWindow', (room, roomCode, opts) => calls.push(opts));
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'seating' });
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  await call(host, 'startBluffMatch');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].trigger, 'start');
+  assert.deepEqual(calls[0].offerTo.slice().sort(), ['Ann', 'Bob', 'Cid']);
+  assert.deepEqual(calls[0].eligible.slice().sort(), ['Ann', 'Bob', 'Cid']);
+});
+
+test('eliminating a player opens a global-bet window offered only to them, eligible = who is still active', async (t) => {
+  const calls = [];
+  t.mock.method(betting, 'openGlobalBetWindow', (room, roomCode, opts) => calls.push(opts));
+  t.mock.method(betting, 'resolveSideBets', async () => []);
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 1, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 1;
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  await call(host, 'bfSelectLoser', { name: 'Bob' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].trigger, 'elimination:Bob');
+  assert.deepEqual(calls[0].offerTo, ['Bob']);
+  assert.deepEqual(calls[0].eligible.slice().sort(), ['Ann', 'Cid']);
+});
+
+test('a round ending resolves side bets for that exact round and loser, win or not', async (t) => {
+  const calls = [];
+  t.mock.method(betting, 'resolveSideBets', async (room, roomCode, opts) => {
+    calls.push(opts);
+    return [];
+  });
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 5;
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  await call(host, 'bfSelectLoser', { name: 'Bob' });
+  assert.deepEqual(calls, [{ roundNumber: 5, loserName: 'Bob' }]);
+});
+
+test('the match ending resolves global bets once the game is recorded, naming the real winner', async (t) => {
+  const calls = [];
+  t.mock.method(betting, 'resolveGlobalBets', async (room, roomCode, opts) => {
+    calls.push(opts);
+    return [];
+  });
+  t.mock.method(betting, 'resolveSideBets', async () => []);
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob'];
+  room.bfCounts = { Ann: 1, Bob: 1 };
+  room.bfHands = { Ann: ['Ah'], Bob: ['2c'] };
+  room.bfRoundNumber = 1;
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  await call(host, 'bfSelectLoser', { name: 'Bob' });
+  assert.equal(room.phase, 'gameover');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].winnerName, 'Ann', 'Ann is the one player left with cards');
+  assert.equal(typeof calls[0].gameId, 'number', 'the fake gameId from ctx.recordGameResult\'s onRecorded');
+});
+
+test('confirming a card-count edit voids side bets for the edited round before dealing on', async (t) => {
+  const calls = [];
+  t.mock.method(betting, 'voidSideBets', async (room, roomCode, roundNumber) => {
+    calls.push(roundNumber);
+    return [];
+  });
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 3;
+  room.bfEditing = true;
+  room.bfEditCounts = { Ann: 2, Bob: 1, Cid: 2 };
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  const res = await call(host, 'bfConfirmEdit');
+  assert.equal(res.ok, true);
+  assert.deepEqual(calls, [3]);
+});
+
+test('bfResetGame clears any open betting windows and proposals, and expires dangling DB bets', async (t) => {
+  const expireCalls = [];
+  t.mock.method(betting, 'expireDanglingBets', async (roomCode) => expireCalls.push(roomCode));
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'gameover' });
+  room.betGlobalWindows = { start: { eligible: ['Ann'], offerTo: ['Ann'], responded: new Set() } };
+  room.betSideProposals = { 1: [{ id: 1, bettorName: 'Ann' }] };
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  const res = await call(host, 'bfResetGame');
+  assert.equal(res.ok, true);
+  assert.deepEqual(room.betGlobalWindows, {});
+  assert.deepEqual(room.betSideProposals, {});
+  // Without this, an already-accepted bet's Postgres row would survive the reset and be
+  // mis-resolved against the next match in this same room (room_code-scoped sweep).
+  assert.deepEqual(expireCalls, ['AAAA']);
+});
+
+test('a synchronous broadcast omits the betting key, so the client keeps its betting UI', async (t) => {
+  // The sync frame must NOT carry betting: null - that would make the client tear down the
+  // betting panel/modal on every broadcast. betting rides only on the pushBettingViews
+  // follow-up. We assert on what broadcastBluff actually emits over the fake io.
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob'];
+  room.bfCounts = { Ann: 2, Bob: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.bfRoundNumber = 1;
+  registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  // Drive a real synchronous broadcast and inspect exactly what went over the fake io.
+  bluff.onReconnectBroadcast(ctx, 'AAAA', room);
+  const frames = ctx.io.emissions.filter((e) => e.event === 'bluffState');
+  assert.ok(frames.length > 0, 'a synchronous frame was emitted');
+  for (const f of frames) {
+    assert.equal('betting' in f.payload, false, 'sync frame does not carry a betting key');
+  }
+});
+
+test('betPlaceGlobal/betProposeSide/betAcceptSide all reject a player who is not signed in', async () => {
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob'];
+  room.bfCounts = { Ann: 2, Bob: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.bfRoundNumber = 1;
+  room.betGlobalWindows = { start: { eligible: ['Ann', 'Bob'], offerTo: ['Ann', 'Bob'], responded: new Set() } };
+  const ann = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann')); // no userId - a guest
+
+  const place = await call(ann, 'betPlaceGlobal', { trigger: 'start', pick: 'Ann', stake: 50 });
+  assert.equal(place.ok, false);
+  const propose = await call(ann, 'betProposeSide', { pick: 'Bob', stake: 20 });
+  assert.equal(propose.ok, false);
+  const accept = await call(ann, 'betAcceptSide', { proposalId: 1 });
+  assert.equal(accept.ok, false);
+});
+
+test('betPlaceGlobal: a signed-in player places a bet on an open window end to end', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  // Covers pushBettingViews' own getBalance/bettingViewFor reads, fired as a
+  // fire-and-forget side effect of every broadcast - not the point of this test.
+  t.mock.method(db, 'query', async () => ({ rows: [] }));
+  t.mock.method(db, 'transaction', async (fn) => fn({ query: async () => ({ rows: [], rowCount: 1 }) }));
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'seating' });
+  addPlayer(room, 'Ann', { userId: 1 });
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann'));
+  await call(host, 'startBluffMatch');
+  assert.deepEqual(room.betGlobalWindows.start.offerTo.slice().sort(), ['Ann', 'Bob']);
+
+  const res = await call(host, 'betPlaceGlobal', { trigger: 'start', pick: 'Ann', stake: 50 });
+  assert.equal(res.ok, true);
+  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), true);
+});
+
+test('betProposeSide then betAcceptSide locks in a side bet and clears the proposal, end to end', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  t.mock.method(db, 'transaction', async (fn) => fn({ query: async () => ({ rows: [], rowCount: 1 }) }));
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  addPlayer(room, 'Ann', { userId: 1 });
+  addPlayer(room, 'Bob', { userId: 2 });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 1;
+  const ann = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann'));
+  const bob = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Bob'));
+
+  const proposed = await call(ann, 'betProposeSide', { pick: 'Cid', stake: 20, targetName: 'Bob' });
+  assert.equal(proposed.ok, true);
+
+  const accepted = await call(bob, 'betAcceptSide', { proposalId: proposed.proposal.id });
+  assert.equal(accepted.ok, true);
+  assert.deepEqual(room.betSideProposals[1], []);
+});
+
+test('a resolved side bet pushes a betResolved toast to both the bettor and the accepter', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT.*bets\b/s.test(text) && /kind = 'side'/.test(text)) {
+      return { rows: [{ id: 1, bettor_user_id: 1, opponent_user_id: 2, pick_name: 'Cid', stake: 20 }] };
+    }
+    return { rows: [] };
+  });
+  t.mock.method(db, 'transaction', async (fn) => fn({ query: async () => ({ rows: [], rowCount: 1 }) }));
+  const { ctx, io } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  addPlayer(room, 'Ann', { userId: 1 });
+  addPlayer(room, 'Bob', { userId: 2 });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 1;
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  // Ann bet Cid would lose this round; Cid really does - Ann wins, Bob loses.
+  const res = await call(host, 'bfSelectLoser', { name: 'Cid' });
+  assert.equal(res.ok, true);
+  await flush();
+
+  const annResolved = emissionsFor(io, room, 'Ann').find((e) => e.event === 'betResolved');
+  const bobResolved = emissionsFor(io, room, 'Bob').find((e) => e.event === 'betResolved');
+  assert.ok(annResolved, 'Ann (the bettor, correct pick) gets a toast');
+  assert.equal(annResolved.payload.won, true);
+  assert.equal(annResolved.payload.payout, 40);
+  assert.ok(bobResolved, 'Bob (the accepter, wrong side) gets a toast too');
+  assert.equal(bobResolved.payload.won, false);
 });

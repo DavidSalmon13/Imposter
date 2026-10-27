@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
+const betting = require('./betting');
 const { BADGES, publicBadge } = require('./badges');
 const { computeRatings } = require('./ratings');
 const { isValidSticker } = require('./stickers');
@@ -136,6 +137,10 @@ async function upsertGoogleUser(client, payload) {
     `INSERT INTO user_identities (user_id, provider, provider_sub) VALUES ($1, 'google', $2)`,
     [userId, payload.sub]
   );
+  // A brand-new account, not a returning one - seed its wallet with the signup grant
+  // (no-op when betting is disabled). Same transaction as the user row itself, so a
+  // wallet never exists without a user or vice versa.
+  await betting.createWallet(client, userId);
   return userId;
 }
 
@@ -530,11 +535,15 @@ function registerAccountRoutes(app) {
     if (!db.isEnabled()) return res.json({ enabled: false, user: null, card: null });
     try {
       const user = await userFromRequest(req);
+      if (user) await betting.grantDailyIfNeeded(user.id);
       const card = await playerCard({
         userId: user && user.id,
         clientId: cleanClientId(req.query.clientId),
       });
-      res.json({ enabled: signInEnabled(), user: user ? selfUser(user) : null, card });
+      // null (not 0) when there's nothing to show - no account, or betting disabled -
+      // so the client can tell "no wallet" apart from "an empty one".
+      const balance = user && betting.isEnabled() ? await betting.getBalance(user.id) : null;
+      res.json({ enabled: signInEnabled(), user: user ? selfUser(user) : null, card, balance });
     } catch (err) {
       console.error('GET /api/me failed:', err.message);
       res.status(500).json({ ok: false, error: 'Could not load your card' });
@@ -591,6 +600,7 @@ function registerAccountRoutes(app) {
         );
         return id;
       });
+      await betting.grantDailyIfNeeded(userId);
       setSessionCookie(req, res, token);
       // Merging this device's history into the account can complete new badges.
       const device = await db.query(
@@ -603,7 +613,8 @@ function registerAccountRoutes(app) {
         [userId]
       );
       logActivity('signin', `${rows[0].display_name} signed in`);
-      res.json({ ok: true, user: selfUser(rows[0]), card: await playerCard({ userId }), newBadges });
+      const balance = betting.isEnabled() ? await betting.getBalance(userId) : null;
+      res.json({ ok: true, user: selfUser(rows[0]), card: await playerCard({ userId }), newBadges, balance });
     } catch (err) {
       if (err.banned) return res.status(403).json({ ok: false, error: 'This account has been banned' });
       console.error('Google sign-in failed:', err.message);
@@ -648,8 +659,10 @@ function registerAccountRoutes(app) {
  * signed in (a signed-out phone may be someone else's hands).
  * onBadges(name, badges) is called for each participant who earned new badges, and
  * onRivalry(name, { text, beat }) with a head-to-head update (see announceRivalries).
+ * onRecorded(gameId) - if given - fires once the game row exists, before badges/rivalry
+ * are evaluated; betting.js's resolveGlobalBets needs this id to backfill onto bets.
  */
-function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalry }) {
+function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalry, onRecorded }) {
   if (!db.isEnabled()) return;
   const rows = (participants || []).filter((p) => cleanClientId(p.clientId));
   if (!rows.length) return;
@@ -694,6 +707,7 @@ function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalr
     return gameId;
   })
     .then(async (gameId) => {
+      if (onRecorded) onRecorded(gameId);
       for (const { name, playerId } of recorded) {
         const badges = await evaluateBadges(playerId, gameId);
         if (badges.length && onBadges) onBadges(name, badges);

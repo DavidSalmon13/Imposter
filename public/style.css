@@ -4142,6 +4142,132 @@ button.confirm-danger {
   font-size: 0.95rem;
 }
 
+/* ---------- Bluff: tokens & betting (plans/betting-implementation-plan.md) ---------- */
+.bf-bet-balance {
+  display: inline-block;
+  margin: 0 auto;
+  padding: 0.3rem 0.8rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.bf-bet-section {
+  padding-top: 0.8rem;
+  border-top: 2px dashed var(--glass-border);
+}
+
+.bf-bet-incoming,
+.bf-bet-mine-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bf-bet-offer,
+.bf-bet-proposal,
+.bf-bet-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--glass-bg);
+  border: 2px solid var(--glass-border);
+  border-radius: 14px;
+  font-size: 0.92rem;
+}
+
+.bf-bet-offer p,
+.bf-bet-proposal p,
+.bf-bet-list li p {
+  margin: 0;
+}
+
+.bf-bet-offer button {
+  min-height: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.bf-bet-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.bf-bet-target-label {
+  margin: 0.2rem 0 -0.2rem;
+}
+
+.bf-bet-stake-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.bf-bet-stake-row input[type='range'] {
+  flex: 1;
+}
+
+.bf-bet-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bf-bet-list .bf-bet-won {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.bf-bet-list .bf-bet-lost {
+  color: var(--danger);
+}
+
+.bf-bet-others {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--glass-bg);
+  border: 2px dashed var(--glass-border);
+  border-radius: 14px;
+  font-size: 0.88rem;
+}
+
+.bf-bet-others p {
+  margin: 0;
+}
+
+/* The global (vs. the house) bet offer modal - built in JS, same overlay/panel base as
+   confirmDialog.js, with its own picker content. */
+.bf-global-bet-panel {
+  gap: 0.8rem;
+}
+
+.bf-global-bet-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.4rem;
+}
+
+.bf-global-bet-stake-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.bf-global-bet-stake-row input[type='range'] {
+  flex: 1;
+}
+
 /* Account page (public/account.html) - see public/js/account-page.js. */
 /* Same glass panel as the row lists so text stays readable over busy backgrounds. */
 .card-name,

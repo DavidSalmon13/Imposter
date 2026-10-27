@@ -105,6 +105,10 @@ function createRoomState() {
     bfCheck: null, // { id, ranks, label, revealAt, present } for the host's "are the called cards there?" check (NOT persisted)
     bfEditing: false, // host is adjusting card counts via Edit Game (NOT persisted)
     bfEditCounts: {}, // name -> draft count while bfEditing (NOT persisted)
+    // Tokens & betting (Bluff only, see plans/betting-implementation-plan.md section 6) - both
+    // match-scoped and NOT persisted; settled balances/bets live in Postgres instead.
+    betGlobalWindows: {}, // trigger -> { eligible, offerTo, responded }
+    betSideProposals: {}, // roundNumber -> [{ id, bettorName, userId, pick, stake, targetName }]
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)
