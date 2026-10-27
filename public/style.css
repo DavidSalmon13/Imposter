@@ -199,6 +199,34 @@ body::before {
   box-shadow: 0 4px 0 var(--bark), var(--bevel-hi);
 }
 
+.bg-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mute-slash {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.mute-wave {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+#mute-btn.muted .mute-wave {
+  opacity: 0;
+}
+
+#mute-btn.muted .mute-slash {
+  opacity: 1;
+}
+
+.install-app-icon {
+  vertical-align: -4px;
+  margin-right: 0.15rem;
+}
+
 .bg-btn:active:not(:disabled) {
   transform: translateY(2px);
   box-shadow: var(--shadow-press);

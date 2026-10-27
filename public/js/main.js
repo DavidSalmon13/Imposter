@@ -610,7 +610,7 @@ function readName() {
 
 function refreshMuteBtn() {
   const muted = isMuted();
-  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.classList.toggle('muted', muted);
   muteBtn.title = muted ? 'Unmute sound' : 'Mute sound';
 }
 
