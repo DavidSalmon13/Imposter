@@ -202,12 +202,12 @@ export async function initAccount(clientIdGetter, socket) {
     if (update && update.text) showRivalryToast(update);
   });
 
-  cardBtn.addEventListener('click', () => {
-    window.open('/account.html', '_blank');
-  });
   // Same window, not a new tab: an installed iPhone app opens new tabs in Safari, which
-  // doesn't share the app's sign-in cookie. The admin page links back to '/', and the
-  // saved session rejoins the room on return.
+  // doesn't share the app's sign-in cookie. Both pages link back to '/', and the saved
+  // session rejoins the room on return.
+  cardBtn.addEventListener('click', () => {
+    window.location.href = '/account.html';
+  });
   adminBtn.addEventListener('click', () => {
     window.location.href = '/admin';
   });

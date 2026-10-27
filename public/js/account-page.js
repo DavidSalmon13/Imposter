@@ -1,6 +1,6 @@
 /**
- * Standalone account page (public/account.html) - opened in a new tab from the lobby's
- * 👤 button, no socket/room involved. Shows match history, badges, rivals and, for
+ * Standalone account page (public/account.html) - opened in the same window from the
+ * lobby's 👤 button (so an installed app keeps its sign-in), no socket/room involved. Shows match history, badges, rivals and, for
  * signed-in players, the FIFA Ultimate Team-style rating card. See
  * specs/account-page-specs.md for the full design; server side is server/accounts.js
  * (+ server/ratings.js for the card's stats).
@@ -233,6 +233,11 @@ adminBtn.addEventListener('click', () => {
   window.location.href = '/admin';
 });
 
+// The installed app has no browser back button; the lobby's saved session rejoins the room.
+document.getElementById('acct-back-btn').addEventListener('click', () => {
+  window.location.href = '/';
+});
+
 signOutBtn.addEventListener('click', async () => {
   showError('');
   try {
@@ -284,8 +289,12 @@ async function init() {
     const res = await fetch('/api/auth/config');
     const config = await res.json();
     if (!config.history) {
-      document.querySelector('.account-screen').innerHTML =
+      const screen = document.querySelector('.account-screen');
+      const backBtn = document.getElementById('acct-back-btn');
+      screen.innerHTML =
         '<h1 class="account-title">My Account</h1><p class="muted">Accounts aren\'t set up for this server.</p>';
+      // Keep the way back to the lobby (same element, so its click handler survives).
+      screen.prepend(backBtn);
       return;
     }
     signInEnabled = !!config.enabled;
