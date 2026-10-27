@@ -375,6 +375,17 @@ older code, same as every other migration in this app.
 
 - **Lost stakes on a mid-match restart.** An accepted bet with no chance to resolve
   before a restart is simply lost (see §7) — accepted for v1, play money only.
+- **Lost stakes on a mid-match `bfResetGame` too.** Same failure class, discovered
+  during the Bluff integration (§16): the host resetting a live match abandons any open
+  bet with no refund. `bfResetGame`/`clearState` do clear `betGlobalWindows`/
+  `betSideProposals` so nothing *stale* leaks into the next match, but an already-debited
+  stake isn't returned.
+- **No explicit "dismiss" for a global-bet offer.** A player simply not placing one costs
+  nothing, but there's no server call marking the window "responded" for them either -
+  it stays an open offer (re-shown on every broadcast) until the window itself is cleared
+  at match end/reset. Not a correctness bug (no stake, no wrong state), just means a
+  dismissed offer can resurface if something else re-triggers a broadcast before the
+  match ends - a candidate for a real `betDismissGlobal` call in a later pass.
 - **Host collusion isn't prevented, only its ambient-visibility version is.** See
   `betting-specs.md` "Economy & fairness risks" — a host who already knows a specific
   player is betting on them can still collude; this plan only removes the *passive*
@@ -479,14 +490,53 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
 
 ### Bluff integration
 
-- [ ] `server/games/bluff.js`: new socket handlers `betPlaceGlobal`, `betProposeSide`,
-  `betAcceptSide`, guarded like existing `bfXxx` handlers
-- [ ] `server/games/bluff.js`: call sites — `startBluffMatch` (open match-start window),
-  `applyBluffLoss` (open elimination window + call `resolveSideBets`), `finishBluffMatch`
-  (`resolveGlobalBets`), `bfConfirmEdit` (`voidSideBets`) — per §5.2-§5.3
-- [ ] `server/games/bluff.js`: `bluffStatePayload` gains the `betting` key (§5.4)
-- [ ] Extend `tests/games/bluff.test.js` to cover the new call sites without breaking
-  existing guard-clause tests
+- [x] `server/games/bluff.js`: new socket handlers `betPlaceGlobal`, `betProposeSide`,
+  `betAcceptSide` - guarded like existing `bfXxx` handlers, calling `server/betting.js`
+  directly (not through `ctx`, same reasoning noted under "Wiring" above).
+- [x] `server/games/bluff.js`: call sites — `startBluffMatch` opens the `'start'` window
+  *before* `dealBluffRound` (so that single broadcast already reflects it);
+  `applyBluffLoss` opens an `'elimination:<name>'` window when a player is newly
+  eliminated and unconditionally fire-and-forgets `resolveSideBets` for every round's
+  loser, win or not; `finishBluffMatch` passes `ctx.recordGameResult` a new 4th-arg
+  `onRecorded(gameId)` that fire-and-forgets `resolveGlobalBets`; `bfConfirmEdit`
+  fire-and-forgets `voidSideBets` before branching into `dealBluffRound`/
+  `finishBluffMatch`. `bfResetGame` and `clearState` also reset `betGlobalWindows`/
+  `betSideProposals` to `{}` - **a fix beyond what this plan originally called for**: without
+  it, an elimination window nobody ever placed on/dismissed (there's no explicit
+  "dismiss" call - see below) would otherwise leak into every future match in that room.
+- [x] `server/games/bluff.js`: `bluffStatePayload` gains the `betting` key (§5.4), but
+  **not populated synchronously** - `betting.bettingViewFor` needs a DB round trip, and
+  `bluffStatePayload`/`broadcastBluff` must stay synchronous (every existing handler's
+  ack-then-broadcast ordering, and most of this file's own tests, depend on that).
+  Resolved by keeping `broadcastBluff` synchronous and unchanged (emits `betting: null`
+  immediately) and adding a new `pushBettingViews(ctx, roomCode, room)` that
+  fire-and-forgets a follow-up correction on the same `bluffState` event a tick later -
+  still **no new socket event**, per the plan, just a second emission of the existing
+  one. When betting is disabled this resolves to `null` for everyone and nothing extra
+  is ever emitted, so the disabled case has zero added behavior, not just zero added
+  network event *types*.
+- [x] Cross-cutting, not originally scoped: `server/accounts.js`'s
+  `recordGameResult`/`server.js`'s `ctx.recordGameResult` gained an optional 4th-arg
+  `{ onRecorded(gameId) }`, additive and backward compatible (every other game's call
+  site is unchanged) - this is the only place a just-finished match's `games.id` is ever
+  available, and `resolveGlobalBets` needs it to backfill.
+- [x] `server/roomStore.js`'s `createRoomState()` defaults `betGlobalWindows`/
+  `betSideProposals` to `{}`, same as `bfHands` etc. - needed so a freshly loaded room
+  (old `rooms.json` snapshot predating this feature) and a brand-new room both start
+  with these fields present, with no `repairOnLoad` change needed (matches §7's claim
+  that there is nothing to repair).
+- [x] Extended `tests/games/bluff.test.js` (18 new tests, 143 total passing): call-site
+  wiring verified by spying on `server/betting.js`'s exports (no database mocking
+  needed for most of these - that logic is already exhaustively covered by
+  `betting.test.js`), plus a few true end-to-end tests (database mocked) for place/
+  propose/accept/resolve integration confidence. `tests/helpers/harness.js` gained a
+  `ctx.betting` that mirrors `server.js`'s real wrapper (delegating to the real
+  `server/betting.js`, routing `betResolved` through the fake `io`) and a
+  `recordGameResult` that invokes `onRecorded` with a fake incrementing id.
+
+**Known gap introduced here, not in the original plan**: resetting mid-match
+(`bfResetGame`) abandons any open bet with no refund, same failure class as a server
+restart (§7/§14) - added to "Known limitations" below.
 
 ### Client
 

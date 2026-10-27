@@ -125,7 +125,9 @@ const ctx = {
   attachToRoom,
   saveRoomsToDisk,
   // Games pass names; this fills in each player's clientId (their device identity).
-  recordGameResult(room, gameType, participants) {
+  // `onRecorded(gameId)` is optional - Bluff's global bets need the new game row's id
+  // to resolve, and this is the only place that id ever becomes known.
+  recordGameResult(room, gameType, participants, { onRecorded } = {}) {
     const winners = participants.filter((p) => p.won).map((p) => p.name);
     logActivity('result', `${gameType} finished${winners.length ? ` - won: ${winners.join(', ')}` : ''}`);
     const roomCode = [...rooms.entries()].find(([, r]) => r === room)?.[0] || '';
@@ -137,6 +139,7 @@ const ctx = {
         clientId: room.players.get(p.name)?.clientId,
         userId: room.players.get(p.name)?.userId,
       })),
+      onRecorded,
       // Pops a "badge earned" celebration on that player's own phone.
       onBadges(name, badges) {
         emitToPlayer(room, name, 'badgesEarned', { badges });

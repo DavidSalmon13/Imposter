@@ -655,8 +655,10 @@ function registerAccountRoutes(app) {
  * signed in (a signed-out phone may be someone else's hands).
  * onBadges(name, badges) is called for each participant who earned new badges, and
  * onRivalry(name, { text, beat }) with a head-to-head update (see announceRivalries).
+ * onRecorded(gameId) - if given - fires once the game row exists, before badges/rivalry
+ * are evaluated; betting.js's resolveGlobalBets needs this id to backfill onto bets.
  */
-function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalry }) {
+function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalry, onRecorded }) {
   if (!db.isEnabled()) return;
   const rows = (participants || []).filter((p) => cleanClientId(p.clientId));
   if (!rows.length) return;
@@ -701,6 +703,7 @@ function recordGameResult({ roomCode, gameType, participants, onBadges, onRivalr
     return gameId;
   })
     .then(async (gameId) => {
+      if (onRecorded) onRecorded(gameId);
       for (const { name, playerId } of recorded) {
         const badges = await evaluateBadges(playerId, gameId);
         if (badges.length && onBadges) onBadges(name, badges);

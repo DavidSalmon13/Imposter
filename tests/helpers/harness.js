@@ -9,6 +9,7 @@
 
 const roomStore = require('../../server/roomStore');
 const { connectedNames, scoreboardEntries, addScore } = require('../../server/lobby');
+const betting = require('../../server/betting');
 
 function makeFakeIo() {
   const emissions = []; // { target, event, payload }
@@ -20,6 +21,11 @@ function makeFakeIo() {
     };
   }
   return { to, emissions };
+}
+
+function emitToPlayer(io, room, name, event, payload) {
+  const player = room.players.get(name);
+  if (player && player.connected && player.socketId) io.to(player.socketId).emit(event, payload);
 }
 
 /**
@@ -42,8 +48,56 @@ function createTestCtx() {
     connectedNames,
     scoreboardEntries,
     addScore,
-    recordGameResult(room, gameType, participants) {
+    recordGameResult(room, gameType, participants, { onRecorded } = {}) {
       recordedResults.push({ room, gameType, participants });
+      // Fake gameId: good enough for tests asserting resolveGlobalBets gets one.
+      if (onRecorded) onRecorded(recordedResults.length);
+    },
+    // Mirrors server.js's real ctx.betting wrapper (server.js ~line 150): delegates to
+    // the real server/betting.js (so a test's `placeGlobalBet`/`proposeSideBet`/
+    // `acceptSideBet` calls - made directly against that same module, same as
+    // server/games/bluff.js does - see real room state these calls open/mutate), and
+    // routes `betResolved` through the fake io the same way emitToPlayer does for real.
+    betting: {
+      openGlobalBetWindow(room, roomCode, opts) {
+        betting.openGlobalBetWindow(room, roomCode, opts);
+      },
+      async resolveGlobalBets(room, roomCode, opts) {
+        const results = await betting.resolveGlobalBets(room, roomCode, opts);
+        for (const r of results) {
+          const name = betting.nameForUserId(room, r.userId);
+          if (name) emitToPlayer(io, room, name, 'betResolved', { kind: 'global', won: r.won, stake: r.stake, payout: r.payout, pick: r.pick });
+        }
+        return results;
+      },
+      async resolveSideBets(room, roomCode, opts) {
+        const results = await betting.resolveSideBets(room, roomCode, opts);
+        for (const r of results) {
+          const bettorName = betting.nameForUserId(room, r.bettorUserId);
+          const opponentName = betting.nameForUserId(room, r.opponentUserId);
+          if (bettorName) {
+            emitToPlayer(io, room, bettorName, 'betResolved', {
+              kind: 'side', won: r.bettorWon, stake: r.stake, payout: r.bettorWon ? r.payout : 0, pick: r.pick, opponentName,
+            });
+          }
+          if (opponentName) {
+            emitToPlayer(io, room, opponentName, 'betResolved', {
+              kind: 'side', won: !r.bettorWon, stake: r.stake, payout: !r.bettorWon ? r.payout : 0, pick: r.pick, opponentName: bettorName,
+            });
+          }
+        }
+        return results;
+      },
+      async voidSideBets(room, roomCode, roundNumber) {
+        const results = await betting.voidSideBets(room, roomCode, roundNumber);
+        for (const r of results) {
+          const bettorName = betting.nameForUserId(room, r.bettorUserId);
+          const opponentName = betting.nameForUserId(room, r.opponentUserId);
+          if (bettorName) emitToPlayer(io, room, bettorName, 'betResolved', { kind: 'side', voided: true, stake: r.stake, pick: r.pick, opponentName });
+          if (opponentName) emitToPlayer(io, room, opponentName, 'betResolved', { kind: 'side', voided: true, stake: r.stake, pick: r.pick, opponentName: bettorName });
+        }
+        return results;
+      },
     },
   };
 
