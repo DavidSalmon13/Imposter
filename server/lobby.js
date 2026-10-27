@@ -657,7 +657,6 @@ function registerLobbyHandlers(socket) {
     const roomCode = socket.data.roomCode;
     const room = getRoom(socket);
     if (!room) return callback({ ok: false, error: 'Not in a room' });
-    if (room.phase !== 'lobby') return callback({ ok: false, error: 'Only available in the lobby' });
     if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can remove players' });
     }
@@ -665,23 +664,11 @@ function registerLobbyHandlers(socket) {
     const name = String(targetName || '');
     if (name === room.hostName) return callback({ ok: false, error: "Can't remove yourself" });
 
-    const target = room.players.get(name);
-    if (!target) return callback({ ok: false, error: 'Player not found' });
+    const error = kickPlayer(roomCode, room, name, { reason: 'The host removed you from the room' });
+    if (error) return callback({ ok: false, error });
 
-    // Tell the target before severing their connection so the client can show why it
-    // got bounced, instead of just reading as a dropped connection.
-    const targetSocket = target.connected ? ctx.io.sockets.sockets.get(target.socketId) : null;
-    room.players.delete(name);
-    if (targetSocket) {
-      targetSocket.emit('kicked');
-      targetSocket.leave(roomCode);
-      targetSocket.data.roomCode = null;
-      targetSocket.data.name = null;
-      targetSocket.disconnect(true);
-    }
-
+    logActivity('kick', `${socket.data.name} removed ${name}`);
     callback({ ok: true });
-    broadcastLobby(roomCode, room);
   });
 
   socket.on('backToLobby', (callback) => {
