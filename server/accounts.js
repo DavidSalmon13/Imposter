@@ -499,6 +499,11 @@ function publicUser(u) {
   return { id: String(u.id), name: u.display_name, avatar: u.avatar_url || null, sticker: u.sticker || null };
 }
 
+/** publicUser plus the email - only for the signed-in player's own account, never other players' cards. */
+function selfUser(u) {
+  return { ...publicUser(u), email: u.email || null };
+}
+
 function setSessionCookie(req, res, token) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -529,7 +534,7 @@ function registerAccountRoutes(app) {
         userId: user && user.id,
         clientId: cleanClientId(req.query.clientId),
       });
-      res.json({ enabled: signInEnabled(), user: user ? publicUser(user) : null, card });
+      res.json({ enabled: signInEnabled(), user: user ? selfUser(user) : null, card });
     } catch (err) {
       console.error('GET /api/me failed:', err.message);
       res.status(500).json({ ok: false, error: 'Could not load your card' });
@@ -598,7 +603,7 @@ function registerAccountRoutes(app) {
         [userId]
       );
       logActivity('signin', `${rows[0].display_name} signed in`);
-      res.json({ ok: true, user: publicUser(rows[0]), card: await playerCard({ userId }), newBadges });
+      res.json({ ok: true, user: selfUser(rows[0]), card: await playerCard({ userId }), newBadges });
     } catch (err) {
       if (err.banned) return res.status(403).json({ ok: false, error: 'This account has been banned' });
       console.error('Google sign-in failed:', err.message);

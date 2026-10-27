@@ -3918,6 +3918,13 @@ button.confirm-danger {
   font-size: 1.1rem;
 }
 
+.card-email {
+  margin: -0.4rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .card-summary {
   margin: 0;
   font-weight: 600;

@@ -18,6 +18,7 @@ const STATS = ['SPD', 'COM', 'STR', 'TAC', 'NRV', 'DEC'];
 const guestEl = document.getElementById('acct-guest');
 const googleBtnEl = document.getElementById('acct-google-btn');
 const nameEl = document.getElementById('acct-name');
+const emailEl = document.getElementById('acct-email');
 const ratingCardEl = document.getElementById('acct-rating-card');
 const ratingLockedEl = document.getElementById('acct-rating-locked');
 const cardStickerEl = document.getElementById('acct-card-sticker');
@@ -192,6 +193,9 @@ function render(user, card) {
   signOutBtn.classList.toggle('hidden', !user);
   deleteBtn.classList.toggle('hidden', !user);
   if (user) nameEl.textContent = user.name;
+  // Shows which Google account this is - the one ADMIN_EMAILS has to list.
+  emailEl.classList.toggle('hidden', !(user && user.email));
+  if (user && user.email) emailEl.textContent = `Signed in as ${user.email}`;
   else if (signInEnabled) renderGoogleButton();
 
   renderRatingCard(user, card);
