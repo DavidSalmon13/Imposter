@@ -17,14 +17,14 @@ import { confirmDialog } from './shared/confirmDialog.js';
 import { emojiForName } from './shared/playerEmoji.js';
 import { initAccount, refreshCard, onLockedStickers, openPlayerCard } from './shared/account.js';
 import { initReactions } from './shared/reactions.js';
-import { initInstallButton } from './shared/installApp.js';
+import { initInstallButtons } from './shared/installApp.js';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
-initInstallButton(document.getElementById('install-app-btn'));
+initInstallButtons([document.getElementById('install-app-btn'), document.getElementById('lobby-install-btn')]);
 
 // clientId lets the server count unique daily visitors (server/stats.js) - see getClientId.
 const socket = io({ auth: { clientId: getClientId() } });

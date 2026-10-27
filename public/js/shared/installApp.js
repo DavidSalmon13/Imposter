@@ -1,7 +1,8 @@
 /**
- * "Add to Home Screen" button on the join screen. Android/desktop Chrome hand us a
- * beforeinstallprompt event we can trigger from the button; iPhone Safari has no such
- * API, so there the button shows the Share -> Add to Home Screen steps instead.
+ * "Add to Home Screen" buttons on the join screen and in the lobby. Android/desktop
+ * Chrome hand us a beforeinstallprompt event we can trigger from the button; iPhone
+ * Safari has no such API, so there the button shows the Share -> Add to Home Screen
+ * steps instead.
  */
 
 let deferredPrompt = null;
@@ -70,14 +71,14 @@ function showSteps(title, steps) {
   okBtn.focus();
 }
 
-export function initInstallButton(btn) {
-  if (!btn) return;
+export function initInstallButtons(btns) {
+  btns = btns.filter(Boolean);
 
   // Phones always get the button (with manual steps as the fallback); desktops only
   // once the browser says the app is installable.
   function refresh() {
     const show = !isInstalled() && (deferredPrompt || isIos() || isAndroid());
-    btn.classList.toggle('hidden', !show);
+    btns.forEach((btn) => btn.classList.toggle('hidden', !show));
   }
 
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -87,10 +88,10 @@ export function initInstallButton(btn) {
   });
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
-    btn.classList.add('hidden');
+    btns.forEach((btn) => btn.classList.add('hidden'));
   });
 
-  btn.addEventListener('click', async () => {
+  async function onClick() {
     if (deferredPrompt) {
       const promptEvent = deferredPrompt;
       // A prompt event can only be shown once; the browser fires a fresh one if declined.
@@ -115,7 +116,8 @@ export function initInstallButton(btn) {
         'Confirm - Shorot now opens like an app.',
       ]);
     }
-  });
+  }
 
+  btns.forEach((btn) => btn.addEventListener('click', onClick));
   refresh();
 }
