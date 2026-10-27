@@ -540,11 +540,39 @@ restart (§7/§14) - added to "Known limitations" below.
 
 ### Client
 
-- [ ] `public/js/games/bluff.js`: wallet readout + global bet offer modal
-- [ ] `public/js/games/bluff.js`: side-bet composer + accept prompt
-- [ ] `public/index.html` / `public/style.css`: new markup/styles for the above
-- [ ] `public/js/shared/account.js` / `account-page.js`: wallet balance on the Player
-  Card; wire `betResolved` into the existing toast queue
+- [x] `public/js/games/bluff.js`: wallet readout (`#bf-bet-balance`) + global bet offer
+  modal (`showGlobalBetModal`, JS-built like `confirmDialog.js`). Dismissing is
+  client-local only (`bfDismissedGlobalTriggers`) - there's no server "dismiss" call
+  (see the Bluff integration section above and "Known limitations"), so this is what
+  stops a dismissed offer reopening on the next re-render. Shows at most one modal at a
+  time (`maybeShowGlobalBetModal`), re-checked after each close for another pending one.
+- [x] `public/js/games/bluff.js`: side-bet composer (pick/target chip rows + stake
+  slider, `renderComposer`) + incoming-offer accept rows (`renderIncomingOffers`) +
+  own-proposal waiting state (`renderMyProposal`, hides the composer per the
+  one-at-a-time server rule) + a short "my bets" confirmation list (`renderMyBets`) +
+  the spectator-only ambient view of other eliminated players' bets
+  (`renderOthersBets`/`#bf-bet-others`). All driven by one `renderBetting(betting,
+  seats)` called from `applyTable`, and fully inert (hidden, no-op) whenever
+  `data.betting` is `null`.
+- [x] `public/index.html` / `public/style.css`: new markup inside `#bf-table-panel`
+  (`#bf-bet-balance`, `#bf-bet-section`, `#bf-bet-others` and their children) and
+  matching styles. No `<select>` used for the side-bet target picker - this app has no
+  styled select anywhere, so it's a tappable chip row instead, consistent with the
+  pick-row chips and every other picker in this game.
+- [x] `public/js/shared/account.js`: `betResolved` → `showBetResolvedToast`, reusing the
+  existing badge/rivalry toast queue (`queueToast`), not a second notification system.
+- [x] `public/js/account-page.js` / `public/account.html`: wallet balance on the Player
+  Card (`#acct-wallet`), fed by a new `balance` field on `GET /api/me` and `POST
+  /api/auth/google`'s responses (`server/accounts.js`) - `null` (not `0`) when there's
+  nothing to show (no account, or betting disabled), so the client can tell "no wallet"
+  apart from "an empty one."
+- [x] Manually verified (headless Edge via puppeteer-core, see the `verify` skill): two
+  guests join, choose Bluff, start a match, play a full round to resolution - no
+  betting UI ever renders (confirmed by DOM inspection, not just visual), no client or
+  server errors. **Not verified**: the actual signed-in bet-placing/accepting flow,
+  since that needs a real `DATABASE_URL` + `GOOGLE_CLIENT_ID`, neither configured in
+  this environment - see "Rollout" below, which still needs a real staging pass with
+  betting turned on before this ships.
 
 ### Rollout
 

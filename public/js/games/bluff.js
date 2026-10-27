@@ -60,6 +60,22 @@ const bfEditActions = document.getElementById('bf-edit-actions');
 const bfEditCancelBtn = document.getElementById('bf-edit-cancel-btn');
 const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
 
+// Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
+// data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
+const bfBetBalance = document.getElementById('bf-bet-balance');
+const bfBetOthers = document.getElementById('bf-bet-others');
+const bfBetSection = document.getElementById('bf-bet-section');
+const bfBetIncoming = document.getElementById('bf-bet-incoming');
+const bfBetProposal = document.getElementById('bf-bet-proposal');
+const bfBetComposer = document.getElementById('bf-bet-composer');
+const bfBetPickRow = document.getElementById('bf-bet-pick-row');
+const bfBetStakeSlider = document.getElementById('bf-bet-stake-slider');
+const bfBetStakeValue = document.getElementById('bf-bet-stake-value');
+const bfBetTargetRow = document.getElementById('bf-bet-target-row');
+const bfBetProposeBtn = document.getElementById('bf-bet-propose-btn');
+const bfBetMine = document.getElementById('bf-bet-mine');
+const bfBetError = document.getElementById('bf-bet-error');
+
 const BF_RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 // Mirrors server/games/bluffHands.js - the server re-validates.
 const BF_MAX_CALLED_CARDS = 20;
@@ -84,6 +100,15 @@ let bfCheckShownId = null;
 let bfCheckTimer = null;
 let bfCheckRevealAt = 0;
 let bfCheckPresent = null;
+
+// Betting UI state. There's no server-side "dismiss" for a global-bet offer (see
+// betting-implementation-plan.md's "Known limitations") - dismissing one is purely
+// local, tracked here so a re-render (e.g. the pushBettingViews follow-up correction)
+// doesn't reopen a modal the player already closed.
+let bfDismissedGlobalTriggers = new Set();
+let bfOpenGlobalModal = null; // { trigger, close() } for whichever modal is up now
+let bfBetPick = null; // chosen loser-pick in the side-bet composer
+let bfBetTarget = null; // chosen target name in the side-bet composer, null = open
 
 function bfClearSequenceTimers() {
   bfSequenceTimers.forEach((t) => clearTimeout(t));
@@ -502,6 +527,286 @@ function renderEditPanel(data) {
   });
 }
 
+// --- Tokens & betting (plans/betting-implementation-plan.md section 5) ---
+
+let lastBettingData = null;
+
+/**
+ * A match-start or elimination-moment global (vs. the house) bet offer. Built like
+ * confirmDialog.js (same overlay/panel base) but with a name-pick + stake slider
+ * instead of a plain confirm. Dismissing costs nothing and is purely local - the
+ * server has no "already saw and said no" state to track for a global window (see
+ * betting-implementation-plan.md's "Known limitations"), so bfDismissedGlobalTriggers
+ * is what stops this from reopening on the next re-render.
+ */
+function showGlobalBetModal(win, balance, minStake) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'confirm-panel bf-global-bet-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+
+  const title = document.createElement('h2');
+  title.className = 'confirm-title';
+  title.textContent = win.trigger === 'start' ? 'Bet on the match winner' : "You're out — bet on who wins";
+  panel.appendChild(title);
+
+  const message = document.createElement('p');
+  message.className = 'confirm-message';
+  message.textContent = 'Pick who you think wins, choose a stake, and place it — or sit this one out.';
+  panel.appendChild(message);
+
+  let pick = null;
+  const picksEl = document.createElement('div');
+  picksEl.className = 'bf-global-bet-picks';
+  const chips = win.eligible.map((name) => {
+    const chip = bfMakeChip(name, () => {
+      pick = name;
+      chips.forEach((c) => c.classList.toggle('selected', c.dataset.name === name));
+      placeBtn.disabled = false;
+    });
+    chip.dataset.name = name;
+    picksEl.appendChild(chip);
+    return chip;
+  });
+  panel.appendChild(picksEl);
+
+  const canAfford = balance >= minStake;
+  const stakeRow = document.createElement('div');
+  stakeRow.className = 'bf-global-bet-stake-row';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = String(minStake);
+  slider.max = String(Math.max(minStake, balance));
+  slider.step = String(minStake);
+  slider.value = String(minStake);
+  slider.disabled = !canAfford;
+  const stakeValue = document.createElement('p');
+  stakeValue.className = 'aiof-buyin-value';
+  stakeValue.textContent = slider.value;
+  slider.addEventListener('input', () => {
+    stakeValue.textContent = slider.value;
+  });
+  stakeRow.append(slider, stakeValue);
+  panel.appendChild(stakeRow);
+
+  const balanceLine = document.createElement('p');
+  balanceLine.className = 'muted';
+  balanceLine.textContent = canAfford
+    ? `You have ${balance} tokens.`
+    : `You have ${balance} tokens — not enough to cover the ${minStake}-token minimum.`;
+  panel.appendChild(balanceLine);
+
+  const errorEl = document.createElement('p');
+  errorEl.className = 'error';
+  panel.appendChild(errorEl);
+
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  const dismissBtn = document.createElement('button');
+  dismissBtn.type = 'button';
+  dismissBtn.className = 'secondary';
+  dismissBtn.textContent = 'Not this time';
+  const placeBtn = document.createElement('button');
+  placeBtn.type = 'button';
+  placeBtn.textContent = 'Place bet';
+  placeBtn.disabled = true;
+  if (!canAfford) placeBtn.disabled = true;
+  row.append(dismissBtn, placeBtn);
+  panel.appendChild(row);
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  function close() {
+    overlay.remove();
+    bfOpenGlobalModal = null;
+    maybeShowGlobalBetModal();
+  }
+
+  dismissBtn.addEventListener('click', () => {
+    bfDismissedGlobalTriggers.add(win.trigger);
+    close();
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target !== overlay) return;
+    bfDismissedGlobalTriggers.add(win.trigger);
+    close();
+  });
+  placeBtn.addEventListener('click', () => {
+    if (!pick || !canAfford) return;
+    errorEl.textContent = '';
+    ctx.socket.emit('betPlaceGlobal', { trigger: win.trigger, pick, stake: Number(slider.value) }, (res) => {
+      if (res && !res.ok) {
+        errorEl.textContent = res.error;
+        return;
+      }
+      bfDismissedGlobalTriggers.add(win.trigger);
+      close();
+    });
+  });
+
+  bfOpenGlobalModal = { trigger: win.trigger, close };
+}
+
+/** Shows the next undismissed open global-bet window, if any, one at a time. */
+function maybeShowGlobalBetModal() {
+  if (bfOpenGlobalModal || !lastBettingData) return;
+  const next = (lastBettingData.openGlobalWindows || []).find((w) => !bfDismissedGlobalTriggers.has(w.trigger));
+  if (next) showGlobalBetModal(next, lastBettingData.balance, lastBettingData.minStake);
+}
+
+/** Proposals this viewer could accept - targeted at them, or open to the table. */
+function renderIncomingOffers(offers) {
+  bfBetIncoming.innerHTML = '';
+  offers.forEach((offer) => {
+    const row = document.createElement('div');
+    row.className = 'bf-bet-offer';
+    const text = document.createElement('p');
+    text.textContent = `${offer.bettorName} bets ${offer.stake} tokens that ${offer.pick} loses this round`;
+    row.appendChild(text);
+    const acceptBtn = document.createElement('button');
+    acceptBtn.type = 'button';
+    acceptBtn.textContent = 'Accept';
+    acceptBtn.addEventListener('click', () => {
+      bfBetError.textContent = '';
+      ctx.socket.emit('betAcceptSide', { proposalId: offer.id }, (res) => {
+        if (res && !res.ok) bfBetError.textContent = res.error;
+      });
+    });
+    row.appendChild(acceptBtn);
+    bfBetIncoming.appendChild(row);
+  });
+}
+
+/** The side-bet composer: pick who loses, a stake, and an optional target. Hidden
+ * while this viewer already has an unaccepted proposal open (server allows only one). */
+function renderComposer(seats, minStake, balance) {
+  const active = seats.filter((s) => !s.eliminated);
+  const myName = ctx.getMyName();
+
+  if (bfBetPick && !active.some((s) => s.name === bfBetPick)) bfBetPick = null;
+  const targetable = active.filter((s) => s.signedIn && s.name !== myName);
+  if (bfBetTarget && !targetable.some((s) => s.name === bfBetTarget)) bfBetTarget = null;
+
+  bfBetPickRow.innerHTML = '';
+  active.forEach((seat) => {
+    const chip = bfMakeChip(seat.name, () => {
+      bfBetPick = seat.name;
+      renderComposer(seats, minStake, balance);
+    }, seat.name === bfBetPick ? 'selected' : '');
+    bfBetPickRow.appendChild(chip);
+  });
+
+  bfBetTargetRow.innerHTML = '';
+  const openChip = bfMakeChip('Open to the table', () => {
+    bfBetTarget = null;
+    renderComposer(seats, minStake, balance);
+  }, bfBetTarget === null ? 'selected' : '');
+  bfBetTargetRow.appendChild(openChip);
+  targetable.forEach((seat) => {
+    const chip = bfMakeChip(seat.name, () => {
+      bfBetTarget = seat.name;
+      renderComposer(seats, minStake, balance);
+    }, seat.name === bfBetTarget ? 'selected' : '');
+    bfBetTargetRow.appendChild(chip);
+  });
+
+  const canAfford = balance >= minStake;
+  bfBetStakeSlider.min = String(minStake);
+  bfBetStakeSlider.max = String(Math.max(minStake, balance));
+  bfBetStakeSlider.step = String(minStake);
+  bfBetStakeSlider.disabled = !canAfford;
+  if (Number(bfBetStakeSlider.value) < minStake) bfBetStakeSlider.value = String(minStake);
+  bfBetStakeValue.textContent = bfBetStakeSlider.value;
+
+  bfBetProposeBtn.disabled = !bfBetPick || !canAfford;
+}
+
+/** Waiting-for-acceptance status for this viewer's own open proposal, if any - the
+ * composer is hidden while one is open (the server allows only one at a time). */
+function renderMyProposal(proposal, seats, minStake, balance) {
+  if (proposal) {
+    bfBetProposal.classList.remove('hidden');
+    bfBetComposer.classList.add('hidden');
+    bfBetProposal.innerHTML = '';
+    const text = document.createElement('p');
+    text.textContent = proposal.targetName
+      ? `Waiting for ${proposal.targetName} to accept your ${proposal.stake}-token bet on ${proposal.pick}…`
+      : `Waiting for someone to accept your ${proposal.stake}-token bet on ${proposal.pick}…`;
+    bfBetProposal.appendChild(text);
+    return;
+  }
+  bfBetProposal.classList.add('hidden');
+  bfBetComposer.classList.remove('hidden');
+  renderComposer(seats, minStake, balance);
+}
+
+/** Bets already placed/accepted - a quick confirmation list, not a full history. */
+function renderMyBets(globalBets, sideBets) {
+  bfBetMine.innerHTML = '';
+  globalBets.forEach((bet) => {
+    const li = document.createElement('li');
+    const label = bet.trigger === 'start' ? 'to win the match' : 'to win from here';
+    li.textContent = `🎲 ${bet.stake} tokens on ${bet.pick} ${label}`;
+    bfBetMine.appendChild(li);
+  });
+  sideBets.forEach((bet) => {
+    const li = document.createElement('li');
+    const vs = bet.opponentName ? ` vs. ${bet.opponentName}` : '';
+    li.textContent = `🤝 ${bet.stake} tokens that ${bet.pick} loses this round${vs}`;
+    bfBetMine.appendChild(li);
+  });
+}
+
+/** Ambient view for eliminated spectators: every other eliminated player's bets (see
+ * betting-specs.md "Who can see whose bets") - empty, and the block hidden, otherwise. */
+function renderOthersBets(others) {
+  if (!others.length) {
+    bfBetOthers.classList.add('hidden');
+    return;
+  }
+  bfBetOthers.classList.remove('hidden');
+  bfBetOthers.innerHTML = '';
+  const heading = document.createElement('p');
+  heading.textContent = "Other spectators' bets:";
+  bfBetOthers.appendChild(heading);
+  others.forEach((bet) => {
+    const p = document.createElement('p');
+    if (bet.kind === 'global') {
+      p.textContent = `${bet.bettorName}: ${bet.stake} tokens on ${bet.pick}`;
+    } else {
+      p.textContent = `${bet.bettorName} vs. ${bet.opponentName}: ${bet.stake} tokens on ${bet.pick} to lose`;
+    }
+    bfBetOthers.appendChild(p);
+  });
+}
+
+/** Everything betting-shaped on the table screen - inert (hidden, no-op) whenever
+ * `betting` is null (BETTING_ENABLED off, or this viewer is a guest). */
+function renderBetting(betting, seats) {
+  lastBettingData = betting;
+  if (!betting) {
+    bfBetBalance.classList.add('hidden');
+    bfBetSection.classList.add('hidden');
+    bfBetOthers.classList.add('hidden');
+    if (bfOpenGlobalModal) bfOpenGlobalModal.close();
+    return;
+  }
+
+  bfBetBalance.classList.remove('hidden');
+  bfBetBalance.textContent = `🪙 ${betting.balance} token${betting.balance === 1 ? '' : 's'}`;
+
+  maybeShowGlobalBetModal();
+
+  bfBetSection.classList.remove('hidden');
+  renderIncomingOffers(betting.incomingSideOffers || []);
+  renderMyProposal(betting.mySideProposal, seats || [], betting.minStake, betting.balance);
+  renderMyBets(betting.myGlobalBets || [], betting.mySideBets || []);
+  renderOthersBets(betting.visibleOthersBets || []);
+}
+
 function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
@@ -521,6 +826,7 @@ function applyTable(data) {
   bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
   renderHandOrSpectator(data);
+  renderBetting(data.betting, data.seats);
 }
 
 /** Eliminated players have no hand of their own - instead they see every active player's
@@ -597,6 +903,7 @@ function applyState(data) {
     bfTableFelt.classList.remove('bf-dealing');
     bfEditOpenBtn.classList.add('hidden');
     bfEditPanel.classList.add('hidden');
+    renderBetting(null, []);
   }
 
   if (data.phase === 'seating') {
@@ -693,6 +1000,27 @@ export const Bluff = {
       socket.emit('backToLobby', () => {});
     });
 
+    bfBetStakeSlider.addEventListener('input', () => {
+      bfBetStakeValue.textContent = bfBetStakeSlider.value;
+    });
+
+    bfBetProposeBtn.addEventListener('click', () => {
+      if (!bfBetPick) return;
+      bfBetError.textContent = '';
+      socket.emit(
+        'betProposeSide',
+        { pick: bfBetPick, stake: Number(bfBetStakeSlider.value), targetName: bfBetTarget },
+        (res) => {
+          if (res && !res.ok) {
+            bfBetError.textContent = res.error;
+            return;
+          }
+          bfBetPick = null;
+          bfBetTarget = null;
+        }
+      );
+    });
+
     socket.on('bluffState', (data) => {
       applyState(data);
       ctx.showScreen('bluff');
@@ -722,5 +1050,13 @@ export const Bluff = {
     if (bfEditError) bfEditError.textContent = '';
     if (bfEditOpenBtn) bfEditOpenBtn.classList.add('hidden');
     if (bfEditPanel) bfEditPanel.classList.add('hidden');
+    // Cleared before close() - close() itself re-checks lastBettingData for the next
+    // undismissed window, which must not happen while the screen is tearing down.
+    lastBettingData = null;
+    if (bfOpenGlobalModal) bfOpenGlobalModal.close();
+    bfDismissedGlobalTriggers = new Set();
+    bfBetPick = null;
+    bfBetTarget = null;
+    if (bfBetError) bfBetError.textContent = '';
   },
 };

@@ -19,6 +19,7 @@ const guestEl = document.getElementById('acct-guest');
 const googleBtnEl = document.getElementById('acct-google-btn');
 const nameEl = document.getElementById('acct-name');
 const emailEl = document.getElementById('acct-email');
+const walletEl = document.getElementById('acct-wallet');
 const ratingCardEl = document.getElementById('acct-rating-card');
 const ratingLockedEl = document.getElementById('acct-rating-locked');
 const cardStickerEl = document.getElementById('acct-card-sticker');
@@ -92,7 +93,7 @@ async function onGoogleCredential({ credential }) {
     });
     const data = await res.json();
     if (!data.ok) return showError(data.error || 'Sign-in failed');
-    render(data.user, data.card);
+    render(data.user, data.card, data.balance);
   } catch (err) {
     showError('Sign-in failed, check your connection');
   }
@@ -187,7 +188,7 @@ function renderHistoryTable(byGame) {
   }
 }
 
-function render(user, card) {
+function render(user, card, balance) {
   guestEl.classList.toggle('hidden', !!user || !signInEnabled);
   nameEl.classList.toggle('hidden', !user);
   signOutBtn.classList.toggle('hidden', !user);
@@ -197,6 +198,11 @@ function render(user, card) {
   emailEl.classList.toggle('hidden', !(user && user.email));
   if (user && user.email) emailEl.textContent = `Signed in as ${user.email}`;
   else if (signInEnabled) renderGoogleButton();
+
+  // null (not a number) means no wallet to show at all - no account, or BETTING_ENABLED
+  // is off (see server/accounts.js's /api/me and /api/auth/google).
+  walletEl.classList.toggle('hidden', balance == null);
+  if (balance != null) walletEl.textContent = `🪙 ${balance} token${balance === 1 ? '' : 's'}`;
 
   renderRatingCard(user, card);
   refreshAdminBtn(!!user);
@@ -276,7 +282,7 @@ async function refresh() {
     const res = await fetch(`/api/me?clientId=${encodeURIComponent(getClientId())}`);
     const data = await res.json();
     if (data.ok === false) return showError(data.error);
-    render(data.user, data.card);
+    render(data.user, data.card, data.balance);
   } catch (err) {
     showError('Could not load your account, check your connection');
   }

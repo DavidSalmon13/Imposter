@@ -540,7 +540,10 @@ function registerAccountRoutes(app) {
         userId: user && user.id,
         clientId: cleanClientId(req.query.clientId),
       });
-      res.json({ enabled: signInEnabled(), user: user ? selfUser(user) : null, card });
+      // null (not 0) when there's nothing to show - no account, or betting disabled -
+      // so the client can tell "no wallet" apart from "an empty one".
+      const balance = user && betting.isEnabled() ? await betting.getBalance(user.id) : null;
+      res.json({ enabled: signInEnabled(), user: user ? selfUser(user) : null, card, balance });
     } catch (err) {
       console.error('GET /api/me failed:', err.message);
       res.status(500).json({ ok: false, error: 'Could not load your card' });
@@ -610,7 +613,8 @@ function registerAccountRoutes(app) {
         [userId]
       );
       logActivity('signin', `${rows[0].display_name} signed in`);
-      res.json({ ok: true, user: selfUser(rows[0]), card: await playerCard({ userId }), newBadges });
+      const balance = betting.isEnabled() ? await betting.getBalance(userId) : null;
+      res.json({ ok: true, user: selfUser(rows[0]), card: await playerCard({ userId }), newBadges, balance });
     } catch (err) {
       if (err.banned) return res.status(403).json({ ok: false, error: 'This account has been banned' });
       console.error('Google sign-in failed:', err.message);
