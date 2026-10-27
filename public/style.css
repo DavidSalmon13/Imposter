@@ -3959,10 +3959,12 @@ button.confirm-danger {
   border-color: var(--leaf);
 }
 
+/* Darker/more saturated than .bf-check-result.bf-check-absent's background so a missing
+   chip still pops even inside the pink "Not there!" box. */
 .bf-chip-static.bf-chip-missing {
-  background: linear-gradient(180deg, #f6a99b 0%, var(--rose) 100%);
-  color: var(--accent-text);
-  border-color: var(--rose);
+  background: linear-gradient(180deg, #d94f3f 0%, #a8291c 100%);
+  color: #fff;
+  border-color: #7a1810;
 }
 
 .bf-check-strongest {
