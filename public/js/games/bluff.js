@@ -46,6 +46,7 @@ const bfCheckCountdown = document.getElementById('bf-check-countdown');
 const bfCheckCards = document.getElementById('bf-check-cards');
 const bfCheckStrongest = document.getElementById('bf-check-strongest');
 const bfCheckOpenBtn = document.getElementById('bf-check-open-btn');
+const bfCheckOpenLabel = document.getElementById('bf-check-open-label');
 const bfCheckBuilder = document.getElementById('bf-check-builder');
 const bfCheckPicked = document.getElementById('bf-check-picked');
 const bfCheckRanks = document.getElementById('bf-check-ranks');
@@ -517,7 +518,7 @@ function applyTable(data) {
   const canCheck = isHost && !data.lastResult && !checkCounting && !data.editing;
   if (!canCheck && bfBuilderOpen) resetBuilder();
   bfCheckOpenBtn.classList.toggle('hidden', !canCheck || bfBuilderOpen);
-  bfCheckOpenBtn.textContent = data.check ? '🔍 Check other cards' : '🔍 Check the called cards';
+  bfCheckOpenLabel.textContent = data.check ? 'Check other cards' : 'Check the called cards';
   bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
   renderHandOrSpectator(data);

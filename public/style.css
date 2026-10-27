@@ -238,7 +238,7 @@ body::before {
   opacity: 1;
 }
 
-.install-app-icon {
+.btn-icon {
   vertical-align: -4px;
   margin-right: 0.15rem;
 }
@@ -621,8 +621,20 @@ button.secondary:active:not(:disabled) {
   position: absolute;
   right: 0.15rem;
   bottom: 0.1rem;
-  font-size: 1.1rem;
-  line-height: 1;
+  width: 1.3rem;
+  height: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bark);
+  border: 2px solid var(--plank);
+  color: var(--peach);
+}
+
+.sticker-lock svg {
+  width: 65%;
+  height: 65%;
 }
 
 .sticker-add {
@@ -4220,7 +4232,20 @@ button.confirm-danger {
   position: absolute;
   right: -0.2rem;
   bottom: -0.1rem;
-  font-size: 1rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bark);
+  border: 2px solid var(--plank);
+  color: var(--peach);
+}
+
+.badge-lock svg {
+  width: 65%;
+  height: 65%;
 }
 
 /* Locked: the sticker becomes a dark silhouette - a teaser of whose face you'll unlock. */
