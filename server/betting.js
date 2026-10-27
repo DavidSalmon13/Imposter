@@ -507,4 +507,5 @@ module.exports = {
   resolveSideBets,
   voidSideBets,
   bettingViewFor,
+  nameForUserId,
 };

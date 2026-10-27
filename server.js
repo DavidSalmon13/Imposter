@@ -34,6 +34,7 @@ const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./serve
 const stats = require('./server/stats');
 const db = require('./server/db');
 const accounts = require('./server/accounts');
+const betting = require('./server/betting');
 const admin = require('./server/admin');
 const { logActivity } = require('./server/activity');
 
@@ -145,6 +146,54 @@ const ctx = {
         emitToPlayer(room, name, 'rivalryUpdate', update);
       },
     });
+  },
+  // server/betting.js only knows userIds; these three wrap its resolution calls to
+  // translate back to room names and push a 'betResolved' toast to each affected
+  // player's own phone (which may not be whoever triggered the resolution - e.g. the
+  // host picks the round loser, but it's the two bettors who each get a toast).
+  betting: {
+    openGlobalBetWindow(room, roomCode, opts) {
+      betting.openGlobalBetWindow(room, roomCode, opts);
+    },
+    async resolveGlobalBets(room, roomCode, opts) {
+      const results = await betting.resolveGlobalBets(room, roomCode, opts);
+      for (const r of results) {
+        const name = betting.nameForUserId(room, r.userId);
+        if (name) {
+          emitToPlayer(room, name, 'betResolved', { kind: 'global', won: r.won, stake: r.stake, payout: r.payout, pick: r.pick });
+        }
+      }
+      return results;
+    },
+    async resolveSideBets(room, roomCode, opts) {
+      const results = await betting.resolveSideBets(room, roomCode, opts);
+      for (const r of results) {
+        const bettorName = betting.nameForUserId(room, r.bettorUserId);
+        const opponentName = betting.nameForUserId(room, r.opponentUserId);
+        if (bettorName) {
+          emitToPlayer(room, bettorName, 'betResolved', {
+            kind: 'side', won: r.bettorWon, stake: r.stake, payout: r.bettorWon ? r.payout : 0, pick: r.pick, opponentName,
+          });
+        }
+        if (opponentName) {
+          emitToPlayer(room, opponentName, 'betResolved', {
+            kind: 'side', won: !r.bettorWon, stake: r.stake, payout: !r.bettorWon ? r.payout : 0, pick: r.pick, opponentName: bettorName,
+          });
+        }
+      }
+      return results;
+    },
+    async voidSideBets(room, roomCode, roundNumber) {
+      const results = await betting.voidSideBets(room, roomCode, roundNumber);
+      for (const r of results) {
+        const bettorName = betting.nameForUserId(room, r.bettorUserId);
+        const opponentName = betting.nameForUserId(room, r.opponentUserId);
+        // `voided: true` rather than a won/lost payout - a refund is neither.
+        if (bettorName) emitToPlayer(room, bettorName, 'betResolved', { kind: 'side', voided: true, stake: r.stake, pick: r.pick, opponentName });
+        if (opponentName) emitToPlayer(room, opponentName, 'betResolved', { kind: 'side', voided: true, stake: r.stake, pick: r.pick, opponentName: bettorName });
+      }
+      return results;
+    },
   },
 };
 

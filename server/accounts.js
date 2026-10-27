@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
+const betting = require('./betting');
 const { BADGES, publicBadge } = require('./badges');
 const { computeRatings } = require('./ratings');
 const { isValidSticker } = require('./stickers');
@@ -136,6 +137,10 @@ async function upsertGoogleUser(client, payload) {
     `INSERT INTO user_identities (user_id, provider, provider_sub) VALUES ($1, 'google', $2)`,
     [userId, payload.sub]
   );
+  // A brand-new account, not a returning one - seed its wallet with the signup grant
+  // (no-op when betting is disabled). Same transaction as the user row itself, so a
+  // wallet never exists without a user or vice versa.
+  await betting.createWallet(client, userId);
   return userId;
 }
 
@@ -530,6 +535,7 @@ function registerAccountRoutes(app) {
     if (!db.isEnabled()) return res.json({ enabled: false, user: null, card: null });
     try {
       const user = await userFromRequest(req);
+      if (user) await betting.grantDailyIfNeeded(user.id);
       const card = await playerCard({
         userId: user && user.id,
         clientId: cleanClientId(req.query.clientId),
@@ -591,6 +597,7 @@ function registerAccountRoutes(app) {
         );
         return id;
       });
+      await betting.grantDailyIfNeeded(userId);
       setSessionCookie(req, res, token);
       // Merging this device's history into the account can complete new badges.
       const device = await db.query(

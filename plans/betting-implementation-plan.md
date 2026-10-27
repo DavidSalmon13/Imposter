@@ -457,12 +457,25 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
 
 ### Wiring
 
-- [ ] `server.js`: `BETTING_ENABLED` constant; build `ctx.betting` wrapping
-  `server/betting.js` (resolves name → clientId/userId, routes `betResolved` pop-ups via
-  `emitToPlayer`), same pattern as `ctx.recordGameResult`
-- [ ] `server/accounts.js`: create the `wallets` row + signup grant inside the existing
-  user-creation transaction
-- [ ] `GET /api/me` and the Google sign-in handler: call `grantDailyIfNeeded`
+- [x] `server.js`: built `ctx.betting` wrapping `server/betting.js`'s four
+  cross-player-notification calls (`openGlobalBetWindow`, `resolveGlobalBets`,
+  `resolveSideBets`, `voidSideBets`) - resolves `userId` → room name via the new
+  `betting.nameForUserId` export, routes a `betResolved` pop-up to each affected
+  player's own socket via `emitToPlayer`, same pattern as `ctx.recordGameResult`. No
+  separate `BETTING_ENABLED` constant added in `server.js` as originally drafted here -
+  `server/betting.js` already exports `isEnabled()` and every function in it already
+  no-ops/returns a harmless default when disabled, so the wrapper methods stay
+  unconditional and safe to call either way. `placeGlobalBet`/`proposeSideBet`/
+  `acceptSideBet` are *not* in `ctx` - they're synchronous request/response within the
+  socket handler that calls them (the ack is enough), so `server/games/bluff.js` will
+  call `server/betting.js` directly for those, the same way it already requires
+  `./bluffHands` directly rather than through `ctx`.
+- [x] `server/accounts.js`: `upsertGoogleUser` calls `betting.createWallet(client,
+  userId)` right after inserting a brand-new `users` row (both the primary-insert and
+  the `ON CONFLICT`-fallback-insert paths converge before this call) - never for a
+  returning user.
+- [x] `GET /api/me` and the Google sign-in handler (`POST /api/auth/google`) both call
+  `betting.grantDailyIfNeeded(userId)` once the signed-in user is known.
 
 ### Bluff integration
 
