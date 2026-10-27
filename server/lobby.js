@@ -40,8 +40,10 @@ const REACTION_STICKERS = [
 ];
 const REACTION_COOLDOWN_MS = 600;
 // A player who closed the app without tapping Leave is dropped (with their scoreboard
-// points) after this long away - otherwise they stay in room.players forever.
-const STALE_PLAYER_MS = 30 * 60 * 1000;
+// points) after this long away - otherwise they stay in room.players forever. They're
+// hidden from the scoreboard as soon as they disconnect; the wait only keeps their points
+// through a locked phone or WiFi blip.
+const STALE_PLAYER_MS = 10 * 60 * 1000;
 /** @type {Map<string, number>} socket.id -> epoch ms of its last accepted reaction */
 const lastReactionAt = new Map();
 
@@ -116,8 +118,14 @@ async function refreshRatings(roomCode, room, names) {
   if (changed && room.phase === 'lobby') broadcastLobby(roomCode, room);
 }
 
+// Connected players only - someone who closed the app drops off right away (see
+// STALE_PLAYER_MS for when their points are actually deleted).
 function scoreboardEntries(room) {
   return Object.entries(room.scoreboard || {})
+    .filter(([name]) => {
+      const p = room.players.get(name);
+      return p && p.connected;
+    })
     .map(([name, points]) => ({ name, points: Number(points) || 0 }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
 }
@@ -415,18 +423,24 @@ function kickPlayer(roomCode, room, name, { reason = 'You were removed by the ad
 /**
  * Drops players who have been disconnected for STALE_PLAYER_MS, wherever removal is
  * allowed (see removalError - never mid-game), and scoreboard entries for names no longer
- * in the room. Run on a timer from server.js.
+ * in the room. A room everyone has been gone from that long is first sent back to the
+ * lobby, since a game nobody is in would otherwise block removal forever. Run on a timer
+ * from server.js.
  */
 function sweepStalePlayers(now = Date.now()) {
   for (const [roomCode, room] of rooms) {
+    // Players restored from disk (or from before this field existed) start their clock now.
+    for (const p of room.players.values()) {
+      if (!p.connected && !p.disconnectedAt) p.disconnectedAt = now;
+    }
+    const isStale = (p) => !p.connected && now - p.disconnectedAt >= STALE_PLAYER_MS;
+    const players = [...room.players.values()];
+    if (room.phase !== 'lobby' && players.length && players.every(isStale)) {
+      logActivity('game', `${room.game || 'game'} abandoned - room back to the lobby`);
+      resetToLobby(roomCode, room);
+    }
     for (const [name, p] of room.players) {
-      if (p.connected) continue;
-      // Players restored from disk (or from before this field existed) start their clock now.
-      if (!p.disconnectedAt) {
-        p.disconnectedAt = now;
-        continue;
-      }
-      if (now - p.disconnectedAt < STALE_PLAYER_MS || removalError(room, name)) continue;
+      if (!isStale(p) || removalError(room, name)) continue;
       removePlayer(roomCode, room, name, null);
       logActivity('leave', `${name} removed after ${Math.round(STALE_PLAYER_MS / 60000)} min away`);
     }

@@ -63,13 +63,13 @@ test('leaveLobby: the player leaves the room and the scoreboard', async () => {
   assert.deepEqual(room.scoreboard, { Ann: 3 });
 });
 
-test('sweepStalePlayers: drops players gone 30+ minutes, with their points', () => {
+test('sweepStalePlayers: drops players gone 10+ minutes, with their points', () => {
   const { ctx } = createTestCtx();
   lobby.initLobby({ ctx, BACKGROUNDS_DIR: '/tmp' });
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid']);
   room.scoreboard = { Ann: 1, Bob: 2, Cid: 3, LeftLongAgo: 4 };
   const now = Date.now();
-  Object.assign(room.players.get('Bob'), { connected: false, disconnectedAt: now - 31 * 60 * 1000 });
+  Object.assign(room.players.get('Bob'), { connected: false, disconnectedAt: now - 11 * 60 * 1000 });
   Object.assign(room.players.get('Cid'), { connected: false, disconnectedAt: now - 5 * 60 * 1000 });
 
   lobby.sweepStalePlayers(now);
@@ -93,4 +93,27 @@ test('sweepStalePlayers: never removes anyone mid-game, and starts the clock for
   room.game = null;
   lobby.sweepStalePlayers(now);
   assert.deepEqual([...room.players.keys()], ['Ann', 'Cid']);
+});
+
+test('scoreboardEntries: only connected players are listed', () => {
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob']);
+  room.scoreboard = { Ann: 1, Bob: 2, LeftLongAgo: 4 };
+  room.players.get('Bob').connected = false;
+  assert.deepEqual(lobby.scoreboardEntries(room), [{ name: 'Ann', points: 1 }]);
+});
+
+test('sweepStalePlayers: a game everyone left 10+ minutes ago goes back to the lobby and is cleared', () => {
+  const { ctx } = createTestCtx();
+  lobby.initLobby({ ctx, BACKGROUNDS_DIR: '/tmp' });
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'imposter', phase: 'roundResults' });
+  room.scoreboard = { Ann: 3, Bob: 1 };
+  const now = Date.now();
+  for (const p of room.players.values()) Object.assign(p, { connected: false, disconnectedAt: now - 11 * 60 * 1000 });
+
+  lobby.sweepStalePlayers(now);
+  assert.equal(room.phase, 'lobby');
+  assert.equal(room.game, null);
+  assert.equal(room.players.size, 0);
+  assert.deepEqual(room.scoreboard, {});
 });
