@@ -60,6 +60,9 @@
 
 * {
   box-sizing: border-box;
+  /* No double-tap-to-zoom, so iOS Safari fires taps immediately instead of waiting to see
+     if a second tap follows. Set on every element since touch-action isn't inherited. */
+  touch-action: manipulation;
 }
 
 html {
