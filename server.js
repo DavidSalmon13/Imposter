@@ -175,5 +175,15 @@ async function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
+// One room shares this process, so a bug thrown from any game handler or timer would
+// otherwise kill it and disconnect every player at once. Log it and keep serving instead;
+// the affected round may be stuck, but "back to lobby" recovers it.
+function logCrash(kind, err) {
+  console.error(`${kind}:`, err);
+  logActivity('error', `${kind}: ${(err && err.message) || err}`);
+}
+process.on('uncaughtException', (err) => logCrash('Uncaught exception', err));
+process.on('unhandledRejection', (err) => logCrash('Unhandled rejection', err));
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Shorot listening on ${PORT}`));
