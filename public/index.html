@@ -16,7 +16,10 @@
 </head>
 <body>
   <div id="conn-status" class="conn-status hidden" role="status" aria-live="polite"></div>
-  <div id="admin-notice" class="admin-notice hidden" role="status" aria-live="polite"></div>
+  <div id="admin-notice" class="admin-notice hidden" role="status" aria-live="polite">
+    <span id="admin-notice-text"></span>
+    <button type="button" class="admin-notice-close" aria-label="Close">×</button>
+  </div>
   <header class="app-header">
     <div id="sound-controls" class="bg-controls sound-controls">
       <button id="mute-btn" class="bg-btn" type="button" title="Mute sound"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path class="mute-wave mute-wave-1" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="mute-wave mute-wave-2" d="M18 6a8 8 0 0 1 0 12"/><path class="mute-slash" d="M3 3l18 18"/></svg></button>
