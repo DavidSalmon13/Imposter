@@ -442,3 +442,118 @@ test('voidSideBets: refunds both stakes on an accepted bet and drops any pending
   assert.match(fake.calls[2].text, /UPDATE bets SET status = 'voided'/);
   assert.equal(room.betSideProposals[3], undefined);
 });
+
+/** A room.players Map with { userId } for each signed-in name; omit userId for a guest. */
+function playersMap(entries) {
+  return new Map(Object.entries(entries));
+}
+
+test('bettingViewFor: null when betting is disabled', async (t) => {
+  t.mock.method(db, 'isEnabled', () => false);
+  const room = { players: playersMap({ Ann: { userId: 1 } }) };
+  assert.equal(await betting.bettingViewFor(room, 'ABCD', 'Ann'), null);
+});
+
+test('bettingViewFor: null for a guest (no userId)', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { players: playersMap({ Ann: {} }) };
+  assert.equal(await betting.bettingViewFor(room, 'ABCD', 'Ann'), null);
+});
+
+test('bettingViewFor: only shows global windows offered to this viewer that they have not responded to', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [] }));
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo'], eligible: ['Ann', 'Bo'] });
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'elimination:Bo', offerTo: ['Bo'], eligible: ['Ann'] });
+  room.betGlobalWindows.start.responded.add('Ann');
+  const view = await betting.bettingViewFor(room, 'ABCD', 'Ann');
+  assert.deepEqual(view.openGlobalWindows, []);
+  const boView = await betting.bettingViewFor(room, 'ABCD', 'Bo');
+  assert.deepEqual(boView.openGlobalWindows, [
+    { trigger: 'start', eligible: ['Ann', 'Bo'] },
+    { trigger: 'elimination:Bo', eligible: ['Ann'] },
+  ]);
+});
+
+test('bettingViewFor: splits own accepted bets into myGlobalBets and mySideBets', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
+  t.mock.method(db, 'query', async () => ({
+    rows: [
+      { kind: 'global', trigger: 'start', pick_name: 'Ann', stake: 50, bettor_user_id: 1, opponent_user_id: null },
+      { kind: 'side', trigger: null, pick_name: 'Bo', stake: 20, bettor_user_id: 1, opponent_user_id: 2 },
+    ],
+  }));
+  const view = await betting.bettingViewFor(room, 'ABCD', 'Ann');
+  assert.deepEqual(view.myGlobalBets, [{ trigger: 'start', pick: 'Ann', stake: 50 }]);
+  assert.deepEqual(view.mySideBets, [{ pick: 'Bo', stake: 20, role: 'bettor', opponentName: 'Bo' }]);
+});
+
+test('bettingViewFor: resolves the opponent role/name when the viewer is the one who accepted', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
+  t.mock.method(db, 'query', async () => ({
+    rows: [{ kind: 'side', trigger: null, pick_name: 'Cy', stake: 20, bettor_user_id: 1, opponent_user_id: 2 }],
+  }));
+  const view = await betting.bettingViewFor(room, 'ABCD', 'Bo');
+  assert.deepEqual(view.mySideBets, [{ pick: 'Cy', stake: 20, role: 'opponent', opponentName: 'Ann' }]);
+});
+
+test('bettingViewFor: mySideProposal and incomingSideOffers (open and targeted)', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async (text) => (/SELECT balance/.test(text) ? { rows: [{ balance: 500 }] } : { rows: [] }));
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 }, Cy: { userId: 3 } }) };
+  await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Bo', userId: 2, pick: 'Ann', stake: 20, targetName: null, eligible: ['Ann', 'Cy'],
+  });
+  await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Cy', userId: 3, pick: 'Ann', stake: 15, targetName: 'Ann', eligible: ['Ann', 'Bo'],
+  });
+
+  const annView = await betting.bettingViewFor(room, 'ABCD', 'Ann');
+  assert.equal(annView.mySideProposal, null);
+  assert.deepEqual(
+    annView.incomingSideOffers.map((o) => o.bettorName).sort(),
+    ['Bo', 'Cy'],
+    'Ann sees both: Bo\'s open offer and Cy\'s offer targeted at her'
+  );
+
+  const boView = await betting.bettingViewFor(room, 'ABCD', 'Bo');
+  assert.equal(boView.mySideProposal.pick, 'Ann');
+  assert.deepEqual(boView.incomingSideOffers, [], 'Cy\'s offer is targeted at Ann, not Bo - and Bo cannot see his own');
+});
+
+test('bettingViewFor: visibleOthersBets is empty when the viewer is not a spectator', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
+  t.mock.method(db, 'query', async () => ({ rows: [] }));
+  const view = await betting.bettingViewFor(room, 'ABCD', 'Ann', { isSpectator: false, othersToReveal: ['Bo'] });
+  assert.deepEqual(view.visibleOthersBets, []);
+});
+
+test('bettingViewFor: a spectator sees other eliminated players\' bets, but not their own again', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 }, Cy: { userId: 3 } }) };
+  t.mock.method(db, 'query', async (text) => {
+    if (/SELECT balance/.test(text)) return { rows: [] };
+    // The "others" query uses = ANY($2) on an array of userIds; the "my bets" query
+    // compares a single userId with OR - distinguish on that rather than call order.
+    if (/= ANY/.test(text)) {
+      return {
+        rows: [
+          { kind: 'global', trigger: 'start', pick_name: 'Bo', stake: 50, bettor_user_id: 2, opponent_user_id: null },
+          { kind: 'side', trigger: null, pick_name: 'Cy', stake: 10, bettor_user_id: 3, opponent_user_id: 1 },
+        ],
+      };
+    }
+    return { rows: [] }; // Ann has no bets of her own in this scenario.
+  });
+  const view = await betting.bettingViewFor(room, 'ABCD', 'Ann', { isSpectator: true, othersToReveal: ['Bo', 'Cy'] });
+  assert.deepEqual(view.myGlobalBets, []);
+  assert.deepEqual(view.mySideBets, []);
+  // The Cy-vs-Ann side bet is skipped here since Ann (the viewer) is a side of it.
+  assert.deepEqual(view.visibleOthersBets, [
+    { kind: 'global', pick: 'Bo', stake: 50, bettorName: 'Bo', opponentName: null },
+  ]);
+});

@@ -370,6 +370,126 @@ async function voidSideBets(room, roomCode, roundNumber) {
   return results;
 }
 
+/** userId for a name currently in the room, or null (guest, or not in the room). */
+function userIdFor(room, name) {
+  const player = room.players && room.players.get(name);
+  return (player && player.userId) || null;
+}
+
+/** Name currently holding this userId in the room, or null if they've left/aren't in it. */
+function nameForUserId(room, userId) {
+  if (!room.players) return null;
+  for (const [name, player] of room.players) {
+    if (player.userId === userId) return name;
+  }
+  return null;
+}
+
+/** Every open global-bet window still offered to (not yet responded to by) `viewerName`. */
+function openWindowsFor(room, viewerName) {
+  return Object.entries(room.betGlobalWindows || {})
+    .filter(([, w]) => w.offerTo.includes(viewerName) && !w.responded.has(viewerName))
+    .map(([trigger, w]) => ({ trigger, eligible: w.eligible.slice() }));
+}
+
+/** This viewer's own open proposal (there's at most one, per proposeSideBet), or null. */
+function mySideProposal(room, viewerName) {
+  for (const [roundNumber, list] of Object.entries(room.betSideProposals || {})) {
+    const mine = list.find((p) => p.bettorName === viewerName);
+    if (mine) return { ...mine, roundNumber: Number(roundNumber) };
+  }
+  return null;
+}
+
+/** Proposals this viewer could accept: targeted at them, or open to the table. */
+function incomingSideOffersFor(room, viewerName) {
+  const offers = [];
+  for (const [roundNumber, list] of Object.entries(room.betSideProposals || {})) {
+    for (const p of list) {
+      if (p.bettorName === viewerName) continue;
+      if (p.targetName && p.targetName !== viewerName) continue;
+      offers.push({ ...p, roundNumber: Number(roundNumber) });
+    }
+  }
+  return offers;
+}
+
+/**
+ * The `betting` key on Bluff's state payload (see bluffStatePayload in
+ * server/games/bluff.js), per betting-specs.md "Who can see whose bets": `null`
+ * entirely when betting is off or the viewer is a guest. `isSpectator` and
+ * `othersToReveal` (names of OTHER eliminated players) are the caller's job to compute
+ * - they're Bluff's own idea of "eliminated," which this game-agnostic module has no
+ * business knowing about. `othersToReveal` is ignored unless `isSpectator` is true.
+ */
+async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false, othersToReveal = [] } = {}) {
+  if (!isEnabled()) return null;
+  const userId = userIdFor(room, viewerName);
+  if (!userId) return null;
+
+  const base = {
+    balance: await getBalance(userId),
+    minStake: BET_MIN_STAKE,
+    openGlobalWindows: openWindowsFor(room, viewerName),
+    myGlobalBets: [],
+    mySideProposal: mySideProposal(room, viewerName),
+    incomingSideOffers: incomingSideOffersFor(room, viewerName),
+    mySideBets: [],
+    visibleOthersBets: [],
+  };
+
+  try {
+    const { rows } = await db.query(
+      `SELECT kind, trigger, pick_name, stake, bettor_user_id, opponent_user_id FROM bets
+        WHERE room_code = $1 AND status = 'accepted' AND (bettor_user_id = $2 OR opponent_user_id = $2)`,
+      [roomCode, userId]
+    );
+    base.myGlobalBets = rows.filter((r) => r.kind === 'global').map((r) => ({ trigger: r.trigger, pick: r.pick_name, stake: r.stake }));
+    base.mySideBets = rows
+      .filter((r) => r.kind === 'side')
+      .map((r) => {
+        const isBettor = r.bettor_user_id === userId;
+        return {
+          pick: r.pick_name,
+          stake: r.stake,
+          role: isBettor ? 'bettor' : 'opponent',
+          opponentName: nameForUserId(room, isBettor ? r.opponent_user_id : r.bettor_user_id),
+        };
+      });
+  } catch (err) {
+    console.error('Reading own bets for betting view failed:', err.message);
+  }
+
+  if (isSpectator && othersToReveal.length) {
+    const otherUserIds = othersToReveal.map((name) => userIdFor(room, name)).filter(Boolean);
+    if (otherUserIds.length) {
+      try {
+        const { rows } = await db.query(
+          `SELECT kind, trigger, pick_name, stake, bettor_user_id, opponent_user_id FROM bets
+            WHERE room_code = $1 AND status = 'accepted'
+              AND (bettor_user_id = ANY($2) OR opponent_user_id = ANY($2))`,
+          [roomCode, otherUserIds]
+        );
+        base.visibleOthersBets = rows
+          // A bet the viewer is also a side of is already in mySideBets above - skip it
+          // here rather than risk nameForUserId resolving to the viewer themselves.
+          .filter((r) => r.bettor_user_id !== userId && r.opponent_user_id !== userId)
+          .map((r) => ({
+            kind: r.kind,
+            pick: r.pick_name,
+            stake: r.stake,
+            bettorName: nameForUserId(room, r.bettor_user_id),
+            opponentName: r.opponent_user_id ? nameForUserId(room, r.opponent_user_id) : null,
+          }));
+      } catch (err) {
+        console.error('Reading others\' bets for betting view failed:', err.message);
+      }
+    }
+  }
+
+  return base;
+}
+
 module.exports = {
   TOKENS_SIGNUP_GRANT,
   TOKENS_DAILY_GRANT,
@@ -386,4 +506,5 @@ module.exports = {
   acceptSideBet,
   resolveSideBets,
   voidSideBets,
+  bettingViewFor,
 };

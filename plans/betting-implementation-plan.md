@@ -433,7 +433,17 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
   a round's side bets are always resolved or voided before the next round deals, so that
   set and "every accepted side bet for this round" are always the same; no
   `round_number` column needed on `bets`). §5.3
-- [ ] `bettingViewFor(room, viewerName)` visibility helper (§5.4)
+- [x] `bettingViewFor(room, roomCode, viewerName, { isSpectator, othersToReveal })`
+  visibility helper (§5.4). Signature differs slightly from this plan's original
+  `(room, viewerName)` draft: added `roomCode` (needed to scope the `bets` queries) and
+  an options object for `isSpectator`/`othersToReveal` - both are the caller's (Bluff's)
+  job to compute from its own elimination state, since this module has no business
+  knowing what "eliminated" means for a given game. Returns `{ balance, minStake,
+  openGlobalWindows, myGlobalBets, mySideProposal, incomingSideOffers, mySideBets,
+  visibleOthersBets }`, or `null` if betting is off or the viewer has no `userId`
+  (guest). `visibleOthersBets` entries carry `bettorName`/`opponentName` rather than a
+  single ambiguous `name`, and exclude any bet the viewer is themselves a side of
+  (already covered by `mySideBets`).
 - [x] `tests/games/betting.test.js`: wallet tests (signup grant, daily grant match vs.
   fallback-seed, no writes/0 balance when disabled, failures swallowed not thrown)
 - [x] `tests/games/betting.test.js`: global bet tests (payout formula incl. rounding,
@@ -441,8 +451,9 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
 - [x] `tests/games/betting.test.js`: side bet tests (propose/accept/resolve,
   expiry-with-no-accept, targeted-rejects-non-target, one-unaccepted-at-a-time,
   edit-void refunds, rolled-back accept on a failed second debit)
-- [ ] `tests/games/betting.test.js`: visibility tests (active sees only own; eliminated
-  sees other eliminated players' too; active host sees nothing extra)
+- [x] `tests/games/betting.test.js`: visibility tests (null when disabled/guest; only
+  un-responded-to windows shown; own bets split correctly by role; proposal/offer
+  visibility; spectator sees others' bets minus their own involvement)
 
 ### Wiring
 
