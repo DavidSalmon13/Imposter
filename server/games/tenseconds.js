@@ -426,7 +426,8 @@ function registerHandlers(ctx, io, socket) {
     }
 
     callback({ ok: true });
-    initTensSecondsGame(ctx, roomCode, room, Array.from(room.players.keys()));
+    // Connected players only (the default) - room.players also holds people who closed the app.
+    initTensSecondsGame(ctx, roomCode, room);
   });
 }
 

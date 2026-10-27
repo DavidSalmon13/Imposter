@@ -170,14 +170,20 @@ async function finishVoting(ctx, roomCode, room) {
   const candidates = fresh.length >= imposterCount ? fresh : names;
   const imposterNames = shuffle(candidates).slice(0, imposterCount);
   room.lastImposterNames = imposterNames;
+  // Only connected players are dealt in. room.players also holds everyone who closed the
+  // app without leaving; dealing them a role would score them as eliminated (a loss).
   for (const [name, p] of room.players) {
     if (imposterNames.includes(name)) {
       p.role = 'imposter';
       p.word = null;
       p.hint = hint;
-    } else {
+    } else if (names.includes(name)) {
       p.role = 'crew';
       p.word = word;
+      p.hint = null;
+    } else {
+      p.role = null;
+      p.word = null;
       p.hint = null;
     }
     p.eliminatedReport = null;

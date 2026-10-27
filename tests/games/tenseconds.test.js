@@ -113,3 +113,14 @@ test('onDisconnect during a running round assigns a DNF and can resolve the roun
   assert.deepEqual(room.tsActivePlayers, ['Ann']);
   assert.deepEqual(room.tsEliminatedOrder, ['Bob']);
 });
+
+test('playAgainTensSeconds: only connected players are in the new match', async () => {
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Gone'], { game: 'tenseconds', phase: 'gameover' });
+  room.players.get('Gone').connected = false;
+
+  const hostSocket = registerGame(tenseconds, ctx, makeHandlerSocket('AAAA', 'Ann'));
+  const res = await call(hostSocket, 'playAgainTensSeconds');
+  assert.equal(res.ok, true);
+  assert.deepEqual(room.tsActivePlayers, ['Ann', 'Bob']);
+});

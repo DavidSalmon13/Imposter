@@ -70,9 +70,13 @@ function renderGame(level, role, word, hint) {
     hintEl.textContent = `Hint: ${hint}`;
     roleEl.appendChild(title);
     roleEl.appendChild(hintEl);
-  } else {
+  } else if (role === 'crew') {
     roleEl.className = 'role-panel crew';
     roleEl.textContent = `Your word: ${word}`;
+  } else {
+    // Rejoined a round that was dealt while this player was away.
+    roleEl.className = 'role-panel';
+    roleEl.textContent = "You're sitting this round out - you'll be in the next one.";
   }
 }
 

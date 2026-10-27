@@ -49,3 +49,48 @@ test('sendReaction: rate-limits rapid-fire reactions from the same socket', asyn
   const broadcasts = emissionsForRoom(io, 'AAAA').filter((e) => e.event === 'reaction');
   assert.equal(broadcasts.length, 1, 'the rate-limited attempt never broadcast');
 });
+
+test('leaveLobby: the player leaves the room and the scoreboard', async () => {
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob']);
+  room.scoreboard = { Ann: 3, Bob: 5 };
+  const socket = registerLobby(ctx, makeHandlerSocket('AAAA', 'Bob'));
+  socket.leave = () => {};
+
+  const res = await call(socket, 'leaveLobby');
+  assert.equal(res.ok, true);
+  assert.equal(room.players.has('Bob'), false);
+  assert.deepEqual(room.scoreboard, { Ann: 3 });
+});
+
+test('sweepStalePlayers: drops players gone 30+ minutes, with their points', () => {
+  const { ctx } = createTestCtx();
+  lobby.initLobby({ ctx, BACKGROUNDS_DIR: '/tmp' });
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid']);
+  room.scoreboard = { Ann: 1, Bob: 2, Cid: 3, LeftLongAgo: 4 };
+  const now = Date.now();
+  Object.assign(room.players.get('Bob'), { connected: false, disconnectedAt: now - 31 * 60 * 1000 });
+  Object.assign(room.players.get('Cid'), { connected: false, disconnectedAt: now - 5 * 60 * 1000 });
+
+  lobby.sweepStalePlayers(now);
+  assert.deepEqual([...room.players.keys()], ['Ann', 'Cid'], 'Cid has only been gone 5 minutes');
+  assert.deepEqual(room.scoreboard, { Ann: 1, Cid: 3 }, 'Bob and the orphaned entry are gone');
+});
+
+test('sweepStalePlayers: never removes anyone mid-game, and starts the clock for restored players', () => {
+  const { ctx } = createTestCtx();
+  lobby.initLobby({ ctx, BACKGROUNDS_DIR: '/tmp' });
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'imposter', phase: 'playing' });
+  const now = Date.now();
+  Object.assign(room.players.get('Bob'), { connected: false, disconnectedAt: now - 60 * 60 * 1000 });
+  Object.assign(room.players.get('Cid'), { connected: false }); // e.g. loaded from rooms.json
+
+  lobby.sweepStalePlayers(now);
+  assert.equal(room.players.size, 3);
+  assert.equal(room.players.get('Cid').disconnectedAt, now);
+
+  room.phase = 'lobby';
+  room.game = null;
+  lobby.sweepStalePlayers(now);
+  assert.deepEqual([...room.players.keys()], ['Ann', 'Cid']);
+});

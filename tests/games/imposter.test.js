@@ -133,3 +133,31 @@ test('non-host cannot end the round', async () => {
   assert.equal(res.ok, false);
   assert.equal(room.phase, 'playing');
 });
+
+test('players who closed the app are not dealt in, so they are not scored as eliminated', async () => {
+  const { ctx, recordedResults } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid', 'Gone'], { game: 'imposter', phase: 'lobby' });
+  room.players.get('Gone').connected = false;
+  imposter.onChoose(ctx, 'AAAA', room);
+
+  const sockets = Object.fromEntries(
+    ['Ann', 'Bob', 'Cid'].map((n) => [n, registerGame(imposter, ctx, makeHandlerSocket('AAAA', n))])
+  );
+  const restoreOpenAi = mockOpenAi({ word: 'Guitar', hint: 'You strum it.' });
+  try {
+    for (const n of ['Ann', 'Bob', 'Cid']) await call(sockets[n], 'vote', 'easy');
+    await flush();
+  } finally {
+    restoreOpenAi();
+  }
+  assert.equal(room.phase, 'playing');
+  assert.equal(room.players.get('Gone').role, null);
+
+  await call(sockets.Ann, 'endImposterRound');
+  for (const n of ['Ann', 'Bob', 'Cid']) await call(sockets[n], 'reportEliminated', false);
+
+  assert.equal(room.phase, 'roundResults');
+  assert.deepEqual(room.imposterRoundResults.map((r) => r.name).sort(), ['Ann', 'Bob', 'Cid']);
+  assert.equal(room.scoreboard.Gone, undefined);
+  assert.ok(!recordedResults[0].participants.some((p) => p.name === 'Gone'));
+});

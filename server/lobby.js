@@ -39,6 +39,9 @@ const REACTION_STICKERS = [
   '34252cf1-c888-481a-a846-359f70cc47aa.webp', // money
 ];
 const REACTION_COOLDOWN_MS = 600;
+// A player who closed the app without tapping Leave is dropped (with their scoreboard
+// points) after this long away - otherwise they stay in room.players forever.
+const STALE_PLAYER_MS = 30 * 60 * 1000;
 /** @type {Map<string, number>} socket.id -> epoch ms of its last accepted reaction */
 const lastReactionAt = new Map();
 
@@ -357,9 +360,10 @@ function removalError(room, name) {
   return null;
 }
 
-/** Takes `name` out of the room (leaving or kicked); `socket` is theirs, if connected. */
+/** Takes `name` out of the room and off the scoreboard (leaving, kicked, or long gone); `socket` is theirs, if connected. */
 function removePlayer(roomCode, room, name, socket) {
   room.players.delete(name);
+  if (room.scoreboard) delete room.scoreboard[name];
   if (socket) {
     socket.leave(roomCode);
     socket.data.roomCode = null;
@@ -406,6 +410,32 @@ function kickPlayer(roomCode, room, name, { reason = 'You were removed by the ad
   if (!error) removePlayer(roomCode, room, name, socket);
   if (socket) socket.disconnect(true);
   return null;
+}
+
+/**
+ * Drops players who have been disconnected for STALE_PLAYER_MS, wherever removal is
+ * allowed (see removalError - never mid-game), and scoreboard entries for names no longer
+ * in the room. Run on a timer from server.js.
+ */
+function sweepStalePlayers(now = Date.now()) {
+  for (const [roomCode, room] of rooms) {
+    for (const [name, p] of room.players) {
+      if (p.connected) continue;
+      // Players restored from disk (or from before this field existed) start their clock now.
+      if (!p.disconnectedAt) {
+        p.disconnectedAt = now;
+        continue;
+      }
+      if (now - p.disconnectedAt < STALE_PLAYER_MS || removalError(room, name)) continue;
+      removePlayer(roomCode, room, name, null);
+      logActivity('leave', `${name} removed after ${Math.round(STALE_PLAYER_MS / 60000)} min away`);
+    }
+    const stale = Object.keys(room.scoreboard || {}).filter((n) => !room.players.has(n));
+    if (stale.length) {
+      for (const n of stale) delete room.scoreboard[n];
+      if (room.phase === 'lobby') broadcastLobby(roomCode, room);
+    }
+  }
 }
 
 function registerLobbyHandlers(socket) {
@@ -667,6 +697,7 @@ function registerLobbyHandlers(socket) {
     // either kicking them from the lobby list or treating them as a stranger
     // trying to join a game already in progress.
     p.connected = false;
+    p.disconnectedAt = Date.now();
     logActivity('leave', `${name} disconnected`);
     if (name === room.hostName) {
       p.wasHost = true;
@@ -700,5 +731,6 @@ module.exports = {
   joinExistingRoom,
   registerBackgroundRoutes,
   registerLobbyHandlers,
+  sweepStalePlayers,
   SHARED_ROOM_CODE,
 };

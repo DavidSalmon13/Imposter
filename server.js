@@ -26,6 +26,7 @@ const {
   attachToRoom,
   registerBackgroundRoutes,
   registerLobbyHandlers,
+  sweepStalePlayers,
   SHARED_ROOM_CODE,
 } = require('./server/lobby');
 const { registerAllHandlers } = require('./server/gameRegistry');
@@ -163,6 +164,8 @@ io.on('connection', (socket) => {
 loadRoomsFromDisk({ ctx });
 db.initDb().then(accounts.startCleanup);
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
+// Drops players who closed the app long ago (and their scoreboard points) - see lobby.js.
+setInterval(() => sweepStalePlayers(), 60 * 1000);
 
 async function shutdown() {
   await Promise.all([saveRoomsToDisk(), stats.saveStatsToDisk()]);
