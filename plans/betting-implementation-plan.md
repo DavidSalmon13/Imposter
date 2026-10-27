@@ -256,7 +256,10 @@ restart, rebuilt from nothing because nothing meaningful survives a restart anyw
 bet in flight was riding on round/match state that's about to be re-dealt regardless).
 
 - `room.betGlobalWindows`: `{ [trigger]: { eligible: string[], offerTo: string[],
-  resolved: Set<string> } }` — open global-bet windows for the current match.
+  responded: Set<string> } }` — open global-bet windows for the current match.
+  (Implemented as `responded`, not `resolved` as originally drafted here — this field
+  tracks who's already placed or dismissed *this window*, distinct from a bet being
+  resolved at match end, which is tracked by the `bets` row's own `status`.)
 - `room.betSideProposals`: `{ [roundNumber]: Array<{ id, bettorName, pick, stake,
   targetName }> }` — unaccepted proposals, keyed by the round they're about.
 - Nothing else — once a side bet is accepted or a global bet is placed, its durable
@@ -414,15 +417,18 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
   daily-grant-only wallet if none existed), `getBalance(userId)`. Not wired into
   `accounts.js`/`server.js` yet - see "Wiring" below; this item was just the functions
   themselves plus their unit tests.
-- [ ] Global bet functions: `openGlobalBetWindow`, `placeGlobalBet` (validation: stake
-  vs. balance/`BET_MIN_STAKE`, pick in frozen `eligible`, one bet per trigger),
-  `resolveGlobalBets` (payout formula, §5.2 step 4)
+- [x] Global bet functions in `server/betting.js`: `openGlobalBetWindow`,
+  `placeGlobalBet` (validates window open/offered/not-already-responded, pick in frozen
+  `eligible`, stake vs. `BET_MIN_STAKE`/balance; debit+insert in one transaction,
+  race-safe on balance), `resolveGlobalBets` (payout formula per window's own frozen
+  `eligible.length`, floors, clears `betGlobalWindows`, returns `[{userId, pick, stake,
+  payout, won}]` for the caller to map to a room name - betting.js only knows userIds)
 - [ ] Side bet functions: `proposeSideBet`, `acceptSideBet`, `resolveSideBets`,
   `voidSideBets` (§5.3)
 - [ ] `bettingViewFor(room, viewerName)` visibility helper (§5.4)
 - [x] `tests/games/betting.test.js`: wallet tests (signup grant, daily grant match vs.
   fallback-seed, no writes/0 balance when disabled, failures swallowed not thrown)
-- [ ] `tests/games/betting.test.js`: global bet tests (payout formula incl. rounding,
+- [x] `tests/games/betting.test.js`: global bet tests (payout formula incl. rounding,
   one-per-window, elimination window scoped to one player, no double-debit)
 - [ ] `tests/games/betting.test.js`: side bet tests (propose/accept/resolve,
   expiry-with-no-accept, targeted-rejects-non-target, one-unaccepted-at-a-time,

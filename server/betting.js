@@ -82,6 +82,119 @@ async function getBalance(userId) {
   }
 }
 
+/**
+ * Opens a global (vs. the house) bet window on `room` for one trigger id ('start', or
+ * 'elimination:<name>' - see bluff.js's call sites). `eligible` is frozen here and
+ * reused at resolution time for the payout formula; `offerTo` is who the offer is shown
+ * to (the whole roster at match start, just the newly-eliminated player on elimination).
+ * No-op when betting is disabled, so room.betGlobalWindows simply never exists then.
+ */
+function openGlobalBetWindow(room, roomCode, { trigger, offerTo, eligible }) {
+  if (!isEnabled()) return;
+  if (!room.betGlobalWindows) room.betGlobalWindows = {};
+  // `responded`: who among offerTo has already placed or dismissed this window - not to
+  // be confused with the bets themselves being resolved, which happens at match end.
+  room.betGlobalWindows[trigger] = { eligible: eligible.slice(), offerTo: offerTo.slice(), responded: new Set() };
+}
+
+/**
+ * Places one global bet for `playerName` on `trigger`, after validating the window is
+ * open and offered to them, they haven't already placed on it, the pick is inside the
+ * window's frozen eligible roster, and the stake is between BET_MIN_STAKE and their
+ * current balance. Debits the stake and inserts the bet row atomically. Returns
+ * `{ ok: true }` or `{ ok: false, error }` - every rejection is something the client
+ * should show the player, never a thrown exception.
+ */
+async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pick, stake }) {
+  if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
+  const window = room.betGlobalWindows && room.betGlobalWindows[trigger];
+  if (!window) return { ok: false, error: 'That bet window is no longer open' };
+  if (!window.offerTo.includes(playerName)) return { ok: false, error: 'That bet was not offered to you' };
+  if (window.responded.has(playerName)) return { ok: false, error: 'You already placed a bet on this' };
+  if (!window.eligible.includes(pick)) return { ok: false, error: 'That pick is not eligible' };
+  const stakeAmount = Number(stake);
+  if (!Number.isInteger(stakeAmount) || stakeAmount < BET_MIN_STAKE) {
+    return { ok: false, error: `Minimum bet is ${BET_MIN_STAKE} tokens` };
+  }
+
+  try {
+    const placed = await db.transaction(async (client) => {
+      // Race-safe debit: only succeeds if the balance still covers the stake.
+      const debit = await client.query(
+        `UPDATE wallets SET balance = balance - $2 WHERE user_id = $1 AND balance >= $2`,
+        [userId, stakeAmount]
+      );
+      if (debit.rowCount === 0) return false;
+      await client.query(
+        `INSERT INTO bets (kind, room_code, bettor_user_id, pick_name, stake, status, trigger)
+         VALUES ('global', $1, $2, $3, $4, 'accepted', $5)`,
+        [roomCode, userId, pick, stakeAmount, trigger]
+      );
+      return true;
+    });
+    if (!placed) return { ok: false, error: 'Not enough tokens' };
+  } catch (err) {
+    console.error('Placing a global bet failed:', err.message);
+    return { ok: false, error: 'Something went wrong placing that bet' };
+  }
+
+  window.responded.add(playerName);
+  return { ok: true };
+}
+
+/**
+ * Resolves every open global-bet window on `room` at match end: for each trigger,
+ * every bettor whose pick matches `winnerName` is credited
+ * `stake * eligibleCandidateCount * (1 - BET_HOUSE_EDGE)` (floored), everyone else gets
+ * nothing further (their stake was already debited at placement time).
+ * `eligibleCandidateCount` is that window's frozen `eligible` length, the same for every
+ * bet placed on that trigger. Backfills `game_id` onto every resolved bet for later
+ * joinability. Clears room.betGlobalWindows when done (a new match opens fresh ones).
+ *
+ * Returns `[{ userId, pick, stake, payout, won }]` for every bet resolved, so the
+ * caller (ctx.betting, see server.js) can map userId back to a room player name and
+ * pop a resolution toast on their phone. Betting.js itself doesn't know player names,
+ * only account ids.
+ */
+async function resolveGlobalBets(room, roomCode, { gameId, winnerName }) {
+  if (!isEnabled()) return [];
+  const windows = room.betGlobalWindows || {};
+  const results = [];
+  for (const [trigger, window] of Object.entries(windows)) {
+    const eligibleCount = window.eligible.length;
+    try {
+      const { rows } = await db.query(
+        `SELECT id, bettor_user_id, pick_name, stake FROM bets
+          WHERE room_code = $1 AND kind = 'global' AND trigger = $2
+            AND status = 'accepted' AND game_id IS NULL`,
+        [roomCode, trigger]
+      );
+      for (const bet of rows) {
+        const won = bet.pick_name === winnerName;
+        const payout = won ? Math.floor(bet.stake * eligibleCount * (1 - BET_HOUSE_EDGE)) : 0;
+        await db.transaction(async (client) => {
+          if (payout > 0) {
+            await client.query('UPDATE wallets SET balance = balance + $2 WHERE user_id = $1', [
+              bet.bettor_user_id,
+              payout,
+            ]);
+          }
+          await client.query(
+            `UPDATE bets SET status = 'resolved', payout = $2, game_id = $3, resolved_at = now()
+              WHERE id = $1`,
+            [bet.id, payout, gameId]
+          );
+        });
+        results.push({ userId: bet.bettor_user_id, pick: bet.pick_name, stake: bet.stake, payout, won });
+      }
+    } catch (err) {
+      console.error(`Resolving global bets for trigger ${trigger} failed:`, err.message);
+    }
+  }
+  room.betGlobalWindows = {};
+  return results;
+}
+
 module.exports = {
   TOKENS_SIGNUP_GRANT,
   TOKENS_DAILY_GRANT,
@@ -91,4 +204,7 @@ module.exports = {
   createWallet,
   grantDailyIfNeeded,
   getBalance,
+  openGlobalBetWindow,
+  placeGlobalBet,
+  resolveGlobalBets,
 };

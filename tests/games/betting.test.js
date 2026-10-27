@@ -101,3 +101,166 @@ test('getBalance: 0, never throws, when the read fails', async (t) => {
   });
   assert.equal(await betting.getBalance(7), 0);
 });
+
+/** Stands in for db.transaction: runs fn against a fake client sharing one call log. */
+function mockTransaction(t, results = []) {
+  const fake = fakeQueryable(results);
+  t.mock.method(db, 'transaction', (fn) => fn(fake));
+  return fake;
+}
+
+test('openGlobalBetWindow: freezes eligible/offerTo on the room, keyed by trigger', (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo'], eligible: ['Ann', 'Bo', 'Cy'] });
+  assert.deepEqual(room.betGlobalWindows.start.eligible, ['Ann', 'Bo', 'Cy']);
+  assert.deepEqual(room.betGlobalWindows.start.offerTo, ['Ann', 'Bo']);
+  assert.equal(room.betGlobalWindows.start.responded.size, 0);
+});
+
+test('openGlobalBetWindow: no-op when betting is disabled', (t) => {
+  t.mock.method(db, 'isEnabled', () => false);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann'] });
+  assert.equal(room.betGlobalWindows, undefined);
+});
+
+test('placeGlobalBet: rejects when no window is open for that trigger', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 50 });
+  assert.equal(result.ok, false);
+});
+
+test('placeGlobalBet: rejects a player the window was not offered to', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'elimination:Cy', offerTo: ['Cy'], eligible: ['Ann', 'Bo'] });
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'elimination:Cy', pick: 'Ann', stake: 50 });
+  assert.equal(result.ok, false);
+});
+
+test('placeGlobalBet: rejects a pick outside the frozen eligible roster', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo'] });
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Zed', stake: 50 });
+  assert.equal(result.ok, false);
+});
+
+test('placeGlobalBet: rejects a stake below BET_MIN_STAKE', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann'] });
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 5 });
+  assert.equal(result.ok, false);
+});
+
+test('placeGlobalBet: one bet per window - a second attempt by the same player is rejected', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann'] });
+  mockTransaction(t, [{ rows: [], rowCount: 1 }]);
+  const first = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 50 });
+  assert.equal(first.ok, true);
+  const second = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 50 });
+  assert.equal(second.ok, false);
+});
+
+test('placeGlobalBet: insufficient balance (debit affects no rows) is rejected without inserting a bet', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann'] });
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 0 }]);
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 5000 });
+  assert.equal(result.ok, false);
+  assert.equal(fake.calls.length, 1, 'only the debit attempt, no insert when it fails');
+  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), false);
+});
+
+test('placeGlobalBet: success debits the stake and inserts an accepted global bet', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo'] });
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 1 }]);
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Bo', stake: 50 });
+  assert.equal(result.ok, true);
+  assert.match(fake.calls[0].text, /UPDATE wallets SET balance = balance - \$2/);
+  assert.deepEqual(fake.calls[0].params, [1, 50]);
+  assert.match(fake.calls[1].text, /INSERT INTO bets/);
+  assert.deepEqual(fake.calls[1].params, ['ABCD', 1, 'Bo', 50, 'start']);
+  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), true);
+});
+
+test('resolveGlobalBets: pays the house-edge-adjusted, floored payout to the winning pick', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo'], eligible: ['Ann', 'Bo', 'Cy'] });
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) {
+      return { rows: [{ id: 1, bettor_user_id: 1, pick_name: 'Ann', stake: 100 }] };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const fake = mockTransaction(t);
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
+  // 100 * 3 eligible * (1 - 0.10) = 270
+  assert.deepEqual(results, [{ userId: 1, pick: 'Ann', stake: 100, payout: 270, won: true }]);
+  assert.match(fake.calls[0].text, /UPDATE wallets SET balance = balance \+ \$2/);
+  assert.deepEqual(fake.calls[0].params, [1, 270]);
+  assert.match(fake.calls[1].text, /UPDATE bets SET status = 'resolved'/);
+  assert.deepEqual(fake.calls[1].params, [1, 270, 99]);
+  assert.deepEqual(room.betGlobalWindows, {});
+});
+
+test('resolveGlobalBets: floors a payout that would not land on a whole token', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo', 'Cy'] });
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) return { rows: [{ id: 1, bettor_user_id: 1, pick_name: 'Ann', stake: 11 }] };
+    return { rows: [], rowCount: 1 };
+  });
+  mockTransaction(t);
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
+  // 11 * 3 eligible * 0.9 = 29.7, floored to 29.
+  assert.equal(results[0].payout, 29);
+});
+
+test('resolveGlobalBets: a losing pick gets payout 0 and no wallet credit query', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo'] });
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) return { rows: [{ id: 1, bettor_user_id: 1, pick_name: 'Bo', stake: 100 }] };
+    return { rows: [], rowCount: 1 };
+  });
+  const fake = mockTransaction(t);
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
+  assert.deepEqual(results, [{ userId: 1, pick: 'Bo', stake: 100, payout: 0, won: false }]);
+  // Only the bet-status update ran - no balance credit for a loss (already debited at placement).
+  assert.equal(fake.calls.length, 1);
+  assert.match(fake.calls[0].text, /UPDATE bets SET status = 'resolved'/);
+});
+
+test('resolveGlobalBets: an elimination-moment window uses its own (smaller) eligible count', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo', 'Cy'], eligible: ['Ann', 'Bo', 'Cy'] });
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'elimination:Cy', offerTo: ['Cy'], eligible: ['Ann', 'Bo'] });
+  t.mock.method(db, 'query', async (text, params) => {
+    if (/^SELECT/.test(text) && params[1] === 'start') {
+      return { rows: [{ id: 1, bettor_user_id: 1, pick_name: 'Ann', stake: 30 }] };
+    }
+    if (/^SELECT/.test(text) && params[1] === 'elimination:Cy') {
+      return { rows: [{ id: 2, bettor_user_id: 3, pick_name: 'Ann', stake: 30 }] };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  mockTransaction(t);
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
+  const byUser = new Map(results.map((r) => [r.userId, r.payout]));
+  // start: 30 * 3 * 0.9 = 81; elimination:Cy: 30 * 2 * 0.9 = 54
+  assert.equal(byUser.get(1), 81);
+  assert.equal(byUser.get(3), 54);
+});
