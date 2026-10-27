@@ -66,6 +66,7 @@ function tickCnTimer() {
   const remaining = cnTurnEndsAt - Date.now();
   cnTimerDisplay.textContent = formatCnTimer(remaining);
   cnTimerDisplay.classList.toggle('cn-timer-low', remaining <= 10000);
+  cnTimerDisplay.classList.toggle('cn-timer-warn', remaining > 10000 && remaining <= 20000);
 }
 
 function stopCnTimerTick() {

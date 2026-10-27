@@ -405,6 +405,7 @@ function applyWordTheme(theme) {
 }
 
 let lastLobbyPlayerCount = 0;
+let knownLobbyNames = null;
 
 function updateAiofTile() {
   const rejoin = currentGame === 'allinorfold';
@@ -467,9 +468,16 @@ function buildKickButton(name, pushRight) {
 }
 
 function renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings) {
+  // First render after a join/reconnect shouldn't animate anyone in — only
+  // players who arrive while this client is already sitting in the lobby.
+  const isFirstRender = knownLobbyNames === null;
+  const newNames = isFirstRender ? new Set() : new Set(players.filter((n) => !knownLobbyNames.has(n)));
+  knownLobbyNames = new Set(players);
+
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
+    if (newNames.has(n)) li.classList.add('lobby-join-in');
     const sticker = playerStickers && playerStickers[n];
     let avatar;
     if (sticker) {
@@ -755,6 +763,7 @@ exitLobbyBtn.addEventListener('click', async () => {
     currentHostName = null;
     isHost = false;
     currentGame = null;
+    knownLobbyNames = null;
     showScreen('join');
   });
 });
@@ -871,17 +880,6 @@ socket.on('kicked', ({ reason }) => {
 
 socket.on('hostUpdate', ({ host }) => {
   setHost(host);
-});
-
-socket.on('kicked', () => {
-  localStorage.removeItem('imposterRoom');
-  myRoomCode = '';
-  applyBackground(null);
-  currentHostName = null;
-  isHost = false;
-  currentGame = null;
-  showScreen('join');
-  joinError.textContent = 'The host removed you from the room';
 });
 
 socket.on('gameChosen', ({ game }) => {

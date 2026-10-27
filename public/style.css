@@ -1481,8 +1481,27 @@ button.secondary:active:not(:disabled) {
   color: var(--cream);
 }
 
+.lobby-join-in {
+  animation: lobby-join-in 0.5s var(--ease-bounce) both;
+}
+
+@keyframes lobby-join-in {
+  from { transform: scale(0.6) translateY(10px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.cn-timer-display.cn-timer-warn {
+  color: var(--sun);
+}
+
 .cn-timer-display.cn-timer-low {
   color: var(--danger);
+  animation: cn-timer-low-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes cn-timer-low-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 #cn-random-teams-btn {
@@ -3741,6 +3760,27 @@ button.aiof-seat-open:hover {
   border-radius: 10px;
   padding: 0.5rem;
   min-height: 3.5rem;
+}
+
+.bf-spectator-hands {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bf-spectator-row .bf-hand {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 0.5rem;
+  min-height: 3.5rem;
+  margin-bottom: 0;
+}
+
+.bf-spectator-name {
+  margin: 0 0 0.2rem 0.1rem;
+  font-weight: 700;
+  font-size: 0.85rem;
 }
 
 #bf-table-hint {
