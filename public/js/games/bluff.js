@@ -18,8 +18,7 @@ const BF_LOSER_HIGHLIGHT_MS = 1500;
 const BF_DEAL_ANIMATION_MS = 2200;
 
 const bfSeatingPanel = document.getElementById('bf-seating-panel');
-const bfCountSlider = document.getElementById('bf-count-slider');
-const bfCountValue = document.getElementById('bf-count-value');
+const bfCountWheel = document.getElementById('bf-count-wheel');
 const bfStartBtn = document.getElementById('bf-start-btn');
 const bfStartWaiting = document.getElementById('bf-start-waiting');
 const bfSeatingError = document.getElementById('bf-seating-error');
@@ -66,7 +65,17 @@ const BF_RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A
 const BF_MAX_CALLED_CARDS = 20;
 
 let ctx = null;
-let sliderDragging = false;
+// Starting-count scroll wheel: must match .bf-wheel-item's height in style.css.
+const BF_WHEEL_ITEM_PX = 44;
+const BF_WHEEL_SETTLE_MS = 160;
+let bfWheelBounds = null;
+let bfWheelServerValue = null;
+let bfWheelSettleTimer = null;
+// Only scrolls the host actually caused (touch/wheel/keys/click) get sent to the server -
+// layout or programmatic scrolls must never overwrite the pick.
+let bfWheelUserScrolled = false;
+// Where the wheel is headed - arrow keys step from this, not from a half-finished smooth scroll.
+let bfWheelTarget = null;
 
 // Drives the two-phase highlight -> deal-animation sequence after a loser pick. Keyed by
 // round+result so a re-render of the same payload (e.g. another player's offline badge
@@ -141,17 +150,70 @@ function applySeating(data) {
   const isHost = ctx.getIsHost();
   const bounds = data.startCountBounds || { min: 1, max: 1 };
 
-  bfCountSlider.min = bounds.min;
-  bfCountSlider.max = bounds.max;
-  bfCountSlider.disabled = !isHost;
-  if (!sliderDragging) {
-    bfCountSlider.value = data.pendingStartCount || bounds.max;
-  }
-  bfCountValue.textContent = bfCountSlider.value;
+  renderWheelItems(bounds);
+  bfCountWheel.classList.toggle('bf-wheel-disabled', !isHost);
+  bfCountWheel.tabIndex = isHost ? 0 : -1;
+  bfWheelServerValue = data.pendingStartCount || bounds.max;
+  // Don't yank the wheel out from under the host's finger mid-scroll.
+  if (!bfWheelSettleTimer && !bfWheelUserScrolled) scrollWheelTo(bfWheelServerValue, 'auto');
 
   bfStartBtn.classList.toggle('hidden', !isHost);
   bfStartBtn.disabled = !data.canStart;
   bfStartWaiting.classList.toggle('hidden', isHost);
+}
+
+/** Rebuilds the wheel's numbers only when the allowed range changes (player count moved). */
+function renderWheelItems(bounds) {
+  if (bfWheelBounds && bfWheelBounds.min === bounds.min && bfWheelBounds.max === bounds.max) return;
+  bfWheelBounds = { min: bounds.min, max: bounds.max };
+  bfCountWheel.innerHTML = '';
+  for (let n = bounds.min; n <= bounds.max; n++) {
+    const item = document.createElement('div');
+    item.className = 'bf-wheel-item';
+    item.setAttribute('role', 'option');
+    item.dataset.value = String(n);
+    item.textContent = String(n);
+    bfCountWheel.appendChild(item);
+  }
+}
+
+function wheelValueAtScroll() {
+  if (!bfWheelBounds) return null;
+  const idx = Math.round(bfCountWheel.scrollTop / BF_WHEEL_ITEM_PX);
+  return Math.min(bfWheelBounds.max, Math.max(bfWheelBounds.min, bfWheelBounds.min + idx));
+}
+
+function markWheelSelected(value) {
+  bfCountWheel.querySelectorAll('.bf-wheel-item').forEach((item) => {
+    const selected = Number(item.dataset.value) === value;
+    item.classList.toggle('bf-wheel-selected', selected);
+    item.setAttribute('aria-selected', selected ? 'true' : 'false');
+  });
+}
+
+function scrollWheelTo(value, behavior) {
+  if (!bfWheelBounds) return;
+  bfWheelTarget = value;
+  bfCountWheel.scrollTo({ top: (value - bfWheelBounds.min) * BF_WHEEL_ITEM_PX, behavior });
+  markWheelSelected(value);
+}
+
+/** Once the wheel stops moving, the number under the center line is the host's pick. */
+function onWheelSettled() {
+  bfWheelSettleTimer = null;
+  const value = wheelValueAtScroll();
+  bfWheelTarget = value;
+  if (!bfWheelUserScrolled) {
+    // Not the host's doing: snap back to the server's value.
+    if (bfWheelServerValue !== null && value !== bfWheelServerValue) scrollWheelTo(bfWheelServerValue, 'auto');
+    return;
+  }
+  bfWheelUserScrolled = false;
+  if (value === null || !ctx.getIsHost() || value === bfWheelServerValue) return;
+  bfWheelServerValue = value;
+  ctx.socket.emit('bfSetStartingCount', { count: value }, (res) => {
+    if (res && !res.ok) bfSeatingError.textContent = res.error;
+  });
 }
 
 async function trySelectLoser(name) {
@@ -614,16 +676,38 @@ export const Bluff = {
     ctx = nextCtx;
     const { socket } = ctx;
 
-    bfCountSlider.addEventListener('input', () => {
-      sliderDragging = true;
-      bfCountValue.textContent = bfCountSlider.value;
+    bfCountWheel.addEventListener('scroll', () => {
+      markWheelSelected(wheelValueAtScroll());
+      clearTimeout(bfWheelSettleTimer);
+      bfWheelSettleTimer = setTimeout(onWheelSettled, BF_WHEEL_SETTLE_MS);
     });
 
-    bfCountSlider.addEventListener('change', () => {
-      sliderDragging = false;
-      socket.emit('bfSetStartingCount', { count: Number(bfCountSlider.value) }, (res) => {
-        if (res && !res.ok) bfSeatingError.textContent = res.error;
-      });
+    ['pointerdown', 'touchstart', 'wheel'].forEach((type) => {
+      bfCountWheel.addEventListener(type, () => { bfWheelUserScrolled = true; }, { passive: true });
+    });
+
+    // The wheel can't scroll while its screen is hidden, so position it once it has a size.
+    new ResizeObserver(() => {
+      if (bfCountWheel.clientHeight && bfWheelServerValue !== null && !bfWheelSettleTimer) {
+        scrollWheelTo(bfWheelServerValue, 'auto');
+      }
+    }).observe(bfCountWheel);
+
+    bfCountWheel.addEventListener('click', (e) => {
+      const item = e.target.closest('.bf-wheel-item');
+      if (!item || !ctx.getIsHost()) return;
+      bfWheelUserScrolled = true;
+      scrollWheelTo(Number(item.dataset.value), 'smooth');
+    });
+
+    bfCountWheel.addEventListener('keydown', (e) => {
+      if (!ctx.getIsHost() || !bfWheelBounds) return;
+      const delta = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (!delta) return;
+      e.preventDefault();
+      bfWheelUserScrolled = true;
+      const next = Math.min(bfWheelBounds.max, Math.max(bfWheelBounds.min, (bfWheelTarget ?? wheelValueAtScroll()) + delta));
+      scrollWheelTo(next, 'smooth');
     });
 
     bfStartBtn.addEventListener('click', () => {

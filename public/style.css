@@ -3740,16 +3740,94 @@ button.aiof-seat-open:hover {
   margin-bottom: 0.4rem;
 }
 
+/* Starting-count picker: a vertical scroll-snap wheel, three numbers tall, with the
+   middle row (under the highlight band) being the pick. Item height must match
+   BF_WHEEL_ITEM_PX in public/js/games/bluff.js. */
+.bf-wheel-frame {
+  position: relative;
+  width: 6rem;
+  height: 132px;
+  margin: 0.4rem auto 0.6rem;
+  border-radius: var(--radius);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+}
+
+.bf-wheel-frame::before {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  right: 0.4rem;
+  top: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.bf-wheel-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(20, 8, 2, 0.75) 0%, transparent 34%, transparent 66%, rgba(20, 8, 2, 0.75) 100%);
+  pointer-events: none;
+}
+
+.bf-wheel {
+  position: relative;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 44px 0;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.bf-wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.bf-wheel-disabled {
+  overflow-y: hidden;
+  pointer-events: none;
+}
+
+.bf-wheel-item {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.bf-wheel-item.bf-wheel-selected {
+  font-size: 1.6rem;
+  color: var(--text);
+  opacity: 1;
+}
+
 .bf-card {
   position: relative;
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 2.05rem;
-  height: 2.9rem;
+  width: 2.8rem;
+  height: 3.95rem;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: linear-gradient(160deg, #fffdf7 0%, #efe8d8 100%);
   color: #1a1a1a;
   font-weight: 700;
@@ -3770,27 +3848,27 @@ button.aiof-seat-open:hover {
 }
 
 .bf-card-corner-tl {
-  top: 0.13rem;
-  left: 0.18rem;
+  top: 0.18rem;
+  left: 0.24rem;
 }
 
 .bf-card-corner-br {
-  bottom: 0.13rem;
-  right: 0.18rem;
+  bottom: 0.18rem;
+  right: 0.24rem;
   transform: rotate(180deg);
 }
 
 .bf-card-rank {
-  font-size: 0.56rem;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
 .bf-card-pip {
-  font-size: 0.6rem;
+  font-size: 0.8rem;
 }
 
 .bf-card-center {
-  font-size: 1.05rem;
+  font-size: 1.45rem;
   opacity: 0.82;
 }
 
@@ -3815,7 +3893,7 @@ button.aiof-seat-open:hover {
   border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   padding: 0.5rem;
-  min-height: 3.5rem;
+  min-height: 4.95rem;
 }
 
 .bf-spectator-hands {
@@ -3829,7 +3907,7 @@ button.aiof-seat-open:hover {
   border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   padding: 0.5rem;
-  min-height: 3.5rem;
+  min-height: 4.95rem;
   margin-bottom: 0;
 }
 

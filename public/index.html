@@ -652,8 +652,9 @@
 
         <div class="cn-timer-section">
           <p class="muted">Starting cards per player</p>
-          <input id="bf-count-slider" type="range" min="1" max="1" step="1" value="1" />
-          <p id="bf-count-value" class="aiof-buyin-value">1</p>
+          <div class="bf-wheel-frame">
+            <div id="bf-count-wheel" class="bf-wheel" role="listbox" tabindex="0" aria-label="Starting cards per player"></div>
+          </div>
         </div>
 
         <button id="bf-start-btn" class="hidden" disabled>Start Match</button>

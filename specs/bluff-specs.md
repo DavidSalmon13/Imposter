@@ -37,12 +37,12 @@ player remains.
 
 - Choosing this game takes every room member to a seating screen. Nobody is dealt anything
   yet.
-- The host sees a **starting-card-count slider/stepper**, bounded 1 to
+- The host sees a **starting-card-count scroll wheel**, bounded 1 to
   `floor(52 / connectedPlayerCount)`, recalculated live as players join/leave the room before
   Start (same dynamic-bound pattern Menifot uses for `canStart`). Non-host players see the
   currently-selected count, read-only.
 - **Host clicks "Start Match"** once `BF_MIN_PLAYERS` ≤ connected count ≤ `BF_MAX_PLAYERS` and
-  a starting count has been chosen (defaults to the slider's max, `floor(52/N)`, if the host
+  a starting count has been chosen (defaults to the wheel's max, `floor(52/N)`, if the host
   never touches it).
 - Starting Match:
   1. Freezes `room.bfPlayers` = every currently-connected name, in a fixed order (this order
