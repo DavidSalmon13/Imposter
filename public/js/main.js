@@ -440,6 +440,32 @@ function buildMiniCard(name, rating, sticker) {
   return btn;
 }
 
+// Host-only "remove from room" button appended to a lobby row. Pushes itself to the
+// row's right edge with margin-left:auto only when there's no mini rating card already
+// doing that job - otherwise it just trails the mini-card at the same right edge.
+function buildKickButton(name, pushRight) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lobby-kick-btn';
+  if (pushRight) btn.style.marginLeft = 'auto';
+  btn.title = `Remove ${name}`;
+  btn.setAttribute('aria-label', `Remove ${name} from the room`);
+  btn.textContent = '✕';
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const ok = await confirmDialog(`${name} will be removed from the room.`, {
+      title: `Remove ${name}?`,
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    socket.emit('kickPlayer', name, (res) => {
+      if (!res || !res.ok) alert((res && res.error) || 'Could not remove player');
+    });
+  });
+  return btn;
+}
+
 function renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings) {
   lobbyList.innerHTML = '';
   players.forEach((n) => {
@@ -474,6 +500,7 @@ function renderLobby(players, scoreboard, playerStickers, playerSignedIn, player
     li.appendChild(label);
     const rating = playerSignedIn && playerSignedIn[n] && playerRatings && playerRatings[n];
     if (rating) li.appendChild(buildMiniCard(n, rating, sticker));
+    if (isHost && n !== myName) li.appendChild(buildKickButton(n, !rating));
     lobbyList.appendChild(li);
   });
   lobbyCount.textContent = `${players.length} joined`;
@@ -844,6 +871,17 @@ socket.on('kicked', ({ reason }) => {
 
 socket.on('hostUpdate', ({ host }) => {
   setHost(host);
+});
+
+socket.on('kicked', () => {
+  localStorage.removeItem('imposterRoom');
+  myRoomCode = '';
+  applyBackground(null);
+  currentHostName = null;
+  isHost = false;
+  currentGame = null;
+  showScreen('join');
+  joinError.textContent = 'The host removed you from the room';
 });
 
 socket.on('gameChosen', ({ game }) => {
