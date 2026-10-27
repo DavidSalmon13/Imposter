@@ -1,7 +1,11 @@
 # Tokens & Betting — Implementation Plan
 
-Status: **in progress** — see §16 "Build checklist" for exactly what's done and what's
-next. Builds on the shipped accounts feature
+Status: **code complete, not yet rolled out.** Every line item in §16 "Build checklist"
+is done except its final "Rollout" section — applying the migration against a real
+Postgres and running the signed-in manual pass both need a real `DATABASE_URL` +
+`GOOGLE_CLIENT_ID`, neither available in the environment this was built in. That's the
+one thing left before this can ship; see §16's "Rollout" for exactly what's left. Builds
+on the shipped accounts feature
 ([`accounts-plan.md`](accounts-plan.md), [`accounts-specs.md`](../specs/accounts-specs.md)).
 Player-facing rules: [`specs/betting-specs.md`](../specs/betting-specs.md) — read that
 first for *what* this does; this document is the *how*.
