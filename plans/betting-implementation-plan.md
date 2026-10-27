@@ -381,9 +381,15 @@ older code, same as every other migration in this app.
   before a restart is simply lost (see §7) — accepted for v1, play money only.
 - **Lost stakes on a mid-match `bfResetGame` too.** Same failure class, discovered
   during the Bluff integration (§16): the host resetting a live match abandons any open
-  bet with no refund. `bfResetGame`/`clearState` do clear `betGlobalWindows`/
-  `betSideProposals` so nothing *stale* leaks into the next match, but an already-debited
-  stake isn't returned.
+  bet with no refund — an already-debited stake isn't returned. `bfResetGame`/`clearState`
+  clear the in-memory `betGlobalWindows`/`betSideProposals` **and** call
+  `betting.expireDanglingBets(roomCode)`, which marks the already-accepted Postgres rows
+  `'expired'`. That second step is required for correctness, not just tidiness: the
+  resolution sweeps (`resolveGlobalBets`, `liveSideBets`) key only on `room_code` +
+  `status='accepted'`, so without expiring the rows, a bet abandoned by a reset would be
+  **mis-resolved against the next match played in that same room**. The boot path runs the
+  same sweep with no room code (every room), since any bet still `accepted` after a restart
+  was riding on unpersisted in-flight state and is dangling by definition.
 - **No explicit "dismiss" for a global-bet offer.** A player simply not placing one costs
   nothing, but there's no server call marking the window "responded" for them either -
   it stays an open offer (re-shown on every broadcast) until the window itself is cleared
@@ -505,20 +511,26 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
   `onRecorded(gameId)` that fire-and-forgets `resolveGlobalBets`; `bfConfirmEdit`
   fire-and-forgets `voidSideBets` before branching into `dealBluffRound`/
   `finishBluffMatch`. `bfResetGame` and `clearState` also reset `betGlobalWindows`/
-  `betSideProposals` to `{}` - **a fix beyond what this plan originally called for**: without
-  it, an elimination window nobody ever placed on/dismissed (there's no explicit
-  "dismiss" call - see below) would otherwise leak into every future match in that room.
+  `betSideProposals` to `{}` **and** call `betting.expireDanglingBets(roomCode)` -
+  **fixes beyond what this plan originally called for**: the in-memory reset stops a
+  never-dismissed elimination window from leaking into a future match, and
+  `expireDanglingBets` closes the already-accepted *Postgres rows* so the room_code-scoped
+  resolution sweeps can't mis-resolve a reset-abandoned bet against the next match (see
+  §14; boot runs the same sweep room-wide).
 - [x] `server/games/bluff.js`: `bluffStatePayload` gains the `betting` key (§5.4), but
   **not populated synchronously** - `betting.bettingViewFor` needs a DB round trip, and
   `bluffStatePayload`/`broadcastBluff` must stay synchronous (every existing handler's
   ack-then-broadcast ordering, and most of this file's own tests, depend on that).
-  Resolved by keeping `broadcastBluff` synchronous and unchanged (emits `betting: null`
-  immediately) and adding a new `pushBettingViews(ctx, roomCode, room)` that
-  fire-and-forgets a follow-up correction on the same `bluffState` event a tick later -
-  still **no new socket event**, per the plan, just a second emission of the existing
-  one. When betting is disabled this resolves to `null` for everyone and nothing extra
-  is ever emitted, so the disabled case has zero added behavior, not just zero added
-  network event *types*.
+  Resolved by keeping `broadcastBluff` synchronous (it **omits** the `betting` key
+  entirely rather than sending `betting: null`) and adding a new
+  `pushBettingViews(ctx, roomCode, room)` that fire-and-forgets a follow-up correction on
+  the same `bluffState` event a tick later - still **no new socket event**, per the plan,
+  just a second emission of the existing one. The omit (vs. `null`) matters: the client
+  treats an absent `betting` key as "no change, keep the current UI," so the betting panel
+  and any open bet modal survive every intervening broadcast; it only tears them down on an
+  explicit `null` (betting off / guest), which rides the follow-up. When betting is disabled
+  that follow-up resolves to `null` for everyone and nothing extra is ever emitted, so the
+  disabled case has zero added behavior, not just zero added network event *types*.
 - [x] Cross-cutting, not originally scoped: `server/accounts.js`'s
   `recordGameResult`/`server.js`'s `ctx.recordGameResult` gained an optional 4th-arg
   `{ onRecorded(gameId) }`, additive and backward compatible (every other game's call

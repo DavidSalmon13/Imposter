@@ -443,6 +443,75 @@ test('voidSideBets: refunds both stakes on an accepted bet and drops any pending
   assert.equal(room.betSideProposals[3], undefined);
 });
 
+test('expireDanglingBets: scopes to one room, only accepted + unresolved (game_id NULL) rows', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const fake = fakeQueryable([{ rows: [], rowCount: 2 }]);
+  t.mock.method(db, 'query', fake.query);
+  await betting.expireDanglingBets('ABCD');
+  assert.equal(fake.calls.length, 1);
+  assert.match(fake.calls[0].text, /UPDATE bets SET status = 'expired'/);
+  assert.match(fake.calls[0].text, /room_code = \$1/);
+  assert.match(fake.calls[0].text, /status = 'accepted'/);
+  assert.match(fake.calls[0].text, /game_id IS NULL/);
+  assert.deepEqual(fake.calls[0].params, ['ABCD']);
+});
+
+test('expireDanglingBets: with no roomCode sweeps every room (boot cleanup), no params', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const fake = fakeQueryable([{ rows: [], rowCount: 5 }]);
+  t.mock.method(db, 'query', fake.query);
+  await betting.expireDanglingBets();
+  assert.equal(fake.calls.length, 1);
+  assert.match(fake.calls[0].text, /UPDATE bets SET status = 'expired'/);
+  assert.doesNotMatch(fake.calls[0].text, /room_code/);
+  assert.equal(fake.calls[0].params, undefined);
+});
+
+test('expireDanglingBets: no query when betting is disabled', async (t) => {
+  t.mock.method(db, 'isEnabled', () => false);
+  const fake = fakeQueryable();
+  t.mock.method(db, 'query', fake.query);
+  await betting.expireDanglingBets('ABCD');
+  assert.equal(fake.calls.length, 0);
+});
+
+test('expireDanglingBets: a failed write is swallowed, never thrown', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => {
+    throw new Error('db down');
+  });
+  await betting.expireDanglingBets('ABCD'); // must not reject
+});
+
+test('a dangling accepted bet, once expired, is not swept by a later match\'s resolution', async (t) => {
+  // Models the cross-match leak the expire fixes: the DB sweep keys on room_code +
+  // status='accepted', so expiring a row (status -> 'expired') removes it from the set
+  // resolveGlobalBets/liveSideBets ever see again.
+  t.mock.method(db, 'isEnabled', () => true);
+  const store = [
+    { id: 1, room_code: 'ABCD', kind: 'global', trigger: 'start', status: 'accepted', game_id: null, bettor_user_id: 1, pick_name: 'Gone', stake: 50 },
+  ];
+  t.mock.method(db, 'query', async (text, params) => {
+    if (/UPDATE bets SET status = 'expired'/.test(text)) {
+      store.forEach((b) => {
+        if (b.status === 'accepted' && b.game_id === null) b.status = 'expired';
+      });
+      return { rows: [], rowCount: 1 };
+    }
+    if (/^SELECT.*bets/s.test(text)) {
+      return { rows: store.filter((b) => b.status === 'accepted' && b.game_id === null && b.trigger === params[1]) };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  mockTransaction(t);
+
+  await betting.expireDanglingBets('ABCD');
+  // A brand-new match opens its own 'start' window and resolves - the stale row is gone.
+  const room = { betGlobalWindows: { start: { eligible: ['Alice', 'Bob'] } } };
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Gone' });
+  assert.deepEqual(results, [], 'the expired bet is not resolved against the new match');
+});
+
 /** A room.players Map with { userId } for each signed-in name; omit userId for a guest. */
 function playersMap(entries) {
   return new Map(Object.entries(entries));

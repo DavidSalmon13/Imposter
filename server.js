@@ -214,7 +214,13 @@ io.on('connection', (socket) => {
 });
 
 loadRoomsFromDisk({ ctx });
-db.initDb().then(accounts.startCleanup);
+db.initDb().then(() => {
+  accounts.startCleanup();
+  // Any bet still 'accepted' (unresolved, game_id NULL) at boot was riding on in-flight
+  // match state that isn't persisted - it's dangling and would otherwise be swept into the
+  // next match in its room. Expire them all once, up front (no-op when betting is off).
+  betting.expireDanglingBets();
+});
 setInterval(saveRoomsToDisk, SAVE_INTERVAL_MS);
 // Drops players who closed the app long ago (and their scoreboard points) - see lobby.js.
 setInterval(() => sweepStalePlayers(), 60 * 1000);

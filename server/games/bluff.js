@@ -62,6 +62,11 @@ function clearState(room, roomCode) {
   // itself (or stay in someone's view) into a brand-new match.
   room.betGlobalWindows = {};
   room.betSideProposals = {};
+  // In-memory clears above aren't enough: an already-accepted bet's durable Postgres row
+  // survives, and resolveGlobalBets/resolveSideBets sweep by room_code alone - so a bet
+  // abandoned here would otherwise be mis-resolved against the *next* match in this room.
+  // Expire the dangling rows too (no refund - same accepted gap as a restart).
+  if (roomCode) betting.expireDanglingBets(roomCode);
 }
 
 /** A round is dealt and settled - not mid-highlight, not between rounds. */
@@ -161,18 +166,22 @@ function othersToReveal(room, viewerName) {
 }
 
 /**
- * Pre-fetched by broadcastBluff (it needs a DB round trip - see that function's doc
+ * Pre-fetched by pushBettingViews (it needs a DB round trip - see broadcastBluff's doc
  * comment) and threaded through as `bettingView`, rather than computed here, so this
- * stays a plain synchronous function - reconnectPayload, which must stay synchronous,
- * calls it directly with no bettingView and gets `betting: null` until the next regular
- * broadcast (fired right alongside it - see onReconnectBroadcast) corrects it.
+ * stays a plain synchronous function. The synchronous broadcast (and reconnectPayload,
+ * which must stay synchronous) call it with no bettingView: `betting` is then *omitted
+ * entirely* from the payload (not sent as `null`), so the client leaves its current
+ * betting UI untouched until the pushBettingViews follow-up delivers the real view. This
+ * is deliberate - sending `null` here would make the client tear down the betting panel
+ * (and any open bet modal, discarding the player's in-progress pick) on every single
+ * broadcast. `null` is reserved for the follow-up's "betting off / guest" signal.
  */
-function bluffStatePayload(ctx, room, viewerName, bettingView = null) {
+function bluffStatePayload(ctx, room, viewerName, bettingView) {
   const connectedCount = ctx.connectedNames(room).length;
   const myHand = room.bfHands[viewerName] || null;
   const isSpectator = isBluffSpectator(room, viewerName);
 
-  return {
+  const payload = {
     game: 'bluff',
     phase: room.phase,
     host: room.hostName,
@@ -181,7 +190,6 @@ function bluffStatePayload(ctx, room, viewerName, bettingView = null) {
     myHand: myHand ? myHand.slice() : null,
     isSpectator,
     allHands: isSpectator ? bluffAllHands(room) : null,
-    betting: bettingView,
     lastResult: room.bfLastResult,
     // `present`/`perCard`/`strongest` stay null until the countdown ends, so nobody can peek
     // at the answer early.
@@ -217,6 +225,11 @@ function bluffStatePayload(ctx, room, viewerName, bettingView = null) {
     ranking: room.phase === 'gameover' ? computeBluffRanking(room) : undefined,
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
   };
+  // Only carry a `betting` key when a view was actually computed (the pushBettingViews
+  // follow-up). A synchronous broadcast omits it so the client keeps its current betting
+  // UI rather than tearing it down - see this function's doc comment.
+  if (bettingView !== undefined) payload.betting = bettingView;
+  return payload;
 }
 
 /**
@@ -593,9 +606,12 @@ function registerHandlers(ctx, io, socket) {
     room.bfEditCounts = {};
     // Resetting mid-match abandons any open bet the same way a restart does (see
     // betting-implementation-plan.md's "Known limitations") - no refund, but at least no
-    // stale window/proposal leaks into the next match.
+    // stale window/proposal leaks into the next match. The in-memory clears below only
+    // cover windows/proposals; expireDanglingBets closes the already-accepted Postgres
+    // rows too, so they can't be swept into the next match's room_code-scoped resolution.
     room.betGlobalWindows = {};
     room.betSideProposals = {};
+    betting.expireDanglingBets(roomCode);
     room.phase = 'seating';
 
     callback({ ok: true });

@@ -786,6 +786,12 @@ function renderOthersBets(others) {
 /** Everything betting-shaped on the table screen - inert (hidden, no-op) whenever
  * `betting` is null (BETTING_ENABLED off, or this viewer is a guest). */
 function renderBetting(betting, seats) {
+  // `undefined` means "this frame carried no betting info" - a synchronous broadcast that
+  // precedes the pushBettingViews follow-up (server omits the key, see bluffStatePayload).
+  // Leave the current betting UI (and any open bet modal) exactly as-is; tearing it down
+  // and rebuilding it on every broadcast would wipe the player's in-progress pick/stake.
+  // `null` (betting off, or a guest) still falls through to the hide path below.
+  if (betting === undefined) return;
   lastBettingData = betting;
   if (!betting) {
     bfBetBalance.classList.add('hidden');

@@ -291,7 +291,9 @@ test('confirming a card-count edit voids side bets for the edited round before d
   assert.deepEqual(calls, [3]);
 });
 
-test('bfResetGame clears any open betting windows and proposals', async () => {
+test('bfResetGame clears any open betting windows and proposals, and expires dangling DB bets', async (t) => {
+  const expireCalls = [];
+  t.mock.method(betting, 'expireDanglingBets', async (roomCode) => expireCalls.push(roomCode));
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'gameover' });
   room.betGlobalWindows = { start: { eligible: ['Ann'], offerTo: ['Ann'], responded: new Set() } };
@@ -302,6 +304,30 @@ test('bfResetGame clears any open betting windows and proposals', async () => {
   assert.equal(res.ok, true);
   assert.deepEqual(room.betGlobalWindows, {});
   assert.deepEqual(room.betSideProposals, {});
+  // Without this, an already-accepted bet's Postgres row would survive the reset and be
+  // mis-resolved against the next match in this same room (room_code-scoped sweep).
+  assert.deepEqual(expireCalls, ['AAAA']);
+});
+
+test('a synchronous broadcast omits the betting key, so the client keeps its betting UI', async (t) => {
+  // The sync frame must NOT carry betting: null - that would make the client tear down the
+  // betting panel/modal on every broadcast. betting rides only on the pushBettingViews
+  // follow-up. We assert on what broadcastBluff actually emits over the fake io.
+  const { ctx } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob'];
+  room.bfCounts = { Ann: 2, Bob: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.bfRoundNumber = 1;
+  registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+
+  // Drive a real synchronous broadcast and inspect exactly what went over the fake io.
+  bluff.onReconnectBroadcast(ctx, 'AAAA', room);
+  const frames = ctx.io.emissions.filter((e) => e.event === 'bluffState');
+  assert.ok(frames.length > 0, 'a synchronous frame was emitted');
+  for (const f of frames) {
+    assert.equal('betting' in f.payload, false, 'sync frame does not carry a betting key');
+  }
 });
 
 test('betPlaceGlobal/betProposeSide/betAcceptSide all reject a player who is not signed in', async () => {

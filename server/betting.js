@@ -370,6 +370,37 @@ async function voidSideBets(room, roomCode, roundNumber) {
   return results;
 }
 
+/**
+ * Terminally closes every still-in-flight bet (`status = 'accepted'`, never resolved so
+ * `game_id IS NULL`) for a room, or for every room when `roomCode` is omitted. Marks them
+ * `'expired'` - no refund (that's the accepted "abandoned bet" gap for a mid-match reset
+ * or restart, see betting-implementation-plan.md's "Known limitations"), but crucially it
+ * takes them out of the `room_code`-scoped sweeps resolveGlobalBets/liveSideBets run, so a
+ * dangling bet can't be mis-resolved against a *later* match in the same room. Called from
+ * bluff.js's reset/clearState (per-room) and once at boot (all rooms - any accepted bet
+ * surviving a restart was riding on in-flight state that isn't persisted, so it's dangling
+ * by definition). No-op/swallowed like everything else here.
+ */
+async function expireDanglingBets(roomCode) {
+  if (!isEnabled()) return;
+  try {
+    if (roomCode) {
+      await db.query(
+        `UPDATE bets SET status = 'expired', resolved_at = now()
+          WHERE room_code = $1 AND status = 'accepted' AND game_id IS NULL`,
+        [roomCode]
+      );
+    } else {
+      await db.query(
+        `UPDATE bets SET status = 'expired', resolved_at = now()
+          WHERE status = 'accepted' AND game_id IS NULL`
+      );
+    }
+  } catch (err) {
+    console.error('Expiring dangling bets failed:', err.message);
+  }
+}
+
 /** userId for a name currently in the room, or null (guest, or not in the room). */
 function userIdFor(room, name) {
   const player = room.players && room.players.get(name);
@@ -506,6 +537,7 @@ module.exports = {
   acceptSideBet,
   resolveSideBets,
   voidSideBets,
+  expireDanglingBets,
   bettingViewFor,
   nameForUserId,
 };
