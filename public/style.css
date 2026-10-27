@@ -414,6 +414,22 @@ button.secondary:active:not(:disabled) {
   min-height: 58px;
 }
 
+.install-app-btn {
+  margin-top: 0.5rem;
+  min-height: 44px;
+  font-size: 0.95rem;
+}
+
+.install-steps {
+  margin: 0;
+  padding-left: 1.4rem;
+  text-align: left;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
 #room-code-input {
   text-transform: uppercase;
   letter-spacing: 0.2em;
