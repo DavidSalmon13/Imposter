@@ -264,3 +264,181 @@ test('resolveGlobalBets: an elimination-moment window uses its own (smaller) eli
   assert.equal(byUser.get(1), 81);
   assert.equal(byUser.get(3), 54);
 });
+
+test('proposeSideBet: rejects a pick outside the active roster', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  const result = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Zed', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  assert.equal(result.ok, false);
+});
+
+test('proposeSideBet: rejects a stake below BET_MIN_STAKE', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  const result = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 5, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  assert.equal(result.ok, false);
+});
+
+test('proposeSideBet: rejects a stake above current balance', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 15 }] }));
+  const room = {};
+  const result = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  assert.equal(result.ok, false);
+});
+
+test('proposeSideBet: only one unaccepted proposal at a time per player', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const first = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  assert.equal(first.ok, true);
+  const second = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Cy', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  assert.equal(second.ok, false);
+});
+
+test('acceptSideBet: rejects a proposal from a round that has since moved on', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const { proposal } = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  const result = await betting.acceptSideBet(room, 'ABCD', {
+    roundNumber: 2, proposalId: proposal.id, accepterName: 'Cy', accepterUserId: 3,
+  });
+  assert.equal(result.ok, false);
+});
+
+test('acceptSideBet: a targeted proposal rejects anyone but the target', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const { proposal } = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: 'Cy', eligible: ['Bo', 'Cy'],
+  });
+  const result = await betting.acceptSideBet(room, 'ABCD', {
+    roundNumber: 1, proposalId: proposal.id, accepterName: 'Dee', accepterUserId: 4,
+  });
+  assert.equal(result.ok, false);
+});
+
+test('acceptSideBet: rejects the proposer accepting their own bet', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const { proposal } = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  const result = await betting.acceptSideBet(room, 'ABCD', {
+    roundNumber: 1, proposalId: proposal.id, accepterName: 'Ann', accepterUserId: 1,
+  });
+  assert.equal(result.ok, false);
+});
+
+test('acceptSideBet: success debits both stakes, inserts one accepted bet, and removes the proposal', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const { proposal } = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 1 }, { rows: [], rowCount: 1 }]);
+  const result = await betting.acceptSideBet(room, 'ABCD', {
+    roundNumber: 1, proposalId: proposal.id, accepterName: 'Cy', accepterUserId: 3,
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(fake.calls[0].params, [1, 20]);
+  assert.deepEqual(fake.calls[1].params, [3, 20]);
+  assert.match(fake.calls[2].text, /INSERT INTO bets/);
+  assert.deepEqual(fake.calls[2].params, ['ABCD', 1, 3, 'Bo', 20]);
+  assert.deepEqual(room.betSideProposals[1], []);
+});
+
+test('acceptSideBet: a failed second debit rolls back the first (no lost stake)', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  t.mock.method(db, 'query', async () => ({ rows: [{ balance: 500 }] }));
+  const room = {};
+  const { proposal } = await betting.proposeSideBet(room, 'ABCD', {
+    roundNumber: 1, bettorName: 'Ann', userId: 1, pick: 'Bo', stake: 20, targetName: null, eligible: ['Bo', 'Cy'],
+  });
+  // First debit (bettor) succeeds, second (accepter) fails for insufficient balance.
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 1 }, { rows: [], rowCount: 0 }]);
+  const result = await betting.acceptSideBet(room, 'ABCD', {
+    roundNumber: 1, proposalId: proposal.id, accepterName: 'Cy', accepterUserId: 3,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(fake.calls.length, 2, 'never reaches the insert');
+  // The proposal is still there - a rolled-back accept must not consume it.
+  assert.equal(room.betSideProposals[1].length, 1);
+});
+
+test('resolveSideBets: the bettor wins both stakes when their pick matches the loser', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { betSideProposals: { 3: [{ id: 99, bettorName: 'Zed' }] } };
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) {
+      return { rows: [{ id: 1, bettor_user_id: 1, opponent_user_id: 3, pick_name: 'Bo', stake: 20 }] };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const fake = mockTransaction(t);
+  const results = await betting.resolveSideBets(room, 'ABCD', { roundNumber: 3, loserName: 'Bo' });
+  assert.deepEqual(results, [{ bettorUserId: 1, opponentUserId: 3, pick: 'Bo', stake: 20, bettorWon: true, payout: 40 }]);
+  assert.deepEqual(fake.calls[0].params, [1, 40], 'credits the bettor, not the opponent');
+  assert.equal(room.betSideProposals[3], undefined, 'leftover unaccepted proposals for the round are dropped');
+});
+
+test('resolveSideBets: the opponent wins both stakes when the bettor\'s pick is wrong', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) {
+      return { rows: [{ id: 1, bettor_user_id: 1, opponent_user_id: 3, pick_name: 'Bo', stake: 20 }] };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const fake = mockTransaction(t);
+  const results = await betting.resolveSideBets(room, 'ABCD', { roundNumber: 3, loserName: 'Cy' });
+  assert.equal(results[0].bettorWon, false);
+  assert.deepEqual(fake.calls[0].params, [3, 40], 'credits the opponent, not the bettor');
+});
+
+test('resolveSideBets: an unaccepted proposal with no accept just disappears, no wallet writes', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { betSideProposals: { 3: [{ id: 99, bettorName: 'Zed', pick: 'Bo', stake: 20 }] } };
+  const fake = fakeQueryable([{ rows: [] }]);
+  t.mock.method(db, 'query', fake.query);
+  const results = await betting.resolveSideBets(room, 'ABCD', { roundNumber: 3, loserName: 'Bo' });
+  assert.deepEqual(results, []);
+  assert.equal(room.betSideProposals[3], undefined);
+  assert.equal(fake.calls.length, 1, 'only the lookup query, no wallet writes');
+});
+
+test('voidSideBets: refunds both stakes on an accepted bet and drops any pending proposal', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = { betSideProposals: { 3: [{ id: 5, bettorName: 'Someone' }] } };
+  t.mock.method(db, 'query', async (text) => {
+    if (/^SELECT/.test(text)) {
+      return { rows: [{ id: 1, bettor_user_id: 1, opponent_user_id: 3, pick_name: 'Bo', stake: 20 }] };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const fake = mockTransaction(t);
+  const results = await betting.voidSideBets(room, 'ABCD', 3);
+  assert.deepEqual(results, [{ bettorUserId: 1, opponentUserId: 3, pick: 'Bo', stake: 20 }]);
+  assert.deepEqual(fake.calls[0].params, [1, 20]);
+  assert.deepEqual(fake.calls[1].params, [3, 20]);
+  assert.match(fake.calls[2].text, /UPDATE bets SET status = 'voided'/);
+  assert.equal(room.betSideProposals[3], undefined);
+});

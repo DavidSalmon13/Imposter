@@ -423,16 +423,24 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
   race-safe on balance), `resolveGlobalBets` (payout formula per window's own frozen
   `eligible.length`, floors, clears `betGlobalWindows`, returns `[{userId, pick, stake,
   payout, won}]` for the caller to map to a room name - betting.js only knows userIds)
-- [ ] Side bet functions: `proposeSideBet`, `acceptSideBet`, `resolveSideBets`,
-  `voidSideBets` (§5.3)
+- [x] Side bet functions in `server/betting.js`: `proposeSideBet` (stake/pick/balance
+  validation, one-unaccepted-proposal-per-player, stored on
+  `room.betSideProposals[roundNumber]`), `acceptSideBet` (round-scoped lookup, target
+  check, both debits + one `bets` insert in a single transaction - a failed second debit
+  throws so the first one's effect rolls back, rather than returning false and letting
+  the transaction commit a half-done accept), `resolveSideBets`/`voidSideBets` (both
+  query "every currently-accepted side bet in this room" - relies on the invariant that
+  a round's side bets are always resolved or voided before the next round deals, so that
+  set and "every accepted side bet for this round" are always the same; no
+  `round_number` column needed on `bets`). §5.3
 - [ ] `bettingViewFor(room, viewerName)` visibility helper (§5.4)
 - [x] `tests/games/betting.test.js`: wallet tests (signup grant, daily grant match vs.
   fallback-seed, no writes/0 balance when disabled, failures swallowed not thrown)
 - [x] `tests/games/betting.test.js`: global bet tests (payout formula incl. rounding,
   one-per-window, elimination window scoped to one player, no double-debit)
-- [ ] `tests/games/betting.test.js`: side bet tests (propose/accept/resolve,
+- [x] `tests/games/betting.test.js`: side bet tests (propose/accept/resolve,
   expiry-with-no-accept, targeted-rejects-non-target, one-unaccepted-at-a-time,
-  edit-void refunds)
+  edit-void refunds, rolled-back accept on a failed second debit)
 - [ ] `tests/games/betting.test.js`: visibility tests (active sees only own; eliminated
   sees other eliminated players' too; active host sees nothing extra)
 

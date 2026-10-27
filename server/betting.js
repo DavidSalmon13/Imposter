@@ -15,6 +15,9 @@
  */
 const db = require('./db');
 
+/** Thrown inside a db.transaction() callback to force a rollback on a failed debit. */
+class InsufficientFundsError extends Error {}
+
 const TOKENS_SIGNUP_GRANT = 1000;
 const TOKENS_DAILY_GRANT = 100;
 const BET_MIN_STAKE = 10;
@@ -195,6 +198,178 @@ async function resolveGlobalBets(room, roomCode, { gameId, winnerName }) {
   return results;
 }
 
+/** True if a stake is a whole number at least BET_MIN_STAKE. */
+function validStake(stake) {
+  return Number.isInteger(Number(stake)) && Number(stake) >= BET_MIN_STAKE;
+}
+
+/**
+ * Proposes a side bet on `pick` being this round's loser (round-loser prediction only,
+ * per betting-specs.md). No stake is at risk yet - nothing is debited until
+ * `acceptSideBet` locks it in. `eligible` is the currently-active roster (the caller's
+ * job to compute, since "active" is a Bluff concept betting.js doesn't know about);
+ * `targetName` is null for an open-to-the-table proposal. Stored on
+ * `room.betSideProposals[roundNumber]`, keyed by round so it's automatically
+ * unreachable (not voided, just orphaned) the instant the round changes.
+ */
+async function proposeSideBet(room, roomCode, { roundNumber, bettorName, userId, pick, stake, targetName, eligible }) {
+  if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
+  if (!validStake(stake)) return { ok: false, error: `Minimum bet is ${BET_MIN_STAKE} tokens` };
+  if (!eligible.includes(pick)) return { ok: false, error: 'That pick is not eligible' };
+  if (!room.betSideProposals) room.betSideProposals = {};
+  const allProposals = Object.values(room.betSideProposals).flat();
+  if (allProposals.some((p) => p.bettorName === bettorName)) {
+    return { ok: false, error: 'You already have a bet proposal open' };
+  }
+  const balance = await getBalance(userId);
+  if (Number(stake) > balance) return { ok: false, error: 'Not enough tokens' };
+
+  if (!room.betSideProposals[roundNumber]) room.betSideProposals[roundNumber] = [];
+  room.betSideProposalSeq = (room.betSideProposalSeq || 0) + 1;
+  const proposal = {
+    id: room.betSideProposalSeq,
+    bettorName,
+    userId,
+    pick,
+    stake: Number(stake),
+    targetName: targetName || null,
+  };
+  room.betSideProposals[roundNumber].push(proposal);
+  return { ok: true, proposal };
+}
+
+/**
+ * Accepts an open side-bet proposal, locking both stakes at the proposer's amount.
+ * `roundNumber` must be the *current* round - a proposal from an earlier round is
+ * already unreachable (see proposeSideBet's doc comment), which is what makes a round
+ * change implicitly expire every unaccepted proposal with no extra cleanup call.
+ * Debits both wallets atomically (race-safe on balance) and inserts one `bets` row
+ * covering the pair; the row's `bettor_user_id`/`opponent_user_id` keep proposer vs.
+ * accepter distinct so resolution knows who gets paid without a second pick to compare.
+ */
+async function acceptSideBet(room, roomCode, { roundNumber, proposalId, accepterName, accepterUserId }) {
+  if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
+  const list = (room.betSideProposals && room.betSideProposals[roundNumber]) || [];
+  const proposal = list.find((p) => p.id === proposalId);
+  if (!proposal) return { ok: false, error: 'That bet is no longer available' };
+  if (proposal.bettorName === accepterName) return { ok: false, error: "You can't accept your own bet" };
+  if (proposal.targetName && proposal.targetName !== accepterName) {
+    return { ok: false, error: 'That bet was not offered to you' };
+  }
+
+  try {
+    await db.transaction(async (client) => {
+      // Both debits must hold or neither does - a failed second debit must roll back the
+      // first, so this throws rather than returning false (which would still commit).
+      const debitBettor = await client.query(
+        `UPDATE wallets SET balance = balance - $2 WHERE user_id = $1 AND balance >= $2`,
+        [proposal.userId, proposal.stake]
+      );
+      if (debitBettor.rowCount === 0) throw new InsufficientFundsError();
+      const debitAccepter = await client.query(
+        `UPDATE wallets SET balance = balance - $2 WHERE user_id = $1 AND balance >= $2`,
+        [accepterUserId, proposal.stake]
+      );
+      if (debitAccepter.rowCount === 0) throw new InsufficientFundsError();
+      await client.query(
+        `INSERT INTO bets (kind, room_code, bettor_user_id, opponent_user_id, pick_name, stake, status)
+         VALUES ('side', $1, $2, $3, $4, $5, 'accepted')`,
+        [roomCode, proposal.userId, accepterUserId, proposal.pick, proposal.stake]
+      );
+    });
+  } catch (err) {
+    if (err instanceof InsufficientFundsError) return { ok: false, error: 'Not enough tokens to accept that bet' };
+    console.error('Accepting a side bet failed:', err.message);
+    return { ok: false, error: 'Something went wrong accepting that bet' };
+  }
+
+  room.betSideProposals[roundNumber] = list.filter((p) => p.id !== proposalId);
+  return { ok: true, proposal };
+}
+
+/** Every currently-live (accepted, unresolved) side bet for this room. */
+async function liveSideBets(roomCode) {
+  const { rows } = await db.query(
+    `SELECT id, bettor_user_id, opponent_user_id, pick_name, stake FROM bets
+      WHERE room_code = $1 AND kind = 'side' AND status = 'accepted'`,
+    [roomCode]
+  );
+  return rows;
+}
+
+/**
+ * Resolves every accepted side bet for the round that just ended: whichever side's
+ * pick matches `loserName` takes both stakes. Relying on an invariant the call sites
+ * maintain: a round's side bets are always resolved or voided before the next round is
+ * dealt, so "every currently-accepted side bet in this room" and "every accepted side
+ * bet for this round" are the same set - no round_number column needed on `bets`.
+ * Any still-unaccepted proposal for the round is just dropped, no wallet involved.
+ * Returns `[{ bettorUserId, opponentUserId, pick, stake, bettorWon, payout }]`.
+ */
+async function resolveSideBets(room, roomCode, { roundNumber, loserName }) {
+  if (!isEnabled()) return [];
+  if (room.betSideProposals) delete room.betSideProposals[roundNumber];
+  const results = [];
+  try {
+    const bets = await liveSideBets(roomCode);
+    for (const bet of bets) {
+      const bettorWon = bet.pick_name === loserName;
+      const winnerUserId = bettorWon ? bet.bettor_user_id : bet.opponent_user_id;
+      const payout = bet.stake * 2;
+      await db.transaction(async (client) => {
+        await client.query('UPDATE wallets SET balance = balance + $2 WHERE user_id = $1', [winnerUserId, payout]);
+        await client.query(
+          `UPDATE bets SET status = 'resolved', payout = $2, resolved_at = now() WHERE id = $1`,
+          [bet.id, payout]
+        );
+      });
+      results.push({
+        bettorUserId: bet.bettor_user_id,
+        opponentUserId: bet.opponent_user_id,
+        pick: bet.pick_name,
+        stake: bet.stake,
+        bettorWon,
+        payout,
+      });
+    }
+  } catch (err) {
+    console.error('Resolving side bets failed:', err.message);
+  }
+  return results;
+}
+
+/**
+ * Voids every side bet touching the round a host edit just corrected: accepted bets
+ * refund both stakes (nobody wins or loses off a correction), unaccepted proposals are
+ * just dropped. Same accepted-bets-belong-to-the-current-round invariant as
+ * resolveSideBets. Returns `[{ bettorUserId, opponentUserId, pick, stake }]` for the
+ * caller to notify both sides their bet was refunded.
+ */
+async function voidSideBets(room, roomCode, roundNumber) {
+  if (!isEnabled()) return [];
+  if (room.betSideProposals) delete room.betSideProposals[roundNumber];
+  const results = [];
+  try {
+    const bets = await liveSideBets(roomCode);
+    for (const bet of bets) {
+      await db.transaction(async (client) => {
+        await client.query('UPDATE wallets SET balance = balance + $2 WHERE user_id = $1', [bet.bettor_user_id, bet.stake]);
+        await client.query('UPDATE wallets SET balance = balance + $2 WHERE user_id = $1', [bet.opponent_user_id, bet.stake]);
+        await client.query(`UPDATE bets SET status = 'voided', resolved_at = now() WHERE id = $1`, [bet.id]);
+      });
+      results.push({
+        bettorUserId: bet.bettor_user_id,
+        opponentUserId: bet.opponent_user_id,
+        pick: bet.pick_name,
+        stake: bet.stake,
+      });
+    }
+  } catch (err) {
+    console.error('Voiding side bets failed:', err.message);
+  }
+  return results;
+}
+
 module.exports = {
   TOKENS_SIGNUP_GRANT,
   TOKENS_DAILY_GRANT,
@@ -207,4 +382,8 @@ module.exports = {
   openGlobalBetWindow,
   placeGlobalBet,
   resolveGlobalBets,
+  proposeSideBet,
+  acceptSideBet,
+  resolveSideBets,
+  voidSideBets,
 };
