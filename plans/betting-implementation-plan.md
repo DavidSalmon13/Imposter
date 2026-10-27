@@ -404,10 +404,11 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
 
 - [x] `migrations/004_betting.sql` — `wallets` + `bets` tables, per §4 (picked up
   automatically by `server/db.js`'s filename-ordered migration runner, no extra wiring)
-- [ ] `server/betting.js` skeleton: `BETTING_ENABLED`-style config constants
-  (`TOKENS_SIGNUP_GRANT`, `TOKENS_DAILY_GRANT`, `BET_MIN_STAKE`, `BET_HOUSE_EDGE`),
-  `db.isEnabled()` guard pattern copied from `accounts.js`, header comment documenting
-  the `status = 'accepted'` reuse for live global bets (see §5.2 step 3)
+- [x] `server/betting.js` skeleton: config constants (`TOKENS_SIGNUP_GRANT`,
+  `TOKENS_DAILY_GRANT`, `BET_MIN_STAKE`, `BET_HOUSE_EDGE`), `BETTING_ENABLED` env flag,
+  `isEnabled()` = flag && `db.isEnabled()`, header comment documenting the
+  `status = 'accepted'` reuse for live global bets (see §5.2 step 3). No wallet/bet
+  functions yet - that's the next few items.
 - [ ] Wallet functions: `createWallet(client, userId)` (called from `accounts.js`'s
   signup transaction), `grantDailyIfNeeded(userId)`, `getBalance(userId)`
 - [ ] Global bet functions: `openGlobalBetWindow`, `placeGlobalBet` (validation: stake
