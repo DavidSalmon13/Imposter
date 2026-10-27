@@ -800,13 +800,25 @@ const adminNotice = document.getElementById('admin-notice');
 let adminNoticeTimer = null;
 adminNotice.addEventListener('click', () => adminNotice.classList.add('hidden'));
 
-socket.on('adminAnnouncement', ({ message }) => {
+function showNotice(text) {
   clearTimeout(adminNoticeTimer);
-  adminNotice.textContent = `📣 ${message}`;
+  adminNotice.textContent = text;
   adminNotice.classList.remove('hidden');
-  haptics.warn();
   adminNoticeTimer = setTimeout(() => adminNotice.classList.add('hidden'), 10000);
+}
+
+socket.on('adminAnnouncement', ({ message }) => {
+  showNotice(`📣 ${message}`);
+  haptics.warn();
 });
+
+// Set just before the 'serverBuild' listener below reloads onto a new deploy's code.
+try {
+  if (sessionStorage.getItem('showUpdateNotice')) {
+    sessionStorage.removeItem('showUpdateNotice');
+    showNotice('✨ Update for the latest version');
+  }
+} catch (e) {}
 
 // Removed (or banned) from the admin page. The server drops this socket right after, and
 // socket.io doesn't auto-reconnect a server-side disconnect, so this stays on the join
@@ -888,6 +900,9 @@ socket.on('serverBuild', (build) => {
       sessionStorage.setItem('reloadedForBuild', build);
     } catch (e) {}
     if (!alreadyTried) {
+      try {
+        sessionStorage.setItem('showUpdateNotice', '1');
+      } catch (e) {}
       window.location.reload();
       return;
     }
