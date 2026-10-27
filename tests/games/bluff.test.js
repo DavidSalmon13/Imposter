@@ -4,7 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const bluff = require('../../server/games/bluff');
-const { createTestCtx, createRoom, makeHandlerSocket, registerGame, call } = require('../helpers/harness');
+const {
+  createTestCtx,
+  createRoom,
+  makeHandlerSocket,
+  registerGame,
+  call,
+  emissionsFor,
+} = require('../helpers/harness');
 
 test('contract shape', () => {
   assert.equal(bluff.id, 'bluff');
@@ -146,4 +153,32 @@ test('bfStartEdit / bfAdjustEditCount / bfConfirmEdit: host-only draft counts, c
   assert.equal(room.bfCounts.Ann, 3);
   assert.equal(room.bfCounts.Bob, 1);
   assert.equal(room.bfEditing, false);
+});
+
+test('an eliminated player becomes a spectator who sees every active hand', async () => {
+  const { ctx, io } = createTestCtx();
+  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
+  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
+  room.bfCounts = { Ann: 2, Bob: 1, Cid: 2 };
+  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
+  room.bfRoundNumber = 1;
+  room.bfEliminationOrder = [];
+
+  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
+  const res = await call(host, 'bfSelectLoser', { name: 'Bob' });
+  assert.equal(res.ok, true);
+  assert.equal(room.bfCounts.Bob, 0);
+
+  const bobEmits = emissionsFor(io, room, 'Bob');
+  const bobState = bobEmits[bobEmits.length - 1].payload;
+  assert.equal(bobState.isSpectator, true);
+  assert.deepEqual(
+    bobState.allHands.map((h) => h.name).sort(),
+    ['Ann', 'Cid']
+  );
+
+  const annEmits = emissionsFor(io, room, 'Ann');
+  const annState = annEmits[annEmits.length - 1].payload;
+  assert.equal(annState.isSpectator, false);
+  assert.equal(annState.allHands, null);
 });

@@ -2,7 +2,13 @@
 
 const { buildDeck } = require('./pokerEval');
 const { shuffle } = require('../lib/shuffle');
-const { normalizeCalledRanks, calledRanksLabel, areRanksPresent } = require('./bluffHands');
+const {
+  normalizeCalledRanks,
+  calledRanksLabel,
+  areRanksPresent,
+  calledRanksPresence,
+  strongestHand,
+} = require('./bluffHands');
 
 const BF_MIN_PLAYERS = 2;
 const BF_MAX_PLAYERS = 10;
@@ -115,9 +121,29 @@ function bluffSeats(room) {
   });
 }
 
+/**
+ * Eliminated players (0 cards, still on the frozen roster) become spectators: instead of
+ * their own (nonexistent) hand, they see every active player's hand - they're out of the
+ * game, so there's no bluffing information left for them to exploit.
+ */
+function isBluffSpectator(room, viewerName) {
+  return (
+    room.phase === 'playing' &&
+    room.bfPlayers.includes(viewerName) &&
+    (room.bfCounts[viewerName] || 0) === 0
+  );
+}
+
+function bluffAllHands(room) {
+  return room.bfPlayers
+    .filter((n) => (room.bfCounts[n] || 0) > 0)
+    .map((n) => ({ name: n, cards: (room.bfHands[n] || []).slice() }));
+}
+
 function bluffStatePayload(ctx, room, viewerName) {
   const connectedCount = ctx.connectedNames(room).length;
   const myHand = room.bfHands[viewerName] || null;
+  const isSpectator = isBluffSpectator(room, viewerName);
 
   return {
     game: 'bluff',
@@ -126,14 +152,19 @@ function bluffStatePayload(ctx, room, viewerName) {
     seats: bluffSeats(room),
     roundNumber: room.bfRoundNumber,
     myHand: myHand ? myHand.slice() : null,
+    isSpectator,
+    allHands: isSpectator ? bluffAllHands(room) : null,
     lastResult: room.bfLastResult,
-    // `present` stays null until the countdown ends, so nobody can peek at the answer early.
+    // `present`/`perCard`/`strongest` stay null until the countdown ends, so nobody can peek
+    // at the answer early.
     check: room.bfCheck
       ? {
           id: room.bfCheck.id,
           label: room.bfCheck.label,
           remainingMs: Math.max(0, room.bfCheck.revealAt - Date.now()),
           present: room.bfCheck.present,
+          perCard: room.bfCheck.perCard,
+          strongest: room.bfCheck.strongest,
         }
       : null,
     startCountBounds:
@@ -358,6 +389,8 @@ function registerHandlers(ctx, io, socket) {
       label: calledRanksLabel(ranks),
       revealAt: Date.now() + BF_CHECK_COUNTDOWN_MS,
       present: null,
+      perCard: null,
+      strongest: null,
     };
     callback({ ok: true });
     broadcastBluff(ctx, roomCode, room);
@@ -371,6 +404,8 @@ function registerHandlers(ctx, io, socket) {
         if (room.bfCheck !== check) return;
         const pooled = Object.values(room.bfHands).flat();
         check.present = areRanksPresent(ranks, pooled);
+        check.perCard = calledRanksPresence(ranks, pooled);
+        check.strongest = strongestHand(pooled);
         broadcastBluff(ctx, roomCode, room);
       }, BF_CHECK_COUNTDOWN_MS)
     );

@@ -122,6 +122,22 @@ Dealt whenever a match starts (round 1) and automatically again after every lose
 5. While the highlight/animation window is running, seat-tapping is disabled (there's no
    active round to act on until the next deal lands).
 
+## Elimination / spectating
+
+- The moment a player's count hits `0` (via a normal loss or an edit-counts drop to zero),
+  they become a **spectator** for the rest of the match: instead of their own (nonexistent)
+  hand, their client shows **every active player's hand**, face-up, each labeled with that
+  player's name. There's no bluffing information left for them to exploit once they're out,
+  so there's no reason to keep hiding the table from them.
+- This is purely a per-viewer rendering choice: `bluffStatePayload` computes it from
+  `bfCounts[viewerName] === 0` on each broadcast, so it flips automatically the instant a
+  player is eliminated and flips back off if an "Edit card counts" revive brings them back
+  above `0` (see "Editing card counts mid-match"). Nothing is persisted for it.
+- If a host's edit revives a currently-spectating player with cards, their next state update
+  shows their own dealt hand again, like any other active player's.
+- The winner at match end is also momentarily the only non-spectator; the gameover screen
+  replaces the table view entirely at that point, so this doesn't come up in practice.
+
 ## Checking the called cards (host-controlled)
 
 When someone calls a bluff in real life, the host can ask the app whether the cards that were

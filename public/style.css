@@ -3919,6 +3919,42 @@ button.confirm-danger {
   font-size: 2rem;
 }
 
+.bf-check-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.bf-chip-static {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  font-weight: 700;
+  border: 2px solid var(--glass-border);
+  border-radius: 10px;
+}
+
+.bf-chip-static.bf-chip-present {
+  background: linear-gradient(180deg, #b6e08f 0%, var(--leaf) 100%);
+  color: var(--accent-text);
+  border-color: var(--leaf);
+}
+
+.bf-chip-static.bf-chip-missing {
+  background: linear-gradient(180deg, #f6a99b 0%, var(--rose) 100%);
+  color: var(--accent-text);
+  border-color: var(--rose);
+}
+
+.bf-check-strongest {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .bf-check-builder {
   display: flex;
   flex-direction: column;

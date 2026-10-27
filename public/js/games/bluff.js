@@ -32,6 +32,8 @@ const bfSeatsEl = document.getElementById('bf-seats');
 const bfInPlayEl = document.getElementById('bf-in-play');
 const bfHandEl = document.getElementById('bf-hand');
 const bfTableError = document.getElementById('bf-table-error');
+const bfHandHeading = document.getElementById('bf-hand-heading');
+const bfSpectatorHands = document.getElementById('bf-spectator-hands');
 const bfGameoverPanel = document.getElementById('bf-gameover-panel');
 const bfChampion = document.getElementById('bf-champion');
 const bfStandings = document.getElementById('bf-standings');
@@ -41,6 +43,8 @@ const bfResetError = document.getElementById('bf-reset-error');
 const bfCheckResult = document.getElementById('bf-check-result');
 const bfCheckLabel = document.getElementById('bf-check-label');
 const bfCheckCountdown = document.getElementById('bf-check-countdown');
+const bfCheckCards = document.getElementById('bf-check-cards');
+const bfCheckStrongest = document.getElementById('bf-check-strongest');
 const bfCheckOpenBtn = document.getElementById('bf-check-open-btn');
 const bfCheckBuilder = document.getElementById('bf-check-builder');
 const bfCheckPicked = document.getElementById('bf-check-picked');
@@ -373,12 +377,49 @@ function renderCheckCountdown() {
   bfCheckCountdown.textContent = bfCheckPresent ? '✅ It\'s there!' : '❌ Not there!';
 }
 
-/** Shows the called cards, a 3-2-1 countdown, then whether they're on the table. */
+function bfMakeStaticChip(text, extraClass) {
+  const span = document.createElement('span');
+  span.className = `bf-chip bf-chip-static${extraClass ? ` ${extraClass}` : ''}`;
+  span.textContent = text;
+  return span;
+}
+
+/** One chip per called card, green if it was there and red if it wasn't - repeats of the
+ * same value can split across both (e.g. calling three 7s with only two on the table marks
+ * the first two present and the third missing). */
+function renderCheckCards(perCard) {
+  bfCheckCards.innerHTML = '';
+  if (!perCard || !perCard.length) {
+    bfCheckCards.classList.add('hidden');
+    return;
+  }
+  perCard.forEach(({ rank, present }) => {
+    bfCheckCards.appendChild(
+      bfMakeStaticChip(bfRankText(rank), present ? 'bf-chip-present' : 'bf-chip-missing')
+    );
+  });
+  bfCheckCards.classList.remove('hidden');
+}
+
+/** The best pair/two pair/set/full house/four of a kind sitting across every active
+ * player's cards pooled together, regardless of what was actually called. */
+function renderCheckStrongest(strongest) {
+  bfCheckStrongest.textContent = strongest
+    ? `Strongest hand on the table: ${strongest.label}`
+    : 'No pairs on the table right now.';
+  bfCheckStrongest.classList.remove('hidden');
+}
+
+/** Shows the called cards, a 3-2-1 countdown, then which were there (and which weren't)
+ * plus the strongest hand sitting on the table. */
 function applyCheck(check) {
   if (!check) {
     stopCheckCountdown();
     bfCheckShownId = null;
     bfCheckResult.classList.add('hidden');
+    bfCheckCards.classList.add('hidden');
+    bfCheckCards.innerHTML = '';
+    bfCheckStrongest.classList.add('hidden');
     return;
   }
   bfCheckResult.classList.remove('hidden');
@@ -391,6 +432,14 @@ function applyCheck(check) {
     if (check.present === null) bfCheckTimer = setInterval(renderCheckCountdown, 200);
   }
   renderCheckCountdown();
+
+  if (check.present === null) {
+    bfCheckCards.classList.add('hidden');
+    bfCheckStrongest.classList.add('hidden');
+  } else {
+    renderCheckCards(check.perCard);
+    renderCheckStrongest(check.strongest);
+  }
 }
 
 /** name -> current draft count +/- buttons post to, while an edit is in progress. */
@@ -471,12 +520,43 @@ function applyTable(data) {
   bfCheckOpenBtn.textContent = data.check ? '🔍 Check other cards' : '🔍 Check the called cards';
   bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
+  renderHandOrSpectator(data);
+}
+
+/** Eliminated players have no hand of their own - instead they see every active player's
+ * cards, since there's nothing left for them to bluff about. */
+function renderHandOrSpectator(data) {
   bfHandEl.innerHTML = '';
+  bfSpectatorHands.innerHTML = '';
+
+  if (data.isSpectator) {
+    bfHandHeading.textContent = "You're out — spectating";
+    bfHandEl.classList.add('hidden');
+    bfSpectatorHands.classList.remove('hidden');
+    (data.allHands || []).forEach((hand) => {
+      const row = document.createElement('div');
+      row.className = 'bf-spectator-row';
+      const name = document.createElement('p');
+      name.className = 'bf-spectator-name';
+      name.textContent = hand.name;
+      row.appendChild(name);
+      const cards = document.createElement('div');
+      cards.className = 'mf-card-row bf-hand';
+      bfSortCards(hand.cards).forEach((card) => cards.appendChild(makeBfCardEl(card)));
+      row.appendChild(cards);
+      bfSpectatorHands.appendChild(row);
+    });
+    return;
+  }
+
+  bfHandHeading.textContent = 'Your hand';
+  bfHandEl.classList.remove('hidden');
+  bfSpectatorHands.classList.add('hidden');
   if (!data.myHand) {
-    const spectating = document.createElement('p');
-    spectating.className = 'muted';
-    spectating.textContent = 'No hand this round';
-    bfHandEl.appendChild(spectating);
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'No hand this round';
+    bfHandEl.appendChild(empty);
   } else {
     bfSortCards(data.myHand).forEach((card) => bfHandEl.appendChild(makeBfCardEl(card)));
   }
