@@ -800,11 +800,12 @@ const adminNotice = document.getElementById('admin-notice');
 let adminNoticeTimer = null;
 adminNotice.addEventListener('click', () => adminNotice.classList.add('hidden'));
 
-function showNotice(text) {
+// Tapping the banner (its × included) closes it. `sticky` notices stay until then.
+function showNotice(text, { sticky = false } = {}) {
   clearTimeout(adminNoticeTimer);
-  adminNotice.textContent = text;
+  document.getElementById('admin-notice-text').textContent = text;
   adminNotice.classList.remove('hidden');
-  adminNoticeTimer = setTimeout(() => adminNotice.classList.add('hidden'), 10000);
+  if (!sticky) adminNoticeTimer = setTimeout(() => adminNotice.classList.add('hidden'), 10000);
 }
 
 socket.on('adminAnnouncement', ({ message }) => {
@@ -816,7 +817,7 @@ socket.on('adminAnnouncement', ({ message }) => {
 try {
   if (sessionStorage.getItem('showUpdateNotice')) {
     sessionStorage.removeItem('showUpdateNotice');
-    showNotice('✨ Update for the latest version');
+    showNotice('✨ Update for the latest version', { sticky: true });
   }
 } catch (e) {}
 

@@ -16,7 +16,10 @@
 </head>
 <body>
   <div id="conn-status" class="conn-status hidden" role="status" aria-live="polite"></div>
-  <div id="admin-notice" class="admin-notice hidden" role="status" aria-live="polite"></div>
+  <div id="admin-notice" class="admin-notice hidden" role="status" aria-live="polite">
+    <span id="admin-notice-text"></span>
+    <button type="button" class="admin-notice-close" aria-label="Close">×</button>
+  </div>
   <header class="app-header">
     <div id="sound-controls" class="bg-controls sound-controls">
       <button id="mute-btn" class="bg-btn" type="button" title="Mute sound">🔊</button>
