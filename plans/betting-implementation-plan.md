@@ -409,16 +409,19 @@ first unchecked `[ ]` below, top to bottom — later items depend on earlier one
   `isEnabled()` = flag && `db.isEnabled()`, header comment documenting the
   `status = 'accepted'` reuse for live global bets (see §5.2 step 3). No wallet/bet
   functions yet - that's the next few items.
-- [ ] Wallet functions: `createWallet(client, userId)` (called from `accounts.js`'s
-  signup transaction), `grantDailyIfNeeded(userId)`, `getBalance(userId)`
+- [x] Wallet functions in `server/betting.js`: `createWallet(client, userId)`,
+  `grantDailyIfNeeded(userId)` (race-safe UPDATE, falls back to seeding a
+  daily-grant-only wallet if none existed), `getBalance(userId)`. Not wired into
+  `accounts.js`/`server.js` yet - see "Wiring" below; this item was just the functions
+  themselves plus their unit tests.
 - [ ] Global bet functions: `openGlobalBetWindow`, `placeGlobalBet` (validation: stake
   vs. balance/`BET_MIN_STAKE`, pick in frozen `eligible`, one bet per trigger),
   `resolveGlobalBets` (payout formula, §5.2 step 4)
 - [ ] Side bet functions: `proposeSideBet`, `acceptSideBet`, `resolveSideBets`,
   `voidSideBets` (§5.3)
 - [ ] `bettingViewFor(room, viewerName)` visibility helper (§5.4)
-- [ ] `tests/games/betting.test.js`: wallet tests (signup/daily grant, idempotency,
-  balance floor, no writes when `db.isEnabled()` false)
+- [x] `tests/games/betting.test.js`: wallet tests (signup grant, daily grant match vs.
+  fallback-seed, no writes/0 balance when disabled, failures swallowed not thrown)
 - [ ] `tests/games/betting.test.js`: global bet tests (payout formula incl. rounding,
   one-per-window, elimination window scoped to one player, no double-debit)
 - [ ] `tests/games/betting.test.js`: side bet tests (propose/accept/resolve,
