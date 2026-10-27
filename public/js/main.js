@@ -405,6 +405,7 @@ function applyWordTheme(theme) {
 }
 
 let lastLobbyPlayerCount = 0;
+let knownLobbyNames = null;
 
 function updateAiofTile() {
   const rejoin = currentGame === 'allinorfold';
@@ -440,10 +441,43 @@ function buildMiniCard(name, rating, sticker) {
   return btn;
 }
 
+// Host-only "remove from room" button appended to a lobby row. Pushes itself to the
+// row's right edge with margin-left:auto only when there's no mini rating card already
+// doing that job - otherwise it just trails the mini-card at the same right edge.
+function buildKickButton(name, pushRight) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lobby-kick-btn';
+  if (pushRight) btn.style.marginLeft = 'auto';
+  btn.title = `Remove ${name}`;
+  btn.setAttribute('aria-label', `Remove ${name} from the room`);
+  btn.textContent = '✕';
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const ok = await confirmDialog(`${name} will be removed from the room.`, {
+      title: `Remove ${name}?`,
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    socket.emit('kickPlayer', name, (res) => {
+      if (!res || !res.ok) alert((res && res.error) || 'Could not remove player');
+    });
+  });
+  return btn;
+}
+
 function renderLobby(players, scoreboard, playerStickers, playerSignedIn, playerRatings) {
+  // First render after a join/reconnect shouldn't animate anyone in — only
+  // players who arrive while this client is already sitting in the lobby.
+  const isFirstRender = knownLobbyNames === null;
+  const newNames = isFirstRender ? new Set() : new Set(players.filter((n) => !knownLobbyNames.has(n)));
+  knownLobbyNames = new Set(players);
+
   lobbyList.innerHTML = '';
   players.forEach((n) => {
     const li = document.createElement('li');
+    if (newNames.has(n)) li.classList.add('lobby-join-in');
     const sticker = playerStickers && playerStickers[n];
     let avatar;
     if (sticker) {
@@ -474,6 +508,7 @@ function renderLobby(players, scoreboard, playerStickers, playerSignedIn, player
     li.appendChild(label);
     const rating = playerSignedIn && playerSignedIn[n] && playerRatings && playerRatings[n];
     if (rating) li.appendChild(buildMiniCard(n, rating, sticker));
+    if (isHost && n !== myName) li.appendChild(buildKickButton(n, !rating));
     lobbyList.appendChild(li);
   });
   lobbyCount.textContent = `${players.length} joined`;
@@ -728,6 +763,7 @@ exitLobbyBtn.addEventListener('click', async () => {
     currentHostName = null;
     isHost = false;
     currentGame = null;
+    knownLobbyNames = null;
     showScreen('join');
   });
 });

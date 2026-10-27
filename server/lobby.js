@@ -652,6 +652,25 @@ function registerLobbyHandlers(socket) {
     broadcastLobby(roomCode, room);
   });
 
+  socket.on('kickPlayer', (targetName, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (socket.data.name !== room.hostName) {
+      return callback({ ok: false, error: 'Only the host can remove players' });
+    }
+
+    const name = String(targetName || '');
+    if (name === room.hostName) return callback({ ok: false, error: "Can't remove yourself" });
+
+    const error = kickPlayer(roomCode, room, name, { reason: 'The host removed you from the room' });
+    if (error) return callback({ ok: false, error });
+
+    logActivity('kick', `${socket.data.name} removed ${name}`);
+    callback({ ok: true });
+  });
+
   socket.on('backToLobby', (callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
