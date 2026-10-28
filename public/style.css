@@ -4264,9 +4264,20 @@ button.confirm-danger {
 .bf-odds-head,
 .bf-odds-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 3.2rem 3.4rem 4.4rem;
+  grid-template-columns: minmax(0, 1fr) 2.8rem 3rem 4rem;
   gap: 0.4rem;
   align-items: center;
+}
+
+/* No bet open to this viewer: drop the empty Back column so names get the room. */
+.bf-odds-closed .bf-odds-head,
+.bf-odds-closed .bf-odds-row {
+  grid-template-columns: minmax(0, 1fr) 2.8rem 3rem;
+}
+
+.bf-odds-closed .bf-odds-head span:last-child,
+.bf-odds-closed .bf-odds-row > span:last-child:empty {
+  display: none;
 }
 
 .bf-odds-head {
@@ -4306,20 +4317,25 @@ button.confirm-danger {
 
 .bf-odds-who {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
   min-width: 0;
   font-weight: 600;
 }
 
 .bf-odds-name {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .bf-odds-mine {
-  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 0.45rem;
   border-radius: 999px;
   background: var(--glass-bg-strong);

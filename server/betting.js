@@ -22,6 +22,12 @@ const TOKENS_SIGNUP_GRANT = 1000;
 const TOKENS_DAILY_GRANT = 100;
 const BET_MIN_STAKE = 10;
 const BET_HOUSE_EDGE = 0.1;
+// How a global bet's win chance is split: mostly the pick's share of cards still in play,
+// partly their share of overall rating (see computeGlobalOdds).
+const ODDS_CARDS_WEIGHT = 0.75;
+const ODDS_RATING_WEIGHT = 0.25;
+const ODDS_DEFAULT_RATING = 50; // guests and unrated accounts - ratings.js's baseline
+const ODDS_MIN = 1.1; // never offer a "win" that pays back less than the stake
 
 const BETTING_ENABLED = process.env.BETTING_ENABLED === 'true';
 
@@ -101,14 +107,52 @@ function openGlobalBetWindow(room, roomCode, { trigger, offerTo, eligible }) {
 }
 
 /**
+ * Payout multiplier for each pick in a global-bet window: `{ name: odds }`, odds rounded
+ * down to one decimal. A pick's win chance is ODDS_CARDS_WEIGHT of their share of the
+ * cards still in play plus ODDS_RATING_WEIGHT of their share of overall rating, and the
+ * odds are (1 - BET_HOUSE_EDGE) / chance, floored at ODDS_MIN. `inputs` is
+ * `{ name: { cards, rating } }` from the game (cards in play is a game concept, so the
+ * caller supplies it); eligible names with 0 cards are out and get no odds. With no
+ * inputs every pick is even, which reproduces the flat stake * eligible * (1 - edge).
+ */
+function computeGlobalOdds(eligible, inputs) {
+  const entries = eligible
+    .map((name) => {
+      const input = (inputs && inputs[name]) || {};
+      const cards = inputs ? Number(input.cards) || 0 : 1;
+      const rating = Math.max(1, Number(input.rating) || ODDS_DEFAULT_RATING);
+      return { name, cards, rating };
+    })
+    .filter((e) => e.cards > 0);
+  const cardsTotal = entries.reduce((sum, e) => sum + e.cards, 0);
+  const ratingTotal = entries.reduce((sum, e) => sum + e.rating, 0);
+  const odds = {};
+  for (const e of entries) {
+    const chance = ODDS_CARDS_WEIGHT * (e.cards / cardsTotal) + ODDS_RATING_WEIGHT * (e.rating / ratingTotal);
+    // The epsilon keeps float noise (0.9 / (1/3) = 2.6999...) from flooring a tenth away.
+    const raw = Math.floor(((1 - BET_HOUSE_EDGE) / chance) * 10 + 1e-9) / 10;
+    odds[e.name] = Math.max(ODDS_MIN, raw);
+  }
+  return odds;
+}
+
+/** Whole-token payout for a winning stake at `odds` - the same rounding everywhere. */
+function payoutFor(stake, odds) {
+  return Math.floor(stake * odds + 1e-9);
+}
+
+/**
  * Places one global bet for `playerName` on `trigger`, after validating the window is
  * open and offered to them, they haven't already placed on it, the pick is inside the
  * window's frozen eligible roster, and the stake is between BET_MIN_STAKE and their
- * current balance. Debits the stake and inserts the bet row atomically. Returns
- * `{ ok: true }` or `{ ok: false, error }` - every rejection is something the client
- * should show the player, never a thrown exception.
+ * current balance. The odds are computed now from `oddsInputs` (see computeGlobalOdds)
+ * and locked onto the bet row; if the client sent the `odds` it was shown and they've
+ * since moved (a round ended in between), the bet is refused so nobody is surprised by
+ * the price. Debits the stake and inserts the bet row atomically. Returns
+ * `{ ok: true, odds }` or `{ ok: false, error }` - every rejection is something the
+ * client should show the player, never a thrown exception.
  */
-async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pick, stake }) {
+async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pick, stake, oddsInputs, odds: shownOdds }) {
   if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
   const window = room.betGlobalWindows && room.betGlobalWindows[trigger];
   if (!window) return { ok: false, error: 'That bet window is no longer open' };
@@ -118,6 +162,11 @@ async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pic
   const stakeAmount = Number(stake);
   if (!Number.isInteger(stakeAmount) || stakeAmount < BET_MIN_STAKE) {
     return { ok: false, error: `Minimum bet is ${BET_MIN_STAKE} tokens` };
+  }
+  const odds = computeGlobalOdds(window.eligible, oddsInputs)[pick];
+  if (!odds) return { ok: false, error: `${pick} is already out` };
+  if (shownOdds != null && Number(shownOdds) !== odds) {
+    return { ok: false, error: `The odds on ${pick} moved to ×${odds} - check and place again` };
   }
 
   try {
@@ -129,9 +178,9 @@ async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pic
       );
       if (debit.rowCount === 0) return false;
       await client.query(
-        `INSERT INTO bets (kind, room_code, bettor_user_id, pick_name, stake, status, trigger)
-         VALUES ('global', $1, $2, $3, $4, 'accepted', $5)`,
-        [roomCode, userId, pick, stakeAmount, trigger]
+        `INSERT INTO bets (kind, room_code, bettor_user_id, pick_name, stake, status, trigger, odds)
+         VALUES ('global', $1, $2, $3, $4, 'accepted', $5, $6)`,
+        [roomCode, userId, pick, stakeAmount, trigger, odds]
       );
       return true;
     });
@@ -142,16 +191,16 @@ async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pic
   }
 
   window.responded.add(playerName);
-  return { ok: true };
+  return { ok: true, odds };
 }
 
 /**
  * Resolves every open global-bet window on `room` at match end: for each trigger,
- * every bettor whose pick matches `winnerName` is credited
- * `stake * eligibleCandidateCount * (1 - BET_HOUSE_EDGE)` (floored), everyone else gets
- * nothing further (their stake was already debited at placement time).
- * `eligibleCandidateCount` is that window's frozen `eligible` length, the same for every
- * bet placed on that trigger. Backfills `game_id` onto every resolved bet for later
+ * every bettor whose pick matches `winnerName` is credited `stake * odds` (floored),
+ * the odds locked onto their row at placement; everyone else gets nothing further
+ * (their stake was already debited at placement time). A row from before odds existed
+ * (`odds` null) pays the old flat `stake * eligibleCandidateCount * (1 - BET_HOUSE_EDGE)`,
+ * `eligibleCandidateCount` being that window's frozen `eligible` length. Backfills `game_id` onto every resolved bet for later
  * joinability. Clears room.betGlobalWindows when done (a new match opens fresh ones).
  *
  * Returns `[{ userId, pick, stake, payout, won }]` for every bet resolved, so the
@@ -167,14 +216,15 @@ async function resolveGlobalBets(room, roomCode, { gameId, winnerName }) {
     const eligibleCount = window.eligible.length;
     try {
       const { rows } = await db.query(
-        `SELECT id, bettor_user_id, pick_name, stake FROM bets
+        `SELECT id, bettor_user_id, pick_name, stake, odds FROM bets
           WHERE room_code = $1 AND kind = 'global' AND trigger = $2
             AND status = 'accepted' AND game_id IS NULL`,
         [roomCode, trigger]
       );
       for (const bet of rows) {
         const won = bet.pick_name === winnerName;
-        const payout = won ? Math.floor(bet.stake * eligibleCount * (1 - BET_HOUSE_EDGE)) : 0;
+        const odds = bet.odds != null ? Number(bet.odds) : eligibleCount * (1 - BET_HOUSE_EDGE);
+        const payout = won ? payoutFor(bet.stake, odds) : 0;
         await db.transaction(async (client) => {
           if (payout > 0) {
             await client.query('UPDATE wallets SET balance = balance + $2 WHERE user_id = $1', [
@@ -416,11 +466,12 @@ function nameForUserId(room, userId) {
   return null;
 }
 
-/** Every open global-bet window still offered to (not yet responded to by) `viewerName`. */
-function openWindowsFor(room, viewerName) {
+/** Every open global-bet window still offered to (not yet responded to by) `viewerName`,
+ * with the odds each pick would get right now. */
+function openWindowsFor(room, viewerName, oddsInputs) {
   return Object.entries(room.betGlobalWindows || {})
     .filter(([, w]) => w.offerTo.includes(viewerName) && !w.responded.has(viewerName))
-    .map(([trigger, w]) => ({ trigger, eligible: w.eligible.slice() }));
+    .map(([trigger, w]) => ({ trigger, eligible: w.eligible.slice(), odds: computeGlobalOdds(w.eligible, oddsInputs) }));
 }
 
 /** This viewer's own open proposal (there's at most one, per proposeSideBet), or null. */
@@ -452,8 +503,9 @@ function incomingSideOffersFor(room, viewerName) {
  * `othersToReveal` (names of OTHER eliminated players) are the caller's job to compute
  * - they're Bluff's own idea of "eliminated," which this game-agnostic module has no
  * business knowing about. `othersToReveal` is ignored unless `isSpectator` is true.
+ * `oddsInputs` prices the open windows (see computeGlobalOdds).
  */
-async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false, othersToReveal = [] } = {}) {
+async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false, othersToReveal = [], oddsInputs } = {}) {
   if (!isEnabled()) return null;
   const userId = userIdFor(room, viewerName);
   if (!userId) return null;
@@ -461,8 +513,7 @@ async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false,
   const base = {
     balance: await getBalance(userId),
     minStake: BET_MIN_STAKE,
-    houseEdge: BET_HOUSE_EDGE,
-    openGlobalWindows: openWindowsFor(room, viewerName),
+    openGlobalWindows: openWindowsFor(room, viewerName, oddsInputs),
     myGlobalBets: [],
     mySideProposal: mySideProposal(room, viewerName),
     incomingSideOffers: incomingSideOffersFor(room, viewerName),
@@ -472,11 +523,13 @@ async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false,
 
   try {
     const { rows } = await db.query(
-      `SELECT kind, trigger, pick_name, stake, bettor_user_id, opponent_user_id FROM bets
+      `SELECT kind, trigger, pick_name, stake, odds, bettor_user_id, opponent_user_id FROM bets
         WHERE room_code = $1 AND status = 'accepted' AND (bettor_user_id = $2 OR opponent_user_id = $2)`,
       [roomCode, userId]
     );
-    base.myGlobalBets = rows.filter((r) => r.kind === 'global').map((r) => ({ trigger: r.trigger, pick: r.pick_name, stake: r.stake }));
+    base.myGlobalBets = rows
+      .filter((r) => r.kind === 'global')
+      .map((r) => ({ trigger: r.trigger, pick: r.pick_name, stake: r.stake, odds: r.odds != null ? Number(r.odds) : null }));
     base.mySideBets = rows
       .filter((r) => r.kind === 'side')
       .map((r) => {
@@ -528,6 +581,8 @@ module.exports = {
   BET_MIN_STAKE,
   BET_HOUSE_EDGE,
   isEnabled,
+  computeGlobalOdds,
+  payoutFor,
   createWallet,
   grantDailyIfNeeded,
   getBalance,

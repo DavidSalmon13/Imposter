@@ -160,6 +160,20 @@ function bluffAllHands(room) {
     .map((n) => ({ name: n, cards: (room.bfHands[n] || []).slice() }));
 }
 
+/**
+ * What match-winner odds are priced on (betting.computeGlobalOdds): each seat's cards
+ * still in play, and their overall rating from the lobby's rating lookup (absent for
+ * guests, who get the baseline).
+ */
+function bluffOddsInputs(room) {
+  const inputs = {};
+  for (const name of room.bfPlayers) {
+    const p = room.players.get(name);
+    inputs[name] = { cards: room.bfCounts[name] || 0, rating: p && p.rating ? p.rating.ovr : null };
+  }
+  return inputs;
+}
+
 /** Every other eliminated player's name - what a spectator is allowed to see bets for. */
 function othersToReveal(room, viewerName) {
   return room.bfPlayers.filter((n) => n !== viewerName && (room.bfCounts[n] || 0) === 0);
@@ -318,6 +332,7 @@ async function pushBettingViews(ctx, roomCode, room) {
         betting.bettingViewFor(room, roomCode, name, {
           isSpectator: isBluffSpectator(room, name),
           othersToReveal: othersToReveal(room, name),
+          oddsInputs: bluffOddsInputs(room),
         })
       )
     );
@@ -436,6 +451,8 @@ function registerHandlers(ctx, io, socket) {
       trigger: data && data.trigger,
       pick: data && data.pick,
       stake: data && data.stake,
+      odds: data && data.odds,
+      oddsInputs: bluffOddsInputs(room),
     });
     callback(result);
     if (result.ok) broadcastBluff(ctx, roomCode, room);

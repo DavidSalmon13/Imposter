@@ -81,11 +81,20 @@ different picks — they're separate trigger windows, not one bet that gets edit
 
 ### Payout
 
-`stake × eligibleCandidateCount × (1 − BET_HOUSE_EDGE)`, floored to a whole token, if the
-pick wins the match; `0` back otherwise. `eligibleCandidateCount` is however many players
-could still win at the moment *that specific bet* was placed — a match-start bet on a
-6-way field pays much more than an elimination-moment bet made when only two players are
-left standing.
+`stake × odds`, floored to a whole token, if the pick wins the match; `0` back otherwise.
+Each player still in has their own odds, priced from an estimated chance to win:
+
+- **75% cards left** — their share of all cards still in play. This is the main factor.
+- **25% overall rating** — their share of the players' overall ratings (the Player Card
+  OVR). Guests and new accounts count as the 50 baseline.
+
+`odds = (1 − BET_HOUSE_EDGE) ÷ chance`, rounded down to one decimal, never below ×1.1.
+With equal cards and ratings this is the old flat `eligibleCandidateCount × 0.9`
+(×2.7 for three players). Players with 0 cards can't be backed.
+
+**Odds lock when the bet is placed** and are stored on the bet. The board shows live
+odds; if they change between seeing them and tapping Place (a round ended), the bet is
+refused with the new price so the player can confirm.
 
 Losing stakes are removed from circulation; winning payouts are minted (the house isn't a
 player with its own balance to draw from). Total token supply isn't fixed — it drifts
@@ -154,7 +163,7 @@ steer a decision:
 - **Balance**: a small token counter near the existing scoreboard/status chrome,
   visible once betting is live for that player.
 - **Placing a global bet**: an odds board under the table — one row per player with
-  cards left and what a bet on them pays (×players × 0.9), and a Back button while a
+  cards left and that player's current odds (see Payout), and a Back button while a
   window is open to you (match start for everyone; elimination for that one
   newly-spectating player). Back opens a quick-stake picker (10 / 50 / 100 / All) on that
   row. No pop-up, so nothing to dismiss by accident; the board stays as a card-count

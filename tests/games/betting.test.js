@@ -188,8 +188,85 @@ test('placeGlobalBet: success debits the stake and inserts an accepted global be
   assert.match(fake.calls[0].text, /UPDATE wallets SET balance = balance - \$2/);
   assert.deepEqual(fake.calls[0].params, [1, 50]);
   assert.match(fake.calls[1].text, /INSERT INTO bets/);
-  assert.deepEqual(fake.calls[1].params, ['ABCD', 1, 'Bo', 50, 'start']);
+  // No odds inputs = even odds: 2 eligible * (1 - 0.10) = 1.8, locked onto the row.
+  assert.deepEqual(fake.calls[1].params, ['ABCD', 1, 'Bo', 50, 'start', 1.8]);
+  assert.equal(result.odds, 1.8);
   assert.equal(room.betGlobalWindows.start.responded.has('Ann'), true);
+});
+
+test('placeGlobalBet: prices the pick from oddsInputs and locks those odds onto the row', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo'] });
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 1 }]);
+  const oddsInputs = { Ann: { cards: 15, rating: 50 }, Bo: { cards: 5, rating: 50 } };
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Bo', stake: 50, oddsInputs });
+  assert.equal(result.ok, true);
+  // Bo: 0.75 * 5/20 + 0.25 * 1/2 = 0.3125 -> 0.9 / 0.3125 = 2.88 -> 2.8
+  assert.equal(fake.calls[1].params[5], 2.8);
+});
+
+test('placeGlobalBet: refuses when the odds the client was shown have since moved', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo'] });
+  const fake = mockTransaction(t, [{ rows: [], rowCount: 1 }]);
+  const oddsInputs = { Ann: { cards: 15, rating: 50 }, Bo: { cards: 5, rating: 50 } };
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Bo', stake: 50, oddsInputs, odds: 1.8 });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /×2\.8/);
+  assert.equal(fake.calls.length, 0, 'nothing debited');
+  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), false);
+});
+
+test('placeGlobalBet: rejects a frozen-eligible pick who has since run out of cards', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo', 'Cy'] });
+  const oddsInputs = { Ann: { cards: 3 }, Bo: { cards: 2 }, Cy: { cards: 0 } };
+  const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Cy', stake: 50, oddsInputs });
+  assert.equal(result.ok, false);
+});
+
+test('computeGlobalOdds: even table reproduces the flat eligible * (1 - edge)', () => {
+  const odds = betting.computeGlobalOdds(['Ann', 'Bo', 'Cy'], {
+    Ann: { cards: 10, rating: 60 },
+    Bo: { cards: 10, rating: 60 },
+    Cy: { cards: 10, rating: 60 },
+  });
+  assert.deepEqual(odds, { Ann: 2.7, Bo: 2.7, Cy: 2.7 });
+});
+
+test('computeGlobalOdds: cards left move the odds more than rating does', () => {
+  // Same rating gap and same card gap, in opposite directions: the card leader is still
+  // the favourite.
+  const odds = betting.computeGlobalOdds(['Ann', 'Bo'], {
+    Ann: { cards: 15, rating: 40 },
+    Bo: { cards: 5, rating: 80 },
+  });
+  assert.ok(odds.Ann < odds.Bo, JSON.stringify(odds));
+  // Ann: 0.75 * 0.75 + 0.25 * (40/120) = 0.6458 -> 1.39 -> 1.3
+  // Bo:  0.75 * 0.25 + 0.25 * (80/120) = 0.3542 -> 2.54 -> 2.5
+  assert.deepEqual(odds, { Ann: 1.3, Bo: 2.5 });
+});
+
+test('computeGlobalOdds: with equal cards, the higher-rated player is the favourite', () => {
+  const odds = betting.computeGlobalOdds(['Ann', 'Bo'], {
+    Ann: { cards: 8, rating: 90 },
+    Bo: { cards: 8, rating: 30 },
+  });
+  assert.ok(odds.Ann < odds.Bo, JSON.stringify(odds));
+});
+
+test('computeGlobalOdds: guests/unrated get the 50 baseline, out players get no odds, heavy favourite floors at 1.1', () => {
+  const odds = betting.computeGlobalOdds(['Ann', 'Bo', 'Cy'], {
+    Ann: { cards: 30, rating: null },
+    Bo: { cards: 1 },
+    Cy: { cards: 0, rating: 99 },
+  });
+  assert.equal('Cy' in odds, false);
+  assert.equal(odds.Ann, 1.1);
+  assert.ok(odds.Bo > 2);
 });
 
 test('resolveGlobalBets: pays the house-edge-adjusted, floored payout to the winning pick', async (t) => {
@@ -204,13 +281,28 @@ test('resolveGlobalBets: pays the house-edge-adjusted, floored payout to the win
   });
   const fake = mockTransaction(t);
   const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
-  // 100 * 3 eligible * (1 - 0.10) = 270
+  // A row with no locked odds (placed before odds existed): 100 * 3 eligible * (1 - 0.10) = 270
   assert.deepEqual(results, [{ userId: 1, pick: 'Ann', stake: 100, payout: 270, won: true }]);
   assert.match(fake.calls[0].text, /UPDATE wallets SET balance = balance \+ \$2/);
   assert.deepEqual(fake.calls[0].params, [1, 270]);
   assert.match(fake.calls[1].text, /UPDATE bets SET status = 'resolved'/);
   assert.deepEqual(fake.calls[1].params, [1, 270, 99]);
   assert.deepEqual(room.betGlobalWindows, {});
+});
+
+test('resolveGlobalBets: pays the odds locked onto the row, whatever the window size', async (t) => {
+  t.mock.method(db, 'isEnabled', () => true);
+  const room = {};
+  betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann', 'Bo', 'Cy'] });
+  t.mock.method(db, 'query', async (text) => {
+    // pg hands NUMERIC back as a string.
+    if (/^SELECT/.test(text)) return { rows: [{ id: 1, bettor_user_id: 1, pick_name: 'Ann', stake: 50, odds: '4.3' }] };
+    return { rows: [], rowCount: 1 };
+  });
+  mockTransaction(t);
+  const results = await betting.resolveGlobalBets(room, 'ABCD', { gameId: 99, winnerName: 'Ann' });
+  // 50 * 4.3 = 215
+  assert.equal(results[0].payout, 215);
 });
 
 test('resolveGlobalBets: floors a payout that would not land on a whole token', async (t) => {
@@ -540,8 +632,8 @@ test('bettingViewFor: only shows global windows offered to this viewer that they
   assert.deepEqual(view.openGlobalWindows, []);
   const boView = await betting.bettingViewFor(room, 'ABCD', 'Bo');
   assert.deepEqual(boView.openGlobalWindows, [
-    { trigger: 'start', eligible: ['Ann', 'Bo'] },
-    { trigger: 'elimination:Bo', eligible: ['Ann'] },
+    { trigger: 'start', eligible: ['Ann', 'Bo'], odds: { Ann: 1.8, Bo: 1.8 } },
+    { trigger: 'elimination:Bo', eligible: ['Ann'], odds: { Ann: 1.1 } },
   ]);
 });
 
@@ -550,12 +642,12 @@ test('bettingViewFor: splits own accepted bets into myGlobalBets and mySideBets'
   const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
   t.mock.method(db, 'query', async () => ({
     rows: [
-      { kind: 'global', trigger: 'start', pick_name: 'Ann', stake: 50, bettor_user_id: 1, opponent_user_id: null },
+      { kind: 'global', trigger: 'start', pick_name: 'Ann', stake: 50, odds: '2.7', bettor_user_id: 1, opponent_user_id: null },
       { kind: 'side', trigger: null, pick_name: 'Bo', stake: 20, bettor_user_id: 1, opponent_user_id: 2 },
     ],
   }));
   const view = await betting.bettingViewFor(room, 'ABCD', 'Ann');
-  assert.deepEqual(view.myGlobalBets, [{ trigger: 'start', pick: 'Ann', stake: 50 }]);
+  assert.deepEqual(view.myGlobalBets, [{ trigger: 'start', pick: 'Ann', stake: 50, odds: 2.7 }]);
   assert.deepEqual(view.mySideBets, [{ pick: 'Bo', stake: 20, role: 'bettor', opponentName: 'Bo' }]);
 });
 

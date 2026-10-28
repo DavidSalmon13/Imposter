@@ -599,10 +599,9 @@ let lastBettingData = null;
 
 const BF_ODDS_QUICK_STAKES = [10, 50, 100];
 
-/** "x2.7" for a 3-player window - mirrors resolveGlobalBets' stake * eligible * (1 - edge). */
-function bfPayoutMultiplier(win, houseEdge) {
-  const mult = win.eligible.length * (1 - houseEdge);
-  return `×${Number.isInteger(mult) ? mult : mult.toFixed(1)}`;
+/** Same rounding as betting.payoutFor on the server, so the preview matches the payout. */
+function bfPayoutFor(stake, odds) {
+  return Math.floor(stake * odds + 1e-9);
 }
 
 /** Stake options for the expanded row: the quick amounts this balance covers, plus all-in. */
@@ -638,13 +637,13 @@ function bfOddsPicker(win, name, balance, minStake) {
   });
   picker.appendChild(stakes);
 
-  const houseEdge = lastBettingData.houseEdge || 0;
-  const payout = Math.floor(bfOddsStake * win.eligible.length * (1 - houseEdge));
+  const odds = win.odds[name];
+  const payout = bfPayoutFor(bfOddsStake, odds);
   const actions = document.createElement('div');
   actions.className = 'bf-odds-actions';
   const summary = document.createElement('p');
   summary.className = 'bf-odds-summary';
-  summary.textContent = `Pays ${payout} if ${name} wins`;
+  summary.textContent = `Pays ${payout} at ×${odds} if ${name} wins`;
   const cancel = document.createElement('button');
   cancel.type = 'button';
   cancel.className = 'secondary';
@@ -659,7 +658,7 @@ function bfOddsPicker(win, name, balance, minStake) {
   place.addEventListener('click', () => {
     place.disabled = true;
     bfOddsError.textContent = '';
-    ctx.socket.emit('betPlaceGlobal', { trigger: win.trigger, pick: name, stake: bfOddsStake }, (res) => {
+    ctx.socket.emit('betPlaceGlobal', { trigger: win.trigger, pick: name, stake: bfOddsStake, odds }, (res) => {
       if (res && !res.ok) {
         bfOddsError.textContent = res.error;
         place.disabled = false;
@@ -674,8 +673,10 @@ function bfOddsPicker(win, name, balance, minStake) {
 }
 
 /**
- * The odds board: every seat ranked by cards left, what a match-winner bet on them pays,
- * and a Back button that opens a stake picker on that row. Replaces a pop-up offer, so
+ * The odds board: every seat ranked by cards left, what a match-winner bet on them pays
+ * (server-priced per player, mostly on cards left and partly on overall rating - see
+ * computeGlobalOdds in server/betting.js), and a Back button that opens a stake picker
+ * on that row. Replaces a pop-up offer, so
  * there's nothing to dismiss and lose - the board stays put while a window is open to
  * this viewer (match start, or their own elimination), and doubles as a card-count
  * standings view after they've bet.
@@ -685,17 +686,19 @@ function renderOddsBoard(betting, seats) {
   const win = (betting.openGlobalWindows || [])[0] || null;
   const { balance, minStake } = betting;
   const canAfford = balance >= minStake;
-  if (!win || !win.eligible.includes(bfOddsOpenName) || !canAfford) bfOddsOpenName = null;
+  const winOdds = (win && win.odds) || {};
+  if (!(bfOddsOpenName in winOdds) || !canAfford) bfOddsOpenName = null;
 
-  const backedTotals = {};
+  const backed = {}; // pick -> "🎲 100 ×2.7" (one entry per bet on them)
   (betting.myGlobalBets || []).forEach((bet) => {
-    backedTotals[bet.pick] = (backedTotals[bet.pick] || 0) + bet.stake;
+    const label = bet.odds ? `🎲 ${bet.stake} ×${bet.odds}` : `🎲 ${bet.stake}`;
+    backed[bet.pick] = backed[bet.pick] ? `${backed[bet.pick]} · ${label}` : label;
   });
 
   const ranked = seats.slice().sort((a, b) => (a.eliminated - b.eliminated) || (b.count - a.count));
   bfOddsRows.innerHTML = '';
   ranked.forEach((seat) => {
-    const eligible = !!win && win.eligible.includes(seat.name);
+    const eligible = seat.name in winOdds;
     const row = document.createElement('div');
     row.className = 'bf-odds-row';
     if (seat.eliminated) row.classList.add('bf-odds-out');
@@ -707,10 +710,10 @@ function renderOddsBoard(betting, seats) {
     name.className = 'bf-odds-name';
     name.textContent = seat.name;
     who.appendChild(name);
-    if (backedTotals[seat.name]) {
+    if (backed[seat.name]) {
       const mine = document.createElement('span');
       mine.className = 'bf-odds-mine';
-      mine.textContent = `🎲 ${backedTotals[seat.name]}`;
+      mine.textContent = backed[seat.name];
       who.appendChild(mine);
     }
     const cards = document.createElement('span');
@@ -718,7 +721,7 @@ function renderOddsBoard(betting, seats) {
     cards.textContent = seat.eliminated ? 'Out' : String(seat.count);
     const pays = document.createElement('span');
     pays.className = 'bf-odds-pays';
-    pays.textContent = eligible ? bfPayoutMultiplier(win, betting.houseEdge || 0) : '—';
+    pays.textContent = eligible ? `×${winOdds[seat.name]}` : '—';
     row.append(who, cards, pays);
 
     if (eligible) {
@@ -743,13 +746,16 @@ function renderOddsBoard(betting, seats) {
   if (win && !canAfford) {
     bfOddsFoot.textContent = `You have ${balance} tokens — the minimum bet is ${minStake}.`;
   } else if (win && win.trigger === 'start') {
-    bfOddsFoot.textContent = 'Back who wins the match. One bet per match, open until it ends.';
+    bfOddsFoot.textContent = 'Back who wins the match. Odds follow cards left, then overall rating, and lock when you bet.';
   } else if (win) {
     bfOddsFoot.textContent = "You're out — back who wins from here.";
   } else {
-    bfOddsFoot.textContent = Object.keys(backedTotals).length ? '' : 'No match-winner bet open to you.';
+    bfOddsFoot.textContent = Object.keys(backed).length
+      ? 'Your odds are locked in from when you bet.'
+      : 'No match-winner bet open to you.';
   }
   bfOddsFoot.classList.toggle('hidden', !bfOddsFoot.textContent);
+  bfOddsBoard.classList.toggle('bf-odds-closed', !win);
   bfOddsBoard.classList.remove('hidden');
 }
 
