@@ -32,6 +32,7 @@ Design, data model and rollout: [`plans/betting-implementation-plan.md`](../plan
 | Constant | Value | Meaning |
 |---|---|---|
 | `TOKENS_SIGNUP_GRANT` | 1000 | One-time balance when an account is first created |
+| One-time gift | 1500 | Added to every account that existed when migration `006_gift_1500_tokens.sql` ran |
 | `TOKENS_DAILY_GRANT` | 100 | Top-up granted the first time a signed-in account is seen each calendar day |
 | `BET_MIN_STAKE` | 10 | Smallest stake allowed on any bet, global or side |
 | `BET_MAX_STAKE` | none | A bet can never exceed the bettor's current balance; no separate cap |
@@ -160,8 +161,9 @@ steer a decision:
 
 ## Cross-cutting UX
 
-- **Balance**: a small token counter near the existing scoreboard/status chrome,
-  visible once betting is live for that player.
+- **Balance**: a coin pill under the Shorot logo at the top of every screen (lobby and
+  every game), for signed-in players while betting is on. It bumps when the balance
+  changes - live during a Bluff match, and re-read whenever a bet resolves.
 - **Placing a global bet**: an odds board under the table — one row per player with
   cards left and that player's current odds (see Payout), and a Back button while a
   window is open to you (match start for everyone; elimination for that one
@@ -169,8 +171,11 @@ steer a decision:
   row. No pop-up, so nothing to dismiss by accident; the board stays as a card-count
   standings view after you've bet.
 - **Placing/receiving a side bet**: a compact composer ("Bet ⟪name⟫ ⟪stake⟫ tokens that
-  ⟪pick⟫ is this round's loser") and, for the targeted player, an in-app prompt to
-  accept or ignore, gone the moment the round resolves.
+  ⟪pick⟫ is this round's loser"). Everyone the offer is open to (or just the targeted
+  player) gets it as a toast dropping in from the top of the screen, with a 9-second
+  countdown bar, **Take it** and ×. The toast only times out - the offer stays
+  acceptable in the Side bets section until the round resolves, and the toast vanishes
+  early if someone else takes it or the round ends.
 - **Resolution feedback**: a brief toast when a bet resolves ("You won 90 tokens!" /
   "Lost your 20-token bet on Sam") — reuses the existing badge/rivalry pop-up queue
   (`accounts-specs.md` "Badges" / "Rivalries"), queued after those if several land at

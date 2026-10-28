@@ -5,6 +5,8 @@
 import { renderScoreboard } from '../shared/scoreboard.js';
 import { confirmDialog } from '../shared/confirmDialog.js';
 import { emojiForName } from '../shared/playerEmoji.js';
+import { setTokenBalance } from '../shared/tokens.js';
+import { sfx, haptics } from '../fx.js';
 
 const BF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const BF_SUIT_CLASS = { s: 'bf-suit-s', h: 'bf-suit-h', d: 'bf-suit-d', c: 'bf-suit-c' };
@@ -62,7 +64,7 @@ const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
 
 // Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
 // data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
-const bfBetBalance = document.getElementById('bf-bet-balance');
+const bfOfferToasts = document.getElementById('bet-offer-toasts');
 const bfOddsBoard = document.getElementById('bf-odds-board');
 const bfOddsRows = document.getElementById('bf-odds-rows');
 const bfOddsFoot = document.getElementById('bf-odds-foot');
@@ -120,6 +122,8 @@ let bfCheckPresent = null;
 let bfOddsOpenName = null; // odds-board row whose stake picker is open
 let bfOddsStake = 50; // chosen stake in that picker
 let bfLastSeats = []; // seats from the last render, for picker-driven re-renders
+const bfSeenOfferKeys = new Set(); // side-bet offers already popped as a toast
+const bfOfferToastEls = new Map(); // offer key -> its toast, while showing
 let bfBetPick = null; // chosen loser-pick in the side-bet composer
 let bfBetTarget = null; // chosen target name in the side-bet composer, null = open
 
@@ -759,8 +763,104 @@ function renderOddsBoard(betting, seats) {
   bfOddsBoard.classList.remove('hidden');
 }
 
+const BF_OFFER_TOAST_MS = 9000;
+
+function bfOfferKey(offer) {
+  return `${offer.roundNumber}:${offer.id}`;
+}
+
+function removeOfferToast(key) {
+  const el = bfOfferToastEls.get(key);
+  if (!el) return;
+  bfOfferToastEls.delete(key);
+  clearTimeout(el.bfTimer);
+  el.classList.add('bet-offer-toast-out');
+  setTimeout(() => el.remove(), 200);
+}
+
+/**
+ * Pops a side-bet challenge in from the top of the screen with a countdown bar and a
+ * Take it button, so an offer isn't missed down below the hand. The toast only times
+ * out; the offer itself stays acceptable in the Side bets section until the round ends.
+ */
+function showOfferToast(offer) {
+  const key = bfOfferKey(offer);
+  const toast = document.createElement('div');
+  toast.className = 'bet-offer-toast';
+  toast.style.setProperty('--offer-ms', `${BF_OFFER_TOAST_MS}ms`);
+
+  const avatar = document.createElement('span');
+  avatar.className = 'bet-offer-avatar';
+  avatar.textContent = emojiForName(offer.bettorName);
+  avatar.setAttribute('aria-hidden', 'true');
+
+  const body = document.createElement('div');
+  body.className = 'bet-offer-body';
+  const text = document.createElement('p');
+  text.className = 'bet-offer-text';
+  const who = offer.targetName ? `${offer.bettorName} challenges you:` : `${offer.bettorName}:`;
+  text.textContent = `${who} ${offer.stake} tokens that ${offer.pick} loses this round.`;
+  const error = document.createElement('p');
+  error.className = 'bet-offer-error';
+  body.append(text, error);
+
+  const take = document.createElement('button');
+  take.type = 'button';
+  take.className = 'bet-offer-take';
+  take.textContent = 'Take it';
+  take.addEventListener('click', () => {
+    take.disabled = true;
+    error.textContent = '';
+    ctx.socket.emit('betAcceptSide', { proposalId: offer.id }, (res) => {
+      if (res && !res.ok) {
+        error.textContent = res.error;
+        take.disabled = false;
+        return;
+      }
+      removeOfferToast(key);
+    });
+  });
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'bet-offer-close';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.addEventListener('click', () => removeOfferToast(key));
+
+  const timer = document.createElement('span');
+  timer.className = 'bet-offer-timer';
+  toast.append(avatar, body, take, close, timer);
+
+  bfOfferToasts.appendChild(toast);
+  bfOfferToastEls.set(key, toast);
+  toast.bfTimer = setTimeout(() => removeOfferToast(key), BF_OFFER_TOAST_MS);
+  sfx.join();
+  haptics.tap();
+}
+
+/** Toasts for offers new since the last render; drops toasts whose offer is gone
+ * (accepted by someone else, withdrawn, or the round ended). */
+function syncOfferToasts(offers) {
+  const live = new Set(offers.map(bfOfferKey));
+  for (const key of [...bfOfferToastEls.keys()]) {
+    if (!live.has(key)) removeOfferToast(key);
+  }
+  offers.forEach((offer) => {
+    const key = bfOfferKey(offer);
+    if (bfSeenOfferKeys.has(key)) return;
+    bfSeenOfferKeys.add(key);
+    showOfferToast(offer);
+  });
+}
+
+function clearOfferToasts() {
+  for (const key of [...bfOfferToastEls.keys()]) removeOfferToast(key);
+}
+
 /** Proposals this viewer could accept - targeted at them, or open to the table. */
 function renderIncomingOffers(offers) {
+  syncOfferToasts(offers);
   bfBetIncoming.innerHTML = '';
   offers.forEach((offer) => {
     const row = document.createElement('div');
@@ -896,7 +996,7 @@ function renderBetting(betting, seats) {
   if (betting === undefined) return;
   lastBettingData = betting;
   if (!betting) {
-    bfBetBalance.classList.add('hidden');
+    clearOfferToasts();
     bfBetSection.classList.add('hidden');
     bfBetOthers.classList.add('hidden');
     bfOddsBoard.classList.add('hidden');
@@ -904,8 +1004,7 @@ function renderBetting(betting, seats) {
     return;
   }
 
-  bfBetBalance.classList.remove('hidden');
-  bfBetBalance.textContent = `🪙 ${betting.balance} token${betting.balance === 1 ? '' : 's'}`;
+  setTokenBalance(betting.balance);
 
   renderOddsBoard(betting, seats || []);
 
@@ -1181,6 +1280,8 @@ export const Bluff = {
     if (bfEditOpenBtn) bfEditOpenBtn.classList.add('hidden');
     if (bfEditPanel) bfEditPanel.classList.add('hidden');
     lastBettingData = null;
+    clearOfferToasts();
+    bfSeenOfferKeys.clear();
     bfOddsOpenName = null;
     bfLastSeats = [];
     if (bfOddsBoard) bfOddsBoard.classList.add('hidden');

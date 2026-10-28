@@ -111,6 +111,53 @@ body::before {
   filter: drop-shadow(0 4px 6px rgba(20, 8, 2, 0.45));
 }
 
+/* Token balance under the logo, on every screen (public/js/shared/tokens.js). */
+.token-pill {
+  position: absolute;
+  left: 50%;
+  bottom: -0.55rem;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.15rem 0.7rem 0.15rem 0.4rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--cream);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.token-pill-coin {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe7a0, var(--sun) 55%, #c9902e);
+  box-shadow: inset 0 0 0 1.5px #b07a22;
+}
+
+.token-pill-up {
+  animation: token-pill-pop 0.6s var(--ease-bounce);
+  border-color: var(--success);
+}
+
+.token-pill-down {
+  animation: token-pill-pop 0.6s var(--ease-bounce);
+}
+
+@keyframes token-pill-pop {
+  0% { transform: translateX(-50%) scale(1); }
+  40% { transform: translateX(-50%) scale(1.18); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
 .conn-status {
   position: sticky;
   top: 0;
@@ -4244,6 +4291,130 @@ button.confirm-danger {
 
 .bf-bet-others p {
   margin: 0;
+}
+
+/* Side-bet offers popping in from the top (showOfferToast in bluff.js). */
+.bet-offer-toasts {
+  position: fixed;
+  top: calc(0.6rem + env(safe-area-inset-top, 0px));
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  z-index: 190;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.bet-offer-toast {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.6rem 0.8rem 0.7rem;
+  background: var(--cream);
+  color: var(--accent-text);
+  border-radius: 16px;
+  box-shadow: 0 4px 0 var(--bark), 0 12px 24px rgba(20, 8, 2, 0.45);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: bet-offer-in 0.35s var(--ease-bounce);
+}
+
+.bet-offer-toast-out {
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+@keyframes bet-offer-in {
+  from { opacity: 0; transform: translateY(-24px); }
+  to { opacity: 1; transform: none; }
+}
+
+.bet-offer-avatar {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--wood-light);
+  border: 2px solid var(--orange);
+  font-size: 1.2rem;
+}
+
+.bet-offer-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bet-offer-text {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.bet-offer-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b3261e;
+}
+
+.bet-offer-error:empty {
+  display: none;
+}
+
+.bet-offer-take {
+  flex: none;
+  width: auto;
+  min-height: 0;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.bet-offer-close {
+  flex: none;
+  width: auto;
+  min-height: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent-text);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.bet-offer-timer {
+  position: absolute;
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: 0.3rem;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--orange);
+  transform-origin: left center;
+  animation: bet-offer-timer var(--offer-ms, 9s) linear forwards;
+}
+
+@keyframes bet-offer-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bet-offer-toast,
+  .token-pill-up,
+  .token-pill-down {
+    animation: none;
+  }
 }
 
 /* Odds board: match-winner bets, one row per seat (see renderOddsBoard in bluff.js). */

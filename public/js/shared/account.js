@@ -11,6 +11,7 @@
 
 import { badgeArt, buildRatingCard } from './cardRender.js';
 import { sfx, haptics } from '../fx.js';
+import { setTokenBalance } from './tokens.js';
 
 const cardBtn = document.getElementById('card-btn');
 const adminBtn = document.getElementById('admin-btn');
@@ -158,6 +159,7 @@ export async function refreshCard() {
     const data = await res.json();
     if (data.ok === false) return;
     signedIn = !!data.user;
+    setTokenBalance(data.balance);
     if (lockListener) {
       const locked = new Map();
       const card = data.card;
@@ -235,6 +237,8 @@ export async function initAccount(clientIdGetter, socket) {
   });
   socket.on('betResolved', (payload) => {
     if (payload) showBetResolvedToast(payload);
+    // A payout or refund just landed - re-read the balance for the header pill.
+    refreshCard();
   });
 
   // Same window, not a new tab: an installed iPhone app opens new tabs in Safari, which

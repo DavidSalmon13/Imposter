@@ -25,6 +25,7 @@
       <button id="mute-btn" class="bg-btn" type="button" title="Mute sound"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path class="mute-wave mute-wave-1" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="mute-wave mute-wave-2" d="M18 6a8 8 0 0 1 0 12"/><path class="mute-slash" d="M3 3l18 18"/></svg></button>
     </div>
     <img class="app-logo" src="images/logo-shorot.png" alt="Shorot" />
+    <p id="token-pill" class="token-pill hidden" role="status"><span class="token-pill-coin" aria-hidden="true"></span><span id="token-pill-amount"></span></p>
     <div id="bg-controls" class="bg-controls hidden">
       <button id="bg-change-btn" class="bg-btn" type="button" title="Change background"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
       <button id="bg-clear-btn" class="bg-btn hidden" type="button" title="Reset background">✕</button>
@@ -37,6 +38,8 @@
        shared/dom.js), independent of whichever game is active. Floating reactions render
        into reaction-float-layer, a full-viewport overlay so they aren't clipped by the row. -->
   <div id="reaction-row" class="reaction-row hidden"></div>
+  <!-- Bluff side-bet offers pop in here (see showOfferToast in js/games/bluff.js). -->
+  <div id="bet-offer-toasts" class="bet-offer-toasts" aria-live="polite"></div>
   <div id="reaction-float-layer" class="reaction-float-layer" aria-hidden="true"></div>
 
   <main class="app-main">
@@ -665,7 +668,6 @@
       <div id="bf-table-panel" class="hidden">
         <h1 id="bf-round-label"></h1>
         <p id="bf-table-hint" class="muted"></p>
-        <p id="bf-bet-balance" class="bf-bet-balance hidden"></p>
         <div id="bf-check-result" class="bf-check-result hidden" aria-live="polite">
           <p id="bf-check-label" class="bf-check-label"></p>
           <p id="bf-check-countdown" class="bf-check-countdown"></p>
