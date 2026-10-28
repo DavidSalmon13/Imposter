@@ -4202,8 +4202,83 @@ button.confirm-danger {
 }
 
 .bf-bet-section {
-  padding-top: 0.8rem;
-  border-top: 2px dashed var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: 16px;
+}
+
+.bf-bet-section .mf-section-heading,
+.bf-side-sub {
+  margin: 0;
+}
+
+.bf-side-sub {
+  font-size: 0.88rem;
+}
+
+.bf-side-label {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bf-side-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bf-side-options .bf-side-option {
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+/* Name/target choices - same pill as the odds board's stake chips, sized to the text. */
+.bf-side-option,
+.bf-odds-stake {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: var(--wood-mid);
+  color: var(--text);
+  border: 2px solid var(--glass-border);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bf-side-option.selected,
+.bf-odds-stake.selected {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: var(--accent-text);
+}
+
+.bf-side-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+#bf-bet-propose-btn {
+  margin-top: 0.4rem;
+}
+
+.bf-bet-section > .error:empty,
+.bf-bet-section > .bf-bet-list:empty {
+  display: none;
 }
 
 .bf-bet-incoming,
@@ -4242,22 +4317,7 @@ button.confirm-danger {
 .bf-bet-composer {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-top: 0.4rem;
-}
-
-.bf-bet-target-label {
-  margin: 0.2rem 0 -0.2rem;
-}
-
-.bf-bet-stake-row {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.bf-bet-stake-row input[type='range'] {
-  flex: 1;
+  gap: 0.4rem;
 }
 
 .bf-bet-list {
@@ -4545,24 +4605,6 @@ button.confirm-danger {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(3.6rem, 1fr));
   gap: 0.4rem;
-}
-
-.bf-odds-stake {
-  min-height: 0;
-  padding: 0.35rem 0;
-  border-radius: 999px;
-  background: var(--wood-mid);
-  color: var(--text);
-  border: 2px solid var(--glass-border);
-  font-size: 0.88rem;
-  font-variant-numeric: tabular-nums;
-  box-shadow: none;
-}
-
-.bf-odds-stake.selected {
-  background: var(--accent-2);
-  border-color: var(--accent-2);
-  color: var(--accent-text);
 }
 
 .bf-odds-actions {

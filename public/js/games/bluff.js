@@ -75,8 +75,7 @@ const bfBetIncoming = document.getElementById('bf-bet-incoming');
 const bfBetProposal = document.getElementById('bf-bet-proposal');
 const bfBetComposer = document.getElementById('bf-bet-composer');
 const bfBetPickRow = document.getElementById('bf-bet-pick-row');
-const bfBetStakeSlider = document.getElementById('bf-bet-stake-slider');
-const bfBetStakeValue = document.getElementById('bf-bet-stake-value');
+const bfBetStakeRow = document.getElementById('bf-bet-stake-row');
 const bfBetTargetRow = document.getElementById('bf-bet-target-row');
 const bfBetProposeBtn = document.getElementById('bf-bet-propose-btn');
 const bfBetMine = document.getElementById('bf-bet-mine');
@@ -126,6 +125,7 @@ const bfSeenOfferKeys = new Set(); // side-bet offers already popped as a toast
 const bfOfferToastEls = new Map(); // offer key -> its toast, while showing
 let bfBetPick = null; // chosen loser-pick in the side-bet composer
 let bfBetTarget = null; // chosen target name in the side-bet composer, null = open
+let bfBetStake = 50; // chosen stake in the side-bet composer
 
 function bfClearSequenceTimers() {
   bfSequenceTimers.forEach((t) => clearTimeout(t));
@@ -615,8 +615,9 @@ function bfOddsStakeOptions(balance, minStake) {
   return options;
 }
 
+// "All" alone - the full amount won't fit the chip; the Place/Offer button shows it.
 function bfOddsStakeLabel(value, balance) {
-  return value === balance ? `All ${value}` : String(value);
+  return value === balance ? 'All' : String(value);
 }
 
 /** The inline stake picker under the row being backed - quick stakes, then Cancel/Place. */
@@ -892,38 +893,59 @@ function renderComposer(seats, minStake, balance) {
   const targetable = active.filter((s) => s.signedIn && s.name !== myName);
   if (bfBetTarget && !targetable.some((s) => s.name === bfBetTarget)) bfBetTarget = null;
 
+  const rerender = () => renderComposer(seats, minStake, balance);
+  const option = (label, selected, onPick, title) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `bf-side-option${selected ? ' selected' : ''}`;
+    btn.textContent = label;
+    btn.title = title || label;
+    btn.setAttribute('aria-pressed', String(selected));
+    btn.addEventListener('click', () => {
+      onPick();
+      rerender();
+    });
+    return btn;
+  };
+
   bfBetPickRow.innerHTML = '';
   active.forEach((seat) => {
-    const chip = bfMakeChip(seat.name, () => {
-      bfBetPick = seat.name;
-      renderComposer(seats, minStake, balance);
-    }, seat.name === bfBetPick ? 'selected' : '');
-    bfBetPickRow.appendChild(chip);
-  });
-
-  bfBetTargetRow.innerHTML = '';
-  const openChip = bfMakeChip('Open to the table', () => {
-    bfBetTarget = null;
-    renderComposer(seats, minStake, balance);
-  }, bfBetTarget === null ? 'selected' : '');
-  bfBetTargetRow.appendChild(openChip);
-  targetable.forEach((seat) => {
-    const chip = bfMakeChip(seat.name, () => {
-      bfBetTarget = seat.name;
-      renderComposer(seats, minStake, balance);
-    }, seat.name === bfBetTarget ? 'selected' : '');
-    bfBetTargetRow.appendChild(chip);
+    const label = seat.name === myName ? `${seat.name} (you)` : seat.name;
+    bfBetPickRow.appendChild(option(label, seat.name === bfBetPick, () => { bfBetPick = seat.name; }));
   });
 
   const canAfford = balance >= minStake;
-  bfBetStakeSlider.min = String(minStake);
-  bfBetStakeSlider.max = String(Math.max(minStake, balance));
-  bfBetStakeSlider.step = String(minStake);
-  bfBetStakeSlider.disabled = !canAfford;
-  if (Number(bfBetStakeSlider.value) < minStake) bfBetStakeSlider.value = String(minStake);
-  bfBetStakeValue.textContent = bfBetStakeSlider.value;
+  const stakes = bfOddsStakeOptions(balance, minStake);
+  if (!stakes.includes(bfBetStake)) bfBetStake = stakes.includes(50) ? 50 : stakes[0];
+  bfBetStakeRow.innerHTML = '';
+  stakes.forEach((value) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `bf-odds-stake${value === bfBetStake ? ' selected' : ''}`;
+    chip.textContent = bfOddsStakeLabel(value, balance);
+    chip.addEventListener('click', () => {
+      bfBetStake = value;
+      rerender();
+    });
+    bfBetStakeRow.appendChild(chip);
+  });
+  if (!canAfford) {
+    const note = document.createElement('p');
+    note.className = 'muted bf-side-note';
+    note.textContent = `You have ${balance} tokens — the minimum bet is ${minStake}.`;
+    bfBetStakeRow.appendChild(note);
+  }
+
+  bfBetTargetRow.innerHTML = '';
+  bfBetTargetRow.appendChild(option('Anyone', bfBetTarget === null, () => { bfBetTarget = null; }, 'Open to anyone at the table'));
+  targetable.forEach((seat) => {
+    bfBetTargetRow.appendChild(option(seat.name, seat.name === bfBetTarget, () => { bfBetTarget = seat.name; }));
+  });
 
   bfBetProposeBtn.disabled = !bfBetPick || !canAfford;
+  bfBetProposeBtn.textContent = bfBetPick
+    ? `Offer ${bfBetStake} that ${bfBetPick === myName ? 'you lose' : `${bfBetPick} loses`}`
+    : 'Pick who loses';
 }
 
 /** Waiting-for-acceptance status for this viewer's own open proposal, if any - the
@@ -1230,16 +1252,12 @@ export const Bluff = {
       socket.emit('backToLobby', () => {});
     });
 
-    bfBetStakeSlider.addEventListener('input', () => {
-      bfBetStakeValue.textContent = bfBetStakeSlider.value;
-    });
-
     bfBetProposeBtn.addEventListener('click', () => {
       if (!bfBetPick) return;
       bfBetError.textContent = '';
       socket.emit(
         'betProposeSide',
-        { pick: bfBetPick, stake: Number(bfBetStakeSlider.value), targetName: bfBetTarget },
+        { pick: bfBetPick, stake: bfBetStake, targetName: bfBetTarget },
         (res) => {
           if (res && !res.ok) {
             bfBetError.textContent = res.error;

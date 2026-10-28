@@ -719,19 +719,18 @@
         <div id="bf-bet-others" class="bf-bet-others hidden"></div>
 
         <div id="bf-bet-section" class="bf-bet-section hidden">
-          <h2 class="mf-section-heading">Side bets</h2>
-          <p class="muted">Bet tokens on who loses this round, head to head with another player.</p>
+          <h2 class="mf-section-heading">Side bet</h2>
+          <p class="muted bf-side-sub">Who loses this round? Another player takes the other side.</p>
           <div id="bf-bet-incoming" class="bf-bet-incoming"></div>
           <div id="bf-bet-proposal" class="bf-bet-proposal hidden"></div>
           <div id="bf-bet-composer" class="bf-bet-composer hidden">
-            <div id="bf-bet-pick-row" class="bf-chip-grid"></div>
-            <div class="bf-bet-stake-row">
-              <input id="bf-bet-stake-slider" type="range" min="10" max="10" step="10" value="10" />
-              <p id="bf-bet-stake-value" class="aiof-buyin-value">10</p>
-            </div>
-            <p class="muted bf-bet-target-label">Challenge someone specific, or leave it open:</p>
-            <div id="bf-bet-target-row" class="bf-chip-grid"></div>
-            <button id="bf-bet-propose-btn" type="button" disabled>Propose bet</button>
+            <p class="bf-side-label">Loses this round</p>
+            <div id="bf-bet-pick-row" class="bf-side-options"></div>
+            <p class="bf-side-label">Stake</p>
+            <div id="bf-bet-stake-row" class="bf-odds-stakes"></div>
+            <p class="bf-side-label">Against</p>
+            <div id="bf-bet-target-row" class="bf-side-options"></div>
+            <button id="bf-bet-propose-btn" type="button" disabled>Pick who loses</button>
           </div>
           <ul id="bf-bet-mine" class="bf-bet-list"></ul>
           <p id="bf-bet-error" class="error"></p>
