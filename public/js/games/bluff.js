@@ -63,6 +63,7 @@ const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
 // Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
 // data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
 const bfBetBalance = document.getElementById('bf-bet-balance');
+const bfBetWinnerBtn = document.getElementById('bf-bet-winner-btn');
 const bfBetOthers = document.getElementById('bf-bet-others');
 const bfBetSection = document.getElementById('bf-bet-section');
 const bfBetIncoming = document.getElementById('bf-bet-incoming');
@@ -114,7 +115,7 @@ let bfCheckPresent = null;
 // Betting UI state. There's no server-side "dismiss" for a global-bet offer (see
 // betting-implementation-plan.md's "Known limitations") - dismissing one is purely
 // local, tracked here so a re-render (e.g. the pushBettingViews follow-up correction)
-// doesn't reopen a modal the player already closed.
+// doesn't reopen a modal the player already closed. bfBetWinnerBtn reopens it on demand.
 let bfDismissedGlobalTriggers = new Set();
 let bfOpenGlobalModal = null; // { trigger, close() } for whichever modal is up now
 let bfBetPick = null; // chosen loser-pick in the side-bet composer
@@ -627,7 +628,7 @@ function showGlobalBetModal(win, balance, minStake) {
     const chip = bfMakeChip(name, () => {
       pick = name;
       chips.forEach((c) => c.classList.toggle('selected', c.dataset.name === name));
-      placeBtn.disabled = false;
+      placeBtn.disabled = !canAfford;
     });
     chip.dataset.name = name;
     picksEl.appendChild(chip);
@@ -675,7 +676,6 @@ function showGlobalBetModal(win, balance, minStake) {
   placeBtn.type = 'button';
   placeBtn.textContent = 'Place bet';
   placeBtn.disabled = true;
-  if (!canAfford) placeBtn.disabled = true;
   row.append(dismissBtn, placeBtn);
   panel.appendChild(row);
 
@@ -686,14 +686,13 @@ function showGlobalBetModal(win, balance, minStake) {
     overlay.remove();
     bfOpenGlobalModal = null;
     maybeShowGlobalBetModal();
+    renderWinnerBtn();
   }
 
+  // Only the explicit button dismisses - no backdrop tap. The offer pops up mid-deal,
+  // right when players are tapping around to look at their cards, and a stray tap
+  // used to throw it away.
   dismissBtn.addEventListener('click', () => {
-    bfDismissedGlobalTriggers.add(win.trigger);
-    close();
-  });
-  overlay.addEventListener('click', (e) => {
-    if (e.target !== overlay) return;
     bfDismissedGlobalTriggers.add(win.trigger);
     close();
   });
@@ -718,6 +717,13 @@ function maybeShowGlobalBetModal() {
   if (bfOpenGlobalModal || !lastBettingData) return;
   const next = (lastBettingData.openGlobalWindows || []).find((w) => !bfDismissedGlobalTriggers.has(w.trigger));
   if (next) showGlobalBetModal(next, lastBettingData.balance, lastBettingData.minStake);
+}
+
+/** Way back into a dismissed match-winner offer - shown while one is still open to this
+ * viewer (not yet placed) and its modal isn't already up. */
+function renderWinnerBtn() {
+  const windows = (lastBettingData && lastBettingData.openGlobalWindows) || [];
+  bfBetWinnerBtn.classList.toggle('hidden', !windows.length || !!bfOpenGlobalModal);
 }
 
 /** Proposals this viewer could accept - targeted at them, or open to the table. */
@@ -861,6 +867,7 @@ function renderBetting(betting, seats) {
     bfBetSection.classList.add('hidden');
     bfBetOthers.classList.add('hidden');
     if (bfOpenGlobalModal) bfOpenGlobalModal.close();
+    bfBetWinnerBtn.classList.add('hidden');
     return;
   }
 
@@ -868,6 +875,7 @@ function renderBetting(betting, seats) {
   bfBetBalance.textContent = `🪙 ${betting.balance} token${betting.balance === 1 ? '' : 's'}`;
 
   maybeShowGlobalBetModal();
+  renderWinnerBtn();
 
   bfBetSection.classList.remove('hidden');
   renderIncomingOffers(betting.incomingSideOffers || []);
@@ -1095,6 +1103,14 @@ export const Bluff = {
       bfBetStakeValue.textContent = bfBetStakeSlider.value;
     });
 
+    bfBetWinnerBtn.addEventListener('click', () => {
+      const windows = (lastBettingData && lastBettingData.openGlobalWindows) || [];
+      if (!windows.length || bfOpenGlobalModal) return;
+      bfDismissedGlobalTriggers.delete(windows[0].trigger);
+      maybeShowGlobalBetModal();
+      renderWinnerBtn();
+    });
+
     bfBetProposeBtn.addEventListener('click', () => {
       if (!bfBetPick) return;
       bfBetError.textContent = '';
@@ -1145,6 +1161,7 @@ export const Bluff = {
     lastBettingData = null;
     if (bfOpenGlobalModal) bfOpenGlobalModal.close();
     bfDismissedGlobalTriggers = new Set();
+    if (bfBetWinnerBtn) bfBetWinnerBtn.classList.add('hidden');
     bfBetPick = null;
     bfBetTarget = null;
     if (bfBetError) bfBetError.textContent = '';
