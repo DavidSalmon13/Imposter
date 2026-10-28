@@ -422,30 +422,35 @@ async function voidSideBets(room, roomCode, roundNumber) {
 
 /**
  * Terminally closes every still-in-flight bet (`status = 'accepted'`, never resolved so
- * `game_id IS NULL`) for a room, or for every room when `roomCode` is omitted. Marks them
- * `'expired'` - no refund (that's the accepted "abandoned bet" gap for a mid-match reset
- * or restart, see betting-implementation-plan.md's "Known limitations"), but crucially it
- * takes them out of the `room_code`-scoped sweeps resolveGlobalBets/liveSideBets run, so a
- * dangling bet can't be mis-resolved against a *later* match in the same room. Called from
- * bluff.js's reset/clearState (per-room) and once at boot (all rooms - any accepted bet
- * surviving a restart was riding on in-flight state that isn't persisted, so it's dangling
- * by definition). No-op/swallowed like everything else here.
+ * `game_id IS NULL`) for a room, or for every room when `roomCode` is omitted, and refunds
+ * every stake riding on them: a global bet's stake back to its bettor, a side bet's stake
+ * back to both sides. Marks them `'expired'`, which takes them out of the `room_code`-scoped
+ * sweeps resolveGlobalBets/liveSideBets run, so a dangling bet can't be mis-resolved
+ * against a *later* match in the same room. Called from bluff.js's reset/clearState
+ * (per-room - the match was abandoned before it could settle) and once at boot (all rooms -
+ * any accepted bet surviving a restart was riding on in-flight state that isn't persisted).
+ * Expire + refund is one statement, so a bet is never expired without its refund or
+ * refunded twice. No-op/swallowed like everything else here.
  */
 async function expireDanglingBets(roomCode) {
   if (!isEnabled()) return;
+  const scope = roomCode ? 'room_code = $1 AND ' : '';
   try {
-    if (roomCode) {
-      await db.query(
-        `UPDATE bets SET status = 'expired', resolved_at = now()
-          WHERE room_code = $1 AND status = 'accepted' AND game_id IS NULL`,
-        [roomCode]
-      );
-    } else {
-      await db.query(
-        `UPDATE bets SET status = 'expired', resolved_at = now()
-          WHERE status = 'accepted' AND game_id IS NULL`
-      );
-    }
+    await db.query(
+      `WITH expired AS (
+         UPDATE bets SET status = 'expired', resolved_at = now()
+          WHERE ${scope}status = 'accepted' AND game_id IS NULL
+         RETURNING bettor_user_id, opponent_user_id, stake
+       ), refunds AS (
+         SELECT bettor_user_id AS user_id, stake FROM expired
+         UNION ALL
+         SELECT opponent_user_id AS user_id, stake FROM expired WHERE opponent_user_id IS NOT NULL
+       )
+       UPDATE wallets SET balance = wallets.balance + r.total
+         FROM (SELECT user_id, SUM(stake) AS total FROM refunds GROUP BY user_id) r
+        WHERE wallets.user_id = r.user_id`,
+      roomCode ? [roomCode] : undefined
+    );
   } catch (err) {
     console.error('Expiring dangling bets failed:', err.message);
   }

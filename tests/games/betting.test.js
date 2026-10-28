@@ -559,6 +559,20 @@ test('expireDanglingBets: with no roomCode sweeps every room (boot cleanup), no 
   assert.equal(fake.calls[0].params, undefined);
 });
 
+test('expireDanglingBets: refunds the stakes of the bets it expires, both sides of a side bet', async (t) => {
+  // An abandoned match (back to lobby, reset, restart) must hand the debited stakes back:
+  // the refund rides on the same statement as the expire, keyed off its RETURNING rows.
+  t.mock.method(db, 'isEnabled', () => true);
+  const fake = fakeQueryable([{ rows: [], rowCount: 2 }]);
+  t.mock.method(db, 'query', fake.query);
+  await betting.expireDanglingBets('ABCD');
+  const text = fake.calls[0].text;
+  assert.match(text, /RETURNING bettor_user_id, opponent_user_id, stake/);
+  assert.match(text, /UPDATE wallets SET balance = wallets\.balance \+ r\.total/);
+  assert.match(text, /SELECT bettor_user_id AS user_id, stake FROM expired/);
+  assert.match(text, /SELECT opponent_user_id AS user_id, stake FROM expired WHERE opponent_user_id IS NOT NULL/);
+});
+
 test('expireDanglingBets: no query when betting is disabled', async (t) => {
   t.mock.method(db, 'isEnabled', () => false);
   const fake = fakeQueryable();

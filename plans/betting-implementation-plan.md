@@ -281,11 +281,9 @@ pending/accepted-but-unresolved side bet the same way it already drops `bfHands`
 nothing is persisted, by design. Concretely:
 
 - Any stake already debited for an **accepted** bet (global or side) that never gets to
-  resolve because the server restarted mid-match is a **lost stake with no refund** in
-  v1 — same failure class as Bluff's own `repairOnLoad` re-dealing the current round
-  fresh and nobody being owed anything for the interrupted deal. This is a known,
-  accepted gap (see "Known limitations"), not something this plan builds a recovery
-  path for — restarts are rare and this is play money.
+  resolve because the server restarted mid-match is **refunded** at boot: the boot-time
+  `betting.expireDanglingBets()` sweep expires every dangling row and returns its stake(s)
+  in the same statement (see "Known limitations").
 - `repairOnLoad` for Bluff needs no change beyond what it already does; betting simply
   has nothing to repair (empty windows/proposals on a freshly loaded room).
 
@@ -377,14 +375,14 @@ older code, same as every other migration in this app.
 
 ## 14. Known limitations and risks
 
-- **Lost stakes on a mid-match restart.** An accepted bet with no chance to resolve
-  before a restart is simply lost (see §7) — accepted for v1, play money only.
-- **Lost stakes on a mid-match `bfResetGame` too.** Same failure class, discovered
-  during the Bluff integration (§16): the host resetting a live match abandons any open
-  bet with no refund — an already-debited stake isn't returned. `bfResetGame`/`clearState`
+- **Abandoned bets are refunded, not settled.** An accepted bet with no chance to resolve
+  — a mid-match restart (§7), a host `bfResetGame`, or leaving the match early (back to
+  lobby / switching game, via `clearState`) — gets its debited stake(s) back: the global
+  bettor's stake, or both sides' stakes for a side bet. (Originally these stakes were
+  simply lost; players hit it as "my tokens vanished after I left the game".) `bfResetGame`/`clearState`
   clear the in-memory `betGlobalWindows`/`betSideProposals` **and** call
   `betting.expireDanglingBets(roomCode)`, which marks the already-accepted Postgres rows
-  `'expired'`. That second step is required for correctness, not just tidiness: the
+  `'expired'` and refunds them in one statement. That second step is required for correctness, not just tidiness: the
   resolution sweeps (`resolveGlobalBets`, `liveSideBets`) key only on `room_code` +
   `status='accepted'`, so without expiring the rows, a bet abandoned by a reset would be
   **mis-resolved against the next match played in that same room**. The boot path runs the

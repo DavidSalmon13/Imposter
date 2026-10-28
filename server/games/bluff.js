@@ -65,7 +65,7 @@ function clearState(room, roomCode) {
   // In-memory clears above aren't enough: an already-accepted bet's durable Postgres row
   // survives, and resolveGlobalBets/resolveSideBets sweep by room_code alone - so a bet
   // abandoned here would otherwise be mis-resolved against the *next* match in this room.
-  // Expire the dangling rows too (no refund - same accepted gap as a restart).
+  // Expire the dangling rows too, refunding their stakes - the match never got to settle them.
   if (roomCode) betting.expireDanglingBets(roomCode);
 }
 
@@ -621,11 +621,11 @@ function registerHandlers(ctx, io, socket) {
     room.bfLastResult = null;
     room.bfEditing = false;
     room.bfEditCounts = {};
-    // Resetting mid-match abandons any open bet the same way a restart does (see
-    // betting-implementation-plan.md's "Known limitations") - no refund, but at least no
-    // stale window/proposal leaks into the next match. The in-memory clears below only
-    // cover windows/proposals; expireDanglingBets closes the already-accepted Postgres
-    // rows too, so they can't be swept into the next match's room_code-scoped resolution.
+    // Resetting mid-match abandons any open bet the same way a restart does: no stale
+    // window/proposal leaks into the next match, and every already-taken stake is refunded.
+    // The in-memory clears below only cover windows/proposals; expireDanglingBets closes the
+    // already-accepted Postgres rows (refunding them), so they can't be swept into the next
+    // match's room_code-scoped resolution.
     room.betGlobalWindows = {};
     room.betSideProposals = {};
     betting.expireDanglingBets(roomCode);
