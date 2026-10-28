@@ -63,7 +63,10 @@ const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
 // Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
 // data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
 const bfBetBalance = document.getElementById('bf-bet-balance');
-const bfBetWinnerBtn = document.getElementById('bf-bet-winner-btn');
+const bfOddsBoard = document.getElementById('bf-odds-board');
+const bfOddsRows = document.getElementById('bf-odds-rows');
+const bfOddsFoot = document.getElementById('bf-odds-foot');
+const bfOddsError = document.getElementById('bf-odds-error');
 const bfBetOthers = document.getElementById('bf-bet-others');
 const bfBetSection = document.getElementById('bf-bet-section');
 const bfBetIncoming = document.getElementById('bf-bet-incoming');
@@ -112,12 +115,11 @@ let bfCheckTimer = null;
 let bfCheckRevealAt = 0;
 let bfCheckPresent = null;
 
-// Betting UI state. There's no server-side "dismiss" for a global-bet offer (see
-// betting-implementation-plan.md's "Known limitations") - dismissing one is purely
-// local, tracked here so a re-render (e.g. the pushBettingViews follow-up correction)
-// doesn't reopen a modal the player already closed. bfBetWinnerBtn reopens it on demand.
-let bfDismissedGlobalTriggers = new Set();
-let bfOpenGlobalModal = null; // { trigger, close() } for whichever modal is up now
+// Betting UI state, kept across re-renders (e.g. the pushBettingViews follow-up
+// correction) so an in-progress pick survives every broadcast.
+let bfOddsOpenName = null; // odds-board row whose stake picker is open
+let bfOddsStake = 50; // chosen stake in that picker
+let bfLastSeats = []; // seats from the last render, for picker-driven re-renders
 let bfBetPick = null; // chosen loser-pick in the side-bet composer
 let bfBetTarget = null; // chosen target name in the side-bet composer, null = open
 
@@ -595,135 +597,160 @@ function renderEditPanel(data) {
 
 let lastBettingData = null;
 
-/**
- * A match-start or elimination-moment global (vs. the house) bet offer. Built like
- * confirmDialog.js (same overlay/panel base) but with a name-pick + stake slider
- * instead of a plain confirm. Dismissing costs nothing and is purely local - the
- * server has no "already saw and said no" state to track for a global window (see
- * betting-implementation-plan.md's "Known limitations"), so bfDismissedGlobalTriggers
- * is what stops this from reopening on the next re-render.
- */
-function showGlobalBetModal(win, balance, minStake) {
-  const overlay = document.createElement('div');
-  overlay.className = 'confirm-overlay';
-  const panel = document.createElement('div');
-  panel.className = 'confirm-panel bf-global-bet-panel';
-  panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-modal', 'true');
+const BF_ODDS_QUICK_STAKES = [10, 50, 100];
 
-  const title = document.createElement('h2');
-  title.className = 'confirm-title';
-  title.textContent = win.trigger === 'start' ? 'Bet on the match winner' : "You're out — bet on who wins";
-  panel.appendChild(title);
+/** "x2.7" for a 3-player window - mirrors resolveGlobalBets' stake * eligible * (1 - edge). */
+function bfPayoutMultiplier(win, houseEdge) {
+  const mult = win.eligible.length * (1 - houseEdge);
+  return `×${Number.isInteger(mult) ? mult : mult.toFixed(1)}`;
+}
 
-  const message = document.createElement('p');
-  message.className = 'confirm-message';
-  message.textContent = 'Pick who you think wins, choose a stake, and place it — or sit this one out.';
-  panel.appendChild(message);
+/** Stake options for the expanded row: the quick amounts this balance covers, plus all-in. */
+function bfOddsStakeOptions(balance, minStake) {
+  const options = BF_ODDS_QUICK_STAKES.filter((v) => v >= minStake && v < balance);
+  if (balance >= minStake) options.push(balance);
+  return options;
+}
 
-  let pick = null;
-  const picksEl = document.createElement('div');
-  picksEl.className = 'bf-global-bet-picks';
-  const chips = win.eligible.map((name) => {
-    const chip = bfMakeChip(name, () => {
-      pick = name;
-      chips.forEach((c) => c.classList.toggle('selected', c.dataset.name === name));
-      placeBtn.disabled = !canAfford;
+function bfOddsStakeLabel(value, balance) {
+  return value === balance ? `All ${value}` : String(value);
+}
+
+/** The inline stake picker under the row being backed - quick stakes, then Cancel/Place. */
+function bfOddsPicker(win, name, balance, minStake) {
+  const options = bfOddsStakeOptions(balance, minStake);
+  if (!options.includes(bfOddsStake)) bfOddsStake = options.includes(50) ? 50 : options[0];
+
+  const picker = document.createElement('div');
+  picker.className = 'bf-odds-picker';
+  const stakes = document.createElement('div');
+  stakes.className = 'bf-odds-stakes';
+  options.forEach((value) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `bf-odds-stake${value === bfOddsStake ? ' selected' : ''}`;
+    chip.textContent = bfOddsStakeLabel(value, balance);
+    chip.addEventListener('click', () => {
+      bfOddsStake = value;
+      renderOddsBoard(lastBettingData, bfLastSeats);
     });
-    chip.dataset.name = name;
-    picksEl.appendChild(chip);
-    return chip;
+    stakes.appendChild(chip);
   });
-  panel.appendChild(picksEl);
+  picker.appendChild(stakes);
 
-  const canAfford = balance >= minStake;
-  const stakeRow = document.createElement('div');
-  stakeRow.className = 'bf-global-bet-stake-row';
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = String(minStake);
-  slider.max = String(Math.max(minStake, balance));
-  slider.step = String(minStake);
-  slider.value = String(minStake);
-  slider.disabled = !canAfford;
-  const stakeValue = document.createElement('p');
-  stakeValue.className = 'aiof-buyin-value';
-  stakeValue.textContent = slider.value;
-  slider.addEventListener('input', () => {
-    stakeValue.textContent = slider.value;
+  const houseEdge = lastBettingData.houseEdge || 0;
+  const payout = Math.floor(bfOddsStake * win.eligible.length * (1 - houseEdge));
+  const actions = document.createElement('div');
+  actions.className = 'bf-odds-actions';
+  const summary = document.createElement('p');
+  summary.className = 'bf-odds-summary';
+  summary.textContent = `Pays ${payout} if ${name} wins`;
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'secondary';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => {
+    bfOddsOpenName = null;
+    renderOddsBoard(lastBettingData, bfLastSeats);
   });
-  stakeRow.append(slider, stakeValue);
-  panel.appendChild(stakeRow);
-
-  const balanceLine = document.createElement('p');
-  balanceLine.className = 'muted';
-  balanceLine.textContent = canAfford
-    ? `You have ${balance} tokens.`
-    : `You have ${balance} tokens — not enough to cover the ${minStake}-token minimum.`;
-  panel.appendChild(balanceLine);
-
-  const errorEl = document.createElement('p');
-  errorEl.className = 'error';
-  panel.appendChild(errorEl);
-
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  const dismissBtn = document.createElement('button');
-  dismissBtn.type = 'button';
-  dismissBtn.className = 'secondary';
-  dismissBtn.textContent = 'Not this time';
-  const placeBtn = document.createElement('button');
-  placeBtn.type = 'button';
-  placeBtn.textContent = 'Place bet';
-  placeBtn.disabled = true;
-  row.append(dismissBtn, placeBtn);
-  panel.appendChild(row);
-
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-
-  function close() {
-    overlay.remove();
-    bfOpenGlobalModal = null;
-    maybeShowGlobalBetModal();
-    renderWinnerBtn();
-  }
-
-  // Only the explicit button dismisses - no backdrop tap. The offer pops up mid-deal,
-  // right when players are tapping around to look at their cards, and a stray tap
-  // used to throw it away.
-  dismissBtn.addEventListener('click', () => {
-    bfDismissedGlobalTriggers.add(win.trigger);
-    close();
-  });
-  placeBtn.addEventListener('click', () => {
-    if (!pick || !canAfford) return;
-    errorEl.textContent = '';
-    ctx.socket.emit('betPlaceGlobal', { trigger: win.trigger, pick, stake: Number(slider.value) }, (res) => {
+  const place = document.createElement('button');
+  place.type = 'button';
+  place.textContent = `Place ${bfOddsStake}`;
+  place.addEventListener('click', () => {
+    place.disabled = true;
+    bfOddsError.textContent = '';
+    ctx.socket.emit('betPlaceGlobal', { trigger: win.trigger, pick: name, stake: bfOddsStake }, (res) => {
       if (res && !res.ok) {
-        errorEl.textContent = res.error;
+        bfOddsError.textContent = res.error;
+        place.disabled = false;
         return;
       }
-      bfDismissedGlobalTriggers.add(win.trigger);
-      close();
+      bfOddsOpenName = null;
     });
   });
-
-  bfOpenGlobalModal = { trigger: win.trigger, close };
+  actions.append(summary, cancel, place);
+  picker.appendChild(actions);
+  return picker;
 }
 
-/** Shows the next undismissed open global-bet window, if any, one at a time. */
-function maybeShowGlobalBetModal() {
-  if (bfOpenGlobalModal || !lastBettingData) return;
-  const next = (lastBettingData.openGlobalWindows || []).find((w) => !bfDismissedGlobalTriggers.has(w.trigger));
-  if (next) showGlobalBetModal(next, lastBettingData.balance, lastBettingData.minStake);
-}
+/**
+ * The odds board: every seat ranked by cards left, what a match-winner bet on them pays,
+ * and a Back button that opens a stake picker on that row. Replaces a pop-up offer, so
+ * there's nothing to dismiss and lose - the board stays put while a window is open to
+ * this viewer (match start, or their own elimination), and doubles as a card-count
+ * standings view after they've bet.
+ */
+function renderOddsBoard(betting, seats) {
+  bfLastSeats = seats;
+  const win = (betting.openGlobalWindows || [])[0] || null;
+  const { balance, minStake } = betting;
+  const canAfford = balance >= minStake;
+  if (!win || !win.eligible.includes(bfOddsOpenName) || !canAfford) bfOddsOpenName = null;
 
-/** Way back into a dismissed match-winner offer - shown while one is still open to this
- * viewer (not yet placed) and its modal isn't already up. */
-function renderWinnerBtn() {
-  const windows = (lastBettingData && lastBettingData.openGlobalWindows) || [];
-  bfBetWinnerBtn.classList.toggle('hidden', !windows.length || !!bfOpenGlobalModal);
+  const backedTotals = {};
+  (betting.myGlobalBets || []).forEach((bet) => {
+    backedTotals[bet.pick] = (backedTotals[bet.pick] || 0) + bet.stake;
+  });
+
+  const ranked = seats.slice().sort((a, b) => (a.eliminated - b.eliminated) || (b.count - a.count));
+  bfOddsRows.innerHTML = '';
+  ranked.forEach((seat) => {
+    const eligible = !!win && win.eligible.includes(seat.name);
+    const row = document.createElement('div');
+    row.className = 'bf-odds-row';
+    if (seat.eliminated) row.classList.add('bf-odds-out');
+    if (seat.name === bfOddsOpenName) row.classList.add('bf-odds-open');
+
+    const who = document.createElement('span');
+    who.className = 'bf-odds-who';
+    const name = document.createElement('span');
+    name.className = 'bf-odds-name';
+    name.textContent = seat.name;
+    who.appendChild(name);
+    if (backedTotals[seat.name]) {
+      const mine = document.createElement('span');
+      mine.className = 'bf-odds-mine';
+      mine.textContent = `🎲 ${backedTotals[seat.name]}`;
+      who.appendChild(mine);
+    }
+    const cards = document.createElement('span');
+    cards.className = 'bf-odds-cards';
+    cards.textContent = seat.eliminated ? 'Out' : String(seat.count);
+    const pays = document.createElement('span');
+    pays.className = 'bf-odds-pays';
+    pays.textContent = eligible ? bfPayoutMultiplier(win, betting.houseEdge || 0) : '—';
+    row.append(who, cards, pays);
+
+    if (eligible) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'bf-odds-back';
+      back.textContent = 'Back';
+      back.disabled = !canAfford;
+      back.addEventListener('click', () => {
+        bfOddsOpenName = bfOddsOpenName === seat.name ? null : seat.name;
+        bfOddsError.textContent = '';
+        renderOddsBoard(lastBettingData, bfLastSeats);
+      });
+      row.appendChild(back);
+    } else {
+      row.appendChild(document.createElement('span'));
+    }
+    bfOddsRows.appendChild(row);
+    if (seat.name === bfOddsOpenName) bfOddsRows.appendChild(bfOddsPicker(win, seat.name, balance, minStake));
+  });
+
+  if (win && !canAfford) {
+    bfOddsFoot.textContent = `You have ${balance} tokens — the minimum bet is ${minStake}.`;
+  } else if (win && win.trigger === 'start') {
+    bfOddsFoot.textContent = 'Back who wins the match. One bet per match, open until it ends.';
+  } else if (win) {
+    bfOddsFoot.textContent = "You're out — back who wins from here.";
+  } else {
+    bfOddsFoot.textContent = Object.keys(backedTotals).length ? '' : 'No match-winner bet open to you.';
+  }
+  bfOddsFoot.classList.toggle('hidden', !bfOddsFoot.textContent);
+  bfOddsBoard.classList.remove('hidden');
 }
 
 /** Proposals this viewer could accept - targeted at them, or open to the table. */
@@ -857,7 +884,7 @@ function renderOthersBets(others) {
 function renderBetting(betting, seats) {
   // `undefined` means "this frame carried no betting info" - a synchronous broadcast that
   // precedes the pushBettingViews follow-up (server omits the key, see bluffStatePayload).
-  // Leave the current betting UI (and any open bet modal) exactly as-is; tearing it down
+  // Leave the current betting UI (and any open stake picker) exactly as-is; tearing it down
   // and rebuilding it on every broadcast would wipe the player's in-progress pick/stake.
   // `null` (betting off, or a guest) still falls through to the hide path below.
   if (betting === undefined) return;
@@ -866,16 +893,15 @@ function renderBetting(betting, seats) {
     bfBetBalance.classList.add('hidden');
     bfBetSection.classList.add('hidden');
     bfBetOthers.classList.add('hidden');
-    if (bfOpenGlobalModal) bfOpenGlobalModal.close();
-    bfBetWinnerBtn.classList.add('hidden');
+    bfOddsBoard.classList.add('hidden');
+    bfOddsOpenName = null;
     return;
   }
 
   bfBetBalance.classList.remove('hidden');
   bfBetBalance.textContent = `🪙 ${betting.balance} token${betting.balance === 1 ? '' : 's'}`;
 
-  maybeShowGlobalBetModal();
-  renderWinnerBtn();
+  renderOddsBoard(betting, seats || []);
 
   bfBetSection.classList.remove('hidden');
   renderIncomingOffers(betting.incomingSideOffers || []);
@@ -1103,14 +1129,6 @@ export const Bluff = {
       bfBetStakeValue.textContent = bfBetStakeSlider.value;
     });
 
-    bfBetWinnerBtn.addEventListener('click', () => {
-      const windows = (lastBettingData && lastBettingData.openGlobalWindows) || [];
-      if (!windows.length || bfOpenGlobalModal) return;
-      bfDismissedGlobalTriggers.delete(windows[0].trigger);
-      maybeShowGlobalBetModal();
-      renderWinnerBtn();
-    });
-
     bfBetProposeBtn.addEventListener('click', () => {
       if (!bfBetPick) return;
       bfBetError.textContent = '';
@@ -1156,12 +1174,11 @@ export const Bluff = {
     if (bfEditError) bfEditError.textContent = '';
     if (bfEditOpenBtn) bfEditOpenBtn.classList.add('hidden');
     if (bfEditPanel) bfEditPanel.classList.add('hidden');
-    // Cleared before close() - close() itself re-checks lastBettingData for the next
-    // undismissed window, which must not happen while the screen is tearing down.
     lastBettingData = null;
-    if (bfOpenGlobalModal) bfOpenGlobalModal.close();
-    bfDismissedGlobalTriggers = new Set();
-    if (bfBetWinnerBtn) bfBetWinnerBtn.classList.add('hidden');
+    bfOddsOpenName = null;
+    bfLastSeats = [];
+    if (bfOddsBoard) bfOddsBoard.classList.add('hidden');
+    if (bfOddsError) bfOddsError.textContent = '';
     bfBetPick = null;
     bfBetTarget = null;
     if (bfBetError) bfBetError.textContent = '';

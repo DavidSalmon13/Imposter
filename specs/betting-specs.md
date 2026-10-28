@@ -153,9 +153,12 @@ steer a decision:
 
 - **Balance**: a small token counter near the existing scoreboard/status chrome,
   visible once betting is live for that player.
-- **Placing a global bet**: a lightweight modal/sheet at the trigger moment (match start
-  for everyone; elimination for that one newly-spectating player) — pick a name, pick a
-  stake, confirm. Dismissable.
+- **Placing a global bet**: an odds board under the table — one row per player with
+  cards left and what a bet on them pays (×players × 0.9), and a Back button while a
+  window is open to you (match start for everyone; elimination for that one
+  newly-spectating player). Back opens a quick-stake picker (10 / 50 / 100 / All) on that
+  row. No pop-up, so nothing to dismiss by accident; the board stays as a card-count
+  standings view after you've bet.
 - **Placing/receiving a side bet**: a compact composer ("Bet ⟪name⟫ ⟪stake⟫ tokens that
   ⟪pick⟫ is this round's loser") and, for the targeted player, an in-app prompt to
   accept or ignore, gone the moment the round resolves.

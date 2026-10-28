@@ -556,12 +556,11 @@ restart (§7/§14) - added to "Known limitations" below.
 
 ### Client
 
-- [x] `public/js/games/bluff.js`: wallet readout (`#bf-bet-balance`) + global bet offer
-  modal (`showGlobalBetModal`, JS-built like `confirmDialog.js`). Dismissing is
-  client-local only (`bfDismissedGlobalTriggers`) - there's no server "dismiss" call
-  (see the Bluff integration section above and "Known limitations"), so this is what
-  stops a dismissed offer reopening on the next re-render. Shows at most one modal at a
-  time (`maybeShowGlobalBetModal`), re-checked after each close for another pending one.
+- [x] `public/js/games/bluff.js`: wallet readout (`#bf-bet-balance`) + the odds board
+  (`#bf-odds-board`, `renderOddsBoard`) for global bets, replacing the original pop-up
+  offer: a row per seat with cards left and payout multiplier (from the view's
+  `houseEdge`), Back on rows eligible in the first open window, and an inline
+  quick-stake picker (`bfOddsPicker`) whose open row/stake survive re-renders.
 - [x] `public/js/games/bluff.js`: side-bet composer (pick/target chip rows + stake
   slider, `renderComposer`) + incoming-offer accept rows (`renderIncomingOffers`) +
   own-proposal waiting state (`renderMyProposal`, hides the composer per the

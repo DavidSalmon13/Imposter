@@ -461,6 +461,7 @@ async function bettingViewFor(room, roomCode, viewerName, { isSpectator = false,
   const base = {
     balance: await getBalance(userId),
     minStake: BET_MIN_STAKE,
+    houseEdge: BET_HOUSE_EDGE,
     openGlobalWindows: openWindowsFor(room, viewerName),
     myGlobalBets: [],
     mySideProposal: mySideProposal(room, viewerName),
