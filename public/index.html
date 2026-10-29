@@ -40,6 +40,22 @@
   <div id="reaction-row" class="reaction-row hidden"></div>
   <!-- Bluff side-bet offers pop in here (see showOfferToast in js/games/bluff.js). -->
   <div id="bet-offer-toasts" class="bet-offer-toasts" aria-live="polite"></div>
+  <!-- Bluff's full-screen "are the called cards there?" reveal (see js/games/bluff.js). Lives
+       at body level so position: fixed isn't trapped by a transformed .screen ancestor. -->
+  <div id="bf-reveal" class="bf-reveal hidden" role="dialog" aria-modal="true" aria-labelledby="bf-reveal-kicker">
+    <div class="bf-reveal-spot" aria-hidden="true"></div>
+    <div id="bf-reveal-stage" class="bf-reveal-stage">
+      <p id="bf-reveal-kicker" class="bf-reveal-kicker">Bluff called!</p>
+      <p class="bf-reveal-question">Is it on the table?</p>
+      <div id="bf-reveal-cards" class="bf-reveal-cards"></div>
+      <div id="bf-reveal-count" class="bf-reveal-count" aria-live="assertive"></div>
+      <p id="bf-reveal-verdict" class="bf-reveal-verdict" aria-live="assertive"></p>
+      <p id="bf-reveal-strongest" class="bf-reveal-strongest"></p>
+      <button id="bf-reveal-close" class="secondary bf-reveal-close" type="button">Back to the table</button>
+    </div>
+    <div id="bf-reveal-confetti" class="bf-reveal-confetti" aria-hidden="true"></div>
+  </div>
+  <button id="bf-flash" class="bf-flash hidden" type="button" aria-live="polite"></button>
   <div id="reaction-float-layer" class="reaction-float-layer" aria-hidden="true"></div>
 
   <main class="app-main">
@@ -715,6 +731,11 @@
         </div>
         <h2 id="bf-hand-heading" class="mf-section-heading">Your hand</h2>
         <div id="bf-hand" class="mf-card-row bf-hand"></div>
+        <button id="bf-reveal-hand-btn" class="secondary bf-reveal-hand-btn hidden" type="button"></button>
+        <div id="bf-shown-hands" class="bf-shown-hands hidden">
+          <h2 class="mf-section-heading">Shown to the table</h2>
+          <div id="bf-shown-list" class="bf-spectator-hands"></div>
+        </div>
         <div id="bf-spectator-hands" class="bf-spectator-hands hidden"></div>
         <div id="bf-bet-others" class="bf-bet-others hidden"></div>
 

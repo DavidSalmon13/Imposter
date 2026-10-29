@@ -55,6 +55,7 @@ function clearState(room, roomCode) {
   room.bfHands = {};
   room.bfLastResult = null;
   room.bfCheck = null;
+  room.bfRevealed = [];
   room.bfEditing = false;
   room.bfEditCounts = {};
   // Betting state is match-scoped (see betting-implementation-plan.md, section 6) - without this,
@@ -154,6 +155,14 @@ function isBluffSpectator(room, viewerName) {
   );
 }
 
+/** Players who chose to show this round's hand to the whole table, in seat order. */
+function bluffRevealedHands(room) {
+  const revealed = room.bfRevealed || [];
+  return room.bfPlayers
+    .filter((n) => revealed.includes(n) && (room.bfHands[n] || []).length > 0)
+    .map((n) => ({ name: n, cards: room.bfHands[n].slice() }));
+}
+
 function bluffAllHands(room) {
   return room.bfPlayers
     .filter((n) => (room.bfCounts[n] || 0) > 0)
@@ -204,6 +213,10 @@ function bluffStatePayload(ctx, room, viewerName, bettingView) {
     myHand: myHand ? myHand.slice() : null,
     isSpectator,
     allHands: isSpectator ? bluffAllHands(room) : null,
+    revealedHands: room.phase === 'playing' ? bluffRevealedHands(room) : [],
+    myHandRevealed: (room.bfRevealed || []).includes(viewerName),
+    canRevealHand:
+      room.phase === 'playing' && !isSpectator && !!myHand && myHand.length > 0,
     lastResult: room.bfLastResult,
     // `present`/`perCard`/`strongest` stay null until the countdown ends, so nobody can peek
     // at the answer early.
@@ -211,6 +224,8 @@ function bluffStatePayload(ctx, room, viewerName, bettingView) {
       ? {
           id: room.bfCheck.id,
           label: room.bfCheck.label,
+          // What the host called - public, so every phone can lay the face-down cards out.
+          ranks: room.bfCheck.ranks.slice(),
           remainingMs: Math.max(0, room.bfCheck.revealAt - Date.now()),
           present: room.bfCheck.present,
           perCard: room.bfCheck.perCard,
@@ -263,6 +278,7 @@ function dealBluffRound(ctx, roomCode, room) {
   }
   room.bfHands = hands;
   room.bfLastResult = null;
+  room.bfRevealed = [];
   if (roomCode) clearCheckTimer(roomCode);
   room.bfCheck = null;
   room.bfRoundNumber += 1;
@@ -599,6 +615,28 @@ function registerHandlers(ctx, io, socket) {
     );
   });
 
+  // Any player still holding cards can show (or hide again) this round's hand to the whole
+  // table - e.g. to prove a call in real life. Cleared on the next deal.
+  socket.on('bfRevealHand', (data, callback) => {
+    callback = callback || (() => {});
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'bluff' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'Not playing right now' });
+    }
+    const name = socket.data.name;
+    if (!room.bfPlayers.includes(name) || !(room.bfHands[name] || []).length) {
+      return callback({ ok: false, error: 'You have no hand to show' });
+    }
+
+    const reveal = !(data && data.reveal === false);
+    const others = (room.bfRevealed || []).filter((n) => n !== name);
+    room.bfRevealed = reveal ? [...others, name] : others;
+    callback({ ok: true });
+    broadcastBluff(ctx, roomCode, room);
+  });
+
   socket.on('bfResetGame', (callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;
@@ -619,6 +657,7 @@ function registerHandlers(ctx, io, socket) {
     room.bfEliminationOrder = [];
     room.bfHands = {};
     room.bfLastResult = null;
+    room.bfRevealed = [];
     room.bfEditing = false;
     room.bfEditCounts = {};
     // Resetting mid-match abandons any open bet the same way a restart does (see
@@ -795,6 +834,7 @@ function repairOnLoad(ctx, room) {
 
   room.bfHands = {};
   room.bfLastResult = null;
+  room.bfRevealed = [];
   dealBluffRound(ctx, roomCode, room);
 }
 
