@@ -74,6 +74,26 @@ export const sfx = {
   error() {
     tone(180, 0.15, { type: 'sawtooth', gain: 0.08 });
   },
+  // Countdown beat - `step` counts down (3, 2, 1) and the pitch climbs as it does.
+  tick(step = 1) {
+    const freq = 440 + (4 - Math.max(1, Math.min(3, step))) * 110;
+    tone(freq, 0.09, { type: 'square', gain: 0.06 });
+    tone(freq / 2, 0.14, { type: 'triangle', gain: 0.1 });
+  },
+  flip() {
+    tone(1200, 0.035, { type: 'triangle', gain: 0.05 });
+    tone(700, 0.05, { type: 'triangle', gain: 0.05, delay: 0.025 });
+  },
+  fanfare() {
+    [523, 659, 784].forEach((freq, i) => tone(freq, 0.14, { type: 'triangle', delay: i * 0.08 }));
+    tone(1046, 0.45, { type: 'triangle', gain: 0.14, delay: 0.26 });
+    tone(784, 0.45, { type: 'sine', gain: 0.08, delay: 0.26 });
+  },
+  buzzer() {
+    tone(150, 0.5, { type: 'sawtooth', gain: 0.1 });
+    tone(155, 0.5, { type: 'square', gain: 0.05 });
+    tone(110, 0.35, { type: 'sawtooth', gain: 0.08, delay: 0.32 });
+  },
 };
 
 export function isMuted() {

@@ -155,8 +155,33 @@ called are actually there among **every active player's cards pooled together**.
 - The verdict is informational only — the host still taps the round's loser as before
   (seat-tapping is disabled while a countdown runs). The host may check other cards after
   a verdict (e.g. a mis-entry). The check clears when the next round is dealt.
+- **Full-screen reveal**: every phone that sees the check while it's still counting down
+  plays a full-screen moment over the table: "Bluff called!", the called values dealt
+  face-down, a big 3-2-1 (tick sound + vibration each beat, spotlight and cards trembling
+  faster as it runs down), then each card flips in turn - green ✓ if it's there, red ✗ if
+  not (long calls flip faster, about 2.4s total at most) - and the verdict slams in:
+  "It's there!" with confetti and a fanfare, or "Not there!" with a screen shake and a
+  buzzer. It shows the strongest hand on the table too, closes on "Back to the table" /
+  Escape or on its own after a few seconds, and leaves the compact result card on the
+  table. A phone that (re)connects after the verdict only gets the compact card. The
+  payload carries the called `ranks` (public - the host called them) so the face-down
+  cards can be laid out before the answer exists.
 - `room.bfCheck` (`{ id, ranks, label, revealAt, present }`) is **not persisted**, like
   `bfHands`: after a restart the round is re-dealt, so any check is moot.
+
+## Showing your hand to the table (any player)
+
+- Every player still holding cards gets a **"Show my hand to everyone"** button under their
+  hand (after a confirm), e.g. to prove a call in real life. Not host-only.
+- Shown hands appear on every other phone under "Shown to the table" (cards flip in), with
+  a 👁 badge on that player's seat and a "<name> showed their hand" pill at the top of the
+  screen (tap it to scroll to the hand). The player's own hand gets a gold outline, and the
+  button becomes **"Hide my hand"** to take it back off the table.
+- Spectators already see every hand, so for them it's just the seat badges.
+- Purely informational - it changes no counts and blocks nothing. Cleared on every deal
+  (and on Reset Game / a restart re-deal). `room.bfRevealed` (names, in reveal order) is
+  **not persisted**; the payload carries `revealedHands`, `myHandRevealed` and
+  `canRevealHand`.
 
 ## Editing card counts mid-match (host-controlled)
 
@@ -210,7 +235,7 @@ hand, a card dropped on the floor, etc.) - not a gameplay mechanic.
 
 ## Disconnects
 
-- Since the only player-facing action in this entire game is the host's seat-tap, a
+- Since the only gameplay action in this entire game is the host's seat-tap, a
   disconnect never blocks anything — a disconnected player's seat just shows an "offline"
   dim indicator; they remain fully eligible to be picked as a round's loser (the host is
   adjudicating based on real life, where that player may well still be physically present
@@ -231,6 +256,8 @@ hand, a card dropped on the floor, etc.) - not a gameplay mechanic.
 - `room.bfLastResult`: `{ loserName, newCount, eliminated }` for the brief highlight/animation
   window between a loser pick and the next deal — **not persisted**, cleared the moment the
   next round deals.
+- `room.bfRevealed`: names who showed this round's hand to the table — **not persisted**,
+  cleared on every deal.
 - `room.bfEditing`: whether the host currently has the "Edit card counts" draft open —
   **not persisted**; a server restart mid-edit just drops back to normal play.
 - `room.bfEditCounts`: name → draft count while `bfEditing` — **not persisted**.
@@ -255,8 +282,8 @@ excluded, matching All-In or Fold's "in-flight hand isn't persisted" simplificat
 - No bluffing/calling-out mechanic of any kind is simulated — that's entirely verbal, among
   the real players, exactly as the original ask requires ("Do NOT implement poker rules or
   gameplay logic," "Do NOT simulate gameplay decisions or turns").
-- No per-player actions besides the host's seat-tap — no other player ever submits anything
-  to the server during a match.
+- No gameplay actions besides the host's seat-tap — the only things other players ever
+  submit during a match are showing/hiding their own hand and (signed in) bets.
 - No mid-match joining/leaving of the roster (unlike All-In or Fold) — the roster is frozen
   at Start Match and stays fixed for the whole match, including through a Reset Game.
 - No seat re-layout on elimination — the circle's shape never changes once a match starts.

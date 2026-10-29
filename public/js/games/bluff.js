@@ -6,7 +6,7 @@ import { renderScoreboard } from '../shared/scoreboard.js';
 import { confirmDialog } from '../shared/confirmDialog.js';
 import { emojiForName } from '../shared/playerEmoji.js';
 import { setTokenBalance } from '../shared/tokens.js';
-import { sfx, haptics } from '../fx.js';
+import { sfx, haptics, haptic } from '../fx.js';
 
 const BF_SUIT_SYMBOL = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const BF_SUIT_CLASS = { s: 'bf-suit-s', h: 'bf-suit-h', d: 'bf-suit-d', c: 'bf-suit-c' };
@@ -61,6 +61,20 @@ const bfEditError = document.getElementById('bf-edit-error');
 const bfEditActions = document.getElementById('bf-edit-actions');
 const bfEditCancelBtn = document.getElementById('bf-edit-cancel-btn');
 const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
+const bfRevealHandBtn = document.getElementById('bf-reveal-hand-btn');
+const bfShownHands = document.getElementById('bf-shown-hands');
+const bfShownList = document.getElementById('bf-shown-list');
+const bfFlash = document.getElementById('bf-flash');
+
+// Full-screen check reveal - countdown, card flips, verdict (body-level, see index.html).
+const bfReveal = document.getElementById('bf-reveal');
+const bfRevealStage = document.getElementById('bf-reveal-stage');
+const bfRevealCards = document.getElementById('bf-reveal-cards');
+const bfRevealCount = document.getElementById('bf-reveal-count');
+const bfRevealVerdict = document.getElementById('bf-reveal-verdict');
+const bfRevealStrongest = document.getElementById('bf-reveal-strongest');
+const bfRevealClose = document.getElementById('bf-reveal-close');
+const bfRevealConfetti = document.getElementById('bf-reveal-confetti');
 
 // Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
 // data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
@@ -115,6 +129,24 @@ let bfCheckShownId = null;
 let bfCheckTimer = null;
 let bfCheckRevealAt = 0;
 let bfCheckPresent = null;
+
+// The full-screen reveal plays once per check id, and only for a check this phone saw
+// while it was still counting down - a reconnect after the verdict just gets the compact card.
+const BF_REVEAL_FLIP_STAGGER_MS = 320;
+const BF_REVEAL_FLIP_TOTAL_MAX_MS = 2400; // long calls flip faster rather than drag on
+const BF_REVEAL_VERDICT_PAUSE_MS = 350;
+const BF_REVEAL_AUTOCLOSE_MS = 6500;
+let bfRevealId = null;
+let bfRevealResolved = false;
+let bfRevealBeat = null;
+let bfRevealTimers = [];
+
+// Hands players chose to show the table - names shown this round, so only a fresh
+// reveal pops the flash pill and flips its cards in.
+let bfRevealedNames = new Set();
+let bfShownRound = null;
+const bfShownSeen = new Set();
+let bfFlashTimer = null;
 
 // Betting UI state, kept across re-renders (e.g. the pushBettingViews follow-up
 // correction) so an in-progress pick survives every broadcast.
@@ -286,6 +318,7 @@ function renderBfSeats(seats, { tappable, highlightName } = {}) {
     if (!seat.connected) seatEl.classList.add('bf-seat-offline');
     if (seat.eliminated) seatEl.classList.add('bf-seat-eliminated');
     if (seat.name === highlightName) seatEl.classList.add('bf-seat-highlight');
+    if (bfRevealedNames.has(seat.name)) seatEl.classList.add('bf-seat-shown');
 
     const avatar = document.createElement(canTap ? 'button' : 'div');
     avatar.className = 'bf-seat-avatar';
@@ -308,6 +341,13 @@ function renderBfSeats(seats, { tappable, highlightName } = {}) {
       avatar.appendChild(emoji);
     }
     seatEl.appendChild(avatar);
+    if (bfRevealedNames.has(seat.name)) {
+      const eye = document.createElement('span');
+      eye.className = 'bf-seat-shown-badge';
+      eye.textContent = '👁';
+      eye.title = `${seat.name} is showing their hand`;
+      seatEl.appendChild(eye);
+    }
 
     const chip = document.createElement('div');
     chip.className = 'bf-seat-chip';
@@ -508,6 +548,7 @@ function renderCheckStrongest(strongest) {
 /** Shows the called cards, a 3-2-1 countdown, then which were there (and which weren't)
  * plus the strongest hand sitting on the table. */
 function applyCheck(check) {
+  bfRevealSync(check);
   if (!check) {
     stopCheckCountdown();
     bfCheckShownId = null;
@@ -534,6 +575,223 @@ function applyCheck(check) {
   } else {
     renderCheckCards(check.perCard);
     renderCheckStrongest(check.strongest);
+  }
+}
+
+function bfRevealClearTimers() {
+  bfRevealTimers.forEach((t) => clearTimeout(t));
+  bfRevealTimers = [];
+}
+
+function bfRevealHide() {
+  bfRevealClearTimers();
+  bfReveal.classList.add('hidden');
+  bfReveal.classList.remove('bf-reveal-present', 'bf-reveal-absent', 'bf-reveal-done');
+  bfRevealStage.classList.remove('bf-reveal-shake');
+  bfRevealConfetti.innerHTML = '';
+}
+
+function bfRevealCardEl(rank) {
+  const card = document.createElement('div');
+  card.className = 'bf-rc';
+  const inner = document.createElement('div');
+  inner.className = 'bf-rc-inner';
+  const back = document.createElement('div');
+  back.className = 'bf-rc-face bf-rc-back';
+  const front = document.createElement('div');
+  front.className = 'bf-rc-face bf-rc-front';
+  const rankEl = document.createElement('span');
+  rankEl.className = 'bf-rc-rank';
+  rankEl.textContent = bfRankText(rank);
+  const mark = document.createElement('span');
+  mark.className = 'bf-rc-mark';
+  front.append(rankEl, mark);
+  inner.append(back, front);
+  card.appendChild(inner);
+  return card;
+}
+
+/** Each beat of the 3-2-1 pops a fresh number in (a new node restarts the animation). */
+function bfRevealRenderBeat() {
+  const left = Math.max(1, Math.ceil((bfCheckRevealAt - Date.now()) / 1000));
+  if (left === bfRevealBeat) return;
+  bfRevealBeat = left;
+  bfRevealCount.innerHTML = '';
+  const num = document.createElement('span');
+  num.className = 'bf-reveal-num';
+  num.textContent = String(left);
+  bfRevealCount.appendChild(num);
+  bfReveal.style.setProperty('--bf-beat', String(left));
+  sfx.tick(left);
+  haptic(left === 1 ? 40 : 20);
+}
+
+function bfRevealOpen(check) {
+  bfRevealHide();
+  bfRevealCards.innerHTML = '';
+  (check.ranks || []).forEach((r) => bfRevealCards.appendChild(bfRevealCardEl(r)));
+  bfRevealCards.classList.toggle('bf-reveal-cards-many', (check.ranks || []).length > 6);
+  bfRevealVerdict.textContent = '';
+  bfRevealStrongest.textContent = '';
+  bfRevealClose.classList.add('hidden');
+  bfRevealBeat = null;
+  bfReveal.classList.remove('hidden');
+  bfRevealRenderBeat();
+  // The countdown interval only runs while the server hasn't answered yet.
+  const beat = setInterval(() => {
+    if (bfRevealResolved || bfReveal.classList.contains('hidden')) return clearInterval(beat);
+    bfRevealRenderBeat();
+  }, 100);
+}
+
+function bfRevealConfettiBurst() {
+  const colors = ['#f6c768', '#8cbf63', '#ec8b78', '#fff3dc', '#7cc6ff', '#c58cff'];
+  bfRevealConfetti.innerHTML = '';
+  for (let i = 0; i < 70; i++) {
+    const bit = document.createElement('span');
+    bit.className = 'bf-confetti-bit';
+    bit.style.left = `${Math.random() * 100}%`;
+    bit.style.background = colors[i % colors.length];
+    bit.style.setProperty('--drift', `${(Math.random() - 0.5) * 140}px`);
+    bit.style.setProperty('--spin', `${(Math.random() - 0.5) * 1440}deg`);
+    bit.style.animationDelay = `${Math.random() * 0.35}s`;
+    bit.style.animationDuration = `${1.6 + Math.random() * 1.4}s`;
+    if (i % 3 === 0) bit.style.borderRadius = '50%';
+    bfRevealConfetti.appendChild(bit);
+  }
+}
+
+/** The server's answer is in: flip each called card in turn (green = there, red =
+ * missing), then slam the verdict down. */
+function bfRevealResolve(check) {
+  bfRevealCount.innerHTML = '';
+  const cards = Array.from(bfRevealCards.children);
+  const perCard = check.perCard || [];
+  const stagger = Math.min(BF_REVEAL_FLIP_STAGGER_MS, BF_REVEAL_FLIP_TOTAL_MAX_MS / Math.max(1, cards.length));
+  cards.forEach((card, i) => {
+    bfRevealTimers.push(
+      setTimeout(() => {
+        const present = perCard[i] ? perCard[i].present : check.present;
+        card.classList.add('bf-rc-flipped', present ? 'bf-rc-present' : 'bf-rc-missing');
+        card.querySelector('.bf-rc-mark').textContent = present ? '✓' : '✗';
+        sfx.flip();
+        haptics.tap();
+      }, i * stagger)
+    );
+  });
+
+  const verdictAt = cards.length * stagger + BF_REVEAL_VERDICT_PAUSE_MS;
+  bfRevealTimers.push(
+    setTimeout(() => {
+      bfReveal.classList.add('bf-reveal-done', check.present ? 'bf-reveal-present' : 'bf-reveal-absent');
+      bfRevealVerdict.textContent = check.present ? "It's there!" : 'Not there!';
+      bfRevealStrongest.textContent = check.strongest
+        ? `Strongest hand on the table: ${check.strongest.label}`
+        : 'No pairs on the table right now.';
+      bfRevealClose.classList.remove('hidden');
+      if (check.present) {
+        bfRevealConfettiBurst();
+        sfx.fanfare();
+        haptics.success();
+      } else {
+        bfRevealStage.classList.add('bf-reveal-shake');
+        sfx.buzzer();
+        haptic([90, 50, 180]);
+      }
+    }, verdictAt)
+  );
+  bfRevealTimers.push(setTimeout(bfRevealHide, verdictAt + BF_REVEAL_AUTOCLOSE_MS));
+}
+
+function bfRevealSync(check) {
+  if (!check) {
+    bfRevealId = null;
+    bfRevealHide();
+    return;
+  }
+  if (check.id !== bfRevealId) {
+    bfRevealId = check.id;
+    bfRevealResolved = false;
+    if (check.present !== null) {
+      bfRevealResolved = true;
+      return;
+    }
+    bfCheckRevealAt = Date.now() + check.remainingMs;
+    bfRevealOpen(check);
+    return;
+  }
+  if (check.present !== null && !bfRevealResolved) {
+    bfRevealResolved = true;
+    if (!bfReveal.classList.contains('hidden')) bfRevealResolve(check);
+  }
+}
+
+function bfShowFlash(text) {
+  bfFlash.textContent = text;
+  bfFlash.classList.remove('hidden', 'bf-flash-in');
+  void bfFlash.offsetWidth;
+  bfFlash.classList.add('bf-flash-in');
+  clearTimeout(bfFlashTimer);
+  bfFlashTimer = setTimeout(() => bfFlash.classList.add('hidden'), 3200);
+}
+
+function bfHideFlash() {
+  clearTimeout(bfFlashTimer);
+  bfFlash.classList.add('hidden');
+}
+
+/** Hands other players chose to show the whole table, plus the viewer's own show/hide
+ * button. Spectators already see every hand, so they only get the seat badges. */
+function renderShownHands(data) {
+  const me = ctx.getMyName();
+  const shown = data.revealedHands || [];
+  if (bfShownRound !== data.roundNumber) {
+    bfShownRound = data.roundNumber;
+    bfShownSeen.clear();
+    shown.forEach((h) => bfShownSeen.add(h.name));
+  }
+
+  bfRevealHandBtn.classList.toggle('hidden', !data.canRevealHand);
+  bfRevealHandBtn.textContent = data.myHandRevealed ? '🙈 Hide my hand' : '👁 Show my hand to everyone';
+  bfRevealHandBtn.dataset.revealed = data.myHandRevealed ? '1' : '';
+  bfHandEl.classList.toggle('bf-hand-public', !!data.myHandRevealed && !data.isSpectator);
+
+  const others = data.isSpectator ? [] : shown.filter((h) => h.name !== me);
+  bfShownList.innerHTML = '';
+  others.forEach((hand) => {
+    const fresh = !bfShownSeen.has(hand.name);
+    const row = document.createElement('div');
+    row.className = 'bf-spectator-row';
+    const name = document.createElement('p');
+    name.className = 'bf-spectator-name';
+    name.textContent = `👁 ${hand.name}`;
+    row.appendChild(name);
+    const cards = document.createElement('div');
+    cards.className = 'mf-card-row bf-hand';
+    bfSortCards(hand.cards).forEach((card, i) => {
+      const el = makeBfCardEl(card);
+      if (fresh) {
+        el.classList.add('bf-card-flip-in');
+        el.style.animationDelay = `${i * 70}ms`;
+      }
+      cards.appendChild(el);
+    });
+    row.appendChild(cards);
+    bfShownList.appendChild(row);
+  });
+  bfShownHands.classList.toggle('hidden', others.length === 0);
+
+  const fresh = shown.filter((h) => !bfShownSeen.has(h.name));
+  fresh.forEach((h) => bfShownSeen.add(h.name));
+  const freshOthers = fresh.filter((h) => h.name !== me);
+  if (freshOthers.length) {
+    bfShowFlash(`👀 ${freshOthers.map((h) => h.name).join(', ')} showed their hand`);
+    sfx.flip();
+    haptics.tap();
+  }
+  // Hidden again - forget them so showing a second time pops the flash again.
+  for (const n of Array.from(bfShownSeen)) {
+    if (!shown.some((h) => h.name === n)) bfShownSeen.delete(n);
   }
 }
 
@@ -1041,6 +1299,7 @@ function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
   bfEditError.textContent = '';
+  bfRevealedNames = new Set((data.revealedHands || []).map((h) => h.name));
   runResultSequence(data);
   applyCheck(data.check);
   renderEditPanel(data);
@@ -1056,6 +1315,7 @@ function applyTable(data) {
   bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
   renderHandOrSpectator(data);
+  renderShownHands(data);
   renderBetting(data.betting, data.seats);
 }
 
@@ -1133,6 +1393,10 @@ function applyState(data) {
     bfTableFelt.classList.remove('bf-dealing');
     bfEditOpenBtn.classList.add('hidden');
     bfEditPanel.classList.add('hidden');
+    bfRevealHandBtn.classList.add('hidden');
+    bfShownHands.classList.add('hidden');
+    bfRevealedNames = new Set();
+    bfHideFlash();
     renderBetting(null, []);
   }
 
@@ -1252,6 +1516,31 @@ export const Bluff = {
       socket.emit('backToLobby', () => {});
     });
 
+    bfRevealClose.addEventListener('click', bfRevealHide);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !bfReveal.classList.contains('hidden')) bfRevealHide();
+    });
+
+    bfFlash.addEventListener('click', () => {
+      bfHideFlash();
+      bfShownHands.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    bfRevealHandBtn.addEventListener('click', async () => {
+      const reveal = !bfRevealHandBtn.dataset.revealed;
+      if (reveal) {
+        const ok = await confirmDialog('Everyone at the table will see your cards until the next deal.', {
+          title: 'Show your hand?',
+          confirmLabel: 'Show it',
+        });
+        if (!ok) return;
+      }
+      bfTableError.textContent = '';
+      socket.emit('bfRevealHand', { reveal }, (res) => {
+        if (res && !res.ok) bfTableError.textContent = res.error;
+      });
+    });
+
     bfBetProposeBtn.addEventListener('click', () => {
       if (!bfBetPick) return;
       bfBetError.textContent = '';
@@ -1284,6 +1573,10 @@ export const Bluff = {
 
   stop() {
     applyCheck(null);
+    bfHideFlash();
+    bfRevealedNames = new Set();
+    bfShownRound = null;
+    bfShownSeen.clear();
     resetBuilder();
     if (bfCheckBuilder) bfCheckBuilder.classList.add('hidden');
     bfClearSequenceTimers();

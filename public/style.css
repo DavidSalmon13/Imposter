@@ -4189,6 +4189,411 @@ button.confirm-danger {
   font-size: 0.95rem;
 }
 
+/* ---------- Bluff: full-screen check reveal (bfRevealOpen/bfRevealResolve in bluff.js) ---------- */
+.bf-reveal {
+  --bf-beat: 3;
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  background: radial-gradient(ellipse at 50% 42%, rgba(42, 20, 8, 0.82) 0%, rgba(10, 4, 1, 0.96) 70%);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  animation: confirm-fade-in 0.2s var(--ease);
+  transition: background 0.4s var(--ease);
+}
+
+.bf-reveal.hidden {
+  display: none;
+}
+
+.bf-reveal.bf-reveal-present {
+  background: radial-gradient(ellipse at 50% 42%, rgba(60, 110, 30, 0.9) 0%, rgba(8, 22, 4, 0.97) 72%);
+}
+
+.bf-reveal.bf-reveal-absent {
+  background: radial-gradient(ellipse at 50% 42%, rgba(140, 30, 20, 0.9) 0%, rgba(26, 4, 2, 0.97) 72%);
+}
+
+/* A spotlight that throbs faster as the countdown runs down. */
+.bf-reveal-spot {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 34rem;
+  height: 34rem;
+  margin: -17rem 0 0 -17rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 199, 104, 0.28) 0%, transparent 62%);
+  pointer-events: none;
+  animation: bf-spot-throb calc(0.25s + var(--bf-beat) * 0.22s) ease-in-out infinite;
+}
+
+.bf-reveal-done .bf-reveal-spot {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes bf-spot-throb {
+  0%, 100% { transform: scale(0.85); opacity: 0.6; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+
+.bf-reveal-stage {
+  position: relative;
+  width: min(100%, 26rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  color: var(--cream);
+  animation: screen-in 0.35s var(--ease-bounce);
+}
+
+.bf-reveal-kicker {
+  margin: 0;
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sun);
+  text-shadow: 0 4px 0 var(--bark), 0 0 24px rgba(246, 199, 104, 0.5);
+  animation: bf-slam 0.5s var(--ease-bounce) both;
+}
+
+.bf-reveal-question {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 243, 220, 0.75);
+}
+
+.bf-reveal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0.6rem 0 0.2rem;
+  perspective: 900px;
+}
+
+.bf-rc {
+  width: 3.6rem;
+  height: 5rem;
+  animation: bf-rc-deal 0.4s var(--ease-bounce) both;
+}
+
+.bf-reveal-cards-many .bf-rc {
+  width: 2.7rem;
+  height: 3.8rem;
+}
+
+.bf-rc:nth-child(2) { animation-delay: 0.06s; }
+.bf-rc:nth-child(3) { animation-delay: 0.12s; }
+.bf-rc:nth-child(4) { animation-delay: 0.18s; }
+.bf-rc:nth-child(5) { animation-delay: 0.24s; }
+.bf-rc:nth-child(n+6) { animation-delay: 0.3s; }
+
+@keyframes bf-rc-deal {
+  from { transform: translateY(-60vh) rotate(-25deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.bf-rc-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s var(--ease-bounce);
+}
+
+/* Face-down cards tremble while everyone waits... harder on the last beat. */
+.bf-reveal:not(.bf-reveal-done) .bf-rc:not(.bf-rc-flipped) .bf-rc-inner {
+  animation: bf-rc-tremble calc(0.12s + var(--bf-beat) * 0.08s) ease-in-out infinite;
+}
+
+@keyframes bf-rc-tremble {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg) translateY(-2px); }
+}
+
+.bf-rc-flipped .bf-rc-inner {
+  transform: rotateY(180deg) scale(1.08);
+}
+
+.bf-rc-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+}
+
+.bf-rc-back {
+  border: 3px solid var(--cream);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 243, 220, 0.18) 0 4px, transparent 4px 10px),
+    repeating-linear-gradient(-45deg, rgba(255, 243, 220, 0.18) 0 4px, transparent 4px 10px),
+    linear-gradient(160deg, #b8342a 0%, #7d1c14 100%);
+}
+
+.bf-rc-front {
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  background: linear-gradient(160deg, #fffdf7 0%, #efe8d8 100%);
+  color: #1a1a1a;
+  border: 3px solid transparent;
+}
+
+.bf-rc-rank {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.bf-reveal-cards-many .bf-rc-rank {
+  font-size: 1.25rem;
+}
+
+.bf-rc-mark {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.bf-rc-present .bf-rc-front {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 2px var(--leaf), 0 0 22px 4px rgba(140, 191, 99, 0.75);
+}
+
+.bf-rc-present .bf-rc-mark {
+  color: #3f7d1d;
+}
+
+.bf-rc-missing .bf-rc-front {
+  border-color: #d94f3f;
+  background: linear-gradient(160deg, #ffe3de 0%, #f4b3a8 100%);
+  box-shadow: 0 0 0 2px #d94f3f, 0 0 22px 4px rgba(217, 79, 63, 0.75);
+}
+
+.bf-rc-missing .bf-rc-mark {
+  color: #a8291c;
+}
+
+.bf-reveal-count {
+  min-height: 7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bf-reveal-done .bf-reveal-count {
+  display: none;
+}
+
+.bf-reveal-num {
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cream);
+  text-shadow: 0 6px 0 var(--bark), 0 0 40px rgba(246, 199, 104, 0.7);
+  animation: bf-num-pop 0.9s var(--ease) both;
+}
+
+@keyframes bf-num-pop {
+  0% { transform: scale(2.4); opacity: 0; }
+  25% { transform: scale(0.92); opacity: 1; }
+  40% { transform: scale(1.04); }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0.35; }
+}
+
+.bf-reveal-verdict {
+  margin: 0.4rem 0 0;
+  min-height: 0;
+  font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.bf-reveal-verdict:empty {
+  display: none;
+}
+
+.bf-reveal-present .bf-reveal-verdict {
+  color: #c9f29f;
+  text-shadow: 0 5px 0 #1f4a0c, 0 0 30px rgba(140, 191, 99, 0.9);
+  animation: bf-slam 0.55s var(--ease-bounce) both;
+}
+
+.bf-reveal-absent .bf-reveal-verdict {
+  color: #ffb3a6;
+  text-shadow: 0 5px 0 #4a0c06, 0 0 30px rgba(217, 79, 63, 0.9);
+  animation: bf-slam 0.55s var(--ease-bounce) both;
+}
+
+@keyframes bf-slam {
+  0% { transform: scale(3) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(0.92) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.bf-reveal-strongest {
+  margin: 0;
+  font-weight: 600;
+  color: rgba(255, 243, 220, 0.85);
+  animation: confirm-fade-in 0.4s var(--ease) 0.3s both;
+}
+
+.bf-reveal-strongest:empty {
+  display: none;
+}
+
+.bf-reveal-close {
+  margin-top: 0.6rem;
+  animation: confirm-fade-in 0.4s var(--ease) 0.5s both;
+}
+
+.bf-reveal-shake {
+  animation: bf-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes bf-shake {
+  10%, 90% { transform: translateX(-3px); }
+  20%, 80% { transform: translateX(6px); }
+  30%, 50%, 70% { transform: translateX(-12px) rotate(-1deg); }
+  40%, 60% { transform: translateX(12px) rotate(1deg); }
+}
+
+.bf-reveal-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bf-confetti-bit {
+  position: absolute;
+  top: -20px;
+  width: 9px;
+  height: 15px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: bf-confetti-fall;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.5, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes bf-confetti-fall {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bf-reveal-num {
+    animation: none;
+  }
+}
+
+/* ---------- Bluff: players showing their hand to the table ---------- */
+.bf-reveal-hand-btn {
+  margin: 0 0 0.4rem;
+}
+
+#bf-hand.bf-hand-public {
+  border-color: var(--sun);
+  box-shadow: 0 0 0 2px var(--sun), 0 0 18px rgba(246, 199, 104, 0.35);
+}
+
+.bf-shown-hands {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.bf-shown-hands.hidden {
+  display: none;
+}
+
+.bf-seat-shown-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: calc(50% - 2.3rem);
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--sun);
+  border: 2px solid var(--bark);
+  font-size: 0.85rem;
+  line-height: 1;
+  animation: bf-slam 0.45s var(--ease-bounce) both;
+}
+
+.bf-seat-shown .bf-seat-avatar {
+  box-shadow: 0 0 0 3px var(--sun), 0 0 14px rgba(246, 199, 104, 0.55);
+}
+
+.bf-card-flip-in {
+  animation: bf-card-flip-in 0.45s var(--ease-bounce) both;
+}
+
+@keyframes bf-card-flip-in {
+  from { transform: perspective(500px) rotateY(90deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.bf-flash {
+  position: fixed;
+  top: calc(0.8rem + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 175;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: calc(100% - 2rem);
+  min-height: 0;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: var(--sun);
+  color: var(--accent-text);
+  border: 3px solid var(--bark);
+  box-shadow: 0 4px 0 var(--bark), var(--shadow-soft);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bf-flash.hidden {
+  display: none;
+}
+
+.bf-flash-in {
+  animation: bf-flash-in 0.4s var(--ease-bounce) both;
+}
+
+@keyframes bf-flash-in {
+  from { transform: translate(-50%, -150%); }
+  to { transform: translate(-50%, 0); }
+}
+
 /* ---------- Bluff: tokens & betting (plans/betting-implementation-plan.md) ---------- */
 .bf-bet-balance {
   display: inline-block;
