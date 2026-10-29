@@ -86,6 +86,12 @@ disconnect/reconnect socket handlers that delegate into the active game via
 `<script type="module" src="js/main.js">`. Each game module exports
 `init` / `applyState` (or `applyJoin`) / `stop`, matching the Menifot client pattern.
 
+The look is the "Afterglow" theme (dark ground, glass panels, lime accent): `public/theme-afterglow.css`,
+loaded after `style.css` and switched on by `<html data-theme="afterglow">` in `index.html` and
+`account.html`. It overrides `style.css`'s colour tokens and restyles components with
+zero-specificity `:where(...)` selectors, so it never changes ids, markup or JS. Removing the
+attribute brings back the original wooden theme. Restyle a component there, not in `style.css`.
+
 ## Testing
 
 `npm test` runs the server-side unit suite (`tests/games/*.test.js`, one file

@@ -1,0 +1,791 @@
+/* ---------- Afterglow theme ----------
+   Dark night ground with soft colour glows, frosted-glass panels and a lime accent.
+   Loaded after style.css and switched on by <html data-theme="afterglow">; drop that
+   attribute (or this file) to get the original wooden theme back.
+
+   Every rule is wrapped in :where(...) so the theme prefix adds no specificity: each
+   override ties with the style.css selector it replaces and wins only because this file
+   loads later. More specific rules in style.css (ids, state classes) keep working. */
+
+@font-face {
+  font-family: 'Sora';
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('fonts/sora.woff2') format('woff2');
+}
+
+/* Sora has no Hebrew; Rubik fills in for Hebrew letters only (e.g. Hebrew Codenames). */
+@font-face {
+  font-family: 'Rubik';
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('fonts/rubik-hebrew.woff2') format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+
+:root[data-theme="afterglow"] {
+  /* Palette. The wood names are kept so every style.css rule that reads them follows. */
+  --bark: #05050b;
+  --wood: #1b1930;
+  --wood-mid: #17152a;
+  --wood-light: #2a2745;
+  --cream: #f4f2ff;
+  --peach: #c4b5fd;
+  --orange: #c6ff4a;
+  --leaf: #4ade80;
+  --leaf-dark: #16a34a;
+  --sun: #fde047;
+  --rose: #f472b6;
+
+  --bg: #0a0a12;
+  --text: #f4f2ff;
+  --muted: #b9b4d6;
+  --accent: #c6ff4a;
+  --accent-2: #a78bfa;
+  --accent-text: #0a0a12;
+  --danger: #ff5470;
+  --success: #4ade80;
+  --team-red: #ff5470;
+  --team-blue: #4d8bff;
+  --team-neutral: #8a86a6;
+  --team-assassin: #f4f2ff;
+
+  --font: 'Sora', 'Rubik', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --glass-bg: rgba(24, 22, 40, 0.94);
+  --glass-bg-strong: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 0 14px 34px rgba(0, 0, 0, 0.5);
+  --shadow-press: 0 0 0 transparent;
+  --bevel-hi: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --bevel-lo: inset 0 0 0 transparent;
+  --plank: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+
+  /* Theme-only helpers. */
+  --ag-glass: rgba(255, 255, 255, 0.06);
+  --ag-glass-hi: rgba(255, 255, 255, 0.1);
+  --ag-line: rgba(255, 255, 255, 0.14);
+  --ag-blur: blur(22px);
+  --ag-glow: 0 0 26px rgba(198, 255, 74, 0.3);
+  --ag-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 20px 50px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
+}
+
+/* ---------- Page ground ---------- */
+
+/* Three soft glows over the night colour. A room's uploaded background still shows
+   (main.js sets --bg-image), dimmed so text over it stays readable. */
+:where(:root[data-theme="afterglow"]) body::before {
+  background:
+    radial-gradient(440px 440px at 0% 0%, rgba(124, 58, 237, 0.42), transparent 70%),
+    radial-gradient(400px 400px at 100% 42%, rgba(14, 165, 233, 0.26), transparent 70%),
+    radial-gradient(460px 460px at 25% 100%, rgba(236, 72, 153, 0.28), transparent 70%),
+    linear-gradient(180deg, rgba(10, 10, 18, 0.5) 0%, rgba(10, 10, 18, 0.72) 100%),
+    var(--bg-image, linear-gradient(transparent, transparent)) center / cover no-repeat,
+    var(--bg);
+}
+
+:where(:root[data-theme="afterglow"]) .app-logo {
+  filter: drop-shadow(0 6px 18px rgba(124, 58, 237, 0.45));
+}
+
+:where(:root[data-theme="afterglow"]) h1 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .conn-status {
+  border-bottom: 1px solid var(--ag-line);
+}
+
+:where(:root[data-theme="afterglow"]) .admin-notice {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ---------- Panels ---------- */
+
+:where(:root[data-theme="afterglow"]) .screen {
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+  border-radius: 28px;
+  backdrop-filter: var(--ag-blur);
+  -webkit-backdrop-filter: var(--ag-blur);
+  box-shadow: var(--ag-panel-shadow);
+}
+
+/* Labels that sit straight on the background: quiet small caps instead of wooden tags. */
+:where(:root[data-theme="afterglow"]) :is(
+  #join-screen .muted,
+  #lobby-screen > .muted,
+  #lobby-screen .lobby-top-row .muted,
+  #lobby-screen .cn-timer-section > .muted,
+  #lobby-screen .scoreboard-heading
+) {
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+:where(:root[data-theme="afterglow"]) .mf-sticky-footer {
+  background: linear-gradient(to bottom, transparent, rgba(16, 15, 28, 0.96) 22%);
+}
+
+:where(:root[data-theme="afterglow"]) .role-panel {
+  border: 1px solid var(--ag-line);
+  box-shadow: var(--shadow-soft);
+}
+
+/* ---------- Inputs ---------- */
+
+:where(:root[data-theme="afterglow"]) input[type="text"] {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:where(:root[data-theme="afterglow"]) input[type="text"]::placeholder {
+  color: #8e89ae;
+}
+
+:where(:root[data-theme="afterglow"]) input[type="text"]:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(198, 255, 74, 0.2);
+}
+
+/* ---------- Buttons ---------- */
+
+/* Primary: a lime pill with a soft glow instead of a candy button with a bark edge. */
+:where(:root[data-theme="afterglow"]) button {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+  box-shadow: var(--ag-glow);
+}
+
+:where(:root[data-theme="afterglow"]) button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 34px rgba(198, 255, 74, 0.42);
+}
+
+:where(:root[data-theme="afterglow"]) button:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: 0 0 14px rgba(198, 255, 74, 0.25);
+}
+
+:where(:root[data-theme="afterglow"]) button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Secondary: frosted glass. */
+:where(:root[data-theme="afterglow"]) button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: var(--ag-blur);
+  -webkit-backdrop-filter: var(--ag-blur);
+}
+
+:where(:root[data-theme="afterglow"]) button.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+:where(:root[data-theme="afterglow"]) button.secondary:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+/* Round glass buttons in the header (sound, background). */
+:where(:root[data-theme="afterglow"]) .bg-btn {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: var(--ag-blur);
+  -webkit-backdrop-filter: var(--ag-blur);
+}
+
+:where(:root[data-theme="afterglow"]) .bg-btn:hover:not(:disabled) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+:where(:root[data-theme="afterglow"]) .bg-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: none;
+}
+
+/* ---------- Lists, chips, stickers ---------- */
+
+:where(:root[data-theme="afterglow"]) .player-list li,
+:where(:root[data-theme="afterglow"]) .scoreboard-list li {
+  border: 1px solid var(--ag-line);
+  background: var(--ag-glass);
+}
+
+:where(:root[data-theme="afterglow"]) #lobby-list li {
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: var(--ag-blur);
+  -webkit-backdrop-filter: var(--ag-blur);
+}
+
+:where(:root[data-theme="afterglow"]) #lobby-list .player-emoji-img {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+
+:where(:root[data-theme="afterglow"]) .sticker-option {
+  border-radius: 22px;
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:where(:root[data-theme="afterglow"]) .sticker-option:hover:not(:disabled) {
+  background: var(--ag-glass-hi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+:where(:root[data-theme="afterglow"]) .sticker-add {
+  background: rgba(255, 255, 255, 0.03);
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .sticker-option.selected {
+  background: rgba(198, 255, 74, 0.14);
+  border: 1.5px solid var(--accent);
+  box-shadow: var(--ag-glow);
+}
+
+:where(:root[data-theme="afterglow"]) .sticker-lock {
+  background: var(--bg);
+  border: 1px solid var(--ag-line);
+}
+
+/* Choice chips: glass slots that turn lime when picked. */
+:where(:root[data-theme="afterglow"]) .level-btn,
+:where(:root[data-theme="afterglow"]) #lobby-screen .level-btn:not(.selected) {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .level-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .level-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .level-btn.selected,
+:where(:root[data-theme="afterglow"]) .level-btn.selected:hover:not(:disabled) {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--ag-glow);
+}
+
+:where(:root[data-theme="afterglow"]) .spinner {
+  border-color: rgba(255, 255, 255, 0.14);
+  border-top-color: var(--accent);
+}
+
+/* ---------- Lobby: game picker ---------- */
+
+/* Glass tiles: a gradient icon badge on the left, name and player count beside it. */
+:where(:root[data-theme="afterglow"]) .game-grid {
+  gap: 0.6rem;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 0.65rem;
+  row-gap: 0.1rem;
+  align-content: center;
+  align-items: center;
+  justify-items: start;
+  min-height: 70px;
+  padding: 0.6rem 0.7rem;
+  border-radius: 22px;
+  border: 1px solid var(--ag-line);
+  background: var(--ag-glass);
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: var(--ag-blur);
+  -webkit-backdrop-filter: var(--ag-blur);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--ag-glass-hi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile-icon {
+  grid-row: 1 / span 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--tile-grad);
+  color: #ffffff;
+  opacity: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0;
+  align-self: end;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+  opacity: 1;
+  align-self: start;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile.tile-underfilled {
+  filter: saturate(0.4);
+  opacity: 0.7;
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:nth-of-type(4n + 1) {
+  --tile-grad: linear-gradient(135deg, #f43f5e, #a855f7);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:nth-of-type(4n + 2) {
+  --tile-grad: linear-gradient(135deg, #ff5470, #4d8bff);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:nth-of-type(4n + 3) {
+  --tile-grad: linear-gradient(135deg, #f59e0b, #ef4444);
+}
+
+:where(:root[data-theme="afterglow"]) .game-tile:nth-of-type(4n) {
+  --tile-grad: linear-gradient(135deg, #10b981, #0ea5e9);
+}
+
+:where(:root[data-theme="afterglow"]) #choose-musictimeline-btn {
+  --tile-grad: linear-gradient(135deg, #ec4899, #f97316);
+}
+
+:where(:root[data-theme="afterglow"]) #choose-mindmeld-btn {
+  --tile-grad: linear-gradient(135deg, #8b5cf6, #06b6d4);
+}
+
+:where(:root[data-theme="afterglow"]) #choose-bluff-btn {
+  --tile-grad: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+:where(:root[data-theme="afterglow"]) #choose-allinorfold-btn {
+  --tile-grad: linear-gradient(135deg, #eab308, #a16207);
+}
+
+/* ---------- Lobby: icon buttons, scoreboard, rows ---------- */
+
+/* The lobby's action row becomes one glass bar, like a floating tab bar. */
+:where(:root[data-theme="afterglow"]) .icon-row {
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border-radius: 28px;
+  background: rgba(30, 28, 48, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 16px 36px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn {
+  border-radius: 18px;
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn:hover:not(:disabled) {
+  background: var(--ag-glass-hi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .icon-row .icon-btn {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+:where(:root[data-theme="afterglow"]) .icon-row .icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn.labeled-btn {
+  min-height: 58px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn.labeled-btn svg {
+  color: var(--text);
+}
+
+:where(:root[data-theme="afterglow"]) .icon-btn.danger-btn,
+:where(:root[data-theme="afterglow"]) .icon-btn.danger-btn svg {
+  color: #ff8fa2;
+}
+
+:where(:root[data-theme="afterglow"]) .scoreboard-toggle-btn {
+  border-radius: 999px;
+  color: var(--text);
+}
+
+:where(:root[data-theme="afterglow"]) .scoreboard-toggle-btn svg {
+  color: var(--accent);
+}
+
+:where(:root[data-theme="afterglow"]) :is(.scoreboard-toggle-btn.open, #sticker-btn.open) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--ag-glow);
+}
+
+:where(:root[data-theme="afterglow"]) .mini-card {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Codenames ---------- */
+
+:where(:root[data-theme="afterglow"]) #codenames-screen {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-side-red .cn-side-name,
+:where(:root[data-theme="afterglow"]) .cn-wins-red,
+:where(:root[data-theme="afterglow"]) .cn-team-red .cn-team-title {
+  color: #ff8fa2;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-side-blue .cn-side-name,
+:where(:root[data-theme="afterglow"]) .cn-wins-blue,
+:where(:root[data-theme="afterglow"]) .cn-team-blue .cn-team-title {
+  color: #8fb4ff;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-seg-red {
+  border-color: rgba(255, 84, 112, 0.5);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-seg-blue {
+  border-color: rgba(77, 139, 255, 0.55);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-seg-red.filled {
+  box-shadow: 0 0 10px rgba(255, 84, 112, 0.6);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-seg-blue.filled {
+  box-shadow: 0 0 10px rgba(77, 139, 255, 0.6);
+}
+
+/* The board glows in the guessing team's colour. */
+:where(:root[data-theme="afterglow"]) .cn-board {
+  --cn-team-glow: rgba(255, 84, 112, 0.35);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid var(--cn-team);
+  box-shadow: 0 0 34px var(--cn-team-glow), inset 0 0 24px rgba(255, 84, 112, 0.06);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-board.cn-board-blue {
+  --cn-team-glow: rgba(77, 139, 255, 0.4);
+  box-shadow: 0 0 34px var(--cn-team-glow), inset 0 0 24px rgba(77, 139, 255, 0.06);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-turn-pill {
+  color: #ffffff;
+  box-shadow: 0 0 18px var(--cn-team-glow);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-team {
+  border-radius: 18px;
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-team-red.active {
+  background: rgba(255, 84, 112, 0.14);
+  box-shadow: 0 0 22px rgba(255, 84, 112, 0.25);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-team-blue.active {
+  background: rgba(77, 139, 255, 0.16);
+  box-shadow: 0 0 22px rgba(77, 139, 255, 0.3);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-member {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-member.me {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-leader-note {
+  border-radius: 18px;
+  background: var(--ag-glass);
+  border: 1px solid var(--ag-line);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card {
+  border-radius: 12px;
+  font-size: 0.74rem;
+  letter-spacing: -0.01em;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.cn-card-long {
+  font-size: 0.62rem;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.cn-leader-hint.cn-red {
+  background: rgba(255, 84, 112, 0.1);
+  border: 1.5px solid var(--team-red);
+  color: #ffd2da;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.cn-leader-hint.cn-blue {
+  background: rgba(77, 139, 255, 0.12);
+  border: 1.5px solid var(--team-blue);
+  color: #d6e4ff;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.cn-leader-hint.cn-neutral {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #c9c5e0;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.cn-leader-hint.cn-assassin {
+  background: #000000;
+  border: 1.5px solid var(--cream);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.25);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.revealed.cn-red {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0) 0 6px, rgba(255, 255, 255, 0.1) 6px 9px), linear-gradient(160deg, #ff6f8a, #c81e45);
+  border-color: rgba(255, 180, 195, 0.6);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(255, 84, 112, 0.45);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.revealed.cn-blue {
+  background: radial-gradient(rgba(255, 255, 255, 0.16) 1.4px, rgba(255, 255, 255, 0) 1.8px) 0 0 / 8px 8px, linear-gradient(160deg, #6a9bff, #1e46c8);
+  border-color: rgba(180, 205, 255, 0.6);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(77, 139, 255, 0.5);
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.revealed.cn-neutral {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  color: #77738f;
+}
+
+:where(:root[data-theme="afterglow"]) .cn-card.revealed.cn-red .cn-mark,
+:where(:root[data-theme="afterglow"]) .cn-card.revealed.cn-blue .cn-mark {
+  background: #ffffff;
+}
+
+/* ---------- Bluff ---------- */
+
+/* Glowing green felt inside a thin glass rail. */
+:where(:root[data-theme="afterglow"]) .bf-table-felt {
+  background: radial-gradient(ellipse at 50% 38%, #14532d 0%, #0b2a18 70%, #07170e 100%);
+  border: 8px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 60px rgba(34, 197, 94, 0.32),
+    inset 0 0 0 1px rgba(134, 239, 172, 0.35),
+    inset 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-table-center-label {
+  color: #86efac;
+}
+
+:where(:root[data-theme="afterglow"]) .bf-table-center-count {
+  color: #dcfce7;
+  text-shadow: 0 0 24px rgba(134, 239, 172, 0.6);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-table-center-sub {
+  color: #bbf7d0;
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-avatar {
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-chip {
+  background: rgba(20, 18, 34, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-count {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-offline .bf-seat-chip {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-highlight .bf-seat-avatar {
+  box-shadow: 0 0 0 3px var(--danger), 0 0 22px 4px rgba(255, 84, 112, 0.5);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-highlight .bf-seat-chip {
+  border-color: var(--danger);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-seat-highlight .bf-seat-tag {
+  color: #ff8fa2;
+}
+
+:where(:root[data-theme="afterglow"]) .bf-wheel-frame {
+  border-radius: 18px;
+}
+
+:where(:root[data-theme="afterglow"]) .bf-wheel-frame::after {
+  background: linear-gradient(180deg, rgba(10, 10, 18, 0.8) 0%, transparent 34%, transparent 66%, rgba(10, 10, 18, 0.8) 100%);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-card {
+  border-radius: 9px;
+  background: linear-gradient(160deg, #ffffff 0%, #ecebf5 100%);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+:where(:root[data-theme="afterglow"]) .bf-card.bf-suit-h {
+  color: #e11d48;
+}
+
+:where(:root[data-theme="afterglow"]) #bf-hand.bf-hand,
+:where(:root[data-theme="afterglow"]) .bf-spectator-row .bf-hand {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--ag-line);
+  border-radius: 18px;
+}
+
+/* ---------- Dialogs ---------- */
+
+:where(:root[data-theme="afterglow"]) .confirm-overlay {
+  background: rgba(5, 5, 11, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ---------- Small fixes over generic buttons ---------- */
+
+/* Kick button in lobby rows: plain glass circle, no lime glow. */
+:where(:root[data-theme="afterglow"]) .lobby-kick-btn {
+  border: 1px solid var(--ag-line);
+  box-shadow: none;
+}
+
+/* Bluff's main host action reads as the primary (lime) button, as in the mockup. */
+:where(:root[data-theme="afterglow"]) #bf-check-open-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--ag-glow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- Menifot ---------- */
+
+/* Keep the casino felt, but swap the wooden rail for a dark glass one. */
+:where(:root[data-theme="afterglow"]) #mf-screen {
+  border: 10px solid #11101d;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 0 3px rgba(134, 239, 172, 0.22),
+    inset 0 0 40px rgba(0, 0, 0, 0.6);
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at center, #1c6b42 0%, #114a2c 55%, #08291a 100%);
+  background-attachment: fixed;
+}
+
+:where(:root[data-theme="afterglow"]) #mf-screen .mf-hand {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 20px rgba(0, 0, 0, 0.4);
+}
