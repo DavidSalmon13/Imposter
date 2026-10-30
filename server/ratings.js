@@ -73,4 +73,21 @@ function computeRatings(byGame) {
   return { ovr, tier: tierFor(ovr), stats };
 }
 
-module.exports = { computeRatings, GAME_STAT_WEIGHTS, STATS };
+// Temporary: a fixed overall for one player until UNTIL, then real ratings come back on
+// their own (the lobby's cached rating refreshes on the next join/return to lobby). Only
+// ovr and tier change - the six stats stay real. Matched by display name, case-insensitive.
+// Delete this block once it has expired.
+const OVR_OVERRIDE = { name: 'junue', ovr: 75, until: Date.parse('2026-10-31T04:00:00Z') }; // 06:00 Israel time
+
+function overrideActive(now = Date.now()) {
+  return now < OVR_OVERRIDE.until;
+}
+
+function applyOvrOverride(ratings, displayName, now = Date.now()) {
+  if (!overrideActive(now) || String(displayName || '').trim().toLowerCase() !== OVR_OVERRIDE.name) {
+    return ratings;
+  }
+  return { ...ratings, ovr: OVR_OVERRIDE.ovr, tier: tierFor(OVR_OVERRIDE.ovr) };
+}
+
+module.exports = { computeRatings, GAME_STAT_WEIGHTS, STATS, overrideActive, applyOvrOverride };

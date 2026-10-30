@@ -16,7 +16,7 @@ const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
 const betting = require('./betting');
 const { BADGES, publicBadge } = require('./badges');
-const { computeRatings } = require('./ratings');
+const { computeRatings, overrideActive, applyOvrOverride } = require('./ratings');
 const { isValidSticker } = require('./stickers');
 const { logActivity } = require('./activity');
 
@@ -488,6 +488,11 @@ async function playerCard({ userId, clientId }) {
   const lockedStickers = !userId ? [] : [...BADGE_STICKERS]
     .filter(([, ids]) => !ids.some((id) => earned.has(id)))
     .map(([sticker]) => sticker);
+  let ratings = computeRatings(byGame);
+  if (userId && overrideActive()) {
+    const u = await db.query('SELECT display_name FROM users WHERE id = $1', [userId]);
+    if (u.rows.length) ratings = applyOvrOverride(ratings, u.rows[0].display_name);
+  }
   return {
     gamesPlayed,
     wins,
@@ -496,7 +501,7 @@ async function playerCard({ userId, clientId }) {
     badges,
     lockedStickers,
     rivals: await rivalries(scope),
-    ratings: computeRatings(byGame),
+    ratings,
   };
 }
 
