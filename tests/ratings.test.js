@@ -38,12 +38,12 @@ test('unplayed stats stay at the baseline', () => {
   assert.equal(tier, 'bronze');
 });
 
-test('the temporary overall override applies to Junue only, and only until it expires', () => {
+test('the temporary overall override applies to Jajuna only, and only until it expires', () => {
   const { applyOvrOverride } = require('../server/ratings');
   const real = computeRatings({ bluff: { played: 8, won: 1, points: 32, placement: 0.5 } });
   const tonight = Date.parse('2026-10-30T20:00:00Z');
   const tomorrow = Date.parse('2026-10-31T04:00:00Z');
-  assert.deepEqual(applyOvrOverride(real, 'Junue', tonight), { ...real, ovr: 75, tier: 'gold' });
+  assert.deepEqual(applyOvrOverride(real, 'Jajuna', tonight), { ...real, ovr: 75, tier: 'gold' });
   assert.deepEqual(applyOvrOverride(real, 'Someone', tonight), real);
-  assert.deepEqual(applyOvrOverride(real, 'Junue', tomorrow), real);
+  assert.deepEqual(applyOvrOverride(real, 'Jajuna', tomorrow), real);
 });
