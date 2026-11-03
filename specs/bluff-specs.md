@@ -169,20 +169,6 @@ called are actually there among **every active player's cards pooled together**.
 - `room.bfCheck` (`{ id, ranks, label, revealAt, present }`) is **not persisted**, like
   `bfHands`: after a restart the round is re-dealt, so any check is moot.
 
-## Showing your hand to the table (any player)
-
-- Every player still holding cards gets a **"Show my hand to everyone"** button under their
-  hand (after a confirm), e.g. to prove a call in real life. Not host-only.
-- Shown hands appear on every other phone under "Shown to the table" (cards flip in), with
-  a 👁 badge on that player's seat and a "<name> showed their hand" pill at the top of the
-  screen (tap it to scroll to the hand). The player's own hand gets a gold outline, and the
-  button becomes **"Hide my hand"** to take it back off the table.
-- Spectators already see every hand, so for them it's just the seat badges.
-- Purely informational - it changes no counts and blocks nothing. Cleared on every deal
-  (and on Reset Game / a restart re-deal). `room.bfRevealed` (names, in reveal order) is
-  **not persisted**; the payload carries `revealedHands`, `myHandRevealed` and
-  `canRevealHand`.
-
 ## Editing card counts mid-match (host-controlled)
 
 A correction tool for when the app's tracked counts drift from reality (a miscounted
@@ -256,8 +242,6 @@ hand, a card dropped on the floor, etc.) - not a gameplay mechanic.
 - `room.bfLastResult`: `{ loserName, newCount, eliminated }` for the brief highlight/animation
   window between a loser pick and the next deal — **not persisted**, cleared the moment the
   next round deals.
-- `room.bfRevealed`: names who showed this round's hand to the table — **not persisted**,
-  cleared on every deal.
 - `room.bfEditing`: whether the host currently has the "Edit card counts" draft open —
   **not persisted**; a server restart mid-edit just drops back to normal play.
 - `room.bfEditCounts`: name → draft count while `bfEditing` — **not persisted**.
@@ -283,7 +267,7 @@ excluded, matching All-In or Fold's "in-flight hand isn't persisted" simplificat
   the real players, exactly as the original ask requires ("Do NOT implement poker rules or
   gameplay logic," "Do NOT simulate gameplay decisions or turns").
 - No gameplay actions besides the host's seat-tap — the only things other players ever
-  submit during a match are showing/hiding their own hand and (signed in) bets.
+  submit during a match are (signed in) bets.
 - No mid-match joining/leaving of the roster (unlike All-In or Fold) — the roster is frozen
   at Start Match and stays fixed for the whole match, including through a Reset Game.
 - No seat re-layout on elimination — the circle's shape never changes once a match starts.

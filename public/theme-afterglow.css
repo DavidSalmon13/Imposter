@@ -852,26 +852,6 @@
   background: linear-gradient(160deg, #ffffff 0%, #ecebf5 100%);
 }
 
-:where(:root[data-theme="afterglow"]) .bf-flash {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  box-shadow: var(--ag-glow), var(--shadow-soft);
-}
-
-:where(:root[data-theme="afterglow"]) #bf-hand.bf-hand-public {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(198, 255, 74, 0.3);
-}
-
-:where(:root[data-theme="afterglow"]) .bf-seat-shown-badge {
-  background: var(--accent);
-  border: 1px solid var(--bg);
-}
-
-:where(:root[data-theme="afterglow"]) .bf-seat-shown .bf-seat-avatar {
-  box-shadow: 0 0 0 3px var(--accent), 0 0 16px rgba(198, 255, 74, 0.5);
-}
-
 :where(:root[data-theme="afterglow"]) .bf-reveal-kicker {
   font-family: var(--font);
   font-size: 2.1rem;

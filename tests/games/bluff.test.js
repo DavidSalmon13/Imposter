@@ -190,53 +190,6 @@ test('an eliminated player becomes a spectator who sees every active hand', asyn
   assert.equal(annState.allHands, null);
 });
 
-test('bfRevealHand: any player with cards shows their hand to everyone until the next deal', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { ctx, io } = createTestCtx();
-  const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 0, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
-  room.bfEliminationOrder = ['Bob'];
-
-  const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
-  const bob = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Bob'));
-  const cid = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Cid'));
-  const last = (name) => {
-    const emits = emissionsFor(io, room, name);
-    return emits[emits.length - 1].payload;
-  };
-
-  const noHand = await call(bob, 'bfRevealHand', { reveal: true });
-  assert.equal(noHand.ok, false, 'an eliminated player has nothing to show');
-
-  const shown = await call(cid, 'bfRevealHand', { reveal: true });
-  assert.equal(shown.ok, true, 'not just the host - any player with cards');
-  assert.deepEqual(last('Ann').revealedHands, [{ name: 'Cid', cards: ['4d', '5d'] }]);
-  assert.equal(last('Cid').myHandRevealed, true);
-  assert.equal(last('Ann').myHandRevealed, false);
-  assert.equal(last('Ann').canRevealHand, true);
-  assert.equal(last('Bob').canRevealHand, false);
-
-  await call(cid, 'bfRevealHand', { reveal: false });
-  assert.deepEqual(last('Ann').revealedHands, [], 'hiding again takes it back off the table');
-
-  await call(cid, 'bfRevealHand', { reveal: true });
-  await call(host, 'bfSelectLoser', { name: 'Ann' });
-  t.mock.timers.tick(5000);
-  assert.equal(room.bfRoundNumber, 2);
-  assert.deepEqual(last('Ann').revealedHands, [], 'a fresh deal hides every hand again');
-  assert.equal(last('Cid').myHandRevealed, false);
-});
-
-// --- Betting integration (plans/betting-implementation-plan.md section 5) ---
-// Most of these spy on server/betting.js's functions rather than mocking the whole
-// database stack - betting.js's own logic is already exhaustively covered by
-// tests/games/betting.test.js; what matters here is that bluff.js calls it from the
-// right place with the right arguments. A couple of tests do run the real thing
-// end to end (with the database itself mocked) for integration confidence.
-
 test('startBluffMatch opens a start global-bet window for the whole frozen roster', async (t) => {
   const calls = [];
   t.mock.method(betting, 'openGlobalBetWindow', (room, roomCode, opts) => calls.push(opts));

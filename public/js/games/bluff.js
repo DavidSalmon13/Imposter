@@ -61,10 +61,6 @@ const bfEditError = document.getElementById('bf-edit-error');
 const bfEditActions = document.getElementById('bf-edit-actions');
 const bfEditCancelBtn = document.getElementById('bf-edit-cancel-btn');
 const bfEditReadyBtn = document.getElementById('bf-edit-ready-btn');
-const bfRevealHandBtn = document.getElementById('bf-reveal-hand-btn');
-const bfShownHands = document.getElementById('bf-shown-hands');
-const bfShownList = document.getElementById('bf-shown-list');
-const bfFlash = document.getElementById('bf-flash');
 
 // Full-screen check reveal - countdown, card flips, verdict (body-level, see index.html).
 const bfReveal = document.getElementById('bf-reveal');
@@ -141,12 +137,6 @@ let bfRevealResolved = false;
 let bfRevealBeat = null;
 let bfRevealTimers = [];
 
-// Hands players chose to show the table - names shown this round, so only a fresh
-// reveal pops the flash pill and flips its cards in.
-let bfRevealedNames = new Set();
-let bfShownRound = null;
-const bfShownSeen = new Set();
-let bfFlashTimer = null;
 
 // Betting UI state, kept across re-renders (e.g. the pushBettingViews follow-up
 // correction) so an in-progress pick survives every broadcast.
@@ -318,7 +308,6 @@ function renderBfSeats(seats, { tappable, highlightName } = {}) {
     if (!seat.connected) seatEl.classList.add('bf-seat-offline');
     if (seat.eliminated) seatEl.classList.add('bf-seat-eliminated');
     if (seat.name === highlightName) seatEl.classList.add('bf-seat-highlight');
-    if (bfRevealedNames.has(seat.name)) seatEl.classList.add('bf-seat-shown');
 
     const avatar = document.createElement(canTap ? 'button' : 'div');
     avatar.className = 'bf-seat-avatar';
@@ -341,13 +330,6 @@ function renderBfSeats(seats, { tappable, highlightName } = {}) {
       avatar.appendChild(emoji);
     }
     seatEl.appendChild(avatar);
-    if (bfRevealedNames.has(seat.name)) {
-      const eye = document.createElement('span');
-      eye.className = 'bf-seat-shown-badge';
-      eye.textContent = '👁';
-      eye.title = `${seat.name} is showing their hand`;
-      seatEl.appendChild(eye);
-    }
 
     const chip = document.createElement('div');
     chip.className = 'bf-seat-chip';
@@ -723,75 +705,6 @@ function bfRevealSync(check) {
   if (check.present !== null && !bfRevealResolved) {
     bfRevealResolved = true;
     if (!bfReveal.classList.contains('hidden')) bfRevealResolve(check);
-  }
-}
-
-function bfShowFlash(text) {
-  bfFlash.textContent = text;
-  bfFlash.classList.remove('hidden', 'bf-flash-in');
-  void bfFlash.offsetWidth;
-  bfFlash.classList.add('bf-flash-in');
-  clearTimeout(bfFlashTimer);
-  bfFlashTimer = setTimeout(() => bfFlash.classList.add('hidden'), 3200);
-}
-
-function bfHideFlash() {
-  clearTimeout(bfFlashTimer);
-  bfFlash.classList.add('hidden');
-}
-
-/** Hands other players chose to show the whole table, plus the viewer's own show/hide
- * button. Spectators already see every hand, so they only get the seat badges. */
-function renderShownHands(data) {
-  const me = ctx.getMyName();
-  const shown = data.revealedHands || [];
-  if (bfShownRound !== data.roundNumber) {
-    bfShownRound = data.roundNumber;
-    bfShownSeen.clear();
-    shown.forEach((h) => bfShownSeen.add(h.name));
-  }
-
-  bfRevealHandBtn.classList.toggle('hidden', !data.canRevealHand);
-  bfRevealHandBtn.textContent = data.myHandRevealed ? '🙈 Hide my hand' : '👁 Show my hand to everyone';
-  bfRevealHandBtn.dataset.revealed = data.myHandRevealed ? '1' : '';
-  bfHandEl.classList.toggle('bf-hand-public', !!data.myHandRevealed && !data.isSpectator);
-
-  const others = data.isSpectator ? [] : shown.filter((h) => h.name !== me);
-  bfShownList.innerHTML = '';
-  others.forEach((hand) => {
-    const fresh = !bfShownSeen.has(hand.name);
-    const row = document.createElement('div');
-    row.className = 'bf-spectator-row';
-    const name = document.createElement('p');
-    name.className = 'bf-spectator-name';
-    name.textContent = `👁 ${hand.name}`;
-    row.appendChild(name);
-    const cards = document.createElement('div');
-    cards.className = 'mf-card-row bf-hand';
-    bfSortCards(hand.cards).forEach((card, i) => {
-      const el = makeBfCardEl(card);
-      if (fresh) {
-        el.classList.add('bf-card-flip-in');
-        el.style.animationDelay = `${i * 70}ms`;
-      }
-      cards.appendChild(el);
-    });
-    row.appendChild(cards);
-    bfShownList.appendChild(row);
-  });
-  bfShownHands.classList.toggle('hidden', others.length === 0);
-
-  const fresh = shown.filter((h) => !bfShownSeen.has(h.name));
-  fresh.forEach((h) => bfShownSeen.add(h.name));
-  const freshOthers = fresh.filter((h) => h.name !== me);
-  if (freshOthers.length) {
-    bfShowFlash(`👀 ${freshOthers.map((h) => h.name).join(', ')} showed their hand`);
-    sfx.flip();
-    haptics.tap();
-  }
-  // Hidden again - forget them so showing a second time pops the flash again.
-  for (const n of Array.from(bfShownSeen)) {
-    if (!shown.some((h) => h.name === n)) bfShownSeen.delete(n);
   }
 }
 
@@ -1299,7 +1212,6 @@ function applyTable(data) {
   bfRoundLabel.textContent = `Round ${data.roundNumber}`;
   bfTableError.textContent = '';
   bfEditError.textContent = '';
-  bfRevealedNames = new Set((data.revealedHands || []).map((h) => h.name));
   runResultSequence(data);
   applyCheck(data.check);
   renderEditPanel(data);
@@ -1315,7 +1227,6 @@ function applyTable(data) {
   bfCheckBuilder.classList.toggle('hidden', !canCheck || !bfBuilderOpen);
 
   renderHandOrSpectator(data);
-  renderShownHands(data);
   renderBetting(data.betting, data.seats);
 }
 
@@ -1393,10 +1304,6 @@ function applyState(data) {
     bfTableFelt.classList.remove('bf-dealing');
     bfEditOpenBtn.classList.add('hidden');
     bfEditPanel.classList.add('hidden');
-    bfRevealHandBtn.classList.add('hidden');
-    bfShownHands.classList.add('hidden');
-    bfRevealedNames = new Set();
-    bfHideFlash();
     renderBetting(null, []);
   }
 
@@ -1521,26 +1428,6 @@ export const Bluff = {
       if (e.key === 'Escape' && !bfReveal.classList.contains('hidden')) bfRevealHide();
     });
 
-    bfFlash.addEventListener('click', () => {
-      bfHideFlash();
-      bfShownHands.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-
-    bfRevealHandBtn.addEventListener('click', async () => {
-      const reveal = !bfRevealHandBtn.dataset.revealed;
-      if (reveal) {
-        const ok = await confirmDialog('Everyone at the table will see your cards until the next deal.', {
-          title: 'Show your hand?',
-          confirmLabel: 'Show it',
-        });
-        if (!ok) return;
-      }
-      bfTableError.textContent = '';
-      socket.emit('bfRevealHand', { reveal }, (res) => {
-        if (res && !res.ok) bfTableError.textContent = res.error;
-      });
-    });
-
     bfBetProposeBtn.addEventListener('click', () => {
       if (!bfBetPick) return;
       bfBetError.textContent = '';
@@ -1573,10 +1460,6 @@ export const Bluff = {
 
   stop() {
     applyCheck(null);
-    bfHideFlash();
-    bfRevealedNames = new Set();
-    bfShownRound = null;
-    bfShownSeen.clear();
     resetBuilder();
     if (bfCheckBuilder) bfCheckBuilder.classList.add('hidden');
     bfClearSequenceTimers();
