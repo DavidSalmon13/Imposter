@@ -4,47 +4,64 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { computeRatings } = require('../server/ratings');
 
-test('finishing near the top of a big game rates well even without a win', () => {
-  // 8 Bluff games of 7 players, always 2nd: beat 5 of 6 opponents every time.
-  const { stats } = computeRatings({ bluff: { played: 8, won: 0, points: 48, placement: 5 / 6 } });
-  assert.equal(stats.NRV, 83);
-});
+// byGame entry from per-game placements, newest first.
+const games = (...recent) => ({ played: recent.length, won: recent.filter((p) => p === 1).length, recent });
+const repeat = (n, p) => Array(n).fill(p);
 
-test('an average finish sits at the 50 baseline', () => {
-  const { stats } = computeRatings({ bluff: { played: 8, won: 1, points: 32, placement: 0.5 } });
-  assert.equal(stats.NRV, 50);
-});
-
-test('finishing below the middle still lowers the rating', () => {
-  const { stats } = computeRatings({ bluff: { played: 8, won: 0, points: 10, placement: 0.1 } });
-  assert.equal(stats.NRV, 10);
-});
-
-test('few games stay close to the baseline', () => {
-  // 2 of 8 games for full confidence: 50 + (99 - 50) * 0.25
-  const { stats } = computeRatings({ bluff: { played: 2, won: 2, points: 14, placement: 1 } });
-  assert.equal(stats.NRV, 62);
-});
-
-test('falls back to win rate when no game had an opponent to compare against', () => {
-  const { stats } = computeRatings({ bluff: { played: 8, won: 8, points: 8, placement: null } });
-  assert.equal(stats.NRV, 99);
-});
-
-test('unplayed stats stay at the baseline', () => {
+test('a new card sits at the 60 baseline, bronze', () => {
   const { stats, ovr, tier } = computeRatings({});
-  assert.deepEqual(Object.values(stats), [50, 50, 50, 50, 50, 50]);
-  assert.equal(ovr, 50);
+  assert.deepEqual(Object.values(stats), [60, 60, 60, 60, 60, 60]);
+  assert.equal(ovr, 60);
   assert.equal(tier, 'bronze');
 });
 
-test('the temporary overall override applies to Jajuna and June Eiger only, and only until it expires', () => {
-  const { applyOvrOverride } = require('../server/ratings');
-  const real = computeRatings({ bluff: { played: 8, won: 1, points: 32, placement: 0.5 } });
-  const tonight = Date.parse('2026-10-30T20:00:00Z');
-  const tomorrow = Date.parse('2026-10-31T04:00:00Z');
-  assert.deepEqual(applyOvrOverride(real, 'Jajuna', tonight), { ...real, ovr: 75, tier: 'gold' });
-  assert.deepEqual(applyOvrOverride(real, 'june  eiger', tonight), { ...real, ovr: 75, tier: 'gold' });
-  assert.deepEqual(applyOvrOverride(real, 'Someone', tonight), real);
-  assert.deepEqual(applyOvrOverride(real, 'Jajuna', tomorrow), real);
+test('an average finish stays at the baseline', () => {
+  const { stats, ovr } = computeRatings({ bluff: games(...repeat(20, 0.5)) });
+  assert.equal(stats.NRV, 60);
+  assert.equal(ovr, 60);
+});
+
+test('one lucky win is shrunk toward the baseline, not 99', () => {
+  const { ovr } = computeRatings({ bluff: games(1) });
+  assert.equal(ovr, 70);
+});
+
+test('a single game visibly moves an established card', () => {
+  const base = repeat(30, 0.5);
+  const before = computeRatings({ imposter: games(...base), codenames: games(...base) }).ovr;
+  const win = computeRatings({ imposter: games(1, ...base), codenames: games(...base) }).ovr;
+  const loss = computeRatings({ imposter: games(0, ...base), codenames: games(...base) }).ovr;
+  assert.ok(win - before >= 2, `win moved ${before} -> ${win}`);
+  assert.ok(before - loss >= 2, `loss moved ${before} -> ${loss}`);
+});
+
+test('recent games count more than old ones', () => {
+  // Same 10 wins + 30 losses; only the order differs.
+  const hot = computeRatings({ bluff: games(...repeat(10, 1), ...repeat(30, 0)) }).ovr;
+  const cold = computeRatings({ bluff: games(...repeat(30, 0), ...repeat(10, 1)) }).ovr;
+  assert.ok(hot - cold >= 20, `recent wins ${hot} vs old wins ${cold}`);
+});
+
+test('90 takes dominating, gold takes clearly beating the table', () => {
+  assert.equal(computeRatings({ bluff: games(...repeat(30, 0.75)) }).tier, 'gold');
+  assert.ok(computeRatings({ bluff: games(...repeat(30, 0.85)) }).ovr < 90);
+  assert.ok(computeRatings({ bluff: games(...repeat(30, 0.95)) }).ovr >= 90);
+});
+
+test('unplayed stats do not drag the overall down', () => {
+  const { stats, ovr } = computeRatings({ imposter: games(...repeat(20, 0.85)) });
+  assert.equal(stats.SPD, 60);
+  assert.equal(ovr, stats.DEC);
+});
+
+test('a one-off try of another game barely moves the overall', () => {
+  const main = repeat(20, 0.85);
+  const solo = computeRatings({ imposter: games(...main) }).ovr;
+  const withTry = computeRatings({ imposter: games(...main), bluff: games(0) }).ovr;
+  assert.ok(solo - withTry <= 1, `${solo} -> ${withTry}`);
+});
+
+test('without per-game rows, the lifetime average stands in', () => {
+  const { stats } = computeRatings({ bluff: { played: 8, won: 8, points: 8, placement: null } });
+  assert.equal(stats.NRV, 89);
 });

@@ -16,7 +16,7 @@ const { OAuth2Client } = require('google-auth-library');
 const db = require('./db');
 const betting = require('./betting');
 const { BADGES, publicBadge } = require('./badges');
-const { computeRatings, overrideActive, applyOvrOverride } = require('./ratings');
+const { computeRatings, RECENT_GAMES } = require('./ratings');
 const { isValidSticker } = require('./stickers');
 const { logActivity } = require('./activity');
 
@@ -441,16 +441,19 @@ async function playerCard({ userId, clientId }) {
   const scope = scopeFor({ userId, clientId });
   if (!scope) return null;
   const { where, param } = scope;
-  // placement: per game, the share of the other participants this player finished
-  // ahead of (ties count half), averaged per game type - feeds the rating card. Order
-  // is details.place when both rows have one (10 Seconds, whose points don't separate
-  // middle waves), else (won, points) like rivalries().
+  // One row per game played, newest first, with its placement: the share of the
+  // opponents this player finished ahead of (ties count half). Teammates (same
+  // `team`, e.g. Codenames) aren't opponents, so a team win scores 1 and a loss 0
+  // instead of being diluted toward 0.5 by "ties" with your own side. Order is
+  // details.place when both rows have one (10 Seconds, whose points don't separate
+  // middle waves), else (won, points) like rivalries(). With no opponent at all the
+  // win flag stands in. Feeds the rating card (server/ratings.js), which weights
+  // recent games most.
   const { rows } = await db.query(
     `SELECT g.game_type,
-            count(*)::int                              AS played,
-            count(*) FILTER (WHERE gp.won)::int        AS won,
-            coalesce(sum(gp.points), 0)::int           AS points,
-            avg(o.placement)::float8                   AS placement
+            coalesce(gp.won, false)                    AS won,
+            gp.points,
+            coalesce(o.placement, CASE WHEN gp.won THEN 1 ELSE 0 END)::float8 AS placement
        FROM game_participants gp
        JOIN players p ON p.id = gp.player_id
        JOIN games g   ON g.id = gp.game_id
@@ -466,10 +469,11 @@ async function playerCard({ userId, clientId }) {
                     END AS cmp
                FROM game_participants t
               WHERE t.game_id = gp.game_id AND t.player_id <> gp.player_id
+                AND (gp.team IS NULL OR t.team IS DISTINCT FROM gp.team)
            ) c
        ) o ON true
       WHERE ${where}
-      GROUP BY g.game_type`,
+      ORDER BY g.ended_at DESC, g.id DESC`,
     [param]
   );
   const byGame = {};
@@ -477,22 +481,26 @@ async function playerCard({ userId, clientId }) {
   let wins = 0;
   let points = 0;
   for (const r of rows) {
-    byGame[r.game_type] = { played: r.played, won: r.won, points: r.points, placement: r.placement };
-    gamesPlayed += r.played;
-    wins += r.won;
+    const g = byGame[r.game_type] ||
+      (byGame[r.game_type] = { played: 0, won: 0, points: 0, placement: 0, recent: [] });
+    g.played += 1;
+    if (r.won) g.won += 1;
+    g.points += r.points;
+    g.placement += r.placement; // summed here, averaged below
+    if (g.recent.length < RECENT_GAMES) g.recent.push(r.placement);
+    gamesPlayed += 1;
+    if (r.won) wins += 1;
     points += r.points;
   }
+  for (const g of Object.values(byGame)) g.placement /= g.played;
   const earned = await earnedBadgeIds(scope);
   const badges = BADGES.map((b) => ({ ...publicBadge(b), earned: earned.has(b.id) }));
   // Guests can wear every sticker (see canUseSticker()); only accounts earn them.
   const lockedStickers = !userId ? [] : [...BADGE_STICKERS]
     .filter(([, ids]) => !ids.some((id) => earned.has(id)))
     .map(([sticker]) => sticker);
-  let ratings = computeRatings(byGame);
-  if (userId && overrideActive()) {
-    const u = await db.query('SELECT display_name FROM users WHERE id = $1', [userId]);
-    if (u.rows.length) ratings = applyOvrOverride(ratings, u.rows[0].display_name);
-  }
+  const ratings = computeRatings(byGame);
+  for (const g of Object.values(byGame)) delete g.recent; // only the rating needs it
   return {
     gamesPlayed,
     wins,

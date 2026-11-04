@@ -106,7 +106,7 @@ function renderRatingCard(user, card) {
   stickerSwitcherEl.classList.toggle('hidden', !signedIn);
   if (!signedIn) return;
 
-  const ratings = (card && card.ratings) || { ovr: 50, tier: 'bronze', stats: {} };
+  const ratings = (card && card.ratings) || { ovr: 60, tier: 'bronze', stats: {} };
   // "Strong gold" (OVR 85+) is a brighter variant of the same gold tier, not a separate
   // one - see specs/account-page-specs.md.
   const strongGold = ratings.tier === 'gold' && ratings.ovr >= 85;
@@ -117,7 +117,7 @@ function renderRatingCard(user, card) {
   cardStickerEl.src = myAccountSticker ? `images/stickers/${myAccountSticker}` : '';
   cardStickerEl.classList.toggle('hidden', !myAccountSticker);
   for (const stat of STATS) {
-    document.getElementById(`acct-stat-${stat}`).textContent = ratings.stats[stat] ?? 50;
+    document.getElementById(`acct-stat-${stat}`).textContent = ratings.stats[stat] ?? 60;
   }
   renderStickerGrid();
 }

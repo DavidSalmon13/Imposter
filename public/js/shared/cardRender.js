@@ -13,7 +13,7 @@ const RATING_STATS = ['SPD', 'COM', 'STR', 'TAC', 'NRV', 'DEC'];
  * own copy into fixed page elements instead of using this.
  */
 export function buildRatingCard(user, card) {
-  const ratings = (card && card.ratings) || { ovr: 50, tier: 'bronze', stats: {} };
+  const ratings = (card && card.ratings) || { ovr: 60, tier: 'bronze', stats: {} };
   const strongGold = ratings.tier === 'gold' && ratings.ovr >= 85;
   const el = document.createElement('div');
   el.className = `rating-card rating-card-${ratings.tier}${strongGold ? ' rating-card-gold-strong' : ''}`;
@@ -45,7 +45,7 @@ export function buildRatingCard(user, card) {
     wrap.className = 'rating-stat';
     const val = document.createElement('span');
     val.className = 'rating-stat-val';
-    val.textContent = ratings.stats[stat] ?? 50;
+    val.textContent = ratings.stats[stat] ?? 60;
     const abbr = document.createElement('span');
     abbr.className = 'rating-stat-abbr';
     abbr.textContent = stat;

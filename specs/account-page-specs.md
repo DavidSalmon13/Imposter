@@ -93,36 +93,41 @@ secondary source was forced onto them.
 
 ### Rating formula
 
-**Step 1 — per-game performance score** (0–99), for each game type the player has
-played at least once:
+Goals: a card that visibly moves after every game, with an average player in the
+low 60s, gold for clearly beating the table, and 90+ only for sustained dominance.
+Constants live at the top of `server/ratings.js`.
+
+**Step 0 — per-game placement** (0–1): for each game played, the share of the
+*opponents* the player finished ahead of (ties count half). Teammates (same `team`,
+e.g. Codenames) are not opponents, so a team win is 1 and a team loss 0 rather than
+being diluted toward 0.5 by "ties" with your own side. Finishing order comes from
+`details.place` when both rows have one (10 Seconds), otherwise from `(won, points)`.
+With no opponent at all, the win flag stands in (1/0).
+
+**Step 1 — per-game-type performance score** (1–99), for each type played at least once:
 
 ```
-perf(gameType) = 50 + (placement(gameType) × 99 − 50) × min(1, played(gameType) / 8)
+placement = recency-weighted mean of the last 50 placements of that type,
+            weight halving every 8 games (newest game = weight 1)
+raw       = 60 + (placement − 0.5) × 80          // 0.5→60, 0.75→80, ~0.9→89, 1→99
+perf      = (raw × n + 60 × 3) / (n + 3)         // n = games used; clamp to [1, 99]
 ```
 
-`placement` is, per game, the share of the other participants the player finished
-ahead of (ties count half), averaged over that game type: 1 = always first, 0 = always
-last, 0.5 = average. Finishing 2nd of 7 in Bluff scores 5/6 even though only the
-winner has `won`, so big games no longer push everyone but the winner below 50, and
-finishing in the bottom half still lowers the rating. Finishing order comes from
-`details.place` when recorded (10 Seconds), otherwise from `(won, points)`, so team
-games (Codenames) rank the winning team ahead and teammates as tied. If no game of
-that type had another participant, `placement` falls back to the win rate.
-
-A brand-new game type sits at a neutral baseline of 50 and only converges toward its
-true placement-implied score once 8+ rounds of that specific game are played. This
-avoids "1 win in 1 round = 99 rating" noise. `placement`/`played` come from the same
-`byGame` query the match-history table uses.
+Recency means a hot (or cold) streak shows within a few games instead of being buried
+in a lifetime average. The 3 "imaginary average games" stop 1 lucky win reading 99
+(it reads 70) while still letting a new game type move fast.
 
 **Step 2 — stat score**, for each of the six stats: the weighted average of
-`perf(gameType)` over every game in that stat's contributor list that the player has
-actually played (`played(gameType) > 0`), using the weights in the matrix above. A
-contributing game the player has never played is simply excluded from the average
-(not treated as 0). If **none** of a stat's contributing games have been played at
-all, that stat is a flat **50** (every card shows all six numbers, never blank).
+`perf(gameType)` over the stat's contributing games that the player has played, using
+the matrix weights above. A stat with none of its games played shows a flat **60**.
 
-**Step 3 — OVR**: the unweighted mean of the six stat scores, rounded to the nearest
-integer.
+**Step 3 — OVR**: the mean of `perf(gameType)` over the game types played, each
+weighted by `min(played, 20)` — *not* the mean of the six stats, so stats nobody has
+fed yet don't pin the overall to the baseline, and a one-off try of another game barely
+moves it. No games at all = 60.
+
+Rough feel: one win/loss moves an established overall by ~2; steady 0.75 placement is
+gold (~78); 90 needs ~0.95 placement sustained.
 
 ### Card tier (visual only, from OVR)
 
@@ -179,7 +184,7 @@ Signed-in players have **one sticker everywhere**, not a per-device choice.
   stays hidden, `/account.html` is simply unreachable from the UI (direct visits
   would show the guest-only view if history is enabled, or nothing useful if not).
 - **Signed in, but has never played a game feeding a given stat**: that stat shows
-  50, not 0 — see rating formula.
+  60, not 0 — see rating formula.
 - **A locked sticker is chosen via `POST /api/account/sticker`**: rejected (403);
   the account's sticker is left unchanged.
 - **Account deleted**: `users` row (and its `sticker`) is deleted along with it —

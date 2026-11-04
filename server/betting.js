@@ -26,7 +26,7 @@ const BET_HOUSE_EDGE = 0.1;
 // partly their share of overall rating (see computeGlobalOdds).
 const ODDS_CARDS_WEIGHT = 0.75;
 const ODDS_RATING_WEIGHT = 0.25;
-const ODDS_DEFAULT_RATING = 50; // guests and unrated accounts - ratings.js's baseline
+const ODDS_DEFAULT_RATING = require('./ratings').BASELINE; // guests and unrated accounts
 const ODDS_MIN = 1.1; // never offer a "win" that pays back less than the stake
 
 const BETTING_ENABLED = process.env.BETTING_ENABLED === 'true';
