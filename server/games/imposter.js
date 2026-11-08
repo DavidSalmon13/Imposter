@@ -55,16 +55,23 @@ const WORD_CATEGORIES = [
   'a building or structure',
 ];
 
-const SAVED_FIELDS = [
-  'currentLevel',
-  'lastImposterNames',
-  'usedWords',
-  'imposterRoundResults',
-];
+const SAVED_FIELDS = ['currentLevel', 'lastImposterNames', 'usedWords', 'imposterRoundResults'];
+
+/** Imposter's namespaced room state. These fields were historically un-prefixed and flat;
+ * the per-player role/word/hint/vote still live on the players Map, not here. */
+function createState() {
+  return {
+    currentLevel: null,
+    lastImposterNames: [], // avoid picking the same imposter(s) back-to-back; persists across games
+    usedWords: [], // rolling avoid-list sent to ChatGPT; persists across games
+    imposterRoundResults: null, // [{ name, role, eliminated, points }], ephemeral for the round
+  };
+}
 
 function clearState(room) {
-  room.currentLevel = null;
-  room.imposterRoundResults = null;
+  // Only the per-round fields reset; lastImposterNames and usedWords persist across games.
+  room.state.imposter.currentLevel = null;
+  room.state.imposter.imposterRoundResults = null;
 }
 
 function broadcastVoting(ctx, roomCode, room) {
@@ -84,7 +91,7 @@ function tallyLevel(ctx, room) {
 }
 
 async function generateWordAndHint(room, level) {
-  const avoid = room.usedWords.slice(-40);
+  const avoid = room.state.imposter.usedWords.slice(-40);
   const category = WORD_CATEGORIES[Math.floor(Math.random() * WORD_CATEGORIES.length)];
   const spec = LEVEL_SPEC[level];
   const languageInstruction =
@@ -121,7 +128,7 @@ async function generateWordAndHint(room, level) {
 
 function failImposterRound(ctx, roomCode, room, error) {
   room.phase = 'voting';
-  room.currentLevel = null;
+  room.state.imposter.currentLevel = null;
   for (const p of room.players.values()) p.vote = null;
   ctx.roomEmit(roomCode, 'votingStarted', {
     players: ctx.connectedNames(room),
@@ -132,7 +139,7 @@ function failImposterRound(ctx, roomCode, room, error) {
 
 async function finishVoting(ctx, roomCode, room) {
   const level = tallyLevel(ctx, room);
-  room.currentLevel = level;
+  room.state.imposter.currentLevel = level;
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'imposter', level });
 
@@ -162,14 +169,14 @@ async function finishVoting(ctx, roomCode, room) {
     );
   }
 
-  room.usedWords.push(word);
-  if (room.usedWords.length > 80) room.usedWords.splice(0, room.usedWords.length - 80);
+  room.state.imposter.usedWords.push(word);
+  if (room.state.imposter.usedWords.length > 80) room.state.imposter.usedWords.splice(0, room.state.imposter.usedWords.length - 80);
 
   const imposterCount = names.length >= TWO_IMPOSTER_THRESHOLD ? 2 : 1;
-  const fresh = names.filter((n) => !room.lastImposterNames.includes(n));
+  const fresh = names.filter((n) => !room.state.imposter.lastImposterNames.includes(n));
   const candidates = fresh.length >= imposterCount ? fresh : names;
   const imposterNames = shuffle(candidates).slice(0, imposterCount);
-  room.lastImposterNames = imposterNames;
+  room.state.imposter.lastImposterNames = imposterNames;
   // Only connected players are dealt in. room.players also holds everyone who closed the
   // app without leaving; dealing them a role would score them as eliminated (a loss).
   for (const [name, p] of room.players) {
@@ -189,7 +196,7 @@ async function finishVoting(ctx, roomCode, room) {
     p.eliminatedReport = null;
   }
 
-  room.imposterRoundResults = null;
+  room.state.imposter.imposterRoundResults = null;
   room.phase = 'playing';
   ctx.roomEmit(roomCode, 'gameStarted', { level });
   for (const [, p] of room.players) {
@@ -241,7 +248,7 @@ function broadcastImposterReporting(ctx, roomCode, room) {
 function broadcastImposterResults(ctx, roomCode, room) {
   ctx.roomEmit(roomCode, 'imposterResults', {
     host: room.hostName,
-    results: room.imposterRoundResults || [],
+    results: room.state.imposter.imposterRoundResults || [],
     scoreboard: ctx.scoreboardEntries(room),
   });
 }
@@ -266,7 +273,7 @@ function finishImposterReporting(ctx, roomCode, room) {
       points,
     });
   }
-  room.imposterRoundResults = results;
+  room.state.imposter.imposterRoundResults = results;
   // Surviving the round is the win condition for both roles (see imposterPointsFor).
   ctx.recordGameResult(
     room,
@@ -309,7 +316,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       ok: true,
       game: room.game,
       phase: room.phase,
-      level: room.currentLevel,
+      level: room.state.imposter.currentLevel,
       role: existingPlayer.role,
       word: existingPlayer.word,
       hint: existingPlayer.hint,
@@ -339,7 +346,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       game: room.game,
       phase: room.phase,
       host: room.hostName,
-      results: room.imposterRoundResults || [],
+      results: room.state.imposter.imposterRoundResults || [],
       scoreboard: ctx.scoreboardEntries(room),
     };
   }
@@ -348,7 +355,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
       ok: true,
       game: room.game,
       phase: room.phase,
-      level: room.currentLevel,
+      level: room.state.imposter.currentLevel,
       host: room.hostName,
     };
   }
@@ -394,7 +401,7 @@ function onReconnectBroadcast(ctx, roomCode, room) {
 function repairOnLoad(ctx, room) {
   if (room.phase === 'generating') {
     room.phase = 'voting';
-    room.currentLevel = null;
+    room.state.imposter.currentLevel = null;
     for (const p of room.players.values()) p.vote = null;
   }
 
@@ -463,7 +470,7 @@ function registerHandlers(ctx, io, socket) {
     }
 
     for (const p of room.players.values()) p.eliminatedReport = null;
-    room.imposterRoundResults = null;
+    room.state.imposter.imposterRoundResults = null;
     room.phase = 'reporting';
 
     // Anyone already disconnected defaults to eliminated so the round can't hang.
@@ -511,7 +518,7 @@ module.exports = {
   reconnectPayload,
   onDisconnect,
   onReconnectBroadcast,
-  savedFields: SAVED_FIELDS,
+  namespaces: [{ id: 'imposter', createState, savedFields: SAVED_FIELDS }],
   repairOnLoad,
   clearState,
 };

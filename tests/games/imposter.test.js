@@ -19,7 +19,8 @@ const {
 test('contract shape', () => {
   assert.equal(imposter.id, 'imposter');
   assert.equal(imposter.minPlayers, 3);
-  assert.ok(Array.isArray(imposter.savedFields));
+  const ns = imposter.namespaces.find((n) => n.id === 'imposter');
+  assert.ok(Array.isArray(ns.savedFields));
 });
 
 test('vote: rejects wrong phase and invalid level, accepts a valid vote', async () => {
@@ -61,7 +62,7 @@ test('full round: voting -> generated word/roles -> reporting -> scored results'
   }
 
   assert.equal(room.phase, 'playing');
-  assert.equal(room.currentLevel, 'easy');
+  assert.equal(room.state.imposter.currentLevel, 'easy');
 
   const roles = ['Ann', 'Bob', 'Cid'].map((n) => room.players.get(n).role);
   const imposterCount = roles.filter((r) => r === 'imposter').length;
@@ -120,7 +121,7 @@ test('failed OpenAI call falls back to voting with an error broadcast', async ()
   }
 
   assert.equal(room.phase, 'voting');
-  assert.equal(room.currentLevel, null);
+  assert.equal(room.state.imposter.currentLevel, null);
 });
 
 test('non-host cannot end the round', async () => {
@@ -157,7 +158,7 @@ test('players who closed the app are not dealt in, so they are not scored as eli
   for (const n of ['Ann', 'Bob', 'Cid']) await call(sockets[n], 'reportEliminated', false);
 
   assert.equal(room.phase, 'roundResults');
-  assert.deepEqual(room.imposterRoundResults.map((r) => r.name).sort(), ['Ann', 'Bob', 'Cid']);
+  assert.deepEqual(room.state.imposter.imposterRoundResults.map((r) => r.name).sort(), ['Ann', 'Bob', 'Cid']);
   assert.equal(room.scoreboard.Gone, undefined);
   assert.ok(!recordedResults[0].participants.some((p) => p.name === 'Gone'));
 });
