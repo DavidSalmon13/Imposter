@@ -8,28 +8,36 @@ const MF_MAX_PLAYERS = 8;
 const MF_THREE_BOARD_MAX_PLAYERS = 3;
 const MF_TARGET_SCORE = 10;
 
+// Keys within room.state.menifot to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
-  'mfPlayers',
-  'mfBoardCount',
-  'mfBoards',
-  'mfHands',
-  'mfBurned',
-  'mfScores',
-  'mfRoundNumber',
-  'mfRoundResults',
-  'mfMatchWinners',
+  'players',
+  'boardCount',
+  'boards',
+  'hands',
+  'burned',
+  'scores',
+  'roundNumber',
+  'roundResults',
+  'matchWinners',
 ];
 
+/** Menifot's namespaced room state. Replaces the former flat room.mf* fields. */
+function createState() {
+  return {
+    players: [], // frozen match roster
+    boardCount: 0, // 2 or 3, frozen at Start
+    boards: [], // [{ flop, turn, river, revealed }]
+    hands: {}, // name -> { cards, allocation: { [boardIndex]: cards[] }, locked }
+    burned: [],
+    scores: {}, // name -> cumulative board-win points this match
+    roundNumber: 0,
+    roundResults: null, // populated at reveal
+    matchWinners: [],
+  };
+}
+
 function clearState(room) {
-  room.mfPlayers = [];
-  room.mfBoardCount = 0;
-  room.mfBoards = [];
-  room.mfHands = {};
-  room.mfBurned = [];
-  room.mfScores = {};
-  room.mfRoundNumber = 0;
-  room.mfRoundResults = null;
-  room.mfMatchWinners = [];
+  room.state.menifot = createState();
 }
 
 function emptyMfAllocation(boardCount) {
@@ -105,8 +113,8 @@ function mfCommunityCards(board) {
 }
 
 function dealMenifotRound(room) {
-  const playerCount = room.mfPlayers.length;
-  const boardCount = room.mfBoardCount;
+  const playerCount = room.state.menifot.players.length;
+  const boardCount = room.state.menifot.boardCount;
   const deck = shuffle(buildDeck());
   let idx = 0;
 
@@ -128,7 +136,7 @@ function dealMenifotRound(room) {
 
   const cardsPerPlayer = (remaining - burnCount) / playerCount;
   const hands = {};
-  for (const name of room.mfPlayers) {
+  for (const name of room.state.menifot.players) {
     const cards = [];
     for (let i = 0; i < cardsPerPlayer; i++) cards.push(deck[idx++]);
     hands[name] = {
@@ -138,11 +146,11 @@ function dealMenifotRound(room) {
     };
   }
 
-  room.mfBoards = boards;
-  room.mfBurned = burned;
-  room.mfHands = hands;
-  room.mfRoundResults = null;
-  room.mfRoundNumber += 1;
+  room.state.menifot.boards = boards;
+  room.state.menifot.burned = burned;
+  room.state.menifot.hands = hands;
+  room.state.menifot.roundResults = null;
+  room.state.menifot.roundNumber += 1;
 }
 
 function autoLockEvenSplit(hand, boardCount) {
@@ -155,7 +163,7 @@ function autoLockEvenSplit(hand, boardCount) {
 }
 
 function menifotPublicBoards(room) {
-  return room.mfBoards.map((b) => ({
+  return room.state.menifot.boards.map((b) => ({
     flop: b.flop.slice(),
     turn: b.turnRevealed ? b.turn : null,
     river: b.riverRevealed ? b.river : null,
@@ -165,8 +173,8 @@ function menifotPublicBoards(room) {
 }
 
 function menifotLockStatus(room) {
-  return room.mfPlayers.map((name) => {
-    const hand = room.mfHands[name];
+  return room.state.menifot.players.map((name) => {
+    const hand = room.state.menifot.hands[name];
     const p = room.players.get(name);
     return {
       name,
@@ -177,16 +185,16 @@ function menifotLockStatus(room) {
 }
 
 function menifotStatePayload(ctx, room, viewerName) {
-  const inMatch = room.mfPlayers.includes(viewerName);
-  const hand = room.mfHands[viewerName] || null;
+  const inMatch = room.state.menifot.players.includes(viewerName);
+  const hand = room.state.menifot.hands[viewerName] || null;
   const scores = {};
-  for (const name of room.mfPlayers) scores[name] = room.mfScores[name] || 0;
+  for (const name of room.state.menifot.players) scores[name] = room.state.menifot.scores[name] || 0;
 
   const standings =
     room.phase === 'gameover'
-      ? room.mfPlayers
+      ? room.state.menifot.players
           .slice()
-          .map((name) => ({ name, score: room.mfScores[name] || 0 }))
+          .map((name) => ({ name, score: room.state.menifot.scores[name] || 0 }))
           .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       : null;
 
@@ -194,12 +202,12 @@ function menifotStatePayload(ctx, room, viewerName) {
     game: 'menifot',
     phase: room.phase,
     host: room.hostName,
-    boardCount: room.mfBoardCount,
-    players: room.mfPlayers.slice(),
-    roundNumber: room.mfRoundNumber,
+    boardCount: room.state.menifot.boardCount,
+    players: room.state.menifot.players.slice(),
+    roundNumber: room.state.menifot.roundNumber,
     scores,
     boards: menifotPublicBoards(room),
-    burned: room.phase === 'roundResults' || room.phase === 'gameover' ? room.mfBurned.slice() : [],
+    burned: room.phase === 'roundResults' || room.phase === 'gameover' ? room.state.menifot.burned.slice() : [],
     lockStatus: menifotLockStatus(room),
     myHand: hand
       ? {
@@ -211,12 +219,12 @@ function menifotStatePayload(ctx, room, viewerName) {
         }
       : null,
     inMatch,
-    roundResults: room.mfRoundResults,
-    matchWinners: room.mfMatchWinners.slice(),
+    roundResults: room.state.menifot.roundResults,
+    matchWinners: room.state.menifot.matchWinners.slice(),
     standings,
     canStart:
       room.phase === 'ready' &&
-      (room.mfPlayers.length > 0 ||
+      (room.state.menifot.players.length > 0 ||
         (ctx.connectedNames(room).length >= MF_MIN_PLAYERS &&
           ctx.connectedNames(room).length <= MF_MAX_PLAYERS)),
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
@@ -234,21 +242,21 @@ function startMenifotMatch(ctx, roomCode, room, playerNames) {
   const names = (playerNames || ctx.connectedNames(room)).slice();
   if (names.length < MF_MIN_PLAYERS || names.length > MF_MAX_PLAYERS) return false;
 
-  room.mfPlayers = names;
-  room.mfBoardCount = names.length <= MF_THREE_BOARD_MAX_PLAYERS ? 3 : 2;
-  room.mfScores = {};
-  for (const name of names) room.mfScores[name] = 0;
-  room.mfRoundNumber = 0;
-  room.mfMatchWinners = [];
-  room.mfRoundResults = null;
+  room.state.menifot.players = names;
+  room.state.menifot.boardCount = names.length <= MF_THREE_BOARD_MAX_PLAYERS ? 3 : 2;
+  room.state.menifot.scores = {};
+  for (const name of names) room.state.menifot.scores[name] = 0;
+  room.state.menifot.roundNumber = 0;
+  room.state.menifot.matchWinners = [];
+  room.state.menifot.roundResults = null;
   dealMenifotRound(room);
   room.phase = 'allocating';
 
   // Auto-lock anyone already disconnected at deal time.
-  for (const name of room.mfPlayers) {
+  for (const name of room.state.menifot.players) {
     const p = room.players.get(name);
     if (!p || !p.connected) {
-      autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
+      autoLockEvenSplit(room.state.menifot.hands[name], room.state.menifot.boardCount);
     }
   }
   broadcastMenifot(ctx, roomCode, room);
@@ -258,10 +266,10 @@ function startMenifotMatch(ctx, roomCode, room, playerNames) {
 function startMenifotNextRound(ctx, roomCode, room) {
   dealMenifotRound(room);
   room.phase = 'allocating';
-  for (const name of room.mfPlayers) {
+  for (const name of room.state.menifot.players) {
     const p = room.players.get(name);
     if (!p || !p.connected) {
-      autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
+      autoLockEvenSplit(room.state.menifot.hands[name], room.state.menifot.boardCount);
     }
   }
   broadcastMenifot(ctx, roomCode, room);
@@ -297,10 +305,10 @@ function setMfCardBoard(hand, card, boardIndex, boardCount) {
 }
 
 function lockMfHand(room, name) {
-  const hand = room.mfHands[name];
+  const hand = room.state.menifot.hands[name];
   if (!hand) return { ok: false, error: 'Not in this match' };
   if (hand.locked) return { ok: false, error: 'Already locked' };
-  if (!mfAllocationValid(hand, room.mfBoardCount)) {
+  if (!mfAllocationValid(hand, room.state.menifot.boardCount)) {
     return { ok: false, error: 'Assign every card with board counts differing by at most 1' };
   }
   hand.locked = true;
@@ -308,14 +316,14 @@ function lockMfHand(room, name) {
 }
 
 function allMfLocked(room) {
-  return room.mfPlayers.every((name) => room.mfHands[name] && room.mfHands[name].locked);
+  return room.state.menifot.players.every((name) => room.state.menifot.hands[name] && room.state.menifot.hands[name].locked);
 }
 
 function awardMenifotScoreboard(ctx, room) {
-  const N = room.mfPlayers.length;
+  const N = room.state.menifot.players.length;
   if (N < 1) return;
-  const ranked = room.mfPlayers
-    .map((name) => ({ name, score: room.mfScores[name] || 0 }))
+  const ranked = room.state.menifot.players
+    .map((name) => ({ name, score: room.state.menifot.scores[name] || 0 }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
   let i = 0;
@@ -330,7 +338,7 @@ function awardMenifotScoreboard(ctx, room) {
     }
     i = j;
   }
-  const winners = room.mfMatchWinners || [];
+  const winners = room.state.menifot.matchWinners || [];
   ctx.recordGameResult(
     room,
     'menifot',
@@ -346,14 +354,14 @@ function awardMenifotScoreboard(ctx, room) {
 function finalizeMenifotRound(ctx, roomCode, room) {
   const boardResults = [];
   const pointsAwarded = {};
-  for (const name of room.mfPlayers) pointsAwarded[name] = 0;
+  for (const name of room.state.menifot.players) pointsAwarded[name] = 0;
 
-  for (let bi = 0; bi < room.mfBoardCount; bi++) {
-    const board = room.mfBoards[bi];
+  for (let bi = 0; bi < room.state.menifot.boardCount; bi++) {
+    const board = room.state.menifot.boards[bi];
     const community = mfCommunityCards(board);
-    const playersOnBoard = room.mfPlayers.map((name) => ({
+    const playersOnBoard = room.state.menifot.players.map((name) => ({
       name,
-      holeCards: (room.mfHands[name].allocation[bi] || []).slice(),
+      holeCards: (room.state.menifot.hands[name].allocation[bi] || []).slice(),
       boardCards: community,
     }));
     const { winners, rankings } = rankBoard(playersOnBoard);
@@ -361,27 +369,27 @@ function finalizeMenifotRound(ctx, roomCode, room) {
     boardResults.push({ boardIndex: bi, winners, rankings });
   }
 
-  for (const name of room.mfPlayers) {
-    room.mfScores[name] = (room.mfScores[name] || 0) + (pointsAwarded[name] || 0);
+  for (const name of room.state.menifot.players) {
+    room.state.menifot.scores[name] = (room.state.menifot.scores[name] || 0) + (pointsAwarded[name] || 0);
   }
 
-  room.mfRoundResults = {
+  room.state.menifot.roundResults = {
     boards: boardResults,
     pointsAwarded,
-    burned: room.mfBurned.slice(),
+    burned: room.state.menifot.burned.slice(),
     allocations: Object.fromEntries(
-      room.mfPlayers.map((name) => [
+      room.state.menifot.players.map((name) => [
         name,
         Object.fromEntries(
-          Object.entries(room.mfHands[name].allocation).map(([k, v]) => [k, v.slice()])
+          Object.entries(room.state.menifot.hands[name].allocation).map(([k, v]) => [k, v.slice()])
         ),
       ])
     ),
   };
 
-  const reached = room.mfPlayers.filter((n) => (room.mfScores[n] || 0) >= MF_TARGET_SCORE);
+  const reached = room.state.menifot.players.filter((n) => (room.state.menifot.scores[n] || 0) >= MF_TARGET_SCORE);
   if (reached.length > 0) {
-    room.mfMatchWinners = reached.slice();
+    room.state.menifot.matchWinners = reached.slice();
     awardMenifotScoreboard(ctx, room);
     room.phase = 'gameover';
   } else {
@@ -397,7 +405,7 @@ function finalizeMenifotRound(ctx, roomCode, room) {
 // possible, and the client renders locked boards read-only aside from the host's taps.
 function revealMfCard(room, boardIndex, part) {
   if (!allMfLocked(room)) return { ok: false, error: 'Waiting for everyone to lock' };
-  const board = room.mfBoards[boardIndex];
+  const board = room.state.menifot.boards[boardIndex];
   if (!board) return { ok: false, error: 'Invalid board' };
   if (part !== 'turn' && part !== 'river') return { ok: false, error: 'Invalid card' };
 
@@ -429,8 +437,8 @@ function reconnectPayload(ctx, room, existingPlayer) {
 }
 
 function onDisconnect(ctx, roomCode, room, name) {
-  if (room.phase === 'allocating' && room.mfHands[name] && !room.mfHands[name].locked) {
-    autoLockEvenSplit(room.mfHands[name], room.mfBoardCount);
+  if (room.phase === 'allocating' && room.state.menifot.hands[name] && !room.state.menifot.hands[name].locked) {
+    autoLockEvenSplit(room.state.menifot.hands[name], room.state.menifot.boardCount);
   }
   broadcastMenifot(ctx, roomCode, room);
 }
@@ -444,15 +452,15 @@ function repairOnLoad(_ctx, room) {
   // (or pre-Start ready) with match scores / roster preserved.
   if (room.phase === 'allocating' || room.phase === 'roundResults') {
     if (room.phase === 'allocating') {
-      room.mfBoards = [];
-      room.mfHands = {};
-      room.mfBurned = [];
-      room.mfRoundResults = null;
+      room.state.menifot.boards = [];
+      room.state.menifot.hands = {};
+      room.state.menifot.burned = [];
+      room.state.menifot.roundResults = null;
       room.phase = 'ready';
     }
   }
-  if (!room.mfScores || typeof room.mfScores !== 'object') room.mfScores = {};
-  if (!Array.isArray(room.mfPlayers)) room.mfPlayers = [];
+  if (!room.state.menifot.scores || typeof room.state.menifot.scores !== 'object') room.state.menifot.scores = {};
+  if (!Array.isArray(room.state.menifot.players)) room.state.menifot.players = [];
 }
 
 function registerHandlers(ctx, io, socket) {
@@ -469,7 +477,7 @@ function registerHandlers(ctx, io, socket) {
     }
 
     // Mid-match ready (e.g. after server restart): reuse frozen roster.
-    if (room.mfPlayers.length > 0) {
+    if (room.state.menifot.players.length > 0) {
       callback({ ok: true });
       startMenifotNextRound(ctx, roomCode, room);
       return;
@@ -497,12 +505,12 @@ function registerHandlers(ctx, io, socket) {
     }
 
     const name = socket.data.name;
-    const hand = room.mfHands[name];
+    const hand = room.state.menifot.hands[name];
     if (!hand) return callback({ ok: false, error: 'Not in this match' });
 
     const card = data && data.card;
     const boardIndex = data && data.boardIndex;
-    const result = setMfCardBoard(hand, card, boardIndex, room.mfBoardCount);
+    const result = setMfCardBoard(hand, card, boardIndex, room.state.menifot.boardCount);
     if (!result.ok) return callback(result);
 
     callback({ ok: true });
@@ -545,7 +553,7 @@ function registerHandlers(ctx, io, socket) {
 
     callback({ ok: true });
     broadcastMenifot(ctx, roomCode, room);
-    if (room.mfBoards.every((b) => b.turnRevealed && b.riverRevealed)) {
+    if (room.state.menifot.boards.every((b) => b.turnRevealed && b.riverRevealed)) {
       finalizeMenifotRound(ctx, roomCode, room);
     }
   });
@@ -600,7 +608,7 @@ module.exports = {
   reconnectPayload,
   onDisconnect,
   onReconnectBroadcast,
-  savedFields: SAVED_FIELDS,
+  namespaces: [{ id: 'menifot', createState, savedFields: SAVED_FIELDS }],
   repairOnLoad,
   clearState,
 };

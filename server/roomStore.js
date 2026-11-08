@@ -32,16 +32,7 @@ function createRoomState() {
     usedWords: [],
     // Codenames fields moved to state.codenames (see server/games/codenames.js createState).
     // 10 Seconds fields moved to state.tenseconds (see server/games/tenseconds.js createState).
-    // Menifot
-    mfPlayers: [], // frozen match roster
-    mfBoardCount: 0, // 2 or 3, frozen at Start
-    mfBoards: [], // [{ flop, turn, river, revealed }]
-    mfHands: {}, // name -> { cards, allocation: { [boardIndex]: cards[] }, locked }
-    mfBurned: [],
-    mfScores: {}, // name -> cumulative board-win points this match
-    mfRoundNumber: 0,
-    mfRoundResults: null, // populated at reveal
-    mfMatchWinners: [],
+    // Menifot fields moved to state.menifot (see server/games/menifot.js createState).
     // Music Timeline
     // Music Timeline phases: 'teamSelect' | 'ready' | 'generating' | 'placing' | 'locked' | 'revealed' | 'gameover'
     mtMode: null, // 'team' | 'solo'

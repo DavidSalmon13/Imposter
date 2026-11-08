@@ -22,17 +22,17 @@ test('startMenifot: deals a real round and picks 3 boards for <=3 players', asyn
   const res = await call(socket, 'startMenifot');
   assert.equal(res.ok, true);
   assert.equal(room.phase, 'allocating');
-  assert.equal(room.mfBoardCount, 3);
-  assert.equal(room.mfBoards.length, 3);
-  assert.equal(room.mfHands.Ann.cards.length, room.mfHands.Bob.cards.length);
+  assert.equal(room.state.menifot.boardCount, 3);
+  assert.equal(room.state.menifot.boards.length, 3);
+  assert.equal(room.state.menifot.hands.Ann.cards.length, room.state.menifot.hands.Bob.cards.length);
 });
 
 test('mfAssignCard: rejects allocations that break the ±1 rule, mfLock requires every card placed', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'menifot', phase: 'allocating' });
-  room.mfPlayers = ['Ann', 'Bob'];
-  room.mfBoardCount = 2;
-  room.mfHands = {
+  room.state.menifot.players = ['Ann', 'Bob'];
+  room.state.menifot.boardCount = 2;
+  room.state.menifot.hands = {
     Ann: { cards: ['Ah', 'Kh', 'Qh'], allocation: { 0: [], 1: [] }, locked: false },
     Bob: { cards: ['2c', '3c', '4c'], allocation: { 0: [], 1: [] }, locked: false },
   };
@@ -53,23 +53,23 @@ test('mfAssignCard: rejects allocations that break the ±1 rule, mfLock requires
   assert.equal(placeLast.ok, true);
   const lockRes = await call(socket, 'mfLock');
   assert.equal(lockRes.ok, true);
-  assert.equal(room.mfHands.Ann.locked, true);
+  assert.equal(room.state.menifot.hands.Ann.locked, true);
 });
 
 test('revealing every board resolves the round and scores the winner', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'menifot', phase: 'allocating' });
-  room.mfPlayers = ['Ann', 'Bob'];
-  room.mfBoardCount = 1;
-  room.mfScores = { Ann: 0, Bob: 0 };
-  room.mfRoundNumber = 1;
-  room.mfBurned = [];
-  room.mfHands = {
+  room.state.menifot.players = ['Ann', 'Bob'];
+  room.state.menifot.boardCount = 1;
+  room.state.menifot.scores = { Ann: 0, Bob: 0 };
+  room.state.menifot.roundNumber = 1;
+  room.state.menifot.burned = [];
+  room.state.menifot.hands = {
     // Ann holds Ah/Kh and the board's Qh/Jh/Th/9h complete a royal flush for her.
     Ann: { cards: ['Ah', 'Kh'], allocation: { 0: ['Ah', 'Kh'] }, locked: true },
     Bob: { cards: ['2c', '3d'], allocation: { 0: ['2c', '3d'] }, locked: true },
   };
-  room.mfBoards = [
+  room.state.menifot.boards = [
     { flop: ['Qh', 'Jh', 'Th'], turn: '9h', river: '2h', turnRevealed: false, riverRevealed: false },
   ];
 
@@ -85,25 +85,25 @@ test('revealing every board resolves the round and scores the winner', async () 
   const riverRes = await call(socket, 'mfRevealCard', { boardIndex: 0, part: 'river' });
   assert.equal(riverRes.ok, true);
 
-  assert.equal(room.mfRoundResults.boards[0].winners.length, 1);
-  assert.equal(room.mfRoundResults.boards[0].winners[0], 'Ann');
-  assert.equal(room.mfScores.Ann, 1);
-  assert.equal(room.mfScores.Bob, 0);
+  assert.equal(room.state.menifot.roundResults.boards[0].winners.length, 1);
+  assert.equal(room.state.menifot.roundResults.boards[0].winners[0], 'Ann');
+  assert.equal(room.state.menifot.scores.Ann, 1);
+  assert.equal(room.state.menifot.scores.Bob, 0);
 });
 
 test('reaching the target score ends the match and fans points into the scoreboard', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'menifot', phase: 'allocating' });
-  room.mfPlayers = ['Ann', 'Bob'];
-  room.mfBoardCount = 1;
-  room.mfScores = { Ann: 9, Bob: 3 };
-  room.mfRoundNumber = 5;
-  room.mfBurned = [];
-  room.mfHands = {
+  room.state.menifot.players = ['Ann', 'Bob'];
+  room.state.menifot.boardCount = 1;
+  room.state.menifot.scores = { Ann: 9, Bob: 3 };
+  room.state.menifot.roundNumber = 5;
+  room.state.menifot.burned = [];
+  room.state.menifot.hands = {
     Ann: { cards: ['Ah', 'Kh'], allocation: { 0: ['Ah', 'Kh'] }, locked: true },
     Bob: { cards: ['2c', '3d'], allocation: { 0: ['2c', '3d'] }, locked: true },
   };
-  room.mfBoards = [
+  room.state.menifot.boards = [
     { flop: ['Qh', 'Jh', 'Th'], turn: '9h', river: '2h', turnRevealed: false, riverRevealed: false },
   ];
 
@@ -111,9 +111,9 @@ test('reaching the target score ends the match and fans points into the scoreboa
   await call(socket, 'mfRevealCard', { boardIndex: 0, part: 'turn' });
   await call(socket, 'mfRevealCard', { boardIndex: 0, part: 'river' });
 
-  assert.equal(room.mfScores.Ann, 10);
+  assert.equal(room.state.menifot.scores.Ann, 10);
   assert.equal(room.phase, 'gameover');
-  assert.deepEqual(room.mfMatchWinners, ['Ann']);
+  assert.deepEqual(room.state.menifot.matchWinners, ['Ann']);
   assert.equal(room.scoreboard.Ann, 2, 'winner of a 2-player match gets N points (place 1)');
   assert.equal(room.scoreboard.Bob, 1, 'last place still gets N - 1 points');
 });
