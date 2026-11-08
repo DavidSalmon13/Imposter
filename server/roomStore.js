@@ -33,20 +33,8 @@ function createRoomState() {
     // Codenames fields moved to state.codenames (see server/games/codenames.js createState).
     // 10 Seconds fields moved to state.tenseconds (see server/games/tenseconds.js createState).
     // Menifot fields moved to state.menifot (see server/games/menifot.js createState).
-    // Music Timeline
     // Music Timeline phases: 'teamSelect' | 'ready' | 'generating' | 'placing' | 'locked' | 'revealed' | 'gameover'
-    mtMode: null, // 'team' | 'solo'
-    mtDifficulty: null, // 'easy' | 'pro' | 'expert'
-    mtTeams: {}, // team id -> { name, timeline: [{ title, artist, releaseYear }, ...], tokens }
-    mtActiveTeamIndex: 0,
-    mtCurrentSong: null, // { title, artist, releaseYear } | null - pending song for the active team
-    mtPendingPlacement: null, // { slotIndex } | null - active team's locked-but-not-revealed slot pick
-    mtRevealResult: null, // { teamId, correct } | null - set at reveal, cleared at next turn/start
-    mtIdConfirmed: false, // honor-system artist/title checkbox for the current reveal
-    mtCurrentChallenge: null, // { team, placement } | null
-    mtUsedSongs: [], // rolling avoid-list sent to ChatGPT
-    mtRoundNumber: 0,
-    mtMatchWinners: [],
+    // Music Timeline fields moved to state.musictimeline (see server/games/musicTimeline.js createState).
     // Mind Meld
     // Mind Meld phases: 'ready' | 'pickingSubject' | 'generating' | 'answering' | 'revealed' | 'gameover'
     mmRotationOrder: [], // frozen shuffled array of player names, set once at match start
