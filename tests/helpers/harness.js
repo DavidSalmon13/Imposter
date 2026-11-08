@@ -9,6 +9,7 @@
 
 const roomStore = require('../../server/roomStore');
 const { connectedNames, scoreboardEntries, addScore } = require('../../server/lobby');
+const { initGameState } = require('../../server/gameRegistry');
 const betting = require('../../server/betting');
 
 function makeFakeIo() {
@@ -122,6 +123,7 @@ function addPlayer(room, name, overrides = {}) {
 /** Creates a room in ctx.rooms with `names` joined and connected; hostName defaults to names[0]. */
 function createRoom(ctx, code, names, { game = null, phase = 'lobby', hostName } = {}) {
   const room = roomStore.createRoomState();
+  initGameState(room);
   room.hostName = hostName !== undefined ? hostName : names[0] || null;
   room.game = game;
   room.phase = phase;

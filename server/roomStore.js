@@ -114,7 +114,22 @@ function createRoomState() {
     // Imposter reporting/results (ephemeral for the round being scored)
     imposterRoundResults: null, // [{ name, role, eliminated, points }]
     backgroundImage: null,
+    // Per-game namespaced state. As each game migrates off its flat prefix, its fields
+    // move under state[gameId] (populated by gameRegistry.initGameState); see
+    // plans/yes-sketch-a-low-risk-quiet-chipmunk.md.
+    state: {},
   };
+}
+
+/**
+ * Lazily initialize a migrated game's state namespace. Idempotent: existing state (e.g.
+ * assigned during a disk load) is left untouched, so this is safe to call on every room
+ * creation path (lobby, persistence load, tests).
+ */
+function ensureGameState(room, gameId, createState) {
+  if (!room.state) room.state = {};
+  if (!room.state[gameId]) room.state[gameId] = createState();
+  return room.state[gameId];
 }
 
 function normalizeRoomCode(code) {
@@ -148,6 +163,7 @@ module.exports = {
   rooms,
   initRoomStore,
   createRoomState,
+  ensureGameState,
   normalizeRoomCode,
   generateRoomCode,
   getRoom,

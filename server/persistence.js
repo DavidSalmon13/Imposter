@@ -2,7 +2,12 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const { rooms, createRoomState } = require('./roomStore');
-const { ROOM_SAVED_FIELDS, repairRoomOnLoad } = require('./gameRegistry');
+const {
+  ROOM_SAVED_FIELDS,
+  NAMESPACED_SAVED,
+  initGameState,
+  repairRoomOnLoad,
+} = require('./gameRegistry');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
@@ -22,6 +27,15 @@ async function saveRoomsToDisk() {
     for (const [code, room] of rooms) {
       const data = { players: Array.from(room.players.entries()) };
       for (const field of ROOM_SAVED_FIELDS) data[field] = room[field];
+      // Migrated games persist under data.state[namespace], picking only their saved keys.
+      for (const [nsId, savedFields] of Object.entries(NAMESPACED_SAVED)) {
+        const nsState = room.state && room.state[nsId];
+        if (!nsState) continue;
+        if (!data.state) data.state = {};
+        const picked = {};
+        for (const key of savedFields) picked[key] = nsState[key];
+        data.state[nsId] = picked;
+      }
       serialized[code] = data;
     }
     const tmpFile = `${ROOMS_FILE}.tmp`;
@@ -49,6 +63,15 @@ function loadRoomsFromDisk(hooks = {}) {
       const room = createRoomState();
       for (const field of ROOM_SAVED_FIELDS) {
         if (data[field] !== undefined) room[field] = data[field];
+      }
+      // Restore migrated games' namespaced state: seed defaults, then overlay saved keys.
+      initGameState(room);
+      for (const [nsId, savedFields] of Object.entries(NAMESPACED_SAVED)) {
+        const saved = data.state && data.state[nsId];
+        if (!saved) continue;
+        for (const key of savedFields) {
+          if (saved[key] !== undefined) room.state[nsId][key] = saved[key];
+        }
       }
       room.players = new Map(
         (data.players || []).map(([name, p]) => [name, { ...p, connected: false, socketId: null }])

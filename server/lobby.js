@@ -10,7 +10,7 @@ const {
   roomEmit,
 } = require('./roomStore');
 const { saveRoomsToDisk } = require('./persistence');
-const { getGame, clearAllGameState } = require('./gameRegistry');
+const { getGame, clearAllGameState, initGameState } = require('./gameRegistry');
 const { isValidSticker } = require('./stickers');
 const {
   canUseSticker,
@@ -208,6 +208,7 @@ function getSharedRoom() {
   let room = rooms.get(SHARED_ROOM_CODE);
   if (!room) {
     room = createRoomState();
+    initGameState(room);
     rooms.set(SHARED_ROOM_CODE, room);
   }
   return room;
