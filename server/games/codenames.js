@@ -16,18 +16,35 @@ const CN_NAME_BANK_LIMIT = 200;
 const CN_BANK_PICK_COUNT = 2; // default count of bank words mixed into a board
 const CN_BANK_PICK_MAX = 10; // host-adjustable upper bound
 
+// Keys within room.state.codenames to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
-  'cnUsedWords',
-  'cnBoard',
-  'cnActiveTeam',
-  'cnStartingTeam',
-  'cnWinner',
-  'cnScores',
-  'cnTimerSeconds',
-  'cnTurnEndsAt',
-  'cnNameBank',
-  'cnBankPickCount',
+  'usedWords',
+  'board',
+  'activeTeam',
+  'startingTeam',
+  'winner',
+  'scores',
+  'timerSeconds',
+  'turnEndsAt',
+  'nameBank',
+  'bankPickCount',
 ];
+
+/** Codenames' namespaced room state. Replaces the former flat room.cn* fields. */
+function createState() {
+  return {
+    usedWords: [],
+    board: null, // [{ word, color, revealed }]
+    activeTeam: null,
+    startingTeam: null,
+    winner: null,
+    scores: { red: 0, blue: 0 },
+    timerSeconds: null, // null | 60 | 120
+    turnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
+    nameBank: [], // room-curated words any player can add; a few are randomly mixed into each board
+    bankPickCount: null, // null = default (CN_BANK_PICK_COUNT); host-adjustable count of bank words per board
+  };
+}
 
 /** @type {Map<string, NodeJS.Timeout>} */
 const cnTimerHandles = new Map();
@@ -40,33 +57,30 @@ function clearCnTimerHandle(roomCode) {
 
 function clearState(room, roomCode) {
   if (roomCode) clearCnTimerHandle(roomCode);
-  room.cnBoard = null;
-  room.cnActiveTeam = null;
-  room.cnStartingTeam = null;
-  room.cnWinner = null;
-  room.cnScores = { red: 0, blue: 0 };
-  room.cnTimerSeconds = null;
-  room.cnTurnEndsAt = null;
-  room.cnBankPickCount = null;
+  // Reset the board/scores but keep the room's rolling word avoid-list and its curated
+  // name bank, which persist across games in the same room.
+  const { usedWords, nameBank } = room.state.codenames;
+  room.state.codenames = createState();
+  Object.assign(room.state.codenames, { usedWords, nameBank });
 }
 
 function startCnTimer(ctx, roomCode, room) {
   clearCnTimerHandle(roomCode);
-  if (!room.cnTimerSeconds) {
-    room.cnTurnEndsAt = null;
+  if (!room.state.codenames.timerSeconds) {
+    room.state.codenames.turnEndsAt = null;
     return;
   }
-  room.cnTurnEndsAt = Date.now() + room.cnTimerSeconds * 1000;
+  room.state.codenames.turnEndsAt = Date.now() + room.state.codenames.timerSeconds * 1000;
   cnTimerHandles.set(
     roomCode,
-    setTimeout(() => cnTimerExpired(ctx, roomCode), room.cnTimerSeconds * 1000)
+    setTimeout(() => cnTimerExpired(ctx, roomCode), room.state.codenames.timerSeconds * 1000)
   );
 }
 
 function cnTimerExpired(ctx, roomCode) {
   const room = ctx.rooms.get(roomCode);
   if (!room || room.game !== 'codenames' || room.phase !== 'playing') return;
-  room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+  room.state.codenames.activeTeam = room.state.codenames.activeTeam === 'red' ? 'blue' : 'red';
   startCnTimer(ctx, roomCode, room); // subsequent turns start automatically
   broadcastCodenamesState(ctx, roomCode, room);
 }
@@ -88,9 +102,9 @@ function broadcastTeamSelect(ctx, roomCode, room) {
     red: teamPlayersInfo(ctx, room, 'red'),
     blue: teamPlayersInfo(ctx, room, 'blue'),
     unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
-    timerSeconds: room.cnTimerSeconds || 0,
+    timerSeconds: room.state.codenames.timerSeconds || 0,
     wordTheme: room.wordTheme || '',
-    nameBank: room.cnNameBank || [],
+    nameBank: room.state.codenames.nameBank || [],
     bankPickCount: resolveBankPickCount(room),
     bankPickMax: CN_BANK_PICK_MAX,
   });
@@ -113,11 +127,11 @@ function clampBankPickCount(value) {
 }
 
 function resolveBankPickCount(room) {
-  return room.cnBankPickCount == null ? CN_BANK_PICK_COUNT : room.cnBankPickCount;
+  return room.state.codenames.bankPickCount == null ? CN_BANK_PICK_COUNT : room.state.codenames.bankPickCount;
 }
 
 async function generateWordGrid(room, count, avoidExtra = []) {
-  const avoid = [...room.cnUsedWords.slice(-100), ...avoidExtra];
+  const avoid = [...room.state.codenames.usedWords.slice(-100), ...avoidExtra];
   const languageInstruction =
     room.wordLanguage === 'hebrew' ? ' Write every word in Hebrew.' : '';
   const theme = (room.wordTheme || '').trim();
@@ -169,14 +183,14 @@ function buildBoard(words, startingTeam) {
 // Counted server-side because non-leaders' boards hide unrevealed colors.
 function cardsRemaining(room) {
   const remaining = { red: 0, blue: 0 };
-  for (const cell of room.cnBoard) {
+  for (const cell of room.state.codenames.board) {
     if (!cell.revealed && (cell.color === 'red' || cell.color === 'blue')) remaining[cell.color] += 1;
   }
   return remaining;
 }
 
 function boardForViewer(room, p) {
-  return room.cnBoard.map((cell) => {
+  return room.state.codenames.board.map((cell) => {
     if (cell.revealed || p.leader) {
       return { word: cell.word, color: cell.color, revealed: cell.revealed };
     }
@@ -189,9 +203,9 @@ function broadcastCodenamesState(ctx, roomCode, room) {
     if (!p.connected) continue;
     ctx.io.to(p.socketId).emit('codenamesState', {
       phase: room.phase,
-      activeTeam: room.cnActiveTeam,
-      winner: room.cnWinner,
-      scores: room.cnScores,
+      activeTeam: room.state.codenames.activeTeam,
+      winner: room.state.codenames.winner,
+      scores: room.state.codenames.scores,
       board: boardForViewer(room, p),
       remaining: cardsRemaining(room),
       isLeader: p.leader,
@@ -199,8 +213,8 @@ function broadcastCodenamesState(ctx, roomCode, room) {
       red: teamPlayersInfo(ctx, room, 'red'),
       blue: teamPlayersInfo(ctx, room, 'blue'),
       host: room.hostName,
-      timerSeconds: room.cnTimerSeconds || 0,
-      turnEndsAt: room.cnTurnEndsAt,
+      timerSeconds: room.state.codenames.timerSeconds || 0,
+      turnEndsAt: room.state.codenames.turnEndsAt,
       scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
     });
   }
@@ -209,25 +223,25 @@ function broadcastCodenamesState(ctx, roomCode, room) {
 function failCodenamesRound(ctx, roomCode, room, error) {
   room.phase = 'teamSelect';
   clearCnTimerHandle(roomCode);
-  room.cnTurnEndsAt = null;
+  room.state.codenames.turnEndsAt = null;
   broadcastTeamSelect(ctx, roomCode, room);
   ctx.roomEmit(roomCode, 'codenamesStartFailed', { error });
 }
 
 function checkTeamWin(room) {
   for (const color of ['red', 'blue']) {
-    const remaining = room.cnBoard.filter((c) => c.color === color && !c.revealed);
+    const remaining = room.state.codenames.board.filter((c) => c.color === color && !c.revealed);
     if (remaining.length === 0) return color;
   }
   return null;
 }
 
 function awardCodenamesScores(ctx, room) {
-  if (!room.cnWinner) return;
+  if (!room.state.codenames.winner) return;
   const participants = [];
   for (const [name, p] of room.players.entries()) {
     if (!p.team) continue;
-    const won = p.team === room.cnWinner;
+    const won = p.team === room.state.codenames.winner;
     if (won) ctx.addScore(room, name, 2);
     // Losing team gets 0 — no scoreboard write needed.
     participants.push({
@@ -243,10 +257,10 @@ function awardCodenamesScores(ctx, room) {
 
 function finishCodenamesGame(ctx, roomCode, room) {
   room.phase = 'gameover';
-  if (room.cnWinner) room.cnScores[room.cnWinner] += 1;
+  if (room.state.codenames.winner) room.state.codenames.scores[room.state.codenames.winner] += 1;
   awardCodenamesScores(ctx, room);
   clearCnTimerHandle(roomCode);
-  room.cnTurnEndsAt = null;
+  room.state.codenames.turnEndsAt = null;
   broadcastCodenamesState(ctx, roomCode, room);
 }
 
@@ -254,7 +268,7 @@ async function generateCodenamesRound(ctx, roomCode, room) {
   room.phase = 'generating';
   ctx.roomEmit(roomCode, 'generating', { game: 'codenames' });
 
-  const bankPicks = pickFromNameBank(room.cnNameBank, resolveBankPickCount(room));
+  const bankPicks = pickFromNameBank(room.state.codenames.nameBank, resolveBankPickCount(room));
   let aiWords;
   try {
     aiWords = await generateWordGrid(room, CN_WORD_COUNT - bankPicks.length, bankPicks);
@@ -275,17 +289,17 @@ async function generateCodenamesRound(ctx, roomCode, room) {
   }
 
   const words = shuffle([...aiWords, ...bankPicks]);
-  for (const w of aiWords) room.cnUsedWords.push(w);
-  if (room.cnUsedWords.length > 150) room.cnUsedWords.splice(0, room.cnUsedWords.length - 150);
+  for (const w of aiWords) room.state.codenames.usedWords.push(w);
+  if (room.state.codenames.usedWords.length > 150) room.state.codenames.usedWords.splice(0, room.state.codenames.usedWords.length - 150);
 
-  room.cnBoard = buildBoard(words, room.cnStartingTeam);
-  room.cnActiveTeam = room.cnStartingTeam;
-  room.cnWinner = null;
+  room.state.codenames.board = buildBoard(words, room.state.codenames.startingTeam);
+  room.state.codenames.activeTeam = room.state.codenames.startingTeam;
+  room.state.codenames.winner = null;
   room.phase = 'playing';
   // The first turn of a round waits for the active team to press "Start Timer" so
   // the leader has time to study the board before the clock starts.
   clearCnTimerHandle(roomCode);
-  room.cnTurnEndsAt = null;
+  room.state.codenames.turnEndsAt = null;
   broadcastCodenamesState(ctx, roomCode, room);
 }
 
@@ -304,9 +318,9 @@ function reconnectPayload(ctx, room, existingPlayer) {
       red: teamPlayersInfo(ctx, room, 'red'),
       blue: teamPlayersInfo(ctx, room, 'blue'),
       unassigned: ctx.connectedNames(room).filter((n) => !room.players.get(n).team),
-      timerSeconds: room.cnTimerSeconds || 0,
+      timerSeconds: room.state.codenames.timerSeconds || 0,
       wordTheme: room.wordTheme || '',
-      nameBank: room.cnNameBank || [],
+      nameBank: room.state.codenames.nameBank || [],
       bankPickCount: resolveBankPickCount(room),
       bankPickMax: CN_BANK_PICK_MAX,
     };
@@ -320,17 +334,17 @@ function reconnectPayload(ctx, room, existingPlayer) {
       game: room.game,
       phase: room.phase,
       host: room.hostName,
-      activeTeam: room.cnActiveTeam,
-      winner: room.cnWinner,
-      scores: room.cnScores,
+      activeTeam: room.state.codenames.activeTeam,
+      winner: room.state.codenames.winner,
+      scores: room.state.codenames.scores,
       board: boardForViewer(room, existingPlayer),
       remaining: cardsRemaining(room),
       isLeader: existingPlayer.leader,
       myTeam: existingPlayer.team,
       red: teamPlayersInfo(ctx, room, 'red'),
       blue: teamPlayersInfo(ctx, room, 'blue'),
-      timerSeconds: room.cnTimerSeconds || 0,
-      turnEndsAt: room.cnTurnEndsAt,
+      timerSeconds: room.state.codenames.timerSeconds || 0,
+      turnEndsAt: room.state.codenames.turnEndsAt,
       scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
     };
   }
@@ -362,7 +376,7 @@ function repairOnLoad(ctx, room) {
   if (room.phase === 'generating') {
     room.phase = 'teamSelect';
   }
-  if (room.phase !== 'playing' || !room.cnTimerSeconds || !room.cnTurnEndsAt || !ctx || !ctx.rooms) {
+  if (room.phase !== 'playing' || !room.state.codenames.timerSeconds || !room.state.codenames.turnEndsAt || !ctx || !ctx.rooms) {
     return;
   }
 
@@ -375,7 +389,7 @@ function repairOnLoad(ctx, room) {
   }
   if (!roomCode) return;
 
-  const remaining = room.cnTurnEndsAt - Date.now();
+  const remaining = room.state.codenames.turnEndsAt - Date.now();
   if (remaining <= 0) {
     cnTimerExpired(ctx, roomCode);
   } else {
@@ -472,7 +486,7 @@ function registerHandlers(ctx, io, socket) {
     const value = Number(seconds);
     if (!CN_TIMER_OPTIONS.includes(value)) return callback({ ok: false, error: 'Invalid timer option' });
 
-    room.cnTimerSeconds = value || null;
+    room.state.codenames.timerSeconds = value || null;
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
   });
@@ -489,7 +503,7 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'Only the host can set the bank word count' });
     }
 
-    room.cnBankPickCount = clampBankPickCount(count);
+    room.state.codenames.bankPickCount = clampBankPickCount(count);
     callback({ ok: true });
     broadcastTeamSelect(ctx, roomCode, room);
   });
@@ -521,14 +535,14 @@ function registerHandlers(ctx, io, socket) {
 
     const cleaned = word.replace(/\s+/g, ' ').trim().slice(0, CN_NAME_BANK_WORD_MAX_LEN);
     if (!cleaned) return callback({ ok: false, error: 'Enter a word' });
-    if (room.cnNameBank.some((w) => w.toLowerCase() === cleaned.toLowerCase())) {
+    if (room.state.codenames.nameBank.some((w) => w.toLowerCase() === cleaned.toLowerCase())) {
       return callback({ ok: false, error: 'Already in the list' });
     }
-    if (room.cnNameBank.length >= CN_NAME_BANK_LIMIT) {
+    if (room.state.codenames.nameBank.length >= CN_NAME_BANK_LIMIT) {
       return callback({ ok: false, error: `List is full (max ${CN_NAME_BANK_LIMIT})` });
     }
 
-    room.cnNameBank.push(cleaned);
+    room.state.codenames.nameBank.push(cleaned);
     callback({ ok: true });
     if (room.phase === 'teamSelect') broadcastTeamSelect(ctx, roomCode, room);
   });
@@ -551,7 +565,7 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'Blue team needs at least 2 players including a leader' });
     }
 
-    room.cnStartingTeam = Math.random() < 0.5 ? 'red' : 'blue';
+    room.state.codenames.startingTeam = Math.random() < 0.5 ? 'red' : 'blue';
     callback({ ok: true });
     generateCodenamesRound(ctx, roomCode, room);
   });
@@ -564,12 +578,12 @@ function registerHandlers(ctx, io, socket) {
     if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
-    if (!room.cnTimerSeconds) return callback({ ok: false, error: 'No timer set for this game' });
-    if (room.cnTurnEndsAt) return callback({ ok: false, error: 'Timer already running' });
+    if (!room.state.codenames.timerSeconds) return callback({ ok: false, error: 'No timer set for this game' });
+    if (room.state.codenames.turnEndsAt) return callback({ ok: false, error: 'Timer already running' });
 
     const name = socket.data.name;
     const p = room.players.get(name);
-    if (!p || p.team !== room.cnActiveTeam) {
+    if (!p || p.team !== room.state.codenames.activeTeam) {
       return callback({ ok: false, error: 'Only the active team can start the timer' });
     }
 
@@ -586,38 +600,38 @@ function registerHandlers(ctx, io, socket) {
     if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
-    if (room.cnTimerSeconds && !room.cnTurnEndsAt) {
+    if (room.state.codenames.timerSeconds && !room.state.codenames.turnEndsAt) {
       return callback({ ok: false, error: 'Waiting for the timer to start' });
     }
 
     const name = socket.data.name;
     const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
-    if (p.team !== room.cnActiveTeam) return callback({ ok: false, error: "Not your team's turn" });
+    if (p.team !== room.state.codenames.activeTeam) return callback({ ok: false, error: "Not your team's turn" });
     if (p.leader) return callback({ ok: false, error: 'Leaders cannot guess' });
     if (!Number.isInteger(index) || index < 0 || index >= CN_WORD_COUNT) {
       return callback({ ok: false, error: 'Invalid card' });
     }
 
-    const cell = room.cnBoard[index];
+    const cell = room.state.codenames.board[index];
     if (!cell || cell.revealed) return callback({ ok: false, error: 'Already revealed' });
 
     cell.revealed = true;
     callback({ ok: true });
 
     if (cell.color === 'assassin') {
-      room.cnWinner = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+      room.state.codenames.winner = room.state.codenames.activeTeam === 'red' ? 'blue' : 'red';
       return finishCodenamesGame(ctx, roomCode, room);
     }
 
-    if (cell.color !== room.cnActiveTeam) {
-      room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+    if (cell.color !== room.state.codenames.activeTeam) {
+      room.state.codenames.activeTeam = room.state.codenames.activeTeam === 'red' ? 'blue' : 'red';
       startCnTimer(ctx, roomCode, room);
     }
 
     const winner = checkTeamWin(room);
     if (winner) {
-      room.cnWinner = winner;
+      room.state.codenames.winner = winner;
       return finishCodenamesGame(ctx, roomCode, room);
     }
 
@@ -632,18 +646,18 @@ function registerHandlers(ctx, io, socket) {
     if (room.game !== 'codenames' || room.phase !== 'playing') {
       return callback({ ok: false, error: 'Not playing right now' });
     }
-    if (room.cnTimerSeconds && !room.cnTurnEndsAt) {
+    if (room.state.codenames.timerSeconds && !room.state.codenames.turnEndsAt) {
       return callback({ ok: false, error: 'Waiting for the timer to start' });
     }
 
     const name = socket.data.name;
     const p = room.players.get(name);
     if (!p) return callback({ ok: false, error: 'Not joined' });
-    if (p.team !== room.cnActiveTeam || p.leader) {
+    if (p.team !== room.state.codenames.activeTeam || p.leader) {
       return callback({ ok: false, error: 'Only active team guessers can end the turn' });
     }
 
-    room.cnActiveTeam = room.cnActiveTeam === 'red' ? 'blue' : 'red';
+    room.state.codenames.activeTeam = room.state.codenames.activeTeam === 'red' ? 'blue' : 'red';
     startCnTimer(ctx, roomCode, room);
     callback({ ok: true });
     broadcastCodenamesState(ctx, roomCode, room);
@@ -665,7 +679,7 @@ function registerHandlers(ctx, io, socket) {
       return callback({ ok: false, error: 'Both teams need at least 2 players including a leader' });
     }
 
-    room.cnStartingTeam = room.cnStartingTeam === 'red' ? 'blue' : 'red';
+    room.state.codenames.startingTeam = room.state.codenames.startingTeam === 'red' ? 'blue' : 'red';
     callback({ ok: true });
     generateCodenamesRound(ctx, roomCode, room);
   });
@@ -703,7 +717,7 @@ module.exports = {
   reconnectPayload,
   onDisconnect,
   onReconnectBroadcast,
-  savedFields: SAVED_FIELDS,
+  namespaces: [{ id: 'codenames', createState, savedFields: SAVED_FIELDS }],
   repairOnLoad,
   clearState,
 };

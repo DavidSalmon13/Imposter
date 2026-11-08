@@ -30,16 +30,7 @@ function createRoomState() {
     currentLevel: null,
     lastImposterNames: [],
     usedWords: [],
-    cnUsedWords: [],
-    cnBoard: null, // [{ word, color, revealed }]
-    cnActiveTeam: null,
-    cnStartingTeam: null,
-    cnWinner: null,
-    cnScores: { red: 0, blue: 0 },
-    cnTimerSeconds: null, // null | 60 | 120
-    cnTurnEndsAt: null, // epoch ms the current turn's timer expires at, or null when not counting down
-    cnNameBank: [], // room-curated words any player can add; a few are randomly mixed into each board
-    cnBankPickCount: null, // null = default (CN_BANK_PICK_COUNT); host-adjustable count of bank words per board
+    // Codenames fields moved to state.codenames (see server/games/codenames.js createState).
     // 10 Seconds
     tsActivePlayers: [], // names still in the bracket
     tsContenders: [], // names racing the current round (subset during sudden death)
