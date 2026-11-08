@@ -22,14 +22,33 @@ const MM_ANSWER_MAX_LENGTH = 60;
 const MM_MAGNITUDE_WORDS = { thousand: 1e3, million: 1e6, billion: 1e9 };
 const MM_MAGNITUDE_SUFFIXES = { k: 1e3, m: 1e6, b: 1e9 };
 
+// Keys within room.state.mindmeld to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
-  'mmRotationOrder',
-  'mmRotationIndex',
-  'mmRoundNumber',
-  'mmUsedQuestions',
-  'mmScores',
-  'mmRotationsCompleted',
+  'rotationOrder',
+  'rotationIndex',
+  'roundNumber',
+  'usedQuestions',
+  'scores',
+  'rotationsCompleted',
 ];
+
+/** Mind Meld's namespaced room state. Replaces the former flat room.mm* fields. */
+function createState() {
+  return {
+    rotationOrder: [], // frozen shuffled array of player names, set once at match start
+    rotationIndex: 0, // pointer into rotationOrder; current Subject is rotationOrder[rotationIndex]
+    roundNumber: 0, // increments each round that actually resolves
+    currentQuestion: null, // current round's question text, or null between rounds
+    questionKind: null, // 'numeric' | 'judged' for the current round (lazily created pre-migration)
+    answerDeadline: null, // epoch ms deadline for non-Subject players, or null
+    answers: {}, // name -> submitted number for the current round (includes the Subject's)
+    usedQuestions: [], // rolling avoid-list sent to ChatGPT, windowed at MM_USED_QUESTIONS_AVOID_WINDOW
+    scores: {}, // name -> cumulative points across the current match
+    rotationsCompleted: 0, // increments each time rotationIndex wraps to 0
+    judgeReasoning: null, // judged-round reasoning text (lazily created pre-migration)
+    judgedRanking: null, // judged-round ranking (lazily created pre-migration)
+  };
+}
 
 /** @type {Map<string, NodeJS.Timeout>} */
 const mmDeadlineHandles = new Map();
@@ -42,22 +61,11 @@ function clearMmDeadlineHandle(roomCode) {
 
 function clearState(room, roomCode) {
   if (roomCode) clearMmDeadlineHandle(roomCode);
-  room.mmRotationOrder = [];
-  room.mmRotationIndex = 0;
-  room.mmRoundNumber = 0;
-  room.mmCurrentQuestion = null;
-  room.mmQuestionKind = null;
-  room.mmAnswerDeadline = null;
-  room.mmAnswers = {};
-  room.mmUsedQuestions = [];
-  room.mmScores = {};
-  room.mmRotationsCompleted = 0;
-  room.mmJudgeReasoning = null;
-  room.mmJudgedRanking = null;
+  room.state.mindmeld = createState();
 }
 
 function mmCurrentSubject(room) {
-  return room.mmRotationOrder.length ? room.mmRotationOrder[room.mmRotationIndex] : null;
+  return room.state.mindmeld.rotationOrder.length ? room.state.mindmeld.rotationOrder[room.state.mindmeld.rotationIndex] : null;
 }
 
 function mmStatePayload(ctx, room, viewerName) {
@@ -66,32 +74,32 @@ function mmStatePayload(ctx, room, viewerName) {
     game: 'mindmeld',
     phase: room.phase,
     host: room.hostName,
-    players: room.phase === 'ready' ? ctx.connectedNames(room) : room.mmRotationOrder.slice(),
-    roundNumber: room.mmRoundNumber,
+    players: room.phase === 'ready' ? ctx.connectedNames(room) : room.state.mindmeld.rotationOrder.slice(),
+    roundNumber: room.state.mindmeld.roundNumber,
     subjectName,
     isSubject: viewerName != null && viewerName === subjectName,
-    questionKind: room.mmQuestionKind || null,
+    questionKind: room.state.mindmeld.questionKind || null,
     question:
-      room.phase === 'answering' || room.phase === 'judging' ? room.mmCurrentQuestion : null,
-    answerDeadline: room.phase === 'answering' ? room.mmAnswerDeadline : null,
+      room.phase === 'answering' || room.phase === 'judging' ? room.state.mindmeld.currentQuestion : null,
+    answerDeadline: room.phase === 'answering' ? room.state.mindmeld.answerDeadline : null,
     mySubmitted:
-      viewerName != null && Object.prototype.hasOwnProperty.call(room.mmAnswers || {}, viewerName),
+      viewerName != null && Object.prototype.hasOwnProperty.call(room.state.mindmeld.answers || {}, viewerName),
   };
 
   if (room.phase === 'revealed') {
-    const target = room.mmAnswers[subjectName];
+    const target = room.state.mindmeld.answers[subjectName];
     payload.target = target;
-    if (room.mmQuestionKind === 'judged') {
-      payload.ranking = room.mmJudgedRanking || [];
-      payload.judgeReasoning = room.mmJudgeReasoning || '';
+    if (room.state.mindmeld.questionKind === 'judged') {
+      payload.ranking = room.state.mindmeld.judgedRanking || [];
+      payload.judgeReasoning = room.state.mindmeld.judgeReasoning || '';
     } else {
       const answers = {};
-      for (const [name, guess] of Object.entries(room.mmAnswers)) {
+      for (const [name, guess] of Object.entries(room.state.mindmeld.answers)) {
         if (name !== subjectName) answers[name] = guess;
       }
       payload.ranking = computeMmRanking(target, answers);
     }
-    payload.scores = { ...room.mmScores };
+    payload.scores = { ...room.state.mindmeld.scores };
   }
 
   if (room.phase === 'gameover') {
@@ -189,13 +197,13 @@ function computeMmRanking(target, answers) {
 
 /** Picks a random other player from the frozen rotation to be the subject of an "about someone else" question. */
 function pickMmOtherPlayer(room, subjectName) {
-  const others = room.mmRotationOrder.filter((name) => name !== subjectName);
+  const others = room.state.mindmeld.rotationOrder.filter((name) => name !== subjectName);
   if (!others.length) return null;
   return others[Math.floor(Math.random() * others.length)];
 }
 
 async function generateMindMeldQuestion(room, subjectName, otherName) {
-  const avoid = room.mmUsedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
+  const avoid = room.state.mindmeld.usedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
   const avoidClause = avoid.length
     ? ` These questions were already used this match - write something different from all of them: ` +
       avoid.map((q) => `"${q}"`).join(', ') + '.'
@@ -254,7 +262,7 @@ async function generateMindMeldQuestion(room, subjectName, otherName) {
  * judge LLM call (see judgeMmAnswers) ranks the guesses against the Subject's own answer instead.
  */
 async function generateMindMeldTextQuestion(room, subjectName, otherName) {
-  const avoid = room.mmUsedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
+  const avoid = room.state.mindmeld.usedQuestions.slice(-MM_USED_QUESTIONS_AVOID_WINDOW);
   const avoidClause = avoid.length
     ? ` These questions were already used this match - write something different from all of them: ` +
       avoid.map((q) => `"${q}"`).join(', ') + '.'
@@ -333,17 +341,17 @@ async function judgeMmAnswers(room, question, subjectName, subjectAnswer, answer
   return { ranking, reasoning };
 }
 
-/** Ranks the round, fans points into room.mmScores, and moves to 'revealed'. */
+/** Ranks the round, fans points into room.state.mindmeld.scores, and moves to 'revealed'. */
 async function resolveMmRound(ctx, roomCode, room) {
   clearMmDeadlineHandle(roomCode);
   const subjectName = mmCurrentSubject(room);
-  const target = room.mmAnswers[subjectName];
+  const target = room.state.mindmeld.answers[subjectName];
   const answers = {};
-  for (const [name, guess] of Object.entries(room.mmAnswers)) {
+  for (const [name, guess] of Object.entries(room.state.mindmeld.answers)) {
     if (name !== subjectName) answers[name] = guess;
   }
 
-  if (room.mmQuestionKind === 'judged') {
+  if (room.state.mindmeld.questionKind === 'judged') {
     room.phase = 'judging';
     broadcastMm(ctx, roomCode, room);
 
@@ -351,7 +359,7 @@ async function resolveMmRound(ctx, roomCode, room) {
     let reasoning;
     let judgeFailed = false;
     try {
-      ({ ranking, reasoning } = await judgeMmAnswers(room, room.mmCurrentQuestion, subjectName, target, answers));
+      ({ ranking, reasoning } = await judgeMmAnswers(room, room.state.mindmeld.currentQuestion, subjectName, target, answers));
     } catch (err) {
       console.error('judgeMmAnswers failed:', err.message);
       judgeFailed = true;
@@ -369,12 +377,12 @@ async function resolveMmRound(ctx, roomCode, room) {
       : ranking.map((name, i) => ({ name, guess: answers[name], rank: i + 1, points: totalPlayers - (i + 1) }));
 
     for (const r of scored) {
-      room.mmScores[r.name] = (room.mmScores[r.name] || 0) + r.points;
+      room.state.mindmeld.scores[r.name] = (room.state.mindmeld.scores[r.name] || 0) + r.points;
     }
 
-    room.mmJudgedRanking = scored;
-    room.mmJudgeReasoning = reasoning;
-    room.mmAnswerDeadline = null;
+    room.state.mindmeld.judgedRanking = scored;
+    room.state.mindmeld.judgeReasoning = reasoning;
+    room.state.mindmeld.answerDeadline = null;
     room.phase = 'revealed';
     broadcastMm(ctx, roomCode, room);
     return;
@@ -382,12 +390,12 @@ async function resolveMmRound(ctx, roomCode, room) {
 
   const ranking = computeMmRanking(target, answers);
   for (const r of ranking) {
-    room.mmScores[r.name] = (room.mmScores[r.name] || 0) + r.points;
+    room.state.mindmeld.scores[r.name] = (room.state.mindmeld.scores[r.name] || 0) + r.points;
   }
   // The Subject always scores 0 this round - they're never in `ranking`, so their score is
   // simply left untouched above.
 
-  room.mmAnswerDeadline = null;
+  room.state.mindmeld.answerDeadline = null;
   room.phase = 'revealed';
   broadcastMm(ctx, roomCode, room);
 }
@@ -399,15 +407,15 @@ async function resolveMmRound(ctx, roomCode, room) {
 function maybeResolveMmRound(ctx, roomCode, room) {
   if (!room || room.game !== 'mindmeld' || room.phase !== 'answering') return;
   const subjectName = mmCurrentSubject(room);
-  if (!subjectName || !Object.prototype.hasOwnProperty.call(room.mmAnswers, subjectName)) return;
+  if (!subjectName || !Object.prototype.hasOwnProperty.call(room.state.mindmeld.answers, subjectName)) return;
 
-  const deadlinePassed = room.mmAnswerDeadline != null && Date.now() >= room.mmAnswerDeadline;
+  const deadlinePassed = room.state.mindmeld.answerDeadline != null && Date.now() >= room.state.mindmeld.answerDeadline;
   if (!deadlinePassed) {
-    const stillWaitingOn = room.mmRotationOrder.some((name) => {
+    const stillWaitingOn = room.state.mindmeld.rotationOrder.some((name) => {
       if (name === subjectName) return false;
       const p = room.players.get(name);
       if (!p || !p.connected) return false; // disconnected players don't block early resolve
-      return !Object.prototype.hasOwnProperty.call(room.mmAnswers, name);
+      return !Object.prototype.hasOwnProperty.call(room.state.mindmeld.answers, name);
     });
     if (stillWaitingOn) return;
   }
@@ -415,15 +423,15 @@ function maybeResolveMmRound(ctx, roomCode, room) {
   resolveMmRound(ctx, roomCode, room);
 }
 
-/** At `room.mmAnswerDeadline`, re-checks whether the round can now resolve (Subject-only wait). */
+/** At `room.state.mindmeld.answerDeadline`, re-checks whether the round can now resolve (Subject-only wait). */
 function scheduleMmDeadlineHandle(ctx, roomCode, room) {
   clearMmDeadlineHandle(roomCode);
-  if (!room.mmAnswerDeadline) return;
+  if (!room.state.mindmeld.answerDeadline) return;
   const fire = () => {
     const freshRoom = ctx.rooms.get(roomCode);
     if (freshRoom) maybeResolveMmRound(ctx, roomCode, freshRoom);
   };
-  const delay = room.mmAnswerDeadline - Date.now();
+  const delay = room.state.mindmeld.answerDeadline - Date.now();
   if (delay <= 0) {
     fire();
     return;
@@ -435,8 +443,8 @@ function scheduleMmDeadlineHandle(ctx, roomCode, room) {
 function failMmRound(ctx, roomCode, room, error, fallbackPhase) {
   clearMmDeadlineHandle(roomCode);
   room.phase = fallbackPhase;
-  room.mmCurrentQuestion = null;
-  room.mmAnswerDeadline = null;
+  room.state.mindmeld.currentQuestion = null;
+  room.state.mindmeld.answerDeadline = null;
   broadcastMm(ctx, roomCode, room);
   // Namespaced (not the shared 'startFailed') - Imposter's client keeps a permanent global
   // listener on that event that would otherwise hijack the screen away from Mind Meld's own
@@ -474,16 +482,16 @@ async function startMmRound(ctx, roomCode, room, fallbackPhase) {
   // Room may have been deleted (or a new round already started) while awaiting OpenAI.
   if (!ctx.rooms.has(roomCode) || ctx.rooms.get(roomCode) !== room) return;
 
-  room.mmUsedQuestions.push(question);
-  if (room.mmUsedQuestions.length > MM_USED_QUESTIONS_AVOID_WINDOW) {
-    room.mmUsedQuestions.splice(0, room.mmUsedQuestions.length - MM_USED_QUESTIONS_AVOID_WINDOW);
+  room.state.mindmeld.usedQuestions.push(question);
+  if (room.state.mindmeld.usedQuestions.length > MM_USED_QUESTIONS_AVOID_WINDOW) {
+    room.state.mindmeld.usedQuestions.splice(0, room.state.mindmeld.usedQuestions.length - MM_USED_QUESTIONS_AVOID_WINDOW);
   }
-  room.mmQuestionKind = questionKind;
-  room.mmCurrentQuestion = question;
-  room.mmAnswerDeadline = Date.now() + MM_ANSWER_TIME_MS;
-  room.mmAnswers = {};
-  room.mmJudgeReasoning = null;
-  room.mmJudgedRanking = null;
+  room.state.mindmeld.questionKind = questionKind;
+  room.state.mindmeld.currentQuestion = question;
+  room.state.mindmeld.answerDeadline = Date.now() + MM_ANSWER_TIME_MS;
+  room.state.mindmeld.answers = {};
+  room.state.mindmeld.judgeReasoning = null;
+  room.state.mindmeld.judgedRanking = null;
   room.phase = 'answering';
   scheduleMmDeadlineHandle(ctx, roomCode, room);
   broadcastMm(ctx, roomCode, room);
@@ -491,26 +499,26 @@ async function startMmRound(ctx, roomCode, room, fallbackPhase) {
 
 /** (Re-)shuffles a fresh rotation and zeroes every per-match field - shared by Start and Play Again. */
 function beginMmMatch(room, names) {
-  room.mmRotationOrder = shuffle(names);
-  room.mmRotationIndex = 0;
-  room.mmRoundNumber = 0;
-  room.mmScores = {};
-  for (const name of room.mmRotationOrder) room.mmScores[name] = 0;
-  room.mmRotationsCompleted = 0;
-  room.mmUsedQuestions = [];
+  room.state.mindmeld.rotationOrder = shuffle(names);
+  room.state.mindmeld.rotationIndex = 0;
+  room.state.mindmeld.roundNumber = 0;
+  room.state.mindmeld.scores = {};
+  for (const name of room.state.mindmeld.rotationOrder) room.state.mindmeld.scores[name] = 0;
+  room.state.mindmeld.rotationsCompleted = 0;
+  room.state.mindmeld.usedQuestions = [];
 }
 
 /** Advances the rotation pointer (wrapping); returns whether the match is now complete. */
 function advanceMmRotation(room) {
-  room.mmRotationIndex = (room.mmRotationIndex + 1) % room.mmRotationOrder.length;
-  if (room.mmRotationIndex === 0) room.mmRotationsCompleted += 1;
-  return room.mmRotationsCompleted >= MM_ROTATIONS_PER_MATCH;
+  room.state.mindmeld.rotationIndex = (room.state.mindmeld.rotationIndex + 1) % room.state.mindmeld.rotationOrder.length;
+  if (room.state.mindmeld.rotationIndex === 0) room.state.mindmeld.rotationsCompleted += 1;
+  return room.state.mindmeld.rotationsCompleted >= MM_ROTATIONS_PER_MATCH;
 }
 
 /** Final per-player standings ranked by cumulative match score, descending (ties share rank/points). */
 function mmFinalStandings(room) {
-  const ranked = room.mmRotationOrder
-    .map((name) => ({ name, score: room.mmScores[name] || 0 }))
+  const ranked = room.state.mindmeld.rotationOrder
+    .map((name) => ({ name, score: room.state.mindmeld.scores[name] || 0 }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
   const N = ranked.length;
@@ -568,9 +576,9 @@ function continueOrEndMmMatch(ctx, roomCode, room, fallbackPhase) {
 /** The Subject-disconnect path: voids the round (nobody scores) and advances the rotation. */
 function voidMmRound(ctx, roomCode, room) {
   clearMmDeadlineHandle(roomCode);
-  room.mmAnswers = {};
-  room.mmCurrentQuestion = null;
-  room.mmAnswerDeadline = null;
+  room.state.mindmeld.answers = {};
+  room.state.mindmeld.currentQuestion = null;
+  room.state.mindmeld.answerDeadline = null;
   continueOrEndMmMatch(ctx, roomCode, room, 'ready');
 }
 
@@ -596,7 +604,7 @@ function registerHandlers(ctx, io, socket) {
     // A frozen roster already exists - this 'ready' is a retry after a failed round (or a
     // resume after a server restart mid-round, see repairOnLoad), not a brand-new match. Reuse
     // the existing rotation/scores instead of reshuffling and wiping match progress.
-    if (room.mmRotationOrder.length > 0) {
+    if (room.state.mindmeld.rotationOrder.length > 0) {
       callback({ ok: true });
       startMmRound(ctx, roomCode, room, 'ready');
       return;
@@ -669,20 +677,20 @@ function registerHandlers(ctx, io, socket) {
     }
 
     const name = socket.data.name;
-    if (!room.mmRotationOrder.includes(name)) {
+    if (!room.state.mindmeld.rotationOrder.includes(name)) {
       return callback({ ok: false, error: 'Not in this match' });
     }
-    if (Object.prototype.hasOwnProperty.call(room.mmAnswers, name)) {
+    if (Object.prototype.hasOwnProperty.call(room.state.mindmeld.answers, name)) {
       return callback({ ok: false, error: 'Already submitted' });
     }
 
     const isSubject = name === mmCurrentSubject(room);
-    if (!isSubject && room.mmAnswerDeadline != null && Date.now() >= room.mmAnswerDeadline) {
+    if (!isSubject && room.state.mindmeld.answerDeadline != null && Date.now() >= room.state.mindmeld.answerDeadline) {
       return callback({ ok: false, error: 'Too late - the timer ran out' });
     }
 
     let value;
-    if (room.mmQuestionKind === 'judged') {
+    if (room.state.mindmeld.questionKind === 'judged') {
       const raw = typeof (data && data.raw) === 'string' ? data.raw.trim() : '';
       if (!raw) return callback({ ok: false, error: 'Enter an answer' });
       if (raw.length > MM_ANSWER_MAX_LENGTH) {
@@ -696,7 +704,7 @@ function registerHandlers(ctx, io, socket) {
       }
     }
 
-    room.mmAnswers[name] = value;
+    room.state.mindmeld.answers[name] = value;
     callback({ ok: true });
     broadcastMm(ctx, roomCode, room);
     maybeResolveMmRound(ctx, roomCode, room);
@@ -717,7 +725,7 @@ function reconnectPayload(ctx, room, existingPlayer) {
 /**
  * A non-Subject disconnect during 'answering' needs no special handling: it's already
  * indistinguishable from "never got around to submitting" for scoring purposes (both are simply
- * absent from `room.mmAnswers`), so the existing DNF/exclusion path covers it - just re-broadcast
+ * absent from `room.state.mindmeld.answers`), so the existing DNF/exclusion path covers it - just re-broadcast
  * in case any waitingOn-style UI needs to update. A disconnecting Subject is the one case that
  * needs action, since the round can never resolve without their number.
  */
@@ -734,7 +742,7 @@ function onReconnectBroadcast(ctx, roomCode, room) {
 }
 
 /**
- * mmCurrentQuestion/mmAnswerDeadline/mmAnswers/mmJudge* are deliberately not in savedFields
+ * currentQuestion/answerDeadline/answers/judge* are deliberately not in savedFields
  * (in-flight round state, same simplification Menifot/Music Timeline's own generating-rollback
  * uses) - so none of 'generating'/'answering'/'judging'/'revealed' can actually resume after a
  * restart (an in-flight OpenAI call can't be resumed, and a restart during answering/judging/
@@ -744,12 +752,12 @@ function onReconnectBroadcast(ctx, roomCode, room) {
  */
 function repairOnLoad(ctx, room) {
   if (!['generating', 'answering', 'judging', 'revealed'].includes(room.phase)) return;
-  room.mmCurrentQuestion = null;
-  room.mmQuestionKind = null;
-  room.mmAnswerDeadline = null;
-  room.mmAnswers = {};
-  room.mmJudgeReasoning = null;
-  room.mmJudgedRanking = null;
+  room.state.mindmeld.currentQuestion = null;
+  room.state.mindmeld.questionKind = null;
+  room.state.mindmeld.answerDeadline = null;
+  room.state.mindmeld.answers = {};
+  room.state.mindmeld.judgeReasoning = null;
+  room.state.mindmeld.judgedRanking = null;
   room.phase = 'ready';
 }
 
@@ -763,6 +771,6 @@ module.exports = {
   onDisconnect,
   onReconnectBroadcast,
   repairOnLoad,
-  savedFields: SAVED_FIELDS,
+  namespaces: [{ id: 'mindmeld', createState, savedFields: SAVED_FIELDS }],
   clearState,
 };

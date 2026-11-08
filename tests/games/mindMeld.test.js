@@ -57,8 +57,8 @@ test('full round: numeric answers are ranked by closeness with a bullseye bonus'
   }
 
   assert.equal(room.phase, 'answering');
-  assert.equal(room.mmQuestionKind, 'number');
-  const subject = room.mmRotationOrder[room.mmRotationIndex];
+  assert.equal(room.state.mindmeld.questionKind, 'number');
+  const subject = room.state.mindmeld.rotationOrder[room.state.mindmeld.rotationIndex];
   const [closeGuesser, farGuesser] = ['Ann', 'Bob', 'Cid'].filter((n) => n !== subject);
 
   assert.equal((await call(sockets[subject], 'submitMmAnswer', { raw: '100' })).ok, true);
@@ -68,9 +68,9 @@ test('full round: numeric answers are ranked by closeness with a bullseye bonus'
 
   assert.equal(room.phase, 'revealed');
   // totalPlayers = 2 guessers + 1 subject = 3. Rank 1 (bullseye): (3-1) + 2 bonus = 4. Rank 2: 3-2 = 1.
-  assert.equal(room.mmScores[closeGuesser], 4);
-  assert.equal(room.mmScores[farGuesser], 1);
-  assert.equal(room.mmScores[subject], 0, 'the Subject never scores their own round');
+  assert.equal(room.state.mindmeld.scores[closeGuesser], 4);
+  assert.equal(room.state.mindmeld.scores[farGuesser], 1);
+  assert.equal(room.state.mindmeld.scores[subject], 0, 'the Subject never scores their own round');
 });
 
 test('submitMmAnswer: parses k/m/b suffixes and rejects garbage and duplicates', async (t) => {
@@ -89,7 +89,7 @@ test('submitMmAnswer: parses k/m/b suffixes and rejects garbage and duplicates',
     restore();
   }
 
-  const subject = room.mmRotationOrder[room.mmRotationIndex];
+  const subject = room.state.mindmeld.rotationOrder[room.state.mindmeld.rotationIndex];
   const [guesser, otherGuesser] = ['Ann', 'Bob', 'Cid'].filter((n) => n !== subject);
 
   const garbage = await call(sockets[guesser], 'submitMmAnswer', { raw: 'banana' });
@@ -97,7 +97,7 @@ test('submitMmAnswer: parses k/m/b suffixes and rejects garbage and duplicates',
 
   const good = await call(sockets[guesser], 'submitMmAnswer', { raw: '2k' });
   assert.equal(good.ok, true);
-  assert.equal(room.mmAnswers[guesser], 2000);
+  assert.equal(room.state.mindmeld.answers[guesser], 2000);
 
   const dup = await call(sockets[guesser], 'submitMmAnswer', { raw: '5' });
   assert.equal(dup.ok, false, 'already submitted this round');
