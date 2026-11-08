@@ -20,7 +20,7 @@ function createRoomState() {
     // 10 Seconds phases: 'ready' | 'running' | 'roundResults' | 'gameover'
     // Menifot phases: 'ready' | 'allocating' | 'roundResults' | 'gameover'
     // All-In or Fold phases: 'seating' | 'playing' | 'gameover'
-    // (intra-hand sub-state lives in room.aiofHand.stage, not room.phase — the client stays on
+    // (intra-hand sub-state lives in room.state.allinorfold.hand.stage, not room.phase — the client stays on
     // the same table screen for the whole 'playing' phase; only aiofHand.stage changes the UI.)
     // Bluff phases: 'seating' | 'playing' | 'gameover'
     hostName: null,
@@ -37,16 +37,7 @@ function createRoomState() {
     // Music Timeline fields moved to state.musictimeline (see server/games/musicTimeline.js createState).
     // Mind Meld phases: 'ready' | 'pickingSubject' | 'generating' | 'answering' | 'revealed' | 'gameover'
     // Mind Meld fields moved to state.mindmeld (see server/games/mindMeld.js createState).
-    // All-In or Fold
-    aiofSeats: [null, null, null, null, null, null], // seatIndex -> name | null
-    aiofStacks: {}, // name -> current chip stack, present once they've ever sat this match
-    aiofBuyIns: {}, // name -> total buy-in count this match (starts at 1 on first sit)
-    aiofSittingOut: {}, // name -> true if busted and declined rebuy (seat stays theirs)
-    aiofDealerSeat: -1, // seat index; -1 until the first hand deals (starts at the host's seat)
-    aiofEverSeated: [], // every name that has ever occupied a seat this match, for final ranking
-    aiofHand: null, // { stage, deck, holeCards, board, revealedCount, contributions, folded,
-                    //   actionOrder, actingIndex } while a hand is in progress; null between hands
-    aiofResults: null, // last hand's brief outcome, shown during the auto-advance pause
+    // All-In or Fold fields moved to state.allinorfold (see server/games/allInOrFold.js createState).
     // Bluff + its betting state live under state.bluff / state.betting (migrated to namespaces;
     // see server/games/bluff.js createState and server/betting.js createState).
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)

@@ -35,7 +35,7 @@ test('aiofSitSeat: rejects a taken seat and sitting twice', async () => {
 
   const sit1 = await call(annSocket, 'aiofSitSeat', { seatIndex: 0 });
   assert.equal(sit1.ok, true);
-  assert.equal(room.aiofStacks.Ann, 150);
+  assert.equal(room.state.allinorfold.stacks.Ann, 150);
 
   const taken = await call(bobSocket, 'aiofSitSeat', { seatIndex: 0 });
   assert.equal(taken.ok, false);
@@ -58,21 +58,21 @@ test('heads-up hand: an uncontested fold awards the full pot immediately, no tim
   const startRes = await call(annSocket, 'startAllInOrFold');
   assert.equal(startRes.ok, true);
   assert.equal(room.phase, 'playing');
-  assert.ok(room.aiofHand, 'a hand was dealt');
+  assert.ok(room.state.allinorfold.hand, 'a hand was dealt');
 
-  const sbName = room.aiofHand.actionOrder[0];
+  const sbName = room.state.allinorfold.hand.actionOrder[0];
   const bbName = sbName === 'Ann' ? 'Bob' : 'Ann';
-  assert.equal(room.aiofStacks[sbName], 150 - 5, 'small blind posted');
-  assert.equal(room.aiofStacks[bbName], 150 - 10, 'big blind posted');
+  assert.equal(room.state.allinorfold.stacks[sbName], 150 - 5, 'small blind posted');
+  assert.equal(room.state.allinorfold.stacks[bbName], 150 - 10, 'big blind posted');
 
   const sbSocket = sbName === 'Ann' ? annSocket : bobSocket;
   const foldRes = await call(sbSocket, 'aiofDecision', { decision: 'FOLD' });
   assert.equal(foldRes.ok, true);
 
-  assert.equal(room.aiofHand, null, 'hand finishes synchronously on an uncontested win');
-  assert.equal(room.aiofResults.uncontested, true);
-  assert.deepEqual(room.aiofResults.winners, [bbName]);
-  assert.equal(room.aiofStacks[bbName], 140 + 15, 'wins the 15-chip pot (5 SB + 10 BB)');
+  assert.equal(room.state.allinorfold.hand, null, 'hand finishes synchronously on an uncontested win');
+  assert.equal(room.state.allinorfold.results.uncontested, true);
+  assert.deepEqual(room.state.allinorfold.results.winners, [bbName]);
+  assert.equal(room.state.allinorfold.stacks[bbName], 140 + 15, 'wins the 15-chip pot (5 SB + 10 BB)');
 
   const endRes = await call(annSocket, 'endAllInOrFoldGame');
   assert.equal(endRes.ok, true);

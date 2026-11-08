@@ -362,7 +362,7 @@ function registerBackgroundRoutes(app, { BACKGROUNDS_DIR, BACKGROUND_MIME_EXT })
  */
 function removalError(room, name) {
   if (room.game === 'allinorfold') {
-    if (room.aiofSeats.includes(name)) return 'Leave your seat at the table first';
+    if (room.state.allinorfold.seats.includes(name)) return 'Leave your seat at the table first';
   } else if (room.phase !== 'lobby') {
     return 'Only available in the lobby';
   }
