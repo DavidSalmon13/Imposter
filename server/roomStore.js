@@ -31,15 +31,7 @@ function createRoomState() {
     lastImposterNames: [],
     usedWords: [],
     // Codenames fields moved to state.codenames (see server/games/codenames.js createState).
-    // 10 Seconds
-    tsActivePlayers: [], // names still in the bracket
-    tsContenders: [], // names racing the current round (subset during sudden death)
-    tsEliminatedOrder: [], // elimination order (reversed for final standings)
-    tsRoundStartAt: null, // epoch ms when stopwatches start (after 3s countdown)
-    tsRoundResults: {}, // name -> { elapsedMs, distanceMs, dnf }
-    tsRoundNumber: 0,
-    tsSuddenDeath: false,
-    tsEliminationWaves: [], // each entry = names eliminated together in one resolution step
+    // 10 Seconds fields moved to state.tenseconds (see server/games/tenseconds.js createState).
     // Menifot
     mfPlayers: [], // frozen match roster
     mfBoardCount: 0, // 2 or 3, frozen at Start

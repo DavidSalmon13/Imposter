@@ -5,16 +5,31 @@ const TS_TARGET_MS = 10000;
 const TS_COUNTDOWN_MS = 3000;
 const TS_FORCE_STOP_MS = 30000; // 3x target — distracted players get a real (non-DNF) result
 
+// Keys within room.state.tenseconds to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
-  'tsActivePlayers',
-  'tsContenders',
-  'tsEliminatedOrder',
-  'tsRoundStartAt',
-  'tsRoundResults',
-  'tsRoundNumber',
-  'tsSuddenDeath',
-  'tsEliminationWaves',
+  'activePlayers',
+  'contenders',
+  'eliminatedOrder',
+  'roundStartAt',
+  'roundResults',
+  'roundNumber',
+  'suddenDeath',
+  'eliminationWaves',
 ];
+
+/** Ten Seconds' namespaced room state. Replaces the former flat room.ts* fields. */
+function createState() {
+  return {
+    activePlayers: [], // names still in the bracket
+    contenders: [], // names racing the current round (subset during sudden death)
+    eliminatedOrder: [], // elimination order (reversed for final standings)
+    roundStartAt: null, // epoch ms when stopwatches start (after 3s countdown)
+    roundResults: {}, // name -> { elapsedMs, distanceMs, dnf }
+    roundNumber: 0,
+    suddenDeath: false,
+    eliminationWaves: [], // each entry = names eliminated together in one resolution step
+  };
+}
 
 /** @type {Map<string, NodeJS.Timeout>} */
 const tsForceStopHandles = new Map();
@@ -27,45 +42,38 @@ function clearTsForceStopHandle(roomCode) {
 
 function clearState(room, roomCode) {
   if (roomCode) clearTsForceStopHandle(roomCode);
-  room.tsActivePlayers = [];
-  room.tsContenders = [];
-  room.tsEliminatedOrder = [];
-  room.tsRoundStartAt = null;
-  room.tsRoundResults = {};
-  room.tsRoundNumber = 0;
-  room.tsSuddenDeath = false;
-  room.tsEliminationWaves = [];
+  room.state.tenseconds = createState();
 }
 
 function tsDisconnectedActive(room) {
-  return room.tsActivePlayers.filter((n) => {
+  return room.state.tenseconds.activePlayers.filter((n) => {
     const p = room.players.get(n);
     return !p || !p.connected;
   });
 }
 
 function tensSecondsStatePayload(ctx, room, viewerName) {
-  const eliminated = room.tsEliminatedOrder.includes(viewerName);
-  const isContender = room.tsContenders.includes(viewerName);
-  const myResult = room.tsRoundResults[viewerName] || null;
+  const eliminated = room.state.tenseconds.eliminatedOrder.includes(viewerName);
+  const isContender = room.state.tenseconds.contenders.includes(viewerName);
+  const myResult = room.state.tenseconds.roundResults[viewerName] || null;
   const disconnected = tsDisconnectedActive(room);
 
   const standings =
     room.phase === 'gameover'
-      ? [...room.tsActivePlayers, ...[...room.tsEliminatedOrder].reverse()]
+      ? [...room.state.tenseconds.activePlayers, ...[...room.state.tenseconds.eliminatedOrder].reverse()]
       : null;
 
   return {
     game: 'tenseconds',
     phase: room.phase,
     host: room.hostName,
-    roundNumber: room.tsRoundNumber,
-    suddenDeath: room.tsSuddenDeath,
-    activePlayers: room.tsActivePlayers.slice(),
-    contenders: room.tsContenders.slice(),
-    eliminatedOrder: room.tsEliminatedOrder.slice(),
-    roundStartAt: room.tsRoundStartAt,
-    results: room.tsRoundResults,
+    roundNumber: room.state.tenseconds.roundNumber,
+    suddenDeath: room.state.tenseconds.suddenDeath,
+    activePlayers: room.state.tenseconds.activePlayers.slice(),
+    contenders: room.state.tenseconds.contenders.slice(),
+    eliminatedOrder: room.state.tenseconds.eliminatedOrder.slice(),
+    roundStartAt: room.state.tenseconds.roundStartAt,
+    results: room.state.tenseconds.roundResults,
     standings,
     eliminated,
     isContender,
@@ -74,7 +82,7 @@ function tensSecondsStatePayload(ctx, room, viewerName) {
     canStart:
       room.phase === 'ready' &&
       disconnected.length === 0 &&
-      room.tsActivePlayers.length >= TS_MIN_PLAYERS,
+      room.state.tenseconds.activePlayers.length >= TS_MIN_PLAYERS,
     scoreboard: room.phase === 'gameover' ? ctx.scoreboardEntries(room) : undefined,
   };
 }
@@ -88,28 +96,28 @@ function broadcastTensSeconds(ctx, roomCode, room) {
 
 function initTensSecondsGame(ctx, roomCode, room, playerNames) {
   clearTsForceStopHandle(roomCode);
-  room.tsActivePlayers = (playerNames || ctx.connectedNames(room)).slice();
-  room.tsContenders = [];
-  room.tsEliminatedOrder = [];
-  room.tsRoundStartAt = null;
-  room.tsRoundResults = {};
-  room.tsRoundNumber = 0;
-  room.tsSuddenDeath = false;
-  room.tsEliminationWaves = [];
+  room.state.tenseconds.activePlayers = (playerNames || ctx.connectedNames(room)).slice();
+  room.state.tenseconds.contenders = [];
+  room.state.tenseconds.eliminatedOrder = [];
+  room.state.tenseconds.roundStartAt = null;
+  room.state.tenseconds.roundResults = {};
+  room.state.tenseconds.roundNumber = 0;
+  room.state.tenseconds.suddenDeath = false;
+  room.state.tenseconds.eliminationWaves = [];
   room.phase = 'ready';
   broadcastTensSeconds(ctx, roomCode, room);
 }
 
 function startTensSecondsRound(ctx, roomCode, room, { suddenDeath = false, contenders = null } = {}) {
-  const racers = contenders || room.tsActivePlayers.slice();
+  const racers = contenders || room.state.tenseconds.activePlayers.slice();
   if (racers.length < 1) return;
 
   clearTsForceStopHandle(roomCode);
-  room.tsSuddenDeath = suddenDeath;
-  if (!suddenDeath) room.tsRoundNumber += 1;
-  room.tsContenders = racers.slice();
-  room.tsRoundResults = {};
-  room.tsRoundStartAt = Date.now() + TS_COUNTDOWN_MS;
+  room.state.tenseconds.suddenDeath = suddenDeath;
+  if (!suddenDeath) room.state.tenseconds.roundNumber += 1;
+  room.state.tenseconds.contenders = racers.slice();
+  room.state.tenseconds.roundResults = {};
+  room.state.tenseconds.roundStartAt = Date.now() + TS_COUNTDOWN_MS;
   room.phase = 'running';
   scheduleTsForceStop(ctx, roomCode, room);
   broadcastTensSeconds(ctx, roomCode, room);
@@ -117,8 +125,8 @@ function startTensSecondsRound(ctx, roomCode, room, { suddenDeath = false, conte
 
 function scheduleTsForceStop(ctx, roomCode, room) {
   clearTsForceStopHandle(roomCode);
-  if (!room.tsRoundStartAt) return;
-  const delay = room.tsRoundStartAt + TS_FORCE_STOP_MS - Date.now();
+  if (!room.state.tenseconds.roundStartAt) return;
+  const delay = room.state.tenseconds.roundStartAt + TS_FORCE_STOP_MS - Date.now();
   if (delay <= 0) {
     applyTsForceStops(ctx, roomCode);
     return;
@@ -134,9 +142,9 @@ function applyTsForceStops(ctx, roomCode) {
   if (!room || room.game !== 'tenseconds' || room.phase !== 'running') return;
 
   let changed = false;
-  for (const name of room.tsContenders) {
-    if (room.tsRoundResults[name]) continue;
-    room.tsRoundResults[name] = {
+  for (const name of room.state.tenseconds.contenders) {
+    if (room.state.tenseconds.roundResults[name]) continue;
+    room.state.tenseconds.roundResults[name] = {
       elapsedMs: TS_FORCE_STOP_MS,
       distanceMs: Math.abs(TS_FORCE_STOP_MS - TS_TARGET_MS),
       dnf: false,
@@ -147,22 +155,22 @@ function applyTsForceStops(ctx, roomCode) {
 }
 
 function assignTsDnf(room, name) {
-  if (!room.tsContenders.includes(name)) return false;
-  if (room.tsRoundResults[name] && !room.tsRoundResults[name].dnf) return false;
-  room.tsRoundResults[name] = { elapsedMs: null, distanceMs: Number.POSITIVE_INFINITY, dnf: true };
+  if (!room.state.tenseconds.contenders.includes(name)) return false;
+  if (room.state.tenseconds.roundResults[name] && !room.state.tenseconds.roundResults[name].dnf) return false;
+  room.state.tenseconds.roundResults[name] = { elapsedMs: null, distanceMs: Number.POSITIVE_INFINITY, dnf: true };
   return true;
 }
 
 function submitTsStop(room, name, elapsedMs) {
-  if (!room.tsContenders.includes(name)) return { ok: false, error: 'Not racing this round' };
-  if (room.tsRoundResults[name] && !room.tsRoundResults[name].dnf) {
+  if (!room.state.tenseconds.contenders.includes(name)) return { ok: false, error: 'Not racing this round' };
+  if (room.state.tenseconds.roundResults[name] && !room.state.tenseconds.roundResults[name].dnf) {
     return { ok: false, error: 'Already stopped' };
   }
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
     return { ok: false, error: 'Invalid time' };
   }
   const clamped = Math.min(elapsedMs, TS_FORCE_STOP_MS * 2);
-  room.tsRoundResults[name] = {
+  room.state.tenseconds.roundResults[name] = {
     elapsedMs: clamped,
     distanceMs: Math.abs(clamped - TS_TARGET_MS),
     dnf: false,
@@ -171,7 +179,7 @@ function submitTsStop(room, name, elapsedMs) {
 }
 
 function allTsContendersIn(room) {
-  return room.tsContenders.every((n) => !!room.tsRoundResults[n]);
+  return room.state.tenseconds.contenders.every((n) => !!room.state.tenseconds.roundResults[n]);
 }
 
 function maybeResolveTsRound(ctx, roomCode, room) {
@@ -181,16 +189,16 @@ function maybeResolveTsRound(ctx, roomCode, room) {
 }
 
 function resolveTsRound(ctx, roomCode, room) {
-  const contenders = room.tsContenders.slice();
-  const dnfNames = contenders.filter((n) => room.tsRoundResults[n] && room.tsRoundResults[n].dnf);
-  const finished = contenders.filter((n) => room.tsRoundResults[n] && !room.tsRoundResults[n].dnf);
+  const contenders = room.state.tenseconds.contenders.slice();
+  const dnfNames = contenders.filter((n) => room.state.tenseconds.roundResults[n] && room.state.tenseconds.roundResults[n].dnf);
+  const finished = contenders.filter((n) => room.state.tenseconds.roundResults[n] && !room.state.tenseconds.roundResults[n].dnf);
 
   // All remaining racers DNF → void the round, retry from ready with same active set.
   if (dnfNames.length === contenders.length) {
-    room.tsSuddenDeath = false;
-    room.tsContenders = [];
-    room.tsRoundStartAt = null;
-    room.tsRoundResults = {};
+    room.state.tenseconds.suddenDeath = false;
+    room.state.tenseconds.contenders = [];
+    room.state.tenseconds.roundStartAt = null;
+    room.state.tenseconds.roundResults = {};
     room.phase = 'ready';
     broadcastTensSeconds(ctx, roomCode, room);
     return;
@@ -211,10 +219,10 @@ function resolveTsRound(ctx, roomCode, room) {
 
   let worstDistance = -1;
   for (const name of finished) {
-    const d = room.tsRoundResults[name].distanceMs;
+    const d = room.state.tenseconds.roundResults[name].distanceMs;
     if (d > worstDistance) worstDistance = d;
   }
-  const worst = finished.filter((n) => room.tsRoundResults[n].distanceMs === worstDistance);
+  const worst = finished.filter((n) => room.state.tenseconds.roundResults[n].distanceMs === worstDistance);
 
   if (worst.length >= 2) {
     startTensSecondsRound(ctx, roomCode, room, { suddenDeath: true, contenders: worst });
@@ -228,30 +236,30 @@ function resolveTsRound(ctx, roomCode, room) {
 function eliminateTsPlayers(room, names) {
   const wave = [];
   for (const name of names) {
-    if (!room.tsActivePlayers.includes(name)) continue;
-    room.tsActivePlayers = room.tsActivePlayers.filter((n) => n !== name);
-    if (!room.tsEliminatedOrder.includes(name)) {
-      room.tsEliminatedOrder.push(name);
+    if (!room.state.tenseconds.activePlayers.includes(name)) continue;
+    room.state.tenseconds.activePlayers = room.state.tenseconds.activePlayers.filter((n) => n !== name);
+    if (!room.state.tenseconds.eliminatedOrder.includes(name)) {
+      room.state.tenseconds.eliminatedOrder.push(name);
       wave.push(name);
     }
   }
   if (wave.length) {
-    if (!room.tsEliminationWaves) room.tsEliminationWaves = [];
-    room.tsEliminationWaves.push(wave);
+    if (!room.state.tenseconds.eliminationWaves) room.state.tenseconds.eliminationWaves = [];
+    room.state.tenseconds.eliminationWaves.push(wave);
   }
 }
 
 function finishTsRoundResolution(ctx, roomCode, room) {
-  room.tsSuddenDeath = false;
-  room.tsRoundStartAt = null;
+  room.state.tenseconds.suddenDeath = false;
+  room.state.tenseconds.roundStartAt = null;
   room.phase = 'roundResults';
   broadcastTensSeconds(ctx, roomCode, room);
 }
 
 function awardTensSecondsScores(ctx, room) {
-  const champion = room.tsActivePlayers[0];
+  const champion = room.state.tenseconds.activePlayers[0];
   if (!champion) return;
-  const waves = room.tsEliminationWaves || [];
+  const waves = room.state.tenseconds.eliminationWaves || [];
   const pointsByName = { [champion]: 2 };
 
   // Only one elimination wave (includes the 2-player case): that group is last place.
@@ -279,16 +287,16 @@ function awardTensSecondsScores(ctx, room) {
 }
 
 function continueTsAfterResults(ctx, roomCode, room) {
-  if (room.tsActivePlayers.length <= 1) {
+  if (room.state.tenseconds.activePlayers.length <= 1) {
     room.phase = 'gameover';
-    room.tsContenders = [];
+    room.state.tenseconds.contenders = [];
     awardTensSecondsScores(ctx, room);
     broadcastTensSeconds(ctx, roomCode, room);
     return;
   }
   room.phase = 'ready';
-  room.tsContenders = [];
-  room.tsRoundResults = {};
+  room.state.tenseconds.contenders = [];
+  room.state.tenseconds.roundResults = {};
   broadcastTensSeconds(ctx, roomCode, room);
 }
 
@@ -310,8 +318,8 @@ function reconnectPayload(ctx, room, existingPlayer) {
 function onDisconnect(ctx, roomCode, room, name) {
   if (
     room.phase === 'running' &&
-    room.tsContenders.includes(name) &&
-    !room.tsRoundResults[name]
+    room.state.tenseconds.contenders.includes(name) &&
+    !room.state.tenseconds.roundResults[name]
   ) {
     assignTsDnf(room, name);
     broadcastTensSeconds(ctx, roomCode, room);
@@ -326,18 +334,18 @@ function onReconnectBroadcast(ctx, roomCode, room, name) {
   if (
     name &&
     room.phase === 'running' &&
-    room.tsContenders.includes(name) &&
-    room.tsRoundResults[name] &&
-    room.tsRoundResults[name].dnf
+    room.state.tenseconds.contenders.includes(name) &&
+    room.state.tenseconds.roundResults[name] &&
+    room.state.tenseconds.roundResults[name].dnf
   ) {
-    delete room.tsRoundResults[name];
+    delete room.state.tenseconds.roundResults[name];
   }
   broadcastTensSeconds(ctx, roomCode, room);
 }
 
 function repairOnLoad(ctx, room) {
-  if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
-  if (room.phase !== 'running' || !room.tsRoundStartAt || !ctx || !ctx.rooms) return;
+  if (!Array.isArray(room.state.tenseconds.eliminationWaves)) room.state.tenseconds.eliminationWaves = [];
+  if (room.phase !== 'running' || !room.state.tenseconds.roundStartAt || !ctx || !ctx.rooms) return;
 
   let roomCode = null;
   for (const [code, r] of ctx.rooms.entries()) {
@@ -361,7 +369,7 @@ function registerHandlers(ctx, io, socket) {
     if (socket.data.name !== room.hostName) {
       return callback({ ok: false, error: 'Only the host can start the round' });
     }
-    if (room.tsActivePlayers.length < TS_MIN_PLAYERS) {
+    if (room.state.tenseconds.activePlayers.length < TS_MIN_PLAYERS) {
       return callback({ ok: false, error: `Need at least ${TS_MIN_PLAYERS} players` });
     }
     const waiting = tsDisconnectedActive(room);
@@ -381,7 +389,7 @@ function registerHandlers(ctx, io, socket) {
     if (room.game !== 'tenseconds' || room.phase !== 'running') {
       return callback({ ok: false, error: 'Round is not running' });
     }
-    if (!room.tsRoundStartAt || Date.now() < room.tsRoundStartAt) {
+    if (!room.state.tenseconds.roundStartAt || Date.now() < room.state.tenseconds.roundStartAt) {
       return callback({ ok: false, error: 'Countdown still in progress' });
     }
 
@@ -440,7 +448,7 @@ module.exports = {
   reconnectPayload,
   onDisconnect,
   onReconnectBroadcast,
-  savedFields: SAVED_FIELDS,
+  namespaces: [{ id: 'tenseconds', createState, savedFields: SAVED_FIELDS }],
   repairOnLoad,
   clearState,
 };

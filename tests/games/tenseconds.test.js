@@ -21,7 +21,7 @@ test('startTensSeconds: rejects non-host and too few players', async () => {
   const rejected = await call(nonHost, 'startTensSeconds');
   assert.equal(rejected.ok, false);
 
-  room.tsActivePlayers = ['Ann'];
+  room.state.tenseconds.activePlayers = ['Ann'];
   const hostSocket = registerGame(tenseconds, ctx, makeHandlerSocket('AAAA', room.hostName));
   const tooFew = await call(hostSocket, 'startTensSeconds');
   assert.equal(tooFew.ok, false);
@@ -39,7 +39,7 @@ test('full 3-player match: elimination order drives final scoreboard points', as
   const hostStart = await call(sockets[room.hostName], 'startTensSeconds');
   assert.equal(hostStart.ok, true);
   assert.equal(room.phase, 'running');
-  room.tsRoundStartAt = Date.now() - 1; // skip the real 3s countdown
+  room.state.tenseconds.roundStartAt = Date.now() - 1; // skip the real 3s countdown
 
   // Round 1: Cid is farthest from the 10s target -> eliminated.
   assert.equal((await call(sockets.Ann, 'tsStop', 10000)).ok, true);
@@ -47,8 +47,8 @@ test('full 3-player match: elimination order drives final scoreboard points', as
   assert.equal((await call(sockets.Cid, 'tsStop', 7000)).ok, true);
 
   assert.equal(room.phase, 'roundResults');
-  assert.deepEqual(room.tsEliminatedOrder, ['Cid']);
-  assert.deepEqual(room.tsActivePlayers, ['Ann', 'Bob']);
+  assert.deepEqual(room.state.tenseconds.eliminatedOrder, ['Cid']);
+  assert.deepEqual(room.state.tenseconds.activePlayers, ['Ann', 'Bob']);
 
   const continueRes = await call(sockets[room.hostName], 'tsContinue');
   assert.equal(continueRes.ok, true);
@@ -56,7 +56,7 @@ test('full 3-player match: elimination order drives final scoreboard points', as
 
   const startRound2 = await call(sockets[room.hostName], 'startTensSeconds');
   assert.equal(startRound2.ok, true);
-  room.tsRoundStartAt = Date.now() - 1;
+  room.state.tenseconds.roundStartAt = Date.now() - 1;
 
   // Round 2: Bob is farther from target -> eliminated -> only Ann left -> gameover.
   assert.equal((await call(sockets.Ann, 'tsStop', 10000)).ok, true);
@@ -65,7 +65,7 @@ test('full 3-player match: elimination order drives final scoreboard points', as
   await call(sockets[room.hostName], 'tsContinue');
 
   assert.equal(room.phase, 'gameover');
-  assert.deepEqual(room.tsActivePlayers, ['Ann']);
+  assert.deepEqual(room.state.tenseconds.activePlayers, ['Ann']);
   assert.equal(room.scoreboard.Ann, 2, 'champion scores 2');
   assert.equal(room.scoreboard.Bob, 1, 'most-recently-eliminated (2nd place) scores 1');
   assert.equal(room.scoreboard.Cid, -1, 'first eliminated (last place) scores -1');
@@ -79,7 +79,7 @@ test('a tie for worst distance triggers sudden death between just the tied pair'
     ['Ann', 'Bob', 'Cid', 'Dee'].map((n) => [n, registerGame(tenseconds, ctx, makeHandlerSocket('AAAA', n))])
   );
   await call(sockets[room.hostName], 'startTensSeconds');
-  room.tsRoundStartAt = Date.now() - 1;
+  room.state.tenseconds.roundStartAt = Date.now() - 1;
 
   // Ann is clearly best; Bob and Cid tie for worst (both 2000ms off); Dee is in between.
   await call(sockets.Ann, 'tsStop', 10000);
@@ -89,9 +89,9 @@ test('a tie for worst distance triggers sudden death between just the tied pair'
   assert.equal(res.ok, true);
 
   assert.equal(room.phase, 'running');
-  assert.equal(room.tsSuddenDeath, true);
-  assert.deepEqual(new Set(room.tsContenders), new Set(['Bob', 'Cid']));
-  assert.deepEqual(room.tsActivePlayers, ['Ann', 'Bob', 'Cid', 'Dee'], 'nobody eliminated yet');
+  assert.equal(room.state.tenseconds.suddenDeath, true);
+  assert.deepEqual(new Set(room.state.tenseconds.contenders), new Set(['Bob', 'Cid']));
+  assert.deepEqual(room.state.tenseconds.activePlayers, ['Ann', 'Bob', 'Cid', 'Dee'], 'nobody eliminated yet');
 });
 
 test('onDisconnect during a running round assigns a DNF and can resolve the round', async () => {
@@ -102,7 +102,7 @@ test('onDisconnect during a running round assigns a DNF and can resolve the roun
     ['Ann', 'Bob'].map((n) => [n, registerGame(tenseconds, ctx, makeHandlerSocket('AAAA', n))])
   );
   await call(sockets[room.hostName], 'startTensSeconds');
-  room.tsRoundStartAt = Date.now() - 1;
+  room.state.tenseconds.roundStartAt = Date.now() - 1;
 
   await call(sockets.Ann, 'tsStop', 10000);
   tenseconds.onDisconnect(ctx, 'AAAA', room, 'Bob');
@@ -110,8 +110,8 @@ test('onDisconnect during a running round assigns a DNF and can resolve the roun
   await call(sockets[room.hostName], 'tsContinue');
 
   assert.equal(room.phase, 'gameover');
-  assert.deepEqual(room.tsActivePlayers, ['Ann']);
-  assert.deepEqual(room.tsEliminatedOrder, ['Bob']);
+  assert.deepEqual(room.state.tenseconds.activePlayers, ['Ann']);
+  assert.deepEqual(room.state.tenseconds.eliminatedOrder, ['Bob']);
 });
 
 test('playAgainTensSeconds: only connected players are in the new match', async () => {
@@ -122,5 +122,5 @@ test('playAgainTensSeconds: only connected players are in the new match', async 
   const hostSocket = registerGame(tenseconds, ctx, makeHandlerSocket('AAAA', 'Ann'));
   const res = await call(hostSocket, 'playAgainTensSeconds');
   assert.equal(res.ok, true);
-  assert.deepEqual(room.tsActivePlayers, ['Ann', 'Bob']);
+  assert.deepEqual(room.state.tenseconds.activePlayers, ['Ann', 'Bob']);
 });

@@ -77,7 +77,6 @@ function loadRoomsFromDisk(hooks = {}) {
         (data.players || []).map(([name, p]) => [name, { ...p, connected: false, socketId: null }])
       );
       if (!room.scoreboard || typeof room.scoreboard !== 'object') room.scoreboard = {};
-      if (!Array.isArray(room.tsEliminationWaves)) room.tsEliminationWaves = [];
       rooms.set(code, room);
       repairRoomOnLoad(ctx || { rooms }, room);
     }
