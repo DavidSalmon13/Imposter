@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WARFRONT — Resolution reveal</title>
+<style>
+
+body{margin:0;background:#020306}
+a{color:#4dff7a}a:hover{color:#b6ffc9}
+.sc button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.sc .lbl{font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fa3b5}
+.sc .grn{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55)}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.sc .pnl{position:relative;background:linear-gradient(180deg,#2b323b 0%,#1a1f26 45%,#11151a 100%);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px #93a4b4,inset 0 0 0 3px #0b0e12,inset 0 0 0 4px #2a323b;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.sc .well{background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+.sc .crop{position:relative;width:326px;margin:0 auto;display:grid;grid-template-columns:repeat(5,62px);grid-auto-rows:62px;gap:4px;background:#030406}
+.sc .tile{position:relative;z-index:2;background:transparent}
+.sc .terrain{position:absolute;inset:0;overflow:hidden;border-radius:4px;z-index:0;background-color:#5a5232;background-image:linear-gradient(180deg,transparent 84px,rgba(205,185,135,.16) 90px,rgba(205,185,135,.16) 104px,transparent 110px),radial-gradient(ellipse 60% 50% at 25% 30%,rgba(255,226,160,.13),transparent 70%),radial-gradient(rgba(0,0,0,.18) 1px,transparent 1.5px),radial-gradient(rgba(255,240,190,.08) 1px,transparent 1.5px);background-size:auto,auto,6px 6px,11px 11px;background-position:0 0,0 0,0 0,3px 4px}
+.sc .blob{position:absolute;pointer-events:none;-webkit-mask-image:radial-gradient(circle,#000 42%,transparent 70%);mask-image:radial-gradient(circle,#000 42%,transparent 70%)}
+.sc .k-F{width:106px;height:106px;background-color:#1e3a1f;background-image:radial-gradient(circle at 30% 30%,#3a6031 0 6px,transparent 7px),radial-gradient(circle at 70% 65%,#2c4d27 0 8px,transparent 9px);background-size:20px 20px,27px 27px}
+.sc .k-H{width:106px;height:106px;background-color:#6e5637;background-image:repeating-radial-gradient(circle at 50% 55%,rgba(0,0,0,.25) 0 1px,transparent 1px 8px),radial-gradient(circle at 40% 35%,rgba(255,225,170,.25),transparent 60%)}
+.sc .k-W{width:102px;height:102px;background-color:#0d3550;background-image:repeating-linear-gradient(170deg,rgba(120,210,255,.2) 0 1px,transparent 1px 8px);-webkit-mask-image:radial-gradient(circle,#000 48%,transparent 68%);mask-image:radial-gradient(circle,#000 48%,transparent 68%)}
+.sc .k-R{width:86px;height:86px;background-color:#383b42;background-image:linear-gradient(135deg,#5a5e68 0 20%,transparent 20% 45%,#1d1f23 45% 70%,transparent 70%);background-size:18px 18px;-webkit-mask-image:radial-gradient(circle,#000 50%,transparent 66%);mask-image:radial-gradient(circle,#000 50%,transparent 66%)}
+.sc .k-U{width:136px;height:136px;background-color:#010203;-webkit-mask-image:radial-gradient(circle,#000 40%,transparent 70%);mask-image:radial-gradient(circle,#000 40%,transparent 70%)}
+.sc .k-C{width:118px;height:118px;background:radial-gradient(circle,rgba(90,216,255,.6) 0 16%,rgba(90,216,255,.2) 38%,transparent 68%);-webkit-mask-image:none;mask-image:none}
+.sc .t-P{background-color:#5a5436;background-image:radial-gradient(rgba(0,0,0,.22) 1px,transparent 1.5px),radial-gradient(rgba(255,240,190,.10) 1px,transparent 1.5px);background-size:5px 5px,9px 9px;background-position:0 0,3px 4px}
+.sc .t-C{background-color:#5f5838;background-image:radial-gradient(circle,rgba(90,216,255,.35) 0 10px,transparent 22px);box-shadow:inset 0 0 0 2px #5ad8ff,0 0 14px rgba(90,216,255,.6)}
+.sc .t-F{background-color:#1d3320;background-image:radial-gradient(circle at 25% 30%,#33552c 0 8px,transparent 9px),radial-gradient(circle at 72% 55%,#2c4b27 0 10px,transparent 11px),radial-gradient(circle at 40% 82%,#263f22 0 7px,transparent 8px)}
+.sc .t-H{background-color:#5e4a33;background-image:linear-gradient(160deg,rgba(255,220,170,.16) 0 30%,transparent 30%),repeating-linear-gradient(150deg,rgba(0,0,0,.25) 0 2px,transparent 2px 8px)}
+.sc .t-W{background-color:#0b2a3d;background-image:repeating-linear-gradient(170deg,rgba(90,216,255,.16) 0 1px,transparent 1px 6px)}
+.sc .t-R{background-color:#2c2f35;background-image:linear-gradient(135deg,#4b4f58 0 20%,transparent 20% 45%,#1c1e22 45% 70%,transparent 70%);background-size:16px 16px}
+.sc .t-U{background-color:#000;background-image:repeating-linear-gradient(45deg,rgba(90,216,255,.05) 0 1px,transparent 1px 4px)}
+.sc .t-B{border-radius:50%;background:radial-gradient(circle,#173363,#0b1a33 70%);box-shadow:inset 0 0 0 2px #4f93ff,0 0 20px rgba(59,130,246,.8);display:grid;place-items:center;font-size:30px}
+.sc .squad{position:absolute;left:50%;top:50%;width:56px;height:48px;transform:translate(-50%,-50%);z-index:3}
+.sc .fig{position:absolute;width:24px;height:29px}
+.sc .disk{position:absolute;left:1px;right:1px;bottom:0;height:8px;border-radius:50%}
+.sc .d-red{background:rgba(255,90,95,.9);box-shadow:0 0 7px #ff5a5f}
+.sc .d-blue{background:rgba(79,147,255,.9);box-shadow:0 0 7px #4f93ff}
+.sc .em{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-size:23px;line-height:1;filter:drop-shadow(0 2px 1px rgba(0,0,0,.85))}
+.sc .em.flip{transform:scaleX(-1)}
+.sc .badge{position:absolute;top:-13px;right:-18px;padding:1px 7px 1px 5px;font-size:11px;font-weight:800;white-space:nowrap;z-index:4;color:#fff;clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.sc .b-red{background:linear-gradient(180deg,#ff5a5f,#a8262b)}.sc .b-blue{background:linear-gradient(180deg,#4f93ff,#1d4fb0)}
+.sc .trail{position:absolute;height:6px;z-index:2}
+.sc .burst{position:absolute;border-radius:50%;z-index:4;pointer-events:none;background:radial-gradient(circle,#fff 0 12%,#ffe58a 13% 26%,rgba(255,140,40,.85) 27% 42%,rgba(229,72,77,.35) 43% 62%,transparent 63%);animation:rsBoom 1.2s ease-out infinite}
+.sc .ring{position:absolute;border-radius:50%;border:3px solid #ffe58a;z-index:4;animation:rsRing 1.2s ease-out infinite}
+.sc .float{position:absolute;z-index:6;font-size:16px;font-weight:800;padding:3px 8px;white-space:nowrap;text-shadow:0 2px 0 rgba(0,0,0,.6)}
+.sc .num{width:24px;height:24px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#05080b;clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px)}
+.sc .mbtn{min-height:52px;padding:0 12px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#cfe0ee;background:linear-gradient(180deg,#2b333d,#141920);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px rgba(255,255,255,.08);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+@keyframes rsBoom{0%{transform:scale(.55);opacity:1}70%{opacity:1}100%{transform:scale(1.15);opacity:.6}}
+@keyframes rsRing{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.5);opacity:0}}
+@keyframes rsDrain{0%{width:80%}60%,100%{width:65%}}
+@keyframes scBlink{0%,100%{opacity:1}50%{opacity:.4}}
+
+body{display:flex;justify-content:center}
+</style>
+</head>
+<body>
+
+
+<div class="sc" style="width: 390px; min-height: 1240px; box-sizing: border-box; background-color: #020306; background-image: radial-gradient(1px 1px at 20px 30px, #6b7c8c 50%, transparent 51%), radial-gradient(1px 1px at 140px 80px, #4a5866 50%, transparent 51%), radial-gradient(1px 1px at 300px 50px, #6b7c8c 50%, transparent 51%); background-size: 340px 200px; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 10px; padding: 10px">
+
+  <div class="pnl" style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 12px">
+    <span class="amb" style="font-size: 9.5px; font-weight: 700; letter-spacing: .26em; animation: scBlink 1s steps(1) infinite">▲ ORDERS REVEALED · ROUND 7</span>
+    <span style="font-size: 28px; font-weight: 700; letter-spacing: .34em; color: #fff; text-shadow: 0 0 18px rgba(229,72,77,.7)">ENGAGE</span>
+    <span class="grn" style="font-size: 11px">⛈️ Sandstorm: combat is wilder</span>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; width: 100%; margin-top: 6px">
+      <div style="height: 4px; background: #4dff7a; box-shadow: 0 0 6px #4dff7a"></div>
+      <div style="height: 4px; background: #ffcc33; box-shadow: 0 0 6px #ffcc33"></div>
+      <div style="height: 4px; background: #1a2028"></div>
+    </div>
+  </div>
+
+  <!-- 1 MARCH -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 10px 14px">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px"><span class="num" style="background: #4dff7a">1</span><span style="font-size: 14px; font-weight: 700; letter-spacing: .24em; color: #fff">MARCH</span><span class="lbl" style="margin-left: auto">Simultaneous moves</span></div>
+    <div class="well" style="padding: 6px 0">
+      <div class="crop">
+        <div class="terrain" aria-hidden="true"><span class="blob k-W" style="left: 112px; top: -20px"></span><span class="blob k-H" style="left: 176px; top: -22px"></span><span class="blob k-F" style="left: -22px; top: 44px"></span><span class="blob k-C" style="left: 104px; top: 38px"></span><span class="blob k-H" style="left: 242px; top: 44px"></span><span class="blob k-R" style="left: 54px; top: 120px"></span><span class="blob k-W" style="left: 178px; top: 112px"></span></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"><span class="squad"><span class="fig" style="left: 16px; top: 0px"><span class="disk d-red"></span><span class="em">🧙</span></span><span class="fig" style="left: 2px; top: 18px"><span class="disk d-red"></span><span class="em">🧙</span></span><span class="fig" style="left: 30px; top: 18px"><span class="disk d-red"></span><span class="em">🧙</span></span><span class="badge b-red">🔮×3</span></span></div><div class="tile"></div><div class="tile"><span class="squad"><span class="fig" style="left: 3px; top: 0px"><span class="disk d-blue"></span><span class="em flip">👹</span></span><span class="fig" style="left: 29px; top: 0px"><span class="disk d-blue"></span><span class="em flip">👹</span></span><span class="fig" style="left: 3px; top: 18px"><span class="disk d-blue"></span><span class="em flip">👹</span></span><span class="fig" style="left: 29px; top: 18px"><span class="disk d-blue"></span><span class="em flip">👹</span></span><span class="badge b-blue">🗡️×4</span></span></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="trail" style="left: 30px; top: 94px; width: 70px; background: linear-gradient(90deg, rgba(77,255,122,0), rgba(77,255,122,.9)); box-shadow: 0 0 8px rgba(77,255,122,.6)"></div>
+        <div class="trail" style="left: 230px; top: 94px; width: 70px; background: linear-gradient(270deg, rgba(255,90,95,0), rgba(255,90,95,.9)); box-shadow: 0 0 8px rgba(255,90,95,.6)"></div>
+      </div>
+    </div>
+    <div class="grn" style="font-size: 11.5px; text-align: center">🔮 Arcane ×3 and enemy 🗡️ ×4 converge on the contested node</div>
+  </div>
+
+  <!-- 2 CLASH -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 10px 14px">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px"><span class="num" style="background: #ffcc33">2</span><span class="amb" style="font-size: 14px; font-weight: 700; letter-spacing: .24em">CLASH</span><span class="lbl" style="margin-left: auto; color: #5ad8ff">Contested node</span></div>
+    <div class="well" style="padding: 6px 0">
+      <div class="crop">
+        <div class="terrain" aria-hidden="true"><span class="blob k-W" style="left: 112px; top: -20px"></span><span class="blob k-H" style="left: 176px; top: -22px"></span><span class="blob k-F" style="left: -22px; top: 44px"></span><span class="blob k-C" style="left: 104px; top: 38px"></span><span class="blob k-H" style="left: 242px; top: 44px"></span><span class="blob k-R" style="left: 54px; top: 120px"></span><span class="blob k-W" style="left: 178px; top: 112px"></span></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"><span class="squad"><span class="fig" style="left: 3px; top: 10px"><span class="disk d-red"></span><span class="em">🧙</span></span><span class="fig" style="left: 29px; top: 10px"><span class="disk d-red"></span><span class="em">🧙</span></span><span class="badge b-red">🔮×2</span></span></div><div class="tile"></div><div class="tile"><span class="squad"><span class="fig" style="left: 16px; top: 10px"><span class="disk d-blue"></span><span class="em flip">👹</span></span><span class="badge b-blue">🗡️×1</span></span></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="burst" style="left: 108px; top: 42px; width: 110px; height: 110px"></div>
+        <div class="ring" style="left: 118px; top: 52px; width: 90px; height: 90px"></div>
+        <div style="position: absolute; left: 143px; top: 76px; font-size: 38px; z-index: 5">💥</div>
+        <div class="float" style="left: 30px; top: 8px; background: #a8262b; box-shadow: inset 0 0 0 1px #ff8a8e">−1 🔮</div>
+        <div class="float" style="left: 236px; top: 8px; background: #1d4fb0; box-shadow: inset 0 0 0 1px #8cb6ff">−3 🗡️</div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center">
+      <div class="well" style="padding: 8px; text-align: center; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e"><div style="font-size: 17px; font-weight: 700; color: #fff">🔮 3 → 2</div><div class="grn" style="font-size: 9.5px; letter-spacing: .2em">RED HOLDS</div></div>
+      <span class="lbl">VS</span>
+      <div class="well" style="padding: 8px; text-align: center; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #23477e"><div style="font-size: 17px; font-weight: 700; color: #fff">🗡️ 4 → 1</div><div style="font-size: 9.5px; letter-spacing: .2em; color: #ff7a7e">BLUE ROUTED</div></div>
+    </div>
+  </div>
+
+  <!-- 3 BASE HIT -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 10px 14px">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px"><span class="num" style="background: #ff5a5f">3</span><span style="font-size: 14px; font-weight: 700; letter-spacing: .24em; color: #ff7a7e">BASE UNDER ATTACK</span></div>
+    <div class="well" style="padding: 6px 0">
+      <div class="crop">
+        <div class="terrain" aria-hidden="true"><span class="blob k-W" style="left: -20px; top: -20px"></span><span class="blob k-H" style="left: 44px; top: -22px"></span><span class="blob k-U" style="left: 161px; top: -37px"></span><span class="blob k-U" style="left: 227px; top: -37px"></span><span class="blob k-C" style="left: -28px; top: 38px"></span><span class="blob k-H" style="left: 110px; top: 44px"></span><span class="blob k-W" style="left: 46px; top: 112px"></span><span class="blob k-U" style="left: 161px; top: 95px"></span><span class="blob k-U" style="left: 227px; top: 95px"></span><div style="position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0 50%, rgba(2,3,6,.45) 75%, rgba(2,3,6,.6) 100%)"></div></div>
+        <div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"><span class="squad"><span class="fig" style="left: 3px; top: 10px"><span class="disk d-red"></span><span class="em">👹</span></span><span class="fig" style="left: 29px; top: 10px"><span class="disk d-red"></span><span class="em">👹</span></span><span class="badge b-red">🪓×2</span></span></div><div class="tile t-B"><span>🏰</span></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div>
+        <div class="burst" style="left: 247px; top: 49px; width: 96px; height: 96px; background: radial-gradient(circle, #fff 0 10%, #ffd1d3 11% 24%, rgba(229,72,77,.85) 25% 42%, rgba(229,72,77,.25) 43% 62%, transparent 63%)"></div>
+        <div class="float" style="left: 252px; top: 0; font-size: 26px; color: #ff5a5f; text-shadow: 0 0 14px rgba(229,72,77,.9), 0 2px 0 #000">−18</div>
+      </div>
+    </div>
+    <div class="well" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #23477e">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 10px; font-weight: 700; letter-spacing: .2em; color: #7fb0ff">BLUE BASE 🏰</span><span style="font-size: 15px; font-weight: 700"><span style="color: #6b7c8c; text-decoration: line-through; font-size: 11px">96</span> <span class="amb">78</span><span style="color: #6b7c8c; font-size: 11px">/120</span></span></div>
+      <div style="position: relative; height: 10px; background: #000; box-shadow: 0 0 0 1px #2c3640; overflow: hidden">
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 80%; background: #ff5a5f"></div>
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 65%; background: #ffcc33; box-shadow: 0 0 8px #ffcc33; animation: rsDrain 1.6s ease-out infinite"></div>
+      </div>
+      <span class="grn" style="font-size: 11px">🪓 Kai's Berserkers ×2 broke through the east flank</span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 8px">
+    <button class="mbtn" style="flex: 1">⏪ Replay</button>
+    <button class="mbtn" style="flex: 2; color: #05080b; background: linear-gradient(180deg, #8bffaa, #2fc65a); box-shadow: inset 0 0 0 1px #c8ffd6">Round 8 ▸ 4s</button>
+  </div>
+</div>
+
+
+</body>
+</html>

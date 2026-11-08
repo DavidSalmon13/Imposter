@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WARFRONT — Forge and Horde command cards</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#020306}
+a{color:#4dff7a}a:hover{color:#b6ffc9}
+.sc button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.sc .lbl{font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fa3b5}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.sc .pnl{position:relative;background:linear-gradient(180deg,#303843 0%,#1a2028 30%,#0e1216 100%);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px #93a4b4,inset 0 0 0 3px #0b0e12,inset 0 0 0 4px #2a323b;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.sc .well{background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+.sc .cmd{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:70px;background:linear-gradient(180deg,#1f2630,#0b0f13);box-shadow:inset 0 0 0 1px #46525e,inset 0 0 0 2px #06080a,inset 0 0 14px rgba(0,0,0,.9);border-radius:3px}
+.sc .cmd .hk{position:absolute;top:3px;left:5px;font-size:10px;font-weight:800;color:#ffcc33}
+.sc .cmd .cc{position:absolute;top:3px;right:4px;font-size:10px;font-weight:800;color:#ffcc33}
+.sc .cmd .ci{font-size:24px;line-height:1}
+.sc .cmd .cn{font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.1;text-align:center;padding:0 2px}
+.sc .f .ci{filter:drop-shadow(0 0 7px rgba(255,170,40,.8))}.sc .f .cn{color:#f1d9a6}
+.sc .h .ci{filter:drop-shadow(0 0 7px rgba(255,50,50,.8))}.sc .h .cn{color:#efe3cc}
+.sc .struct{box-shadow:inset 0 0 0 2px #8b93a1,inset 0 0 0 3px #06080a,inset 0 0 14px rgba(245,158,11,.25);border-radius:0}
+.sc .struct .tag{position:absolute;bottom:3px;font-size:7px;font-weight:800;letter-spacing:.14em;color:#8b93a1}
+.sc .on{box-shadow:inset 0 0 0 1px #4dff7a,inset 0 0 0 2px #06080a,inset 0 0 16px rgba(77,255,122,.35),0 0 10px rgba(77,255,122,.4)}
+.sc .dim{opacity:.4;filter:grayscale(.8)}
+</style>
+</helmet>
+<div class="sc" style="width: 390px; min-height: 620px; box-sizing: border-box; background: #020306; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 12px; padding: 10px">
+
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 12px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: .22em; color: #ffbf3c; text-shadow: 0 0 8px rgba(245,158,11,.5)">⚒️ FORGE · COMMAND CARD</span>
+      <span class="amb" style="font-size: 16px; font-weight: 700">💰 6</span>
+    </div>
+    <div class="well" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
+      <button class="cmd f"><span class="hk">M</span><span class="cc">3</span><span class="ci">🛠️</span><span class="cn">Militia-man</span></button>
+      <button class="cmd f"><span class="hk">C</span><span class="cc">4</span><span class="ci">🎯</span><span class="cn">Crossbow</span></button>
+      <button class="cmd f"><span class="hk">O</span><span class="cc">5</span><span class="ci">🐴</span><span class="cn">Outrider</span></button>
+      <button class="cmd f struct on"><span class="hk">B</span><span class="cc">6</span><span class="ci">🏯</span><span class="cn">Bastion</span><span class="tag">STRUCT</span></button>
+      <button class="cmd f"><span class="hk">L</span><span class="cc">6</span><span class="ci">💥</span><span class="cn">Ballista</span></button>
+    </div>
+    <span class="lbl" style="color: #a8916a">Iron + amber · structures get square iron frames</span>
+  </div>
+
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 12px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 12px; font-weight: 700; letter-spacing: .22em; color: #efe3cc; text-shadow: 0 0 8px rgba(220,38,38,.7)">⚔️ HORDE · COMMAND CARD</span>
+      <span class="amb" style="font-size: 16px; font-weight: 700">💰 7</span>
+    </div>
+    <div class="well" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
+      <button class="cmd h"><span class="hk">W</span><span class="cc">3</span><span class="ci">🗡️</span><span class="cn">Warrior</span></button>
+      <button class="cmd h"><span class="hk">S</span><span class="cc">4</span><span class="ci">🪃</span><span class="cn">Skirmish-er</span></button>
+      <button class="cmd h"><span class="hk">R</span><span class="cc">5</span><span class="ci">🐎</span><span class="cn">Raider</span></button>
+      <button class="cmd h on"><span class="hk">B</span><span class="cc">5</span><span class="ci">🪓</span><span class="cn">Berserker</span></button>
+      <button class="cmd h dim"><span class="hk">C</span><span class="cc">8</span><span class="ci">👑</span><span class="cn">Warchief</span></button>
+    </div>
+    <span class="lbl" style="color: #b58f86">Blood + bone · Warchief greyed: not enough 💰</span>
+  </div>
+
+  <div class="well" style="display: flex; gap: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.4; color: #a8b6c3">
+    <span style="font-size: 16px">🔮</span>
+    <span>Arcane (violet) is shown live on the Battlefield screen. The console layout is the same for every race; only the glow color and roster swap.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":620}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

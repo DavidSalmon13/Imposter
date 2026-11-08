@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WARFRONT — Team select</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#020306}
+a{color:#4dff7a}a:hover{color:#b6ffc9}
+.sc button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.sc .lbl{font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fa3b5}
+.sc .grn{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55)}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.sc .pnl{position:relative;background:linear-gradient(180deg,#2b323b 0%,#1a1f26 45%,#11151a 100%);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px #93a4b4,inset 0 0 0 3px #0b0e12,inset 0 0 0 4px #2a323b;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.sc .well{background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+.sc .scan{background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px)}
+.sc .slot{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 8px;font-size:13px;font-weight:700;letter-spacing:.06em;background:#05080b;box-shadow:inset 0 0 0 1px #2c3640}
+.sc .slot .ri{width:28px;height:28px;display:grid;place-items:center;font-size:15px;background:#10151b;box-shadow:inset 0 0 0 1px #3a4652;flex:none}
+.sc .empty{color:#4c5b69;font-weight:600;font-style:italic}
+.sc .race{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;text-align:left;min-height:88px;box-sizing:border-box;background:#05080b;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.sc .race .pt{width:62px;height:66px;flex:none;display:grid;place-items:center;font-size:32px}
+.sc .race .nm{font-size:19px;font-weight:700;letter-spacing:.24em}
+.sc .race .ds{font-size:12px;line-height:1.35;margin-top:2px}
+.sc .race .pick{position:absolute;top:8px;right:12px;font-size:9.5px;font-weight:700;letter-spacing:.2em;opacity:0}
+.sc .r-forge{box-shadow:inset 0 0 0 1px #4a3f2a}
+.sc .r-forge .pt{background:#1d1608;box-shadow:inset 0 0 0 2px #8b93a1,inset 0 0 16px rgba(245,158,11,.35)}
+.sc .r-forge .nm{color:#ffbf3c}.sc .r-forge .ds{color:#cfc3a6}
+.sc .r-horde{box-shadow:inset 0 0 0 1px #4a1f1f}
+.sc .r-horde .pt{background:#240707;box-shadow:inset 0 0 0 2px #e8dcc4,inset 0 0 16px rgba(220,38,38,.45)}
+.sc .r-horde .nm{color:#efe3cc}.sc .r-horde .ds{color:#d6b9a9}
+.sc .r-arcane{box-shadow:inset 0 0 0 1px #3b2a6b}
+.sc .r-arcane .pt{background:#150b2b;box-shadow:inset 0 0 0 2px #b57cff,inset 0 0 18px rgba(181,124,255,.55)}
+.sc .r-arcane .nm{color:#cfb0ff}.sc .r-arcane .ds{color:#c9bde6}
+.sc .r-forge.on{box-shadow:inset 0 0 0 2px #ffbf3c,inset 0 0 30px rgba(245,158,11,.25)}
+.sc .r-horde.on{box-shadow:inset 0 0 0 2px #ff4d4d,inset 0 0 30px rgba(220,38,38,.3)}
+.sc .r-arcane.on{box-shadow:inset 0 0 0 2px #b57cff,inset 0 0 30px rgba(181,124,255,.35)}
+.sc .race.on .pick{opacity:1;color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.6)}
+.sc .seg{display:grid;gap:3px;padding:3px;background:#05080b;box-shadow:inset 0 0 0 1px #2c3640}
+.sc .seg button{min-height:44px;font-size:14px;font-weight:700;letter-spacing:.1em;color:#8fa3b5;background:linear-gradient(180deg,#1b2128,#0d1115);box-shadow:inset 0 0 0 1px #2c3640}
+.sc .seg button.on{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.6);box-shadow:inset 0 0 0 1px #4dff7a,inset 0 0 12px rgba(77,255,122,.25)}
+.sc .mbtn{min-height:44px;padding:0 12px;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#cfe0ee;background:linear-gradient(180deg,#2b333d,#141920);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px rgba(255,255,255,.08);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+@keyframes scBlink{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</helmet>
+<div class="sc" style="width: 390px; min-height: 1180px; box-sizing: border-box; background-color: #020306; background-image: radial-gradient(1px 1px at 20px 30px, #6b7c8c 50%, transparent 51%), radial-gradient(1px 1px at 140px 80px, #4a5866 50%, transparent 51%), radial-gradient(1px 1px at 300px 50px, #6b7c8c 50%, transparent 51%), radial-gradient(1px 1px at 250px 160px, #3c4855 50%, transparent 51%); background-size: 340px 200px; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 10px; padding: 10px">
+
+  <div class="pnl" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px">
+    <div>
+      <div style="font-weight: 700; font-size: 24px; letter-spacing: .3em; color: #fff; text-shadow: 0 0 14px rgba(90,216,255,.4)">WAR<span style="color: #ff5a5f">FRONT</span></div>
+      <div class="lbl">Lobby · Room K7Q2 · 4/6</div>
+    </div>
+    <span class="amb" style="font-size: 10px; font-weight: 700; letter-spacing: .2em; padding: 6px 9px; background: #1a1305; box-shadow: inset 0 0 0 1px #8a6a1a">👑 HOST</span>
+  </div>
+
+  <!-- Teams -->
+  <div class="pnl" style="padding: 12px">
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: linear-gradient(90deg, #7c1418, #2a0c0e); box-shadow: inset 0 0 0 1px #ff5a5f"><span style="font-size: 15px; font-weight: 700; letter-spacing: .26em; color: #fff">RED</span><span>🏰</span></div>
+        <div class="slot" style="box-shadow: inset 0 0 0 1px #b57cff"><span class="ri">🔮</span><span style="flex: 1">YOU</span><span class="amb" title="Captain">👑</span></div>
+        <div class="slot"><span class="ri">⚔️</span><span>KAI</span></div>
+        <div class="slot empty">— open —</div>
+        <button class="mbtn" style="color: #fff; background: linear-gradient(180deg, #ff5a5f, #a8262b); box-shadow: inset 0 0 0 1px #ffb3b6">Join Red</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: linear-gradient(270deg, #1d4fb0, #0b1a33); box-shadow: inset 0 0 0 1px #4f93ff"><span>🏰</span><span style="font-size: 15px; font-weight: 700; letter-spacing: .26em; color: #fff">BLUE</span></div>
+        <div class="slot"><span class="ri">⚒️</span><span style="flex: 1">NOA</span><span class="amb" title="Captain">👑</span></div>
+        <div class="slot"><span class="ri">⚔️</span><span>ELI</span></div>
+        <div class="slot empty">— open —</div>
+        <button class="mbtn" style="color: #fff; background: linear-gradient(180deg, #4f93ff, #1d4fb0); box-shadow: inset 0 0 0 1px #b3d0ff">Join Blue</button>
+      </div>
+    </div>
+    <button class="mbtn" style="width: 100%; margin-top: 10px; color: #ffcc33; box-shadow: inset 0 0 0 1px #8a6a1a">👑 Become Captain</button>
+  </div>
+
+  <!-- Race picker -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 8px; padding: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px"><span style="font-size: 14px; font-weight: 700; letter-spacing: .24em; color: #fff">SELECT RACE</span><span class="grn" style="font-size: 10px; letter-spacing: .16em">TAP TO CHOOSE</span></div>
+    <sc-for list="{{races}}" as="r" hint-placeholder-count="3">
+      <button class="{{r.cls}}" onClick="{{r.pick}}" aria-pressed="{{r.on}}">
+        <span class="pt scan">{{r.icon}}</span>
+        <span style="display: flex; flex-direction: column; min-width: 0">
+          <span class="nm">{{r.name}}</span>
+          <span class="ds">{{r.desc}}</span>
+        </span>
+        <span class="pick">■ SELECTED</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <!-- Host options -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px">
+    <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px; font-weight: 700; letter-spacing: .24em; color: #fff">GAME SETTINGS</span><span class="amb" style="font-size: 9.5px; letter-spacing: .18em">HOST ONLY</span></div>
+    <div style="display: flex; flex-direction: column; gap: 5px">
+      <span class="lbl">Planning time</span>
+      <div class="seg" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
+        <sc-for list="{{times}}" as="o" hint-placeholder-count="4"><button class="{{o.cls}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 5px">
+      <span class="lbl">Map size</span>
+      <div class="seg" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+        <sc-for list="{{sizes}}" as="o" hint-placeholder-count="3"><button class="{{o.cls}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+      </div>
+    </div>
+    <button class="mbtn">🎲 Randomize Teams</button>
+  </div>
+
+  <button style="min-height: 70px; display: flex; align-items: center; justify-content: center; gap: 14px; color: #fff; background: linear-gradient(180deg, #ff5a5f 0%, #c4262c 55%, #7c1418 100%); box-shadow: inset 0 0 0 1px #ffb3b6, inset 0 2px 0 1px rgba(255,255,255,.35); clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px)">
+    <span style="font-size: 24px">⚔️</span>
+    <span style="font-size: 22px; font-weight: 700; letter-spacing: .28em">START BATTLE</span>
+  </button>
+  <div class="grn" style="text-align: center; font-size: 11px; letter-spacing: .14em">ALL PLAYERS READY · 2 v 2</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { race: "arcane", time: 45, size: "Medium" }; }
+  renderVals() {
+    var self = this, st = this.state;
+    var R = [
+      ["forge","⚒️","FORGE","The great builders. Defense + economy; fields structures."],
+      ["horde","⚔️","HORDE","The great fighters. Raw combat; reliable brutes."],
+      ["arcane","🔮","ARCANE","The magicians. Area magic + luck manipulation."]
+    ];
+    return {
+      races: R.map(function (r) { var on = st.race === r[0]; return { icon: r[1], name: r[2], desc: r[3], on: on ? "true" : "false",
+        cls: "race r-" + r[0] + (on ? " on" : ""), pick: function () { self.setState({ race: r[0] }); } }; }),
+      times: [30,45,60,90].map(function (t) { return { label: t + "s", cls: st.time === t ? "on" : "", pick: function () { self.setState({ time: t }); } }; }),
+      sizes: ["Small","Medium","Large"].map(function (s) { return { label: s.toUpperCase(), cls: st.size === s ? "on" : "", pick: function () { self.setState({ size: s }); } }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

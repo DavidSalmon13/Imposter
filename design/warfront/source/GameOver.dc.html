@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WARFRONT — Game over</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#020306}
+a{color:#4dff7a}a:hover{color:#b6ffc9}
+.sc button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.sc .lbl{font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fa3b5}
+.sc .grn{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55)}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.sc .pnl{position:relative;background:linear-gradient(180deg,#2b323b 0%,#1a1f26 45%,#11151a 100%);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px #93a4b4,inset 0 0 0 3px #0b0e12,inset 0 0 0 4px #2a323b;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.sc .well{background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+.sc .map{position:relative;width:366px;margin:0 auto;display:grid;grid-template-columns:repeat(9,38px);grid-auto-rows:38px;gap:3px;background:#030406}
+.sc .tile{position:relative;z-index:2;background:transparent}
+.sc .terrain{position:absolute;inset:0;overflow:hidden;border-radius:4px;z-index:0;background-color:#5a5232;background-image:linear-gradient(180deg,transparent 128px,rgba(205,185,135,.16) 136px,rgba(205,185,135,.16) 148px,transparent 156px),radial-gradient(ellipse 60% 45% at 22% 30%,rgba(255,226,160,.13),transparent 70%),radial-gradient(ellipse 40% 50% at 98% 50%,rgba(255,110,40,.25),transparent 70%),radial-gradient(rgba(0,0,0,.18) 1px,transparent 1.5px);background-size:auto,auto,auto,5px 5px}
+.sc .blob{position:absolute;pointer-events:none;-webkit-mask-image:radial-gradient(circle,#000 42%,transparent 70%);mask-image:radial-gradient(circle,#000 42%,transparent 70%)}
+.sc .k-F{width:66px;height:66px;background-color:#1e3a1f;background-image:radial-gradient(circle at 30% 30%,#3a6031 0 4px,transparent 5px),radial-gradient(circle at 70% 65%,#2c4d27 0 5px,transparent 6px);background-size:13px 13px,17px 17px}
+.sc .k-H{width:66px;height:66px;background-color:#6e5637;background-image:repeating-radial-gradient(circle at 50% 55%,rgba(0,0,0,.25) 0 1px,transparent 1px 6px)}
+.sc .k-W{width:64px;height:64px;background-color:#0d3550;background-image:repeating-linear-gradient(170deg,rgba(120,210,255,.2) 0 1px,transparent 1px 6px);-webkit-mask-image:radial-gradient(circle,#000 48%,transparent 68%);mask-image:radial-gradient(circle,#000 48%,transparent 68%)}
+.sc .k-R{width:54px;height:54px;background-color:#383b42;background-image:linear-gradient(135deg,#5a5e68 0 20%,transparent 20% 45%,#1d1f23 45% 70%,transparent 70%);background-size:12px 12px;-webkit-mask-image:radial-gradient(circle,#000 50%,transparent 66%);mask-image:radial-gradient(circle,#000 50%,transparent 66%)}
+.sc .k-C{width:74px;height:74px;background:radial-gradient(circle,rgba(255,90,95,.6) 0 16%,rgba(255,90,95,.2) 38%,transparent 68%);-webkit-mask-image:none;mask-image:none}
+.sc .t-P{background-color:#5a5436;background-image:radial-gradient(rgba(0,0,0,.22) 1px,transparent 1.5px);background-size:5px 5px}
+.sc .t-C{background-color:#5f5838;box-shadow:inset 0 0 0 2px #ff5a5f}
+.sc .t-F{background-color:#1d3320;background-image:radial-gradient(circle at 25% 30%,#33552c 0 5px,transparent 6px),radial-gradient(circle at 72% 55%,#2c4b27 0 6px,transparent 7px),radial-gradient(circle at 40% 82%,#263f22 0 4px,transparent 5px)}
+.sc .t-H{background-color:#5e4a33;background-image:linear-gradient(160deg,rgba(255,220,170,.16) 0 30%,transparent 30%),repeating-linear-gradient(150deg,rgba(0,0,0,.25) 0 2px,transparent 2px 6px)}
+.sc .t-W{background-color:#0b2a3d;background-image:repeating-linear-gradient(170deg,rgba(90,216,255,.16) 0 1px,transparent 1px 5px)}
+.sc .t-R{background-color:#2c2f35;background-image:linear-gradient(135deg,#4b4f58 0 20%,transparent 20% 45%,#1c1e22 45% 70%,transparent 70%);background-size:11px 11px}
+.sc .t-B{border-radius:50%;display:grid;place-items:center;font-size:18px}
+.sc .base-red{background:#2a0c0e;box-shadow:inset 0 0 0 2px #ff5a5f,0 0 18px rgba(229,72,77,.8)}
+.sc .base-dead{background:#140a06;box-shadow:inset 0 0 0 2px #4a2a1a,0 0 22px rgba(255,120,40,.6);filter:saturate(.6)}
+.sc .squad{position:absolute;left:50%;top:50%;width:40px;height:34px;transform:translate(-50%,-50%);z-index:3}
+.sc .fig{position:absolute;width:18px;height:21px}
+.sc .disk{position:absolute;left:1px;right:1px;bottom:0;height:6px;border-radius:50%}
+.sc .d-red{background:rgba(255,90,95,.9);box-shadow:0 0 6px #ff5a5f}
+.sc .d-blue{background:rgba(79,147,255,.9);box-shadow:0 0 6px #4f93ff}
+.sc .em{position:absolute;left:0;right:0;bottom:2px;text-align:center;font-size:17px;line-height:1;filter:drop-shadow(0 2px 1px rgba(0,0,0,.85))}
+.sc .em.flip{transform:scaleX(-1)}
+.sc .badge{position:absolute;top:-11px;right:-14px;padding:1px 6px 1px 4px;font-size:9.5px;font-weight:800;white-space:nowrap;z-index:4;color:#fff;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
+.sc .b-red{background:linear-gradient(180deg,#ff5a5f,#a8262b)}.sc .b-blue{background:linear-gradient(180deg,#4f93ff,#1d4fb0)}
+.sc .row{display:grid;grid-template-columns:minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));gap:4px;align-items:center;min-height:40px;padding:0 10px;font-size:13px}
+.sc .row span:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.sc .mbtn{min-height:56px;padding:0 12px;font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#cfe0ee;background:linear-gradient(180deg,#2b333d,#141920);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px rgba(255,255,255,.08);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+@keyframes goPulse{0%,100%{text-shadow:0 0 18px rgba(255,90,95,.8),0 0 40px rgba(229,72,77,.5)}50%{text-shadow:0 0 28px rgba(255,140,140,1),0 0 70px rgba(229,72,77,.8)}}
+</style>
+</helmet>
+<div class="sc" style="width: 390px; min-height: 1120px; box-sizing: border-box; background-color: #020306; background-image: radial-gradient(80% 30% at 50% 8%, rgba(229,72,77,.35), transparent 70%), radial-gradient(1px 1px at 20px 30px, #6b7c8c 50%, transparent 51%), radial-gradient(1px 1px at 300px 50px, #6b7c8c 50%, transparent 51%); background-size: auto, 340px 200px, 340px 200px; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 10px; padding: 10px">
+
+  <!-- Banner -->
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 12px 18px">
+    <span class="lbl" style="color: #ff9a9d">Blue base destroyed · round 11</span>
+    <span style="font-size: 52px; font-weight: 700; letter-spacing: .14em; color: #fff; line-height: 1; animation: goPulse 2s ease-in-out infinite">RED WINS!</span>
+    <span class="amb" style="font-size: 12px; letter-spacing: .3em">◆ VICTORY ◆</span>
+  </div>
+
+  <!-- Final base HP -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px">
+    <div class="well" style="padding: 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #ff5a5f, inset 0 0 20px rgba(229,72,77,.3)">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .16em"><span style="color: #ff7a7e">🏰 RED</span><span class="grn">64/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"><div style="width: 53%; height: 100%; background: #4dff7a; box-shadow: 0 0 8px #4dff7a"></div></div>
+    </div>
+    <div class="well" style="padding: 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #23477e">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .16em"><span style="color: #7fb0ff">🏰 BLUE</span><span style="color: #ff5a5f">0/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"></div>
+    </div>
+  </div>
+
+  <!-- Final map -->
+  <div class="pnl" style="padding: 10px 4px 12px">
+    <div style="display: flex; justify-content: space-between; padding: 0 10px 8px"><span class="lbl">Final battlefield</span><span class="lbl" style="color: #ff7a7e">Red controls 5 / 7 nodes</span></div>
+    <div class="map">
+      <div class="terrain" aria-hidden="true"><sc-for list="{{blobs}}" as="b" hint-placeholder-count="25"><span class="{{b.cls}}" style="left: {{b.x}}px; top: {{b.y}}px"></span></sc-for></div>
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="63">
+        <div class="{{t.cls}}">
+          <sc-if value="{{t.base}}" hint-placeholder-val="{{ false }}"><span>{{t.bIcon}}</span></sc-if>
+          <sc-if value="{{t.unit}}" hint-placeholder-val="{{ false }}"><span class="squad"><sc-for list="{{t.figs}}" as="f" hint-placeholder-count="3"><span class="fig" style="{{f.st}}"><span class="{{f.disk}}"></span><span class="{{f.em}}">{{f.e}}</span></span></sc-for><span class="{{t.uCls}}">{{t.uLabel}}</span></span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- Scoreboard -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 8px">
+    <div class="row lbl" style="min-height: 24px"><span>Commander</span><span>Kills</span><span>Lost</span><span>Base dmg</span></div>
+    <div class="row well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e"><span><span style="color: #ffcc33">★</span> <span style="color: #ff7a7e; font-weight: 700">KAI</span> ⚔️</span><span class="grn">14</span><span>6</span><span class="amb">72</span></div>
+    <div class="row well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e"><span><span style="color: #ff7a7e; font-weight: 700">YOU</span> 🔮</span><span class="grn">11</span><span>4</span><span class="amb">48</span></div>
+    <div class="row well"><span><span style="color: #7fb0ff; font-weight: 700">NOA</span> ⚒️</span><span>7</span><span>12</span><span>34</span></div>
+    <div class="row well"><span><span style="color: #7fb0ff; font-weight: 700">ELI</span> ⚔️</span><span>5</span><span>13</span><span>22</span></div>
+    <div class="lbl" style="padding: 6px 10px 0; color: #ffcc33">★ MVP · most base damage</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px">
+    <button class="mbtn" style="color: #fff; background: linear-gradient(180deg, #ff5a5f 0%, #c4262c 55%, #7c1418 100%); box-shadow: inset 0 0 0 1px #ffb3b6, inset 0 2px 0 1px rgba(255,255,255,.3)">⚔️ Play Again</button>
+    <button class="mbtn">Back to Lobby</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var T = ["PFFPHPRFP","PPHWWPFPP","FPPPWHPHP","BPFPCPHPB","PHPRPWPPF","FPPHPWFPP","PFRPPPHFP"];
+    var units = {"3,4":["🧙","🔮",4,"red"],"3,7":["👹","🪓",3,"red"],"2,6":["🏯","🏯",1,"red"],"4,7":["👹","🗡️",2,"red"],"1,5":["🧙","✨",2,"red"],"5,1":["👷","🛠️",1,"blue"],"6,6":["🏇","🐴",1,"blue"]};
+    var form = { 1: [[11,7]], 2: [[2,8],[20,8]], 3: [[11,0],[1,13],[21,13]], 4: [[2,0],[20,0],[2,13],[20,13]] };
+    function figsOf(u) {
+      if (!u) return [];
+      return form[Math.min(u[2], 4)].map(function (p) { return { st: "left: " + p[0] + "px; top: " + p[1] + "px", disk: "disk d-" + u[3], em: "em" + (u[3] === "blue" ? " flip" : ""), e: u[0] }; });
+    }
+    var tiles = [], blobs = [], bsz = {F:66,H:66,W:64,R:54,C:74};
+    for (var r = 0; r < 7; r++) for (var c = 0; c < 9; c++) {
+      var k = T[r][c], u = units[r + "," + c], b = k === "B", red = c === 0;
+      if (bsz[k]) blobs.push({ cls: "blob k-" + k, x: c * 41 + 19 - bsz[k] / 2, y: r * 41 + 19 - bsz[k] / 2 });
+      tiles.push({ cls: "tile" + (b ? " t-B" + (red ? " base-red" : " base-dead") : ""), base: b, bIcon: red ? "🏰" : "💥",
+        unit: !!u, figs: figsOf(u), uCls: u ? "badge b-" + u[3] : "", uLabel: u ? u[1] + "×" + u[2] : "" });
+    }
+    return { tiles: tiles, blobs: blobs };
+  }
+}
+</script>
+</body>
+</html>
