@@ -94,21 +94,8 @@ function createRoomState() {
     aiofHand: null, // { stage, deck, holeCards, board, revealedCount, contributions, folded,
                     //   actionOrder, actingIndex } while a hand is in progress; null between hands
     aiofResults: null, // last hand's brief outcome, shown during the auto-advance pause
-    // Bluff
-    bfPlayers: [], // frozen match roster, fixed order = round-table seat order
-    bfCounts: {}, // name -> current card count, persists across rounds, 0 on elimination
-    bfPendingStartCount: 0, // seating-phase slider value, chosen before Start Match freezes it
-    bfRoundNumber: 0, // current round number, display-only
-    bfEliminationOrder: [], // names in the order they hit 0 cards, oldest first
-    bfHands: {}, // name -> this round's dealt cards (NOT persisted, see ROOM_SAVED_FIELDS below)
-    bfLastResult: null, // { loserName, newCount, eliminated } during the highlight/deal pause (NOT persisted)
-    bfCheck: null, // { id, ranks, label, revealAt, present } for the host's "are the called cards there?" check (NOT persisted)
-    bfEditing: false, // host is adjusting card counts via Edit Game (NOT persisted)
-    bfEditCounts: {}, // name -> draft count while bfEditing (NOT persisted)
-    // Tokens & betting (Bluff only, see plans/betting-implementation-plan.md section 6) - both
-    // match-scoped and NOT persisted; settled balances/bets live in Postgres instead.
-    betGlobalWindows: {}, // trigger -> { eligible, offerTo, responded }
-    betSideProposals: {}, // roundNumber -> [{ id, bettorName, userId, pick, stake, targetName }]
+    // Bluff + its betting state live under state.bluff / state.betting (migrated to namespaces;
+    // see server/games/bluff.js createState and server/betting.js createState).
     // Shared scoreboard: name -> total points (survives disconnect/rejoin by name)
     scoreboard: {},
     // Imposter reporting/results (ephemeral for the round being scored)

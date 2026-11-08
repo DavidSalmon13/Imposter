@@ -92,18 +92,38 @@ async function getBalance(userId) {
 }
 
 /**
+ * Betting's in-memory, match-scoped state. Owned by the 'betting' namespace (declared by
+ * the Bluff game module), so it lives under room.state.betting rather than as flat room
+ * fields. None of it is persisted - settled balances/bets live in Postgres instead.
+ */
+function createState() {
+  return {
+    globalWindows: {}, // trigger -> { eligible, offerTo, responded }
+    sideProposals: {}, // roundNumber -> [{ id, bettorName, userId, pick, stake, targetName }]
+    sideProposalSeq: 0, // monotonic id source for side-bet proposals
+  };
+}
+
+/** The room's betting namespace, lazily created so callers never touch undefined. */
+function bettingState(room) {
+  if (!room.state) room.state = {};
+  if (!room.state.betting) room.state.betting = createState();
+  return room.state.betting;
+}
+
+/**
  * Opens a global (vs. the house) bet window on `room` for one trigger id ('start', or
  * 'elimination:<name>' - see bluff.js's call sites). `eligible` is frozen here and
  * reused at resolution time for the payout formula; `offerTo` is who the offer is shown
  * to (the whole roster at match start, just the newly-eliminated player on elimination).
- * No-op when betting is disabled, so room.betGlobalWindows simply never exists then.
+ * No-op when betting is disabled.
  */
 function openGlobalBetWindow(room, roomCode, { trigger, offerTo, eligible }) {
   if (!isEnabled()) return;
-  if (!room.betGlobalWindows) room.betGlobalWindows = {};
+  const bet = bettingState(room);
   // `responded`: who among offerTo has already placed or dismissed this window - not to
   // be confused with the bets themselves being resolved, which happens at match end.
-  room.betGlobalWindows[trigger] = { eligible: eligible.slice(), offerTo: offerTo.slice(), responded: new Set() };
+  bet.globalWindows[trigger] = { eligible: eligible.slice(), offerTo: offerTo.slice(), responded: new Set() };
 }
 
 /**
@@ -154,7 +174,7 @@ function payoutFor(stake, odds) {
  */
 async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pick, stake, oddsInputs, odds: shownOdds }) {
   if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
-  const window = room.betGlobalWindows && room.betGlobalWindows[trigger];
+  const window = bettingState(room).globalWindows[trigger];
   if (!window) return { ok: false, error: 'That bet window is no longer open' };
   if (!window.offerTo.includes(playerName)) return { ok: false, error: 'That bet was not offered to you' };
   if (window.responded.has(playerName)) return { ok: false, error: 'You already placed a bet on this' };
@@ -201,7 +221,7 @@ async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pic
  * (their stake was already debited at placement time). A row from before odds existed
  * (`odds` null) pays the old flat `stake * eligibleCandidateCount * (1 - BET_HOUSE_EDGE)`,
  * `eligibleCandidateCount` being that window's frozen `eligible` length. Backfills `game_id` onto every resolved bet for later
- * joinability. Clears room.betGlobalWindows when done (a new match opens fresh ones).
+ * joinability. Clears the global windows when done (a new match opens fresh ones).
  *
  * Returns `[{ userId, pick, stake, payout, won }]` for every bet resolved, so the
  * caller (ctx.betting, see server.js) can map userId back to a room player name and
@@ -210,7 +230,7 @@ async function placeGlobalBet(room, roomCode, { playerName, userId, trigger, pic
  */
 async function resolveGlobalBets(room, roomCode, { gameId, winnerName }) {
   if (!isEnabled()) return [];
-  const windows = room.betGlobalWindows || {};
+  const windows = bettingState(room).globalWindows;
   const results = [];
   for (const [trigger, window] of Object.entries(windows)) {
     const eligibleCount = window.eligible.length;
@@ -244,7 +264,7 @@ async function resolveGlobalBets(room, roomCode, { gameId, winnerName }) {
       console.error(`Resolving global bets for trigger ${trigger} failed:`, err.message);
     }
   }
-  room.betGlobalWindows = {};
+  bettingState(room).globalWindows = {};
   return results;
 }
 
@@ -259,32 +279,32 @@ function validStake(stake) {
  * `acceptSideBet` locks it in. `eligible` is the currently-active roster (the caller's
  * job to compute, since "active" is a Bluff concept betting.js doesn't know about);
  * `targetName` is null for an open-to-the-table proposal. Stored on
- * `room.betSideProposals[roundNumber]`, keyed by round so it's automatically
+ * `room.state.betting.sideProposals[roundNumber]`, keyed by round so it's automatically
  * unreachable (not voided, just orphaned) the instant the round changes.
  */
 async function proposeSideBet(room, roomCode, { roundNumber, bettorName, userId, pick, stake, targetName, eligible }) {
   if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
   if (!validStake(stake)) return { ok: false, error: `Minimum bet is ${BET_MIN_STAKE} tokens` };
   if (!eligible.includes(pick)) return { ok: false, error: 'That pick is not eligible' };
-  if (!room.betSideProposals) room.betSideProposals = {};
-  const allProposals = Object.values(room.betSideProposals).flat();
+  const bet = bettingState(room);
+  const allProposals = Object.values(bet.sideProposals).flat();
   if (allProposals.some((p) => p.bettorName === bettorName)) {
     return { ok: false, error: 'You already have a bet proposal open' };
   }
   const balance = await getBalance(userId);
   if (Number(stake) > balance) return { ok: false, error: 'Not enough tokens' };
 
-  if (!room.betSideProposals[roundNumber]) room.betSideProposals[roundNumber] = [];
-  room.betSideProposalSeq = (room.betSideProposalSeq || 0) + 1;
+  if (!bet.sideProposals[roundNumber]) bet.sideProposals[roundNumber] = [];
+  bet.sideProposalSeq += 1;
   const proposal = {
-    id: room.betSideProposalSeq,
+    id: bet.sideProposalSeq,
     bettorName,
     userId,
     pick,
     stake: Number(stake),
     targetName: targetName || null,
   };
-  room.betSideProposals[roundNumber].push(proposal);
+  bet.sideProposals[roundNumber].push(proposal);
   return { ok: true, proposal };
 }
 
@@ -299,7 +319,8 @@ async function proposeSideBet(room, roomCode, { roundNumber, bettorName, userId,
  */
 async function acceptSideBet(room, roomCode, { roundNumber, proposalId, accepterName, accepterUserId }) {
   if (!isEnabled()) return { ok: false, error: 'Betting is not enabled' };
-  const list = (room.betSideProposals && room.betSideProposals[roundNumber]) || [];
+  const bet = bettingState(room);
+  const list = bet.sideProposals[roundNumber] || [];
   const proposal = list.find((p) => p.id === proposalId);
   if (!proposal) return { ok: false, error: 'That bet is no longer available' };
   if (proposal.bettorName === accepterName) return { ok: false, error: "You can't accept your own bet" };
@@ -333,7 +354,7 @@ async function acceptSideBet(room, roomCode, { roundNumber, proposalId, accepter
     return { ok: false, error: 'Something went wrong accepting that bet' };
   }
 
-  room.betSideProposals[roundNumber] = list.filter((p) => p.id !== proposalId);
+  bet.sideProposals[roundNumber] = list.filter((p) => p.id !== proposalId);
   return { ok: true, proposal };
 }
 
@@ -358,7 +379,7 @@ async function liveSideBets(roomCode) {
  */
 async function resolveSideBets(room, roomCode, { roundNumber, loserName }) {
   if (!isEnabled()) return [];
-  if (room.betSideProposals) delete room.betSideProposals[roundNumber];
+  delete bettingState(room).sideProposals[roundNumber];
   const results = [];
   try {
     const bets = await liveSideBets(roomCode);
@@ -397,7 +418,7 @@ async function resolveSideBets(room, roomCode, { roundNumber, loserName }) {
  */
 async function voidSideBets(room, roomCode, roundNumber) {
   if (!isEnabled()) return [];
-  if (room.betSideProposals) delete room.betSideProposals[roundNumber];
+  delete bettingState(room).sideProposals[roundNumber];
   const results = [];
   try {
     const bets = await liveSideBets(roomCode);
@@ -469,14 +490,14 @@ function nameForUserId(room, userId) {
 /** Every open global-bet window still offered to (not yet responded to by) `viewerName`,
  * with the odds each pick would get right now. */
 function openWindowsFor(room, viewerName, oddsInputs) {
-  return Object.entries(room.betGlobalWindows || {})
+  return Object.entries(bettingState(room).globalWindows)
     .filter(([, w]) => w.offerTo.includes(viewerName) && !w.responded.has(viewerName))
     .map(([trigger, w]) => ({ trigger, eligible: w.eligible.slice(), odds: computeGlobalOdds(w.eligible, oddsInputs) }));
 }
 
 /** This viewer's own open proposal (there's at most one, per proposeSideBet), or null. */
 function mySideProposal(room, viewerName) {
-  for (const [roundNumber, list] of Object.entries(room.betSideProposals || {})) {
+  for (const [roundNumber, list] of Object.entries(bettingState(room).sideProposals)) {
     const mine = list.find((p) => p.bettorName === viewerName);
     if (mine) return { ...mine, roundNumber: Number(roundNumber) };
   }
@@ -486,7 +507,7 @@ function mySideProposal(room, viewerName) {
 /** Proposals this viewer could accept: targeted at them, or open to the table. */
 function incomingSideOffersFor(room, viewerName) {
   const offers = [];
-  for (const [roundNumber, list] of Object.entries(room.betSideProposals || {})) {
+  for (const [roundNumber, list] of Object.entries(bettingState(room).sideProposals)) {
     for (const p of list) {
       if (p.bettorName === viewerName) continue;
       if (p.targetName && p.targetName !== viewerName) continue;
@@ -596,4 +617,5 @@ module.exports = {
   expireDanglingBets,
   bettingViewFor,
   nameForUserId,
+  createState,
 };

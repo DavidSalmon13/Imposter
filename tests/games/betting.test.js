@@ -113,16 +113,16 @@ test('openGlobalBetWindow: freezes eligible/offerTo on the room, keyed by trigge
   t.mock.method(db, 'isEnabled', () => true);
   const room = {};
   betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo'], eligible: ['Ann', 'Bo', 'Cy'] });
-  assert.deepEqual(room.betGlobalWindows.start.eligible, ['Ann', 'Bo', 'Cy']);
-  assert.deepEqual(room.betGlobalWindows.start.offerTo, ['Ann', 'Bo']);
-  assert.equal(room.betGlobalWindows.start.responded.size, 0);
+  assert.deepEqual(room.state.betting.globalWindows.start.eligible, ['Ann', 'Bo', 'Cy']);
+  assert.deepEqual(room.state.betting.globalWindows.start.offerTo, ['Ann', 'Bo']);
+  assert.equal(room.state.betting.globalWindows.start.responded.size, 0);
 });
 
 test('openGlobalBetWindow: no-op when betting is disabled', (t) => {
   t.mock.method(db, 'isEnabled', () => false);
   const room = {};
   betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann'], eligible: ['Ann'] });
-  assert.equal(room.betGlobalWindows, undefined);
+  assert.equal(room.state, undefined); // disabled = true no-op, no betting namespace created
 });
 
 test('placeGlobalBet: rejects when no window is open for that trigger', async (t) => {
@@ -175,7 +175,7 @@ test('placeGlobalBet: insufficient balance (debit affects no rows) is rejected w
   const result = await betting.placeGlobalBet(room, 'ABCD', { playerName: 'Ann', userId: 1, trigger: 'start', pick: 'Ann', stake: 5000 });
   assert.equal(result.ok, false);
   assert.equal(fake.calls.length, 1, 'only the debit attempt, no insert when it fails');
-  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), false);
+  assert.equal(room.state.betting.globalWindows.start.responded.has('Ann'), false);
 });
 
 test('placeGlobalBet: success debits the stake and inserts an accepted global bet', async (t) => {
@@ -191,7 +191,7 @@ test('placeGlobalBet: success debits the stake and inserts an accepted global be
   // No odds inputs = even odds: 2 eligible * (1 - 0.10) = 1.8, locked onto the row.
   assert.deepEqual(fake.calls[1].params, ['ABCD', 1, 'Bo', 50, 'start', 1.8]);
   assert.equal(result.odds, 1.8);
-  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), true);
+  assert.equal(room.state.betting.globalWindows.start.responded.has('Ann'), true);
 });
 
 test('placeGlobalBet: prices the pick from oddsInputs and locks those odds onto the row', async (t) => {
@@ -216,7 +216,7 @@ test('placeGlobalBet: refuses when the odds the client was shown have since move
   assert.equal(result.ok, false);
   assert.match(result.error, /×2\.8/);
   assert.equal(fake.calls.length, 0, 'nothing debited');
-  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), false);
+  assert.equal(room.state.betting.globalWindows.start.responded.has('Ann'), false);
 });
 
 test('placeGlobalBet: rejects a frozen-eligible pick who has since run out of cards', async (t) => {
@@ -287,7 +287,7 @@ test('resolveGlobalBets: pays the house-edge-adjusted, floored payout to the win
   assert.deepEqual(fake.calls[0].params, [1, 270]);
   assert.match(fake.calls[1].text, /UPDATE bets SET status = 'resolved'/);
   assert.deepEqual(fake.calls[1].params, [1, 270, 99]);
-  assert.deepEqual(room.betGlobalWindows, {});
+  assert.deepEqual(room.state.betting.globalWindows, {});
 });
 
 test('resolveGlobalBets: pays the odds locked onto the row, whatever the window size', async (t) => {
@@ -454,7 +454,7 @@ test('acceptSideBet: success debits both stakes, inserts one accepted bet, and r
   assert.deepEqual(fake.calls[1].params, [3, 20]);
   assert.match(fake.calls[2].text, /INSERT INTO bets/);
   assert.deepEqual(fake.calls[2].params, ['ABCD', 1, 3, 'Bo', 20]);
-  assert.deepEqual(room.betSideProposals[1], []);
+  assert.deepEqual(room.state.betting.sideProposals[1], []);
 });
 
 test('acceptSideBet: a failed second debit rolls back the first (no lost stake)', async (t) => {
@@ -472,7 +472,7 @@ test('acceptSideBet: a failed second debit rolls back the first (no lost stake)'
   assert.equal(result.ok, false);
   assert.equal(fake.calls.length, 2, 'never reaches the insert');
   // The proposal is still there - a rolled-back accept must not consume it.
-  assert.equal(room.betSideProposals[1].length, 1);
+  assert.equal(room.state.betting.sideProposals[1].length, 1);
 });
 
 test('resolveSideBets: the bettor wins both stakes when their pick matches the loser', async (t) => {
@@ -488,7 +488,7 @@ test('resolveSideBets: the bettor wins both stakes when their pick matches the l
   const results = await betting.resolveSideBets(room, 'ABCD', { roundNumber: 3, loserName: 'Bo' });
   assert.deepEqual(results, [{ bettorUserId: 1, opponentUserId: 3, pick: 'Bo', stake: 20, bettorWon: true, payout: 40 }]);
   assert.deepEqual(fake.calls[0].params, [1, 40], 'credits the bettor, not the opponent');
-  assert.equal(room.betSideProposals[3], undefined, 'leftover unaccepted proposals for the round are dropped');
+  assert.equal(room.state.betting.sideProposals[3], undefined, 'leftover unaccepted proposals for the round are dropped');
 });
 
 test('resolveSideBets: the opponent wins both stakes when the bettor\'s pick is wrong', async (t) => {
@@ -513,7 +513,7 @@ test('resolveSideBets: an unaccepted proposal with no accept just disappears, no
   t.mock.method(db, 'query', fake.query);
   const results = await betting.resolveSideBets(room, 'ABCD', { roundNumber: 3, loserName: 'Bo' });
   assert.deepEqual(results, []);
-  assert.equal(room.betSideProposals[3], undefined);
+  assert.equal(room.state.betting.sideProposals[3], undefined);
   assert.equal(fake.calls.length, 1, 'only the lookup query, no wallet writes');
 });
 
@@ -532,7 +532,7 @@ test('voidSideBets: refunds both stakes on an accepted bet and drops any pending
   assert.deepEqual(fake.calls[0].params, [1, 20]);
   assert.deepEqual(fake.calls[1].params, [3, 20]);
   assert.match(fake.calls[2].text, /UPDATE bets SET status = 'voided'/);
-  assert.equal(room.betSideProposals[3], undefined);
+  assert.equal(room.state.betting.sideProposals[3], undefined);
 });
 
 test('expireDanglingBets: scopes to one room, only accepted + unresolved (game_id NULL) rows', async (t) => {
@@ -627,7 +627,7 @@ test('bettingViewFor: only shows global windows offered to this viewer that they
   const room = { players: playersMap({ Ann: { userId: 1 }, Bo: { userId: 2 } }) };
   betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'start', offerTo: ['Ann', 'Bo'], eligible: ['Ann', 'Bo'] });
   betting.openGlobalBetWindow(room, 'ABCD', { trigger: 'elimination:Bo', offerTo: ['Bo'], eligible: ['Ann'] });
-  room.betGlobalWindows.start.responded.add('Ann');
+  room.state.betting.globalWindows.start.responded.add('Ann');
   const view = await betting.bettingViewFor(room, 'ABCD', 'Ann');
   assert.deepEqual(view.openGlobalWindows, []);
   const boView = await betting.bettingViewFor(room, 'ABCD', 'Bo');

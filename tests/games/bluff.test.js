@@ -36,11 +36,11 @@ test('bfSetStartingCount: host-only, clamped to 1..floor(52/connectedCount)', as
 
   const tooHigh = await call(host, 'bfSetStartingCount', { count: 999 });
   assert.equal(tooHigh.ok, true);
-  assert.equal(room.bfPendingStartCount, 26, 'floor(52/2) = 26 max for 2 players');
+  assert.equal(room.state.bluff.pendingStartCount, 26, 'floor(52/2) = 26 max for 2 players');
 
   const tooLow = await call(host, 'bfSetStartingCount', { count: 0 });
   assert.equal(tooLow.ok, true);
-  assert.equal(room.bfPendingStartCount, 1);
+  assert.equal(room.state.bluff.pendingStartCount, 1);
 });
 
 test('startBluffMatch: deals every connected player the chosen starting count', async () => {
@@ -52,27 +52,27 @@ test('startBluffMatch: deals every connected player the chosen starting count', 
   const res = await call(host, 'startBluffMatch');
   assert.equal(res.ok, true);
   assert.equal(room.phase, 'playing');
-  assert.equal(room.bfRoundNumber, 1);
+  assert.equal(room.state.bluff.roundNumber, 1);
   for (const name of ['Ann', 'Bob', 'Cid']) {
-    assert.equal(room.bfCounts[name], 3);
-    assert.equal(room.bfHands[name].length, 3);
+    assert.equal(room.state.bluff.counts[name], 3);
+    assert.equal(room.state.bluff.hands[name].length, 3);
   }
 });
 
 test('bfSelectLoser down to one player ends the match immediately and scores by elimination order', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 1, Bob: 1 };
-  room.bfHands = { Ann: ['Ah'], Bob: ['2c'] };
-  room.bfRoundNumber = 1;
-  room.bfEliminationOrder = [];
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 1, Bob: 1 };
+  room.state.bluff.hands = { Ann: ['Ah'], Bob: ['2c'] };
+  room.state.bluff.roundNumber = 1;
+  room.state.bluff.eliminationOrder = [];
 
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
   const res = await call(host, 'bfSelectLoser', { name: 'Bob' });
   assert.equal(res.ok, true);
 
-  assert.equal(room.bfCounts.Bob, 0);
+  assert.equal(room.state.bluff.counts.Bob, 0);
   assert.equal(room.phase, 'gameover');
   assert.equal(room.scoreboard.Ann, 2, 'winner of a 2-player match scores N points');
   assert.equal(room.scoreboard.Bob, 1);
@@ -82,32 +82,32 @@ test('bfSelectLoser with players remaining schedules the next deal (not immediat
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
-  room.bfEliminationOrder = [];
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 1;
+  room.state.bluff.eliminationOrder = [];
 
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
   const res = await call(host, 'bfSelectLoser', { name: 'Bob' });
   assert.equal(res.ok, true);
-  assert.equal(room.bfCounts.Bob, 1);
+  assert.equal(room.state.bluff.counts.Bob, 1);
   assert.equal(room.phase, 'playing', 'match keeps going - Bob is not eliminated yet');
-  assert.equal(room.bfRoundNumber, 1, 'no new deal until the highlight pause elapses');
+  assert.equal(room.state.bluff.roundNumber, 1, 'no new deal until the highlight pause elapses');
 
   t.mock.timers.tick(1500 + 2200);
-  assert.equal(room.bfRoundNumber, 2, 'the scheduled deal fired after the pause');
-  assert.equal(room.bfLastResult, null);
+  assert.equal(room.state.bluff.roundNumber, 2, 'the scheduled deal fired after the pause');
+  assert.equal(room.state.bluff.lastResult, null);
 });
 
 test('bfCheckHand: reveals presence after the countdown, host-only, one check at a time', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 2, Bob: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.state.bluff.roundNumber = 1;
 
   const other = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Bob'));
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
@@ -117,37 +117,37 @@ test('bfCheckHand: reveals presence after the countdown, host-only, one check at
 
   const present = await call(host, 'bfCheckHand', { ranks: ['A', '2'] });
   assert.equal(present.ok, true);
-  assert.equal(room.bfCheck.present, null, 'result is withheld during the countdown');
+  assert.equal(room.state.bluff.check.present, null, 'result is withheld during the countdown');
 
   const duringCountdown = await call(host, 'bfCheckHand', { ranks: ['K'] });
   assert.equal(duringCountdown.ok, false);
 
   t.mock.timers.tick(3000);
-  assert.equal(room.bfCheck.present, true, 'A and 2 are both in the pooled hands');
+  assert.equal(room.state.bluff.check.present, true, 'A and 2 are both in the pooled hands');
 });
 
 test('bfStartEdit / bfAdjustEditCount / bfConfirmEdit: host-only draft counts, capped by the deck', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 2, Bob: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.state.bluff.roundNumber = 1;
 
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
   const start = await call(host, 'bfStartEdit');
   assert.equal(start.ok, true);
-  assert.deepEqual(room.bfEditCounts, { Ann: 2, Bob: 2 });
+  assert.deepEqual(room.state.bluff.editCounts, { Ann: 2, Bob: 2 });
 
   const bumped = await call(host, 'bfAdjustEditCount', { name: 'Ann', delta: 1 });
   assert.equal(bumped.ok, true);
-  assert.equal(room.bfEditCounts.Ann, 3);
+  assert.equal(room.state.bluff.editCounts.Ann, 3);
 
   const downToOne = await call(host, 'bfAdjustEditCount', { name: 'Bob', delta: -1 });
   assert.equal(downToOne.ok, true);
   const downToZero = await call(host, 'bfAdjustEditCount', { name: 'Bob', delta: -1 });
   assert.equal(downToZero.ok, true);
-  assert.equal(room.bfEditCounts.Bob, 0);
+  assert.equal(room.state.bluff.editCounts.Bob, 0);
   const tooLow = await call(host, 'bfAdjustEditCount', { name: 'Bob', delta: -1 });
   assert.equal(tooLow.ok, false, 'cannot go below 0');
 
@@ -157,24 +157,24 @@ test('bfStartEdit / bfAdjustEditCount / bfConfirmEdit: host-only draft counts, c
 
   const confirmed = await call(host, 'bfConfirmEdit');
   assert.equal(confirmed.ok, true);
-  assert.equal(room.bfCounts.Ann, 3);
-  assert.equal(room.bfCounts.Bob, 1);
-  assert.equal(room.bfEditing, false);
+  assert.equal(room.state.bluff.counts.Ann, 3);
+  assert.equal(room.state.bluff.counts.Bob, 1);
+  assert.equal(room.state.bluff.editing, false);
 });
 
 test('an eliminated player becomes a spectator who sees every active hand', async () => {
   const { ctx, io } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 1, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
-  room.bfEliminationOrder = [];
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 1, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 1;
+  room.state.bluff.eliminationOrder = [];
 
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
   const res = await call(host, 'bfSelectLoser', { name: 'Bob' });
   assert.equal(res.ok, true);
-  assert.equal(room.bfCounts.Bob, 0);
+  assert.equal(room.state.bluff.counts.Bob, 0);
 
   const bobEmits = emissionsFor(io, room, 'Bob');
   const bobState = bobEmits[bobEmits.length - 1].payload;
@@ -210,10 +210,10 @@ test('eliminating a player opens a global-bet window offered only to them, eligi
   t.mock.method(betting, 'resolveSideBets', async () => []);
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 1, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 1, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 1;
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   await call(host, 'bfSelectLoser', { name: 'Bob' });
@@ -231,10 +231,10 @@ test('a round ending resolves side bets for that exact round and loser, win or n
   });
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 5;
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 5;
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   await call(host, 'bfSelectLoser', { name: 'Bob' });
@@ -250,10 +250,10 @@ test('the match ending resolves global bets once the game is recorded, naming th
   t.mock.method(betting, 'resolveSideBets', async () => []);
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 1, Bob: 1 };
-  room.bfHands = { Ann: ['Ah'], Bob: ['2c'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 1, Bob: 1 };
+  room.state.bluff.hands = { Ann: ['Ah'], Bob: ['2c'] };
+  room.state.bluff.roundNumber = 1;
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   await call(host, 'bfSelectLoser', { name: 'Bob' });
@@ -271,12 +271,12 @@ test('confirming a card-count edit voids side bets for the edited round before d
   });
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 3;
-  room.bfEditing = true;
-  room.bfEditCounts = { Ann: 2, Bob: 1, Cid: 2 };
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 3;
+  room.state.bluff.editing = true;
+  room.state.bluff.editCounts = { Ann: 2, Bob: 1, Cid: 2 };
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   const res = await call(host, 'bfConfirmEdit');
@@ -289,14 +289,14 @@ test('bfResetGame clears any open betting windows and proposals, and expires dan
   t.mock.method(betting, 'expireDanglingBets', async (roomCode) => expireCalls.push(roomCode));
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'gameover' });
-  room.betGlobalWindows = { start: { eligible: ['Ann'], offerTo: ['Ann'], responded: new Set() } };
-  room.betSideProposals = { 1: [{ id: 1, bettorName: 'Ann' }] };
+  room.state.betting.globalWindows = { start: { eligible: ['Ann'], offerTo: ['Ann'], responded: new Set() } };
+  room.state.betting.sideProposals = { 1: [{ id: 1, bettorName: 'Ann' }] };
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   const res = await call(host, 'bfResetGame');
   assert.equal(res.ok, true);
-  assert.deepEqual(room.betGlobalWindows, {});
-  assert.deepEqual(room.betSideProposals, {});
+  assert.deepEqual(room.state.betting.globalWindows, {});
+  assert.deepEqual(room.state.betting.sideProposals, {});
   // Without this, an already-accepted bet's Postgres row would survive the reset and be
   // mis-resolved against the next match in this same room (room_code-scoped sweep).
   assert.deepEqual(expireCalls, ['AAAA']);
@@ -308,10 +308,10 @@ test('a synchronous broadcast omits the betting key, so the client keeps its bet
   // follow-up. We assert on what broadcastBluff actually emits over the fake io.
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 2, Bob: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.state.bluff.roundNumber = 1;
   registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   // Drive a real synchronous broadcast and inspect exactly what went over the fake io.
@@ -326,11 +326,11 @@ test('a synchronous broadcast omits the betting key, so the client keeps its bet
 test('betPlaceGlobal/betProposeSide/betAcceptSide all reject a player who is not signed in', async () => {
   const { ctx } = createTestCtx();
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob'], { game: 'bluff', phase: 'playing' });
-  room.bfPlayers = ['Ann', 'Bob'];
-  room.bfCounts = { Ann: 2, Bob: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
-  room.bfRoundNumber = 1;
-  room.betGlobalWindows = { start: { eligible: ['Ann', 'Bob'], offerTo: ['Ann', 'Bob'], responded: new Set() } };
+  room.state.bluff.players = ['Ann', 'Bob'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'] };
+  room.state.bluff.roundNumber = 1;
+  room.state.betting.globalWindows = { start: { eligible: ['Ann', 'Bob'], offerTo: ['Ann', 'Bob'], responded: new Set() } };
   const ann = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann')); // no userId - a guest
 
   const place = await call(ann, 'betPlaceGlobal', { trigger: 'start', pick: 'Ann', stake: 50 });
@@ -352,11 +352,11 @@ test('betPlaceGlobal: a signed-in player places a bet on an open window end to e
   addPlayer(room, 'Ann', { userId: 1 });
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann'));
   await call(host, 'startBluffMatch');
-  assert.deepEqual(room.betGlobalWindows.start.offerTo.slice().sort(), ['Ann', 'Bob']);
+  assert.deepEqual(room.state.betting.globalWindows.start.offerTo.slice().sort(), ['Ann', 'Bob']);
 
   const res = await call(host, 'betPlaceGlobal', { trigger: 'start', pick: 'Ann', stake: 50 });
   assert.equal(res.ok, true);
-  assert.equal(room.betGlobalWindows.start.responded.has('Ann'), true);
+  assert.equal(room.state.betting.globalWindows.start.responded.has('Ann'), true);
 });
 
 test('betProposeSide then betAcceptSide locks in a side bet and clears the proposal, end to end', async (t) => {
@@ -367,10 +367,10 @@ test('betProposeSide then betAcceptSide locks in a side bet and clears the propo
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
   addPlayer(room, 'Ann', { userId: 1 });
   addPlayer(room, 'Bob', { userId: 2 });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 1;
   const ann = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Ann'));
   const bob = registerGame(bluff, ctx, makeHandlerSocket('AAAA', 'Bob'));
 
@@ -379,7 +379,7 @@ test('betProposeSide then betAcceptSide locks in a side bet and clears the propo
 
   const accepted = await call(bob, 'betAcceptSide', { proposalId: proposed.proposal.id });
   assert.equal(accepted.ok, true);
-  assert.deepEqual(room.betSideProposals[1], []);
+  assert.deepEqual(room.state.betting.sideProposals[1], []);
 });
 
 test('a resolved side bet pushes a betResolved toast to both the bettor and the accepter', async (t) => {
@@ -395,10 +395,10 @@ test('a resolved side bet pushes a betResolved toast to both the bettor and the 
   const room = createRoom(ctx, 'AAAA', ['Ann', 'Bob', 'Cid'], { game: 'bluff', phase: 'playing' });
   addPlayer(room, 'Ann', { userId: 1 });
   addPlayer(room, 'Bob', { userId: 2 });
-  room.bfPlayers = ['Ann', 'Bob', 'Cid'];
-  room.bfCounts = { Ann: 2, Bob: 2, Cid: 2 };
-  room.bfHands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
-  room.bfRoundNumber = 1;
+  room.state.bluff.players = ['Ann', 'Bob', 'Cid'];
+  room.state.bluff.counts = { Ann: 2, Bob: 2, Cid: 2 };
+  room.state.bluff.hands = { Ann: ['Ah', 'Kh'], Bob: ['2c', '3c'], Cid: ['4d', '5d'] };
+  room.state.bluff.roundNumber = 1;
   const host = registerGame(bluff, ctx, makeHandlerSocket('AAAA', room.hostName));
 
   // Ann bet Cid would lose this round; Cid really does - Ann wins, Bob loses.
