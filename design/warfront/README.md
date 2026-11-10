@@ -21,20 +21,28 @@ also a standalone, self-contained HTML file with no external assets:
 | `3-resolution.html` | Reveal key frames: march, clash, base hit |
 | `4-game-over.html` | Winner banner, final base HP, final map, scoreboard |
 
-The battlefield is a 960×660 world inside a 390px-wide phone viewport. Drag or scroll
+The battlefield is a 1120×770 world inside a 390px-wide phone viewport. Drag or scroll
 to pan it.
 
 ## How it's built
 
-- Plain HTML + CSS. Characters, castles, towers and crystals are inline SVG. Terrain is
-  layered CSS gradients and masks. Animation is CSS keyframes only. There is no canvas
-  and there are no images.
+- **2.5D with plain HTML + CSS.** Each map is a flat `.world` plane tilted with
+  `transform: rotateX(40deg)` inside a `perspective` camera, with `transform-style:
+  preserve-3d`. Raised ground (`.plat`) is lifted with `translateZ` and has cliff walls
+  rotated down from its edges. Trees, units, buildings and effects are billboards
+  (`.ent > .bb`) counter-rotated so they stand upright. Shadows, selection rings, move
+  lines and range circles lie flat on the ground plane.
+- Characters, castles, towers, trees and crystals are inline SVG. Terrain textures are
+  layered CSS gradients and masks. Animation is CSS keyframes only. There is no canvas,
+  no WebGL and there are no images.
 - Team colour comes from a wrapper class: `.tm-red .tc` and `.tm-blue .tc` fill the
   sprites' team-coloured parts.
-- The battlefield is still a 16×11 tile grid underneath. The `.tiles` layer is the tap
-  target, and terrain, units and nodes are positioned in pixels (60px per tile).
+- The battlefield is still a 16×11 grid underneath. The `.tiles` layer (70px cells) is the
+  tap target, and everything else is positioned in world pixels.
 - Interactions are static in this export, for example the race picker and the unit
   selection.
+- Billboards stay parallel to the screen, so they lean back slightly in the world. Keep
+  units a little in front of cliff edges, or their tops clip into the plateau.
 
 `source/` holds the editable originals (`*.dc.html` + `canvas.json`) from the Claude design
 canvas. The static files above were generated from them.
