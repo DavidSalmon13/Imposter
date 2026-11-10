@@ -132,10 +132,14 @@
           <span class="game-tile-name">Menifot</span>
           <span class="game-tile-sub">2–8 players</span>
         </button>
-        <button id="choose-musictimeline-btn" class="game-tile" type="button">
-          <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></span>
-          <span class="game-tile-name">Music Timeline</span>
-          <span class="game-tile-sub">2–10 players</span>
+        <!-- WARFRONT is still being built: the tile only says "Coming soon" when tapped
+             (public/js/main.js) and never emits chooseGame. -->
+        <button id="choose-warfront-btn" class="game-tile tile-wip" type="button" aria-label="WARFRONT, coming soon">
+          <span class="game-tile-icon"><svg class="wip-hammer" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 12-8.5 8.5a2.12 2.12 0 0 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg></span>
+          <span class="game-tile-name">WARFRONT</span>
+          <span class="game-tile-sub" id="warfront-tile-sub">Under construction</span>
+          <span class="wip-progress" aria-hidden="true"><span></span></span>
+          <span class="wip-tape" aria-hidden="true"></span>
         </button>
         <button id="choose-mindmeld-btn" class="game-tile" type="button">
           <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg></span>

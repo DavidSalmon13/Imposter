@@ -75,7 +75,6 @@ socket.on('connect', connRestored);
 const MIN_PLAYERS = 3;
 const CN_MIN_PLAYERS = 4;
 const TS_MIN_PLAYERS = 2;
-const MT_MIN_PLAYERS = 2;
 const AIOF_MIN_PLAYERS = 2;
 const MM_MIN_PLAYERS = 3;
 const BF_MIN_PLAYERS = 2;
@@ -130,7 +129,8 @@ const chooseImposterBtn = document.getElementById('choose-imposter-btn');
 const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
-const chooseMusicTimelineBtn = document.getElementById('choose-musictimeline-btn');
+const chooseWarfrontBtn = document.getElementById('choose-warfront-btn');
+const warfrontTileSub = document.getElementById('warfront-tile-sub');
 const chooseMindMeldBtn = document.getElementById('choose-mindmeld-btn');
 const chooseBluffBtn = document.getElementById('choose-bluff-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
@@ -516,7 +516,6 @@ function renderLobby(players, scoreboard, playerStickers, playerSignedIn, player
   chooseCodenamesBtn.classList.toggle('tile-underfilled', players.length < CN_MIN_PLAYERS);
   chooseTensSecondsBtn.classList.toggle('tile-underfilled', players.length < TS_MIN_PLAYERS);
   chooseMenifotBtn.classList.toggle('tile-underfilled', players.length < MF_MIN_PLAYERS);
-  chooseMusicTimelineBtn.classList.toggle('tile-underfilled', players.length < MT_MIN_PLAYERS);
   chooseMindMeldBtn.classList.toggle('tile-underfilled', players.length < MM_MIN_PLAYERS);
   chooseBluffBtn.classList.toggle('tile-underfilled', players.length < BF_MIN_PLAYERS);
   lastLobbyPlayerCount = players.length;
@@ -688,7 +687,19 @@ chooseImposterBtn.addEventListener('click', () => chooseGame('imposter'));
 chooseCodenamesBtn.addEventListener('click', () => chooseGame('codenames'));
 chooseTensSecondsBtn.addEventListener('click', () => chooseGame('tenseconds'));
 chooseMenifotBtn.addEventListener('click', () => chooseGame('menifot'));
-chooseMusicTimelineBtn.addEventListener('click', () => chooseGame('musictimeline'));
+// WARFRONT has no server module yet: any player tapping it just sees "Coming soon".
+let warfrontPokeTimer = null;
+chooseWarfrontBtn.addEventListener('click', () => {
+  clearTimeout(warfrontPokeTimer);
+  chooseWarfrontBtn.classList.remove('wip-poked');
+  void chooseWarfrontBtn.offsetWidth; // restart the shake animation
+  chooseWarfrontBtn.classList.add('wip-poked');
+  warfrontTileSub.textContent = 'Coming soon!';
+  warfrontPokeTimer = setTimeout(() => {
+    chooseWarfrontBtn.classList.remove('wip-poked');
+    warfrontTileSub.textContent = 'Under construction';
+  }, 2000);
+});
 chooseMindMeldBtn.addEventListener('click', () => chooseGame('mindmeld'));
 chooseBluffBtn.addEventListener('click', () => chooseGame('bluff'));
 
