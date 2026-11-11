@@ -349,7 +349,7 @@
 /* A teammate's orders in blue when your team is blue (the mockup's .ally is red's). */
 :is(#wf-screen, #wf-gameover-screen) .wf .gline.ally.wf-ally-blue { border-top-color: rgba(127,176,255,.9); filter: drop-shadow(0 0 3px #4f93ff); }
 :is(#wf-screen, #wf-gameover-screen) .wf .gline.ally.wf-ally-blue::after { border-left-color: rgba(127,176,255,.95); }
-:is(#wf-screen, #wf-gameover-screen) .wf .wf-units .ent { transition: none; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-units .ent { transition: none; will-change: transform; }
 /* A stack's labels (HP bar, count chip, load crystal) float a little toward the camera
    inside the billboard, so the browser's 3D sort never draws the castle, a tree or the
    fog haze over them (they were cut off near the castle). The figures stay in place. */

@@ -87,7 +87,7 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `WF_MIN_TEAM_SIZE` | 1 | Players a team needs to start |
 | `WF_TICK_MS` | 200 | Simulation step interval (server advances the world ~5×/s) |
 | `WF_BROADCAST_MS` | 200 | How often a fogged snapshot is pushed to each socket |
-| `WF_STEP_MS_BASE` | 4300 | Time to walk one plains tile at `Move 1` (÷ the Move speed factor, × terrain move-cost). A Warrior crosses a medium map (14 tiles) in ~60 s, a Raider in ~30 s |
+| `WF_STEP_MS_BASE` | 2867 | Time to walk one plains tile at `Move 1` (÷ the Move speed factor, × terrain move-cost). A Warrior crosses a medium map (14 tiles) in ~40 s, a Raider in ~20 s (×1.5 faster than the earlier 4300, 2026-11-11) |
 | `WF_MATCH_CAP_MS` | 720000 | Hard match length (12 min); at the cap, higher base HP wins |
 | `WF_EVENT_MS` | 60000 | Interval between battlefield events |
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
@@ -319,8 +319,9 @@ economy), preserving the repo's pure-engine testing discipline even though the g
 A player issues commands live; each is validated and applied the moment it arrives — no draft, no
 commit, no debit-at-reveal. The single `wfCommand` event carries one of:
 
-- **Move** `{ kind:'move', unitIds, toTileId }` — the selected unit(s) compute a BFS shortest path
-  over passable terrain and **start walking immediately**. Re-issuing repaths at once; several
+- **Move** `{ kind:'move', unitIds, toTileId }` — the selected unit(s) compute the fastest path
+  (A*, weighted by each entered tile's move cost, so they go around a hill or forest when that's
+  quicker) over passable terrain and **start walking immediately**. Re-issuing repaths at once; several
   units can be selected and sent together (so "move several soldiers to different places" is just
   several move commands).
 - **Produce** `{ kind:'produce', unitType, atTileId }` — must be one of the player's **own race's**
@@ -681,6 +682,6 @@ Team membership is **not** duplicated here — it's sourced from `p.team`/`p.lea
 - **No canvas rendering** — the map is DOM (a CSS grid of tiles + absolutely-positioned army
   stacks); units render as **one stack per occupied tile** (count badge), not one node per unit,
   to stay within phone DOM limits.
-- **No per-unit free pathing around enemies** — movement is BFS shortest-path over passable
+- **No per-unit free pathing around enemies** — movement is fastest-path (A*, terrain move-cost) over passable
   tiles; blocking is by terrain, not by enemy occupancy (enemies just trigger auto-attacks when in
   range).

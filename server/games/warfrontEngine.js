@@ -12,8 +12,8 @@ const { rngFor } = require('../lib/rng');
 // (WF_TICK_MS, WF_BROADCAST_MS, roster limits) lives in the module, warfront.js.
 // ---------------------------------------------------------------------------
 
-// One plains tile at Move 1 (D16): a Warrior crosses a medium map in ~60 s.
-const WF_STEP_MS_BASE = 4300;
+// One plains tile at Move 1 (D16, sped up ×1.5 on 2026-11-11): a Warrior crosses a medium map in ~40 s.
+const WF_STEP_MS_BASE = 2867;
 const WF_MATCH_CAP_MS = 720000;
 const WF_EVENT_MS = 60000;
 const WF_VISION = 2;
@@ -346,6 +346,90 @@ function bfsPath(map, from, to) {
     }
   }
   return [];
+}
+
+/** Time cost of walking onto a tile (its terrain's moveCost; plains 1, forest/hills 2). */
+function moveCostAt(map, id) {
+  return TERRAIN_TYPES[terrainAt(map, id)].moveCost;
+}
+
+/**
+ * Fastest path over passable tiles: A* weighted by the move cost of every tile
+ * entered (so a unit walks around a hill when that's quicker than climbing it),
+ * with a Manhattan heuristic (admissible: no tile costs less than 1). Among
+ * equally fast paths the choice is deterministic (lowest f, then lowest h, then
+ * N/E/S/W discovery order). Same contract as bfsPath: the tile ids to walk,
+ * excluding `from`, ending at `to`; [] when already there or unreachable.
+ */
+function findPath(map, from, to) {
+  if (from === to || !isPassable(map, to) || !isPassable(map, from)) return [];
+  const { width, height } = map;
+  const h = (id) => manhattan(id, to, width);
+  const g = new Map([[from, 0]]);
+  const prev = new Map([[from, -1]]);
+  const closed = new Set();
+  // Binary min-heap of [f, h, seq, id].
+  const heap = [];
+  let seq = 0;
+  const less = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  const push = (item) => {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (less(heap[i], heap[p]) >= 0) break;
+      [heap[i], heap[p]] = [heap[p], heap[i]];
+      i = p;
+    }
+  };
+  const pop = () => {
+    const top = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < heap.length && less(heap[l], heap[m]) < 0) m = l;
+        if (r < heap.length && less(heap[r], heap[m]) < 0) m = r;
+        if (m === i) break;
+        [heap[i], heap[m]] = [heap[m], heap[i]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  push([h(from), h(from), seq++, from]);
+  while (heap.length) {
+    const cur = pop()[3];
+    if (closed.has(cur)) continue;
+    if (cur === to) {
+      const path = [];
+      for (let t = to; t !== from; t = prev.get(t)) path.push(t);
+      return path.reverse();
+    }
+    closed.add(cur);
+    const gc = g.get(cur);
+    for (const n of neighbors(cur, width, height)) {
+      if (closed.has(n) || !isPassable(map, n)) continue;
+      const gn = gc + moveCostAt(map, n);
+      if (g.has(n) && g.get(n) <= gn) continue;
+      g.set(n, gn);
+      prev.set(n, cur);
+      const hn = h(n);
+      push([gn + hn, hn, seq++, n]);
+    }
+  }
+  return [];
+}
+
+/** Total move cost of walking `path` (0 for []). */
+function pathCost(map, path) {
+  let c = 0;
+  for (const id of path) c += moveCostAt(map, id);
+  return c;
 }
 
 // ---------------------------------------------------------------------------
@@ -821,10 +905,11 @@ function orderMove(state, unit, to, now) {
   // Mid-step (or a finished step the next sim step hasn't applied yet): keep it.
   if (unit.path.length) {
     const next = unit.path[0];
-    if (next !== to && !bfsPath(map, next, to).length) return false;
-    unit.path = next === to ? [next] : [next, ...bfsPath(map, next, to)];
+    const rest = next === to ? [] : findPath(map, next, to);
+    if (next !== to && !rest.length) return false;
+    unit.path = [next, ...rest];
   } else {
-    const path = bfsPath(map, unit.tileId, to);
+    const path = findPath(map, unit.tileId, to);
     if (!path.length) return false;
     unit.path = path;
     unit.stepStartedAt = now;
@@ -968,13 +1053,13 @@ function headFor(state, army, u, to, now) {
   u.holding = false;
 }
 
-/** Of `tiles`, the one with the shortest walk from where `u` stands (or is stepping to); ties keep list order. */
+/** Of `tiles`, the one with the quickest walk from where `u` stands (or is stepping to); ties keep list order. */
 function nearestTile(state, u, tiles) {
   const from = u.path.length ? u.path[0] : u.tileId;
   let best = tiles[0];
   let bestLen = Infinity;
   for (const t of tiles) {
-    const len = t === from ? 0 : bfsPath(state.map, from, t).length || Infinity;
+    const len = t === from ? 0 : pathCost(state.map, findPath(state.map, from, t)) || Infinity;
     if (len < bestLen) {
       best = t;
       bestLen = len;
@@ -1490,6 +1575,9 @@ function viewForPlayer(state, name) {
       v.carrying = u.carrying;
       v.haul = u.haul;
       v.holding = Boolean(u.holding);
+      // How long the step after this one takes, so the client can keep the unit
+      // gliding past the tile edge until the next snapshot lands (no stop-start).
+      if (u.path.length > 1) v.afterStepMs = stepMs(state.map, u.type, u.path[1]);
     } else {
       if (!vision.has(u.tileId)) {
         // An attacker that just hit this team stays in sight for WF_REVEAL_MS (D14).
@@ -1500,6 +1588,11 @@ function viewForPlayer(state, name) {
         v.nextTileId = u.path[0];
         v.stepStartedAt = u.stepStartedAt;
         v.stepEndsAt = u.stepEndsAt;
+        // The step after, only onto a tile this team can already see (never leaks the route into fog).
+        if (u.path.length > 1 && vision.has(u.path[1])) {
+          v.afterTileId = u.path[1];
+          v.afterStepMs = stepMs(state.map, u.type, u.path[1]);
+        }
       }
       if (u.class === 'worker') v.carrying = u.carrying;
     }
@@ -1615,6 +1708,8 @@ module.exports = {
   isPassable,
   floodFill,
   bfsPath,
+  findPath,
+  pathCost,
   validateMap,
   buildFallbackMap,
   makeUnit,

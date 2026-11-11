@@ -182,6 +182,52 @@ test('bfsPath returns [] for same tile, impassable target, or unreachable target
   assert.deepEqual(E.bfsPath(map, 0, E.tileId(8, 0, 9)), []);
 });
 
+test('findPath walks around a hill ridge when that is quicker than climbing it', () => {
+  const map = E.validateMap(rawMap(), SIZE);
+  // A column of hills at x=4 for y=0..2: straight over costs 2 extra, around (via y=3) costs 6 extra plains.
+  for (let y = 0; y < 3; y++) map.tiles[E.tileId(4, y, 9)] = 'hills';
+  const from = E.tileId(2, 0, 9);
+  const to = E.tileId(6, 0, 9);
+  const over = E.findPath(map, from, to);
+  assert.equal(over[over.length - 1], to);
+  assert.equal(E.pathCost(map, over), 5, 'climbing one hill (4 steps, one costs 2) beats a 10-step detour');
+  // A wider ridge (x=3..5): over costs 7, still less than the 10-step walk around.
+  for (let y = 0; y < 3; y++) {
+    map.tiles[E.tileId(3, y, 9)] = 'hills';
+    map.tiles[E.tileId(5, y, 9)] = 'hills';
+  }
+  const best = E.findPath(map, from, E.tileId(6, 0, 9));
+  const straight = E.bfsPath(map, from, to);
+  assert.ok(E.pathCost(map, best) <= E.pathCost(map, straight));
+  for (let i = 1; i < best.length; i++) assert.equal(E.manhattan(best[i - 1], best[i], 9), 1);
+  assert.deepEqual(E.findPath(map, from, to), best, 'deterministic');
+});
+
+test('findPath prefers plains around forest, matches bfsPath length on open ground', () => {
+  const map = E.validateMap(rawMap(), SIZE);
+  const from = E.tileId(0, 1, 9);
+  const to = E.tileId(4, 1, 9);
+  assert.equal(E.findPath(map, from, to).length, E.bfsPath(map, from, to).length);
+  // Three forest tiles on the straight line: over costs 7, a one-row sidestep costs 6.
+  for (let x = 1; x <= 3; x++) map.tiles[E.tileId(x, 1, 9)] = 'forest';
+  const path = E.findPath(map, from, to);
+  assert.equal(E.pathCost(map, path), 6);
+  assert.ok(path.every((id) => map.tiles[id] !== 'forest'));
+  assert.deepEqual(E.findPath(map, 0, 0), []);
+});
+
+test('move: units take the quickest route, not the fewest tiles', () => {
+  const b = makeBattle({
+    rows: ['R.hhh.B', '.......'],
+    units: [{ owner: 'Red', type: 'warrior', at: [1, 0] }],
+  });
+  const [w] = b.st.armies.Red.units;
+  move(b.st, 'Red', [w.id], b.at(5, 0), 0);
+  // Over the hills: 4 steps costing 2+2+2+1 = 7; around through row 2: 6 plains steps = 6.
+  assert.equal(E.pathCost(b.st.map, w.path), 6);
+  assert.ok(w.path.every((id) => b.st.map.tiles[id] !== 'hills'));
+});
+
 test('validateMap accepts a good map and normalizes it', () => {
   const map = E.validateMap(rawMap(), SIZE);
   assert.equal(map.tiles.length, 45);
@@ -375,7 +421,13 @@ function makeBattle({ rows, units = [], weapons = [], sources = [], veins = [], 
 
 /** Steps the sim from `from` to `to` (ms) in 200 ms ticks. */
 function run(st, from, to, dt = 200) {
-  for (let now = from + dt; now <= to; now += dt) E.stepSim(st, dt, { now });
+  let last = from;
+  for (let now = from + dt; now <= to; now += dt) {
+    E.stepSim(st, dt, { now });
+    last = now;
+  }
+  // Land exactly on `to` even when it isn't on the dt grid (WF_STEP_MS_BASE isn't).
+  if (last < to) E.stepSim(st, to - last, { now: to });
 }
 
 const move = (st, owner, ids, toTileId, now) => E.applyCommand(st, owner, { kind: 'move', unitIds: ids, toTileId }, now);
@@ -437,8 +489,8 @@ test('move: a Raider (Move 3) walks twice as fast as a Warrior; an Outrider (Mov
   run(b.st, 0, 8 * Math.round(E.WF_STEP_MS_BASE / 2) + 200);
   assert.equal(E.tileXY(raider.tileId, 10).x, 8, 'raider: half a Warrior step a tile');
   assert.equal(E.tileXY(warrior.tileId, 10).x, 4, 'warrior: one full step a tile');
-  // A Warrior crosses a medium map (14 tiles of plains) in about a minute.
-  assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 60000) < 1000);
+  // A Warrior crosses a medium map (14 tiles of plains) in about 40 s (×1.5 speed-up, 2026-11-11).
+  assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 40000) < 1000);
 });
 
 test('move: re-issuing an order repaths; the step in progress finishes first', () => {

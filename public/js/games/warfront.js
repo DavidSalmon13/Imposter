@@ -505,6 +505,7 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
   dropNodes = new Map();
   lighthouseNodes = new Map();
   stackNodes.clear();
+  Object.keys(infoSig).forEach((k) => delete infoSig[k]);
   clickNodes = new Map();
   ordersSig = '';
   lastVisible = null;
@@ -659,11 +660,39 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
 
 const serverNow = () => Date.now() + clockSkew;
 
+/**
+ * Keeps clockSkew steady. Each snapshot's serverNow minus our clock is the true
+ * offset minus that packet's network delay, which jitters from packet to packet;
+ * adopting each sample raw made walking stacks jump back and forth 5×/s. The best
+ * estimate is the largest recent sample (the least-delayed packet), and we ease
+ * toward it instead of snapping.
+ */
+const skewSamples = [];
+let skewReady = false;
+function syncClock(serverStamp) {
+  skewSamples.push(serverStamp - Date.now());
+  if (skewSamples.length > 25) skewSamples.shift(); // ~5 s of snapshots
+  const target = Math.max(...skewSamples);
+  if (!skewReady || Math.abs(target - clockSkew) > 1000) {
+    clockSkew = target; // first sample, or a real clock jump (phone slept): snap
+    skewReady = true;
+  } else {
+    clockSkew += (target - clockSkew) * 0.2;
+  }
+}
+
 /** The tile a unit is stepping onto (own units: path[0]; enemies: nextTileId), or null. */
 function nextTileOf(u) {
   if (!u.stepEndsAt) return null;
   if (u.path && u.path.length) return u.path[0];
   return u.nextTileId != null ? u.nextTileId : null;
+}
+
+/** The tile after that (own units: path[1]; enemies: afterTileId when it's in sight), or null. */
+function afterTileOf(u) {
+  if (!u.stepEndsAt || !u.afterStepMs) return null;
+  if (u.path && u.path.length > 1) return u.path[1];
+  return u.afterTileId != null ? u.afterTileId : null;
 }
 
 /**
@@ -675,7 +704,13 @@ function groupUnits(units) {
   units.forEach((u) => {
     const next = nextTileOf(u);
     const k = next == null ? `${u.team}|${u.tileId}` : `${u.team}|${u.tileId}>${next}@${u.stepEndsAt}`;
-    if (!byKey.has(k)) byKey.set(k, { team: u.team, tileId: u.tileId, next, stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt, units: [] });
+    if (!byKey.has(k)) {
+      const after = next == null ? null : afterTileOf(u);
+      byKey.set(k, {
+        team: u.team, tileId: u.tileId, next, stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt,
+        after, afterStepMs: after == null ? 0 : u.afterStepMs, units: [],
+      });
+    }
     byKey.get(k).units.push(u);
   });
   const groups = new Map();
@@ -748,19 +783,67 @@ function standPoint(map, tileId, team, shared) {
   };
 }
 
-/** Positions one stack for the current moment (slides along its step). */
+const CLIMB_PX = 16; // how far (world px) a stack walks while scaling a cliff edge
+const smooth = (t) => t * t * (3 - 2 * t);
+
+/**
+ * A point `t` (0..1) of the way along one step from tile `a` to the adjacent tile `b`.
+ * Height follows the ground under the stack's feet: it stays level on each tile and
+ * climbs (or drops) at the cliff edge between them — up just *before* the edge so it
+ * stands on top of the plateau as it crosses, down just *after* it — instead of
+ * rising evenly across the whole step and sinking into the hill's wall.
+ */
+function stepPoint(map, team, a, b, t) {
+  const p = standPoint(map, a, team, false);
+  const q = standPoint(map, b, team, false);
+  const x = p.x + (q.x - p.x) * t;
+  const y = p.y + (q.y - p.y) * t;
+  let z = p.z;
+  if (q.z !== p.z) {
+    // Where the stand point crosses the shared tile edge, as a fraction of the step.
+    const ca = tileCentre(map, a);
+    const cb = tileCentre(map, b);
+    const horiz = ca.y === cb.y;
+    const edge = horiz ? (ca.x + cb.x) / 2 : (ca.y + cb.y) / 2;
+    const from = horiz ? p.x : p.y;
+    const to = horiz ? q.x : q.y;
+    const tEdge = to === from ? 0.5 : Math.max(0, Math.min(1, (edge - from) / (to - from)));
+    const w = Math.min(0.45, CLIMB_PX / (Math.hypot(q.x - p.x, q.y - p.y) || 1));
+    const up = q.z > p.z;
+    const t0 = up ? tEdge - w : tEdge;
+    const k = Math.max(0, Math.min(1, (t - t0) / w));
+    z = p.z + (q.z - p.z) * smooth(k);
+  }
+  return { x, y, z };
+}
+
+/**
+ * Positions one stack for the current moment: slides along its step and, once that
+ * step is over but the next snapshot hasn't arrived yet, carries on into the step
+ * after (the server sends its length), so walking never stalls at a tile edge.
+ */
 function placeStack(map, entry, now) {
   const g = entry.group;
-  let p = standPoint(map, g.tileId, g.team, entry.shared);
+  let p;
   if (g.next != null && g.stepEndsAt > g.stepStartedAt) {
-    const q = standPoint(map, g.next, g.team, false);
-    const t = Math.max(0, Math.min(1, (now - g.stepStartedAt) / (g.stepEndsAt - g.stepStartedAt)));
-    p = { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t, z: p.z + (q.z - p.z) * t };
+    if (now > g.stepEndsAt && g.after != null && g.afterStepMs > 0) {
+      const t = Math.min(1, (now - g.stepEndsAt) / g.afterStepMs);
+      p = stepPoint(map, g.team, g.next, g.after, t);
+    } else {
+      const t = Math.max(0, Math.min(1, (now - g.stepStartedAt) / (g.stepEndsAt - g.stepStartedAt)));
+      p = stepPoint(map, g.team, g.tileId, g.next, t);
+    }
+  } else {
+    p = standPoint(map, g.tileId, g.team, entry.shared);
   }
+  // One composited transform (no left/top layout, no whole-pixel rounding) so the
+  // slide is smooth sub-pixel motion on the GPU.
   const { node } = entry;
-  node.style.left = `${Math.round(p.x)}px`;
-  node.style.top = `${Math.round(p.y)}px`;
-  node.style.transform = p.z ? `translateZ(${Math.round(p.z)}px)` : '';
+  if (node.style.left !== '0px') {
+    node.style.left = '0px';
+    node.style.top = '0px';
+  }
+  node.style.transform = `translate3d(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px, ${p.z.toFixed(2)}px)`;
 }
 
 function renderUnits() {
@@ -1336,7 +1419,7 @@ function renderBattle(data) {
 /** One fogged snapshot (from wfState, then every wfLive tick). */
 function applyLive(view) {
   if (!state || state.phase !== 'playing' || !view || !view.units) return;
-  if (view.serverNow) clockSkew = view.serverNow - Date.now();
+  if (view.serverNow) syncClock(view.serverNow);
   live = view;
   // Drop selected units that are gone (dead, or no longer mine).
   const mine = new Set(view.units.filter((u) => u.owner === state.you).map((u) => u.id));
@@ -1383,14 +1466,27 @@ const plural = (name, n) => (n === 1 ? name : name.endsWith('man') ? `${name.sli
 const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1}-${(id % map.width) + 1}`;
 
 /** The console's info well: the selected stack (mockup), or the battlefield's name and lore. */
+const infoSig = {}; // what renderInfo last drew, so unchanged parts aren't rebuilt
+
 function renderInfo() {
   const { map } = state;
   const team = state.myTeam || 'red';
   const sel = live.units.filter((u) => u.owner === state.you && selected.has(u.id));
   infoPortrait.className = `scan tm-${team}`;
-  infoHp.innerHTML = '';
+  // Only rebuild the portrait and HP pips when they change: re-parsing the SVG every
+  // snapshot (5×/s) cost a layout each time and restarted the portrait's animations.
+  const hpSig = sel.slice(0, 10).map((u) => `${u.type}:${u.hp}`).join(',');
+  const lead0 = sel.length ? sel.map((u) => u.type).sort().join(',') : 'castle';
+  const changed = (key, value) => {
+    if (infoSig[key] === value) return false;
+    infoSig[key] = value;
+    return true;
+  };
+  const portraitChanged = changed('portrait', lead0);
+  const hpChanged = changed('hp', hpSig);
+  if (hpChanged) infoHp.innerHTML = '';
   if (!sel.length) {
-    infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
+    if (portraitChanged) infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
     infoTitle.textContent = map.theme;
     infoSub.textContent = map.lore || '';
     infoOrder.textContent = state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
@@ -1400,11 +1496,11 @@ function renderInfo() {
   const counts = new Map();
   sel.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
   const [lead] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  infoPortrait.innerHTML = (UNIT_SPRITES[lead] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
+  if (portraitChanged) infoPortrait.innerHTML = (UNIT_SPRITES[lead] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
   infoTitle.textContent = counts.size === 1 ? `${plural(UNIT_NAMES[lead], sel.length)} ×${sel.length}` : `Squad ×${sel.length}`;
   const here = sel[0].tileId;
   infoSub.textContent = `${RACE_NAMES[state.myRace]} · ${map.tiles[here]}`;
-  sel.slice(0, 10).forEach((u) => {
+  if (hpChanged) sel.slice(0, 10).forEach((u) => {
     const max = UNIT_MAX_HP[u.type] || u.hp;
     const c = u.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
     const pip = el('span');
