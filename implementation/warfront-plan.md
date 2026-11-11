@@ -440,8 +440,22 @@ win, Back to Lobby. Not yet on two real phones.
 - **Browser:** a full match (use a short `matchLength` dev override) through to the scoreboard and
   back to the lobby. **This is the first fully playable build.**
 
-### Step 8b: Lighthouses (D15)
+### Step 8b: Lighthouses (D15) ✅
 Added 2026-11-11 with David; comes after the game is playable end to end (Step 8).
+Done 2026-11-11. Home = the one lighthouse on a base's half within `LIGHTHOUSE_HOME_RANGE` (4) of it;
+the rest must each be fair (distances to the bases differ by ≤ 2) or form a mirrored pair (left-right,
+or rotated 180°). Fallback maps put the home one 2–3 tiles from the base, and the contested pair near
+the centre (hills preferred), more than 4 from both bases, at least 3 tiles apart, and none in the
+top row (the tall tower is clipped at the camera's top edge). Capture runs after combat, before the
+economy. A `lighthouse` event goes to **every** player (owners are public), not just those who can
+see the tile. The plan's map field is `map.lighthouses` (with `team` = starting owner) and
+`state.lighthouses`; views carry `lighthouses`. Client: a stone tower in the castle's greys with a
+`.tc` lamp room (grey `.tm-none` while neutral), a pulsing pool of light in the holder's colour like
+a vein's glow, a minimap diamond above the fog, a ring flash in the new colour and a
+"Red took the south-west lighthouse" line in the team's HUD colour; stacks on a lighthouse stand at
+its foot so the lamp stays visible. **Checked in the same harness as Step 8** (no real server): a
+unit ordered onto the contested lighthouse flips it, the red phone's fog opens around it, the blue
+phone's lamp turns red with no fog change, and a reload keeps it.
 - Engine: `MAX_LIGHTHOUSES = 4`, `WF_LIGHTHOUSE_VISION = 5`. `validateMap` reads `lighthouses`:
   2–4, exactly one per base half within Manhattan 4 of that base (not on it), extras fair (distance
   to each base differs by ≤ 2, or a mirrored pair), passable, reachable, own tile. `buildFallbackMap`

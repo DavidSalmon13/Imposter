@@ -278,6 +278,7 @@ function aiMap(theme = 'Glass Canyon') {
     supplySources: m.supplySources.map(({ x, y }) => ({ x, y })),
     veins: m.veins.map(({ x, y, richness, contested }) => ({ x, y, richness, contested })),
     weapons: m.weapons.map(({ x, y, weaponId }) => ({ x, y, weaponId })),
+    lighthouses: m.lighthouses.map(({ x, y }) => ({ x, y })),
     chokepoints: [],
   };
 }
@@ -878,4 +879,68 @@ test('game over: reconnect lands on the final screen; back to lobby clears the b
   warfront.clearState(s.room, 'WFWF');
   assert.equal(s.room.state.warfront.winner, null);
   assert.equal(s.room.state.warfront.map, null);
+});
+
+// ---------------------------------------------------------------------------
+// Step 8b: lighthouses
+// ---------------------------------------------------------------------------
+
+test('lighthouses: the prompt asks for them and the AI map\'s lighthouses are used with starting owners', async () => {
+  let prompt = '';
+  const restoreFetch = global.fetch;
+  const raw = aiMap();
+  const s = readyRoom();
+  const origKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key';
+  global.fetch = async (url, init) => {
+    prompt = JSON.parse(init.body).messages.map((m) => m.content).join('\n');
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(raw) } }] }) };
+  };
+  try {
+    await warfront.generateBattle(s.ctx, 'WFWF', s.room);
+  } finally {
+    global.fetch = restoreFetch;
+    process.env.OPENAI_API_KEY = origKey;
+  }
+  assert.match(prompt, /lighthouses/);
+  assert.match(prompt, /"lighthouses": \[/);
+  const wf = s.room.state.warfront;
+  assert.equal(wf.map.theme, 'Glass Canyon');
+  assert.equal(wf.lighthouses.length, raw.lighthouses.length);
+  assert.deepEqual(wf.lighthouses.filter((l) => l.team).map((l) => l.team).sort(), ['blue', 'red']);
+  // Everyone sees every lighthouse and its owner in their view.
+  for (const n of NAMES) assert.deepEqual(lastWfState(s.io, s.room, n).lighthouses, wf.lighthouses);
+  warfront.stopLoop('WFWF');
+});
+
+test('lighthouses: an AI map with no lighthouse near a base falls back to the procedural map', async () => {
+  const bad = aiMap('No Towers');
+  bad.lighthouses = [];
+  const { room } = await startWith(() => mockOpenAi(bad));
+  const wf = room.state.warfront;
+  assert.notEqual(wf.map.theme, 'No Towers');
+  assert.ok(wf.lighthouses.length >= 2);
+  warfront.stopLoop('WFWF');
+});
+
+test('lighthouses: persisted through the snapshot round-trip, capture survives', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  assert.ok(NAMESPACED_SAVED.warfront.includes('lighthouses'));
+  const neutral = wf.lighthouses.find((l) => !l.team);
+  const target = neutral || wf.lighthouses.find((l) => l.team === 'blue');
+  for (const a of Object.values(wf.armies)) a.units = [];
+  plant(wf, 'Ann', 'raider', target.tileId);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.equal(target.team, 'red');
+  // What persistence.js writes and reads back: only the saved keys, through JSON.
+  const picked = {};
+  for (const key of NAMESPACED_SAVED.warfront) picked[key] = wf[key];
+  const restored = { ...warfront.namespaces[0].createState(), ...JSON.parse(JSON.stringify(picked)) };
+  assert.deepEqual(restored.lighthouses, wf.lighthouses);
+  assert.deepEqual([...engine.visionFor(restored, 'red')].sort(), [...engine.visionFor(wf, 'red')].sort());
+  // Every player hears about the flip in their next wfLive, and sees the new owner.
+  const bobLive = wfLives(s.io, s.room, 'Bob').pop().payload;
+  assert.ok(bobLive.events.some((e) => e.type === 'lighthouse' && e.tileId === target.tileId && e.team === 'red'));
+  assert.equal(bobLive.lighthouses.find((l) => l.tileId === target.tileId).team, 'red');
 });

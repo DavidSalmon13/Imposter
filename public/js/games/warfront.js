@@ -24,6 +24,7 @@ import {
   DROP_SPRITE,
   RUINED_CASTLE_SPRITE,
   BANNER_SPRITE,
+  LIGHTHOUSE_SPRITE,
 } from './warfrontSprites.js';
 import { renderScoreboard } from '../shared/scoreboard.js';
 
@@ -372,6 +373,7 @@ let cardsFor = ''; // race|team the command card was built for
 const cardNodes = new Map(); // unitType -> { btn, q, bar, sig }
 let dropNodes = new Map(); // tileId -> dropped-load billboard
 const gainNodes = new Map(); // tileId -> { node, total }: the "+N💎" floating over a deposit
+let lighthouseNodes = new Map(); // tileId -> { node, mini, team }: lighthouse billboard + minimap marker
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -493,6 +495,7 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
     ...map.supplySources.map((f) => f.tileId),
     ...map.veins.map((f) => f.tileId),
     ...data.pickups.weapons.map((f) => f.tileId),
+    ...(map.lighthouses || []).map((f) => f.tileId),
   ]);
   decor = [];
   castleBoards = {};
@@ -500,6 +503,7 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
   stepSeen.clear();
   pickupNodes = new Map();
   dropNodes = new Map();
+  lighthouseNodes = new Map();
   stackNodes.clear();
   clickNodes = new Map();
   ordersSig = '';
@@ -606,6 +610,19 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
     node.appendChild(billboard(weaponSprite(w.weaponId), 40, 36));
     add(c.y + 6, node, w.tileId);
     pickupNodes.set(w.tileId, node);
+  });
+  // Lighthouses: a stone tower whose lamp (and the light it throws on the ground)
+  // burns in the holder's colour; unlit grey while nobody holds it.
+  (map.lighthouses || []).forEach((l) => {
+    const c = tileCentre(map, l.tileId);
+    const node = ent(c.x, c.y + 10, elevationAt(map, l.tileId), 'wf-lh tm-none');
+    node.appendChild(el('span', 'dec lglow'));
+    const shadow = el('span', 'dec tshadow');
+    Object.assign(shadow.style, { width: '44px', height: '22px' });
+    node.appendChild(shadow);
+    node.appendChild(billboard(LIGHTHOUSE_SPRITE, 40, 86));
+    add(c.y + 10, node, l.tileId);
+    lighthouseNodes.set(l.tileId, { node, mini: null, team: undefined });
   });
   map.bases.forEach((b) => {
     const c = tileCentre(map, b.tileId);
@@ -718,13 +735,15 @@ function fillStack(node, g, you) {
   node.appendChild(bb);
 }
 
-/** Where a stack stands on a tile: in front of a castle's gate, or beside an enemy stack. */
+/** Where a stack stands on a tile: in front of a castle's gate or a lighthouse, or beside an enemy stack. */
 function standPoint(map, tileId, team, shared) {
   const c = tileCentre(map, tileId);
   const onBase = map.bases.some((b) => b.tileId === tileId);
+  // On a lighthouse the stack stands at its foot, in front, so the lamp stays in view.
+  const onLight = !onBase && (map.lighthouses || []).some((l) => l.tileId === tileId);
   return {
     x: c.x + (shared ? (team === 'red' ? -16 : 16) : 0),
-    y: c.y + (onBase ? 44 : 14),
+    y: c.y + (onBase ? 44 : onLight ? 30 : 14),
     z: elevationAt(map, tileId),
   };
 }
@@ -921,6 +940,29 @@ function renderPickups() {
   });
 }
 
+/** Lamp colours: every player sees who holds each lighthouse (static map feature). */
+function renderLighthouses() {
+  if (!live || !live.lighthouses) return;
+  live.lighthouses.forEach((l) => {
+    const entry = lighthouseNodes.get(l.tileId);
+    if (!entry || entry.team === l.team) return;
+    entry.team = l.team;
+    const cls = l.team ? `tm-${l.team}` : 'tm-none';
+    entry.node.classList.remove('tm-red', 'tm-blue', 'tm-none');
+    entry.node.classList.add(cls);
+    if (entry.mini) entry.mini.className = `wf-mlh ${cls}`;
+  });
+}
+
+/** "north-west", "central", "east" ... where a tile sits on the map, for notice lines. */
+function compass(map, tileId) {
+  const x = tileId % map.width;
+  const y = Math.floor(tileId / map.width);
+  const ns = y < map.height / 3 ? 'north' : y >= (map.height * 2) / 3 ? 'south' : '';
+  const we = x < map.width / 3 ? 'west' : x >= (map.width * 2) / 3 ? 'east' : '';
+  return ns && we ? `${ns}-${we}` : ns || we || 'central';
+}
+
 // Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES).
 const UNIT_MAX_HP = {
   laborer: 5, peon: 5, acolyte: 5,
@@ -956,12 +998,25 @@ function buildMinimap(map) {
     const c = tileCentre(map, b.tileId);
     minimap.appendChild(miniRect(c.x / 10 - 3.5, c.y / 10 - 3.5, 7, 7, b.team === 'red' ? '#ff5a5f' : '#4f93ff', '1px'));
   });
+  // Lighthouses: a small diamond in the holder's colour (grey while neutral), above the fog.
+  const miniLights = [];
+  (map.lighthouses || []).forEach((l) => {
+    const c = tileCentre(map, l.tileId);
+    const m = el('span', 'wf-mlh');
+    Object.assign(m.style, { left: `${c.x / 10}px`, top: `${c.y / 10}px` });
+    miniLights.push([l.tileId, m]);
+  });
   miniFog = el('span');
   Object.assign(miniFog.style, { position: 'absolute', inset: '0' });
   minimap.appendChild(miniFog);
   miniUnits = el('span');
   Object.assign(miniUnits.style, { position: 'absolute', inset: '0' });
   minimap.appendChild(miniUnits);
+  miniLights.forEach(([tileId, m]) => {
+    minimap.appendChild(m);
+    const entry = lighthouseNodes.get(tileId);
+    if (entry) entry.mini = m;
+  });
   miniView = el('span');
   Object.assign(miniView.style, { border: '1px solid #fff', boxShadow: '0 0 4px #fff', boxSizing: 'border-box' });
   minimap.appendChild(miniView);
@@ -1092,6 +1147,12 @@ function playEffects(events) {
       gains.set(e.tileId, (gains.get(e.tileId) || 0) + e.minerals);
     } else if (e.type === 'spawn' && e.owner === state.you) {
       feed(`${UNIT_NAMES[e.unitType] || 'Unit'} ready`);
+    } else if (e.type === 'lighthouse') {
+      // A flip: a flash of the new colour round the lamp, and a notice line.
+      fxBoard(e.tileId, `<span class="wf-lflash wf-lf-${e.team}"></span>`, { w: 140, h: 140, dy: -10, z: 30, life: FX_LIFE.boom, team: e.team });
+      const who = e.team === 'red' ? 'Red' : 'Blue';
+      feed(`${who} took the ${compass(state.map, e.tileId)} lighthouse`, e.team);
+      if (e.team === state.myTeam) haptics.success();
     } else if (e.type === 'death') {
       const k = `${e.tileId}|${e.team}`;
       const l = losses.get(k) || { tileId: e.tileId, team: e.team, n: 0 };
@@ -1289,6 +1350,7 @@ function applyLive(view) {
   }
   renderFog();
   renderPickups();
+  renderLighthouses();
   renderUnits();
   renderOrders();
   renderHp('red', view.bases.red);
@@ -1389,7 +1451,8 @@ function cardSprite(unitType) {
 /** One line in the map's notice overlay (the mockup's "[Team] …" lines); fades by itself. */
 function feed(text, tone = 'grn') {
   const line = el('span', tone === 'grn' ? 'grn' : '');
-  if (tone !== 'grn') line.style.color = '#ffcc33';
+  // 'amb' for warnings; 'red' / 'blue' for a team's news in its HUD colour.
+  if (tone !== 'grn') line.style.color = { red: '#ff7a7e', blue: '#7fb0ff' }[tone] || '#ffcc33';
   line.textContent = text;
   feedEl.appendChild(line);
   while (feedEl.children.length > 3) feedEl.firstChild.remove();
@@ -1641,9 +1704,10 @@ function buildGameOverScene(data) {
   builtFor = null;
   selected.clear();
   buildWorld(data, { cam: goCam, world: goWorld, minimap: false });
-  live = { units: data.units, bases: data.bases, visible: data.visible, pickups: data.pickups, events: [] };
+  live = { units: data.units, bases: data.bases, visible: data.visible, pickups: data.pickups, lighthouses: data.lighthouses, events: [] };
   renderFog();
   renderPickups();
+  renderLighthouses();
   renderUnits();
   renderCastles(data.bases);
 

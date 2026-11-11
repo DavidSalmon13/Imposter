@@ -21,6 +21,14 @@ const WF_MAX_UNITS_PER_PLAYER = 30;
 const WF_MAX_DT_MS = 1000;
 // How long an attacker stays visible to the team it just hit (spec "Under attack").
 const WF_REVEAL_MS = 3000;
+// Lighthouses (spec "Lighthouses", D15): at most this many per map, and the
+// vision radius (Manhattan) around each one a team controls.
+const MAX_LIGHTHOUSES = 4;
+const WF_LIGHTHOUSE_VISION = 5;
+// A home lighthouse stands within this many tiles of its base.
+const LIGHTHOUSE_HOME_RANGE = 4;
+// An extra (contested) lighthouse is fair if its distances to the two bases differ by at most this.
+const LIGHTHOUSE_FAIRNESS = 2;
 
 const TUNING = Object.freeze({
   baseHp: 120,
@@ -463,10 +471,34 @@ function validateMap(raw, size) {
     return { ...pt, weaponId: w.weaponId };
   });
 
+  // Lighthouses (D15): 2-4; exactly one home lighthouse on each base's half within
+  // LIGHTHOUSE_HOME_RANGE of it (owned by that team at the start); any extras are
+  // fair (about as far from both bases) or a mirrored pair, and start neutral.
+  const rawLighthouses = raw.lighthouses;
+  if (!Array.isArray(rawLighthouses) || rawLighthouses.length < 2 || rawLighthouses.length > MAX_LIGHTHOUSES) {
+    throw new Error(`map needs 2 to ${MAX_LIGHTHOUSES} lighthouses`);
+  }
+  const lighthouses = rawLighthouses.map((l) => ({ ...claim(readPoint(l, 'lighthouse', width, height), 'lighthouse'), team: null }));
+  const halfOf = (pt) => side(pt);
+  for (const team of ['red', 'blue']) {
+    const home = lighthouses.filter((l) => halfOf(l) === side(bases[team])
+      && manhattan(l.tileId, bases[team].tileId, width) <= LIGHTHOUSE_HOME_RANGE);
+    if (home.length === 0) throw new Error(`the ${team} base needs a lighthouse within ${LIGHTHOUSE_HOME_RANGE} tiles on its half`);
+    if (home.length > 1) throw new Error(`the ${team} base has more than one lighthouse within ${LIGHTHOUSE_HOME_RANGE} tiles`);
+    home[0].team = team;
+  }
+  const extras = lighthouses.filter((l) => !l.team);
+  const fair = (l) => Math.abs(manhattan(l.tileId, bases.red.tileId, width) - manhattan(l.tileId, bases.blue.tileId, width)) <= LIGHTHOUSE_FAIRNESS;
+  const mirrored = (a, b) => a.x === width - 1 - b.x && (a.y === b.y || a.y === height - 1 - b.y);
+  const pairOk = extras.length === 2 && mirrored(extras[0], extras[1]);
+  for (const l of extras) {
+    if (!fair(l) && !pairOk) throw new Error(`lighthouse at (${l.x},${l.y}) is not fair to both bases`);
+  }
+
   // Connectivity: the red base reaches the blue base and every feature.
   const reach = floodFill(map, bases.red.tileId);
   if (!reach.has(bases.blue.tileId)) throw new Error('the two bases are not connected');
-  for (const [what, list] of [['supply source', supplySources], ['vein', veins], ['weapon token', weapons]]) {
+  for (const [what, list] of [['supply source', supplySources], ['vein', veins], ['weapon token', weapons], ['lighthouse', lighthouses]]) {
     for (const f of list) {
       if (!reach.has(f.tileId)) throw new Error(`${what} at (${f.x},${f.y}) is unreachable`);
     }
@@ -492,6 +524,7 @@ function validateMap(raw, size) {
     supplySources,
     veins,
     weapons,
+    lighthouses,
     chokepoints,
   };
 }
@@ -576,6 +609,46 @@ function fallbackCandidate(width, height, rng, plain) {
     veins.push({ x: vx, y: vy, richness, contested: true });
   }
 
+  // Lighthouses: one near each base (mirrored), plus a mirrored contested pair toward
+  // the centre, on hills when there are any there, else wherever fits.
+  const lighthouses = [];
+  const near = [];
+  for (let dy = -LIGHTHOUSE_HOME_RANGE; dy <= LIGHTHOUSE_HOME_RANGE; dy++) {
+    for (let dx = -LIGHTHOUSE_HOME_RANGE; dx <= LIGHTHOUSE_HOME_RANGE; dx++) {
+      const x = bx + dx;
+      const y = by + dy;
+      const d = Math.abs(dx) + Math.abs(dy);
+      // Not in the top row: the tall tower would be cut off by the top edge of the camera.
+      if (d < 2 || d > 3 || x < 0 || y < 1 || y >= height || x >= halfW || mirrorX(x) === x) continue;
+      if (free(x, y)) near.push([x, y]);
+    }
+  }
+  if (near.length) {
+    const [lx, ly] = pick(rng, near);
+    setPlain(lx, ly);
+    features.push({ x: lx, y: ly });
+    lighthouses.push({ x: lx, y: ly }, { x: mirrorX(lx), y: ly });
+  }
+  const contested = [];
+  for (let y = 1; y < height; y++) {
+    for (let x = bx + 1; x < halfW; x++) {
+      if (mirrorX(x) === x || !free(x, y)) continue;
+      if (Math.abs(x - bx) + Math.abs(y - by) <= LIGHTHOUSE_HOME_RANGE) continue;
+      contested.push([x, y]);
+    }
+  }
+  if (contested.length) {
+    // Near the centre, but the two of a pair at least 3 tiles apart (never side by side).
+    const centred = contested.filter(([x]) => x >= centreLeft - 3 && mirrorX(x) - x >= 3);
+    const apart = contested.filter(([x]) => mirrorX(x) - x >= 3);
+    const pool = centred.length ? centred : apart.length ? apart : contested;
+    const hills = pool.filter(([x, y]) => grid[y][x] === 'hills');
+    const [cx, cy] = pick(rng, hills.length ? hills : pool);
+    if (grid[cy][cx] !== 'hills') setPlain(cx, cy);
+    features.push({ x: cx, y: cy });
+    lighthouses.push({ x: cx, y: cy }, { x: mirrorX(cx), y: cy });
+  }
+
   // Weapon tokens: 1-2 mirrored pairs between the base and the centre.
   const weapons = [];
   const pairs = randInt(rng, 1, 2);
@@ -605,6 +678,7 @@ function fallbackCandidate(width, height, rng, plain) {
     supplySources: [{ x: sx, y: sy }, { x: mirrorX(sx), y: sy }],
     veins,
     weapons,
+    lighthouses,
     chokepoints: [],
   };
 }
@@ -693,6 +767,8 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
       mineralDrops: {},
       weapons: map.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
     },
+    // Home lighthouses start with their base's team, contested ones neutral (D15).
+    lighthouses: (map.lighthouses || []).map((l) => ({ tileId: l.tileId, team: l.team || null })),
     clock: { startedAt: now, matchEndsAt: now + matchCapMs, lastTickAt: now },
     event: null,
     nextEventAt: now + WF_EVENT_MS,
@@ -1272,6 +1348,29 @@ function stepCombat(state, now, events) {
   }
 }
 
+/**
+ * Lighthouse capture (D15): a lighthouse flips to a team the moment only that
+ * team's units stand on it. Both teams or nobody: it keeps its owner. Runs after
+ * movement and combat, so the dead don't hold it.
+ */
+function stepLighthouses(state, events) {
+  if (!state.lighthouses || !state.lighthouses.length) return;
+  const present = new Map(); // tileId -> Set(team)
+  for (const { unit, team } of allUnits(state)) {
+    if (unit.hp <= 0) continue;
+    if (!present.has(unit.tileId)) present.set(unit.tileId, new Set());
+    present.get(unit.tileId).add(team);
+  }
+  for (const l of state.lighthouses) {
+    const teams = present.get(l.tileId);
+    if (!teams || teams.size !== 1) continue;
+    const [team] = teams;
+    if (l.team === team) continue;
+    l.team = team;
+    events.push({ type: 'lighthouse', tileId: l.tileId, team });
+  }
+}
+
 /** An army's battle stats, created if an older saved match lacks them. */
 function statsOf(army) {
   if (!army.stats) army.stats = { kills: 0, lost: 0, baseDmg: 0 };
@@ -1318,6 +1417,7 @@ function stepSim(state, dtMs, { now }) {
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
   stepMovement(state, dt, now, events);
   stepCombat(state, now, events);
+  stepLighthouses(state, events);
   stepEconomy(state, dt, now, events);
   stepProduction(state, now, events);
   state.tick += 1;
@@ -1335,25 +1435,35 @@ function stepSim(state, dtMs, { now }) {
 // Fog of war + per-viewer view (spec "Fog of war")
 // ---------------------------------------------------------------------------
 
-/** Tiles a team can see: Manhattan WF_VISION around its units and its base. */
+/**
+ * Tiles a team can see: Manhattan WF_VISION around its units and its base, plus
+ * WF_LIGHTHOUSE_VISION around every lighthouse it controls.
+ */
 function visionFor(state, team) {
   const { width, height } = state.map;
   const seen = new Set();
   if (!team) return seen;
-  const sources = new Set([state.bases[team].tileId]);
-  for (const { unit, team: t } of allUnits(state)) if (t === team) sources.add(unit.tileId);
-  for (const src of sources) {
+  const diamond = (src, r) => {
     const { x, y } = tileXY(src, width);
-    for (let dy = -WF_VISION; dy <= WF_VISION; dy++) {
-      const span = WF_VISION - Math.abs(dy);
+    for (let dy = -r; dy <= r; dy++) {
+      const span = r - Math.abs(dy);
       for (let dx = -span; dx <= span; dx++) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx >= 0 && ny >= 0 && nx < width && ny < height) seen.add(tileId(nx, ny, width));
       }
     }
-  }
+  };
+  const sources = new Set([state.bases[team].tileId]);
+  for (const { unit, team: t } of allUnits(state)) if (t === team) sources.add(unit.tileId);
+  for (const src of sources) diamond(src, WF_VISION);
+  for (const l of state.lighthouses || []) if (l.team === team) diamond(l.tileId, WF_LIGHTHOUSE_VISION);
   return seen;
+}
+
+/** Every lighthouse and who holds it (static features: everyone sees the owners). */
+function lighthouseView(state) {
+  return (state.lighthouses || []).map((l) => ({ tileId: l.tileId, team: l.team }));
 }
 
 /**
@@ -1405,6 +1515,7 @@ function viewForPlayer(state, name) {
     me: army ? ownEconomy(state, army) : null,
     units,
     visible,
+    lighthouses: lighthouseView(state),
     pickups: {
       weapons: state.pickups.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
       mineralDrops: { ...state.pickups.mineralDrops },
@@ -1438,7 +1549,8 @@ function eventsForPlayer(state, name, events) {
   const team = teamOf(state, name);
   if (!team || !events.length) return [];
   const vision = visionFor(state, team);
-  return events.filter((e) => e.team === team || vision.has(e.tileId));
+  // A lighthouse flip is news to everyone: its owner is never hidden (D15).
+  return events.filter((e) => e.team === team || e.type === 'lighthouse' || vision.has(e.tileId));
 }
 
 /**
@@ -1459,6 +1571,7 @@ function finalView(state) {
     clock: state.clock,
     units,
     visible: '1'.repeat(state.map.width * state.map.height),
+    lighthouses: lighthouseView(state),
     pickups: {
       weapons: state.pickups.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
       mineralDrops: { ...state.pickups.mineralDrops },
@@ -1475,6 +1588,9 @@ module.exports = {
   WF_MAX_UNITS_PER_PLAYER,
   WF_MAX_DT_MS,
   WF_REVEAL_MS,
+  WF_LIGHTHOUSE_VISION,
+  MAX_LIGHTHOUSES,
+  LIGHTHOUSE_HOME_RANGE,
   TUNING,
   RACES,
   RPS_CLASSES,

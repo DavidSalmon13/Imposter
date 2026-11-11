@@ -51,6 +51,7 @@ const SAVED_FIELDS = [
   'bases',
   'armies',
   'pickups',
+  'lighthouses',
   'clock',
   'event',
   'nextEventAt',
@@ -73,6 +74,7 @@ function createState() {
     bases: null,
     armies: {},
     pickups: null,
+    lighthouses: [], // [{ tileId, team: 'red'|'blue'|null }] (D15)
     clock: null,
     event: null,
     nextEventAt: null,
@@ -382,9 +384,14 @@ function battlefieldPrompt(size, avoid) {
     `(x >= ${width - half}), roughly level with each other. Put exactly one supply source on a tile ` +
     `directly next to each base (up, down, left or right). Put 1-2 mineral veins out in the contested ` +
     `middle, equally far from both bases (richness 1-3, richest in the centre). Scatter 2-4 weapon ` +
-    `tokens, placed fairly for both sides, rarer ones deeper in contested ground. Keep the layout ` +
+    `tokens, placed fairly for both sides, rarer ones deeper in contested ground. Place 2-4 ` +
+    `lighthouses (tall watchtowers that give whoever holds them a wide view): exactly one near each ` +
+    `base (on that base's half, within ${engine.LIGHTHOUSE_HOME_RANGE} tiles of it but not on it), plus up to two at ` +
+    `strategic contested spots - hills, chokepoints or near the veins - either equally far from both ` +
+    `bases (within 2 tiles) or as a mirrored pair; keep the contested ones more than ` +
+    `${engine.LIGHTHOUSE_HOME_RANGE} tiles from both bases. Keep the layout ` +
     `roughly mirror-symmetric so neither side has an advantage. No two features (base, supply source, ` +
-    `vein, weapon) on the same tile, and none on water or rock. Also give the map an evocative theme ` +
+    `vein, weapon, lighthouse) on the same tile, and none on water or rock. Also give the map an evocative theme ` +
     `name (max 40 characters) and 1-2 sentences of lore.` +
     (avoid.length ? ` Recent map themes - pick something different from all of them: ${avoid.join('; ')}.` : '') +
     ` Respond with ONLY compact JSON in exactly this shape: {"theme": "...", "lore": "...", ` +
@@ -393,6 +400,7 @@ function battlefieldPrompt(size, avoid) {
     `"supplySources": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], ` +
     `"veins": [{"x": 0, "y": 0, "richness": 2, "contested": true}], ` +
     `"weapons": [{"x": 0, "y": 0, "weaponId": "artillery|emp|airdrop|bombard|aegis"}], ` +
+    `"lighthouses": [{"x": 0, "y": 0}, {"x": 0, "y": 0}], ` +
     `"chokepoints": [{"x": 0, "y": 0}]}. "tiles" must have exactly ${width * height} entries in ` +
     `row-major order (all of row y=0 left to right, then row y=1, and so on).`
   );

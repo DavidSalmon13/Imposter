@@ -109,3 +109,12 @@ export const RUINED_CASTLE_SPRITE = '<svg viewBox="0 0 100 88" aria-hidden="true
 
 // A victory banner the winners plant around the ruins (team colour on the flag).
 export const BANNER_SPRITE = '<svg viewBox="0 0 34 64" aria-hidden="true"><path class="ln" stroke="#3b2a1e" d="M4 2 L4 63"></path><circle fill="#f5c542" cx="4" cy="2" r="2.2"></circle><path class="tc flag" d="M5 5 L32 9 L26 18 L32 27 L5 27 Z"></path><path fill="#f5c542" d="M13 12 L15 16 L19 16 L16 19 L17 23 L13 21 L9 23 L10 19 L7 16 L11 16 Z"></path></svg>';
+
+// ---------------------------------------------------------------------------
+// Drawn for Step 8b (not in the mockups yet), in the sprite conventions: flat
+// stone in the castle's greys with a 22% shade on the right, a dark roof, and
+// the lamp room's glass as `.tc` so it burns in the owner's team colour (the
+// wrapper class `.tm-none` greys it out, unlit, while nobody holds it).
+// ---------------------------------------------------------------------------
+
+export const LIGHTHOUSE_SPRITE = '<svg viewBox="0 0 40 86" aria-hidden="true"><ellipse fill="rgba(0,0,0,.4)" cx="20" cy="83" rx="15" ry="3"></ellipse><path fill="#6b717b" d="M7 82 L33 82 L31 73 L9 73 Z"></path><path fill="#000" opacity=".22" d="M20 82 L33 82 L31 73 L20 73 Z"></path><path fill="#9aa2ae" d="M11 73 L29 73 L26 31 L14 31 Z"></path><path fill="#7d8592" d="M12.2 60 L27.8 60 L27.6 57 L12.4 57 Z M13.1 47 L26.9 47 L26.7 44 L13.3 44 Z"></path><path fill="#000" opacity=".22" d="M20 73 L29 73 L26 31 L20 31 Z"></path><rect fill="#14171c" x="18.6" y="49" width="2.8" height="4.5" rx="1.4"></rect><path fill="#14171c" d="M16.5 73 V66 Q20 61.5 23.5 66 V73 Z"></path><rect fill="#5d636d" x="10" y="27" width="20" height="4"></rect><rect fill="#000" opacity=".25" x="20" y="27" width="10" height="4"></rect><path fill="none" stroke="#3a3e46" stroke-width="1.2" stroke-linecap="round" d="M11 27 V24 M15.5 27 V24 M24.5 27 V24 M29 27 V24 M10.5 24 H29.5"></path><rect class="tc wf-lamp" x="14" y="14" width="12" height="11"></rect><rect fill="#fff" opacity=".35" x="15.5" y="15.5" width="3" height="8"></rect><path fill="none" stroke="#2a2f36" stroke-width="1" d="M20 14 V25"></path><rect fill="#000" opacity=".2" x="20" y="14" width="6" height="11"></rect><path fill="#3a3e46" d="M12 14 L20 5 L28 14 Z"></path><path fill="#000" opacity=".3" d="M20 5 L28 14 L20 14 Z"></path><circle fill="#ffcc66" cx="20" cy="3.5" r="1.6"></circle></svg>';
