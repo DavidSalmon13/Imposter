@@ -346,6 +346,13 @@
 :is(#wf-screen) .wf .gline.ally.wf-ally-blue { border-top-color: rgba(127,176,255,.9); filter: drop-shadow(0 0 3px #4f93ff); }
 :is(#wf-screen) .wf .gline.ally.wf-ally-blue::after { border-left-color: rgba(127,176,255,.95); }
 :is(#wf-screen) .wf .wf-units .ent { transition: none; }
+/* A stack's labels (HP bar, count chip, load crystal) float a little toward the camera
+   inside the billboard, so the browser's 3D sort never draws the castle, a tree or the
+   fog haze over them (they were cut off near the castle). The figures stay in place. */
+:is(#wf-screen) .wf .wf-units .sqbb { transform-style: preserve-3d; }
+:is(#wf-screen) .wf .wf-units .sqbb > .hpb,
+:is(#wf-screen) .wf .wf-units .sqbb > .chip,
+:is(#wf-screen) .wf .wf-units .sqbb > .wf-load { transform: translateZ(40px); }
 /* Fog of war: a haze plane over unseen ground (fills set per tile). */
 :is(#wf-screen) .wf .wf-fog { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 :is(#wf-screen) .wf .wf-fog rect { fill: rgba(3,5,10,0); transition: fill .4s; }
@@ -380,7 +387,11 @@
 :is(#wf-screen) .wf .wf-fx .dmg.wf-unit { font-size: 22px; }
 :is(#wf-screen) .wf .loss.c-red { background: #a8262b; box-shadow: inset 0 0 0 1px #ff8a8e; }
 :is(#wf-screen) .wf .loss.c-blue { background: #1d4fb0; box-shadow: inset 0 0 0 1px #8cb6ff; }
+@keyframes wfLoadFloat { 0%, 100% { transform: translateZ(40px) translateY(0); } 50% { transform: translateZ(40px) translateY(-3px); } }
 @keyframes wfFxOut { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* Floating numbers sit in front of the stacks' labels (see .sqbb above). */
+:is(#wf-screen) .wf .wf-fx .bb { transform-style: preserve-3d; }
+:is(#wf-screen) .wf .wf-fx .bb > .dmg, :is(#wf-screen) .wf .wf-fx .bb > .loss { translate: 0 0 56px; }
 /* A burning castle (below half HP): the siege frame's flames and smoke, kept lit. */
 :is(#wf-screen) .wf .wf-burn { position: absolute; inset: 0; pointer-events: none; }
 /* HUD: the base bar blinks as it drops (the siege frame's draining bar). */
@@ -419,7 +430,7 @@
 :is(#wf-screen) .wf .cmd:disabled { cursor: default; }
 :is(#wf-screen) .wf .cmd.sys.dim { opacity: .38; filter: grayscale(.85); }
 /* A loaded hauler carries a crystal over its stack; a dropped load lies on the ground. */
-:is(#wf-screen) .wf .wf-load { position: absolute; top: 6px; left: 31px; width: 14px; height: 16px; animation: wfFloat 2s ease-in-out infinite; filter: drop-shadow(0 0 4px rgba(90,216,255,.95)); }
+:is(#wf-screen) .wf .wf-load { position: absolute; top: 6px; left: 31px; width: 14px; height: 16px; animation: wfLoadFloat 2s ease-in-out infinite; filter: drop-shadow(0 0 4px rgba(90,216,255,.95)); }
 :is(#wf-screen) .wf .wf-load svg { width: 100%; height: 100%; display: block; }
 :is(#wf-screen) .wf .wf-dropglow { width: 54px; height: 34px; background: radial-gradient(ellipse, rgba(90,216,255,.5), rgba(90,216,255,.1) 45%, transparent 70%); animation: wfPulse 2.2s ease-in-out infinite; }
 /* Gains float up like the damage numbers, in mineral cyan. */

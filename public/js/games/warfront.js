@@ -367,6 +367,7 @@ let mode = 'move'; // what a tap on the map does with the selection: 'move' | 'h
 let cardsFor = ''; // race|team the command card was built for
 const cardNodes = new Map(); // unitType -> { btn, q, bar, sig }
 let dropNodes = new Map(); // tileId -> dropped-load billboard
+const gainNodes = new Map(); // tileId -> { node, total }: the "+N💎" floating over a deposit
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -1066,6 +1067,7 @@ function playEffects(events) {
   const hits = new Map(); // victim tile -> { dmg, base, team }
   const shots = new Map(); // "from>to" -> { from, to, ranged, arcane }
   const losses = new Map(); // "tile|team" -> { tileId, team, n }
+  const gains = new Map(); // tile -> 💎 my haulers unloaded there this snapshot
   events.forEach((e) => {
     if (e.type === 'underAttack' || e.type === 'baseHit') {
       const base = e.type === 'baseHit';
@@ -1077,7 +1079,7 @@ function playEffects(events) {
         shots.set(`${e.fromTileId}>${e.tileId}`, { from: e.fromTileId, to: e.tileId, ranged: e.ranged, arcane: ARCANE_TYPES.has(e.by) });
       }
     } else if (e.type === 'deposit' && e.owner === state.you) {
-      fxBoard(e.tileId, `<span class="dmg wf-gain" style="left: 34px; top: 0">+${Math.round(e.minerals)}💎</span>`, { w: 110, h: 120, z: 24, life: FX_LIFE.dmg, team: e.team });
+      gains.set(e.tileId, (gains.get(e.tileId) || 0) + e.minerals);
     } else if (e.type === 'spawn' && e.owner === state.you) {
       feed(`${UNIT_NAMES[e.unitType] || 'Unit'} ready`);
     } else if (e.type === 'death') {
@@ -1104,6 +1106,17 @@ function playEffects(events) {
       fxBoard(h.tileId, `<span class="dmg wf-unit" style="left: 40px; top: 0">${fmtDmg(h.dmg)}</span>`,
         { w: 110, h: 120, z: 14, life: FX_LIFE.dmg, team: h.team });
     }
+  });
+  gains.forEach((n, tileId) => {
+    // Haulers unloading a tick apart add onto the number still floating there.
+    const prev = gainNodes.get(tileId);
+    if (prev && prev.node.isConnected) {
+      prev.total += n;
+      prev.node.querySelector('.wf-gain').textContent = `+${Math.round(prev.total)}💎`;
+      return;
+    }
+    const node = fxBoard(tileId, `<span class="dmg wf-gain" style="left: 34px; top: 0">+${Math.round(n)}💎</span>`, { w: 110, h: 120, dy: -40, z: 24, life: FX_LIFE.dmg, team: state.myTeam });
+    if (node) gainNodes.set(tileId, { node, total: n });
   });
   losses.forEach((l) => {
     fxBoard(l.tileId, `<span class="boom" style="left: 20px; top: 40px; width: 70px; height: 70px"></span><span class="loss c-${l.team}" style="left: 38px; top: -26px">−${l.n}</span>`,
