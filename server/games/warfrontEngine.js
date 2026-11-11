@@ -5,6 +5,8 @@
 // rngFor(seed, tick) in server/lib/rng.js. Rules: specs/warfront-specs.md.
 // Build order: implementation/warfront-plan.md (Step 1 = the data tables below).
 
+const { rngFor } = require('../lib/rng');
+
 // ---------------------------------------------------------------------------
 // Engine-side constants (spec "Configurable constants"). Socket/loop timing
 // (WF_TICK_MS, WF_BROADCAST_MS, roster limits) lives in the module, warfront.js.
@@ -16,6 +18,8 @@ const WF_EVENT_MS = 60000;
 const WF_VISION = 2;
 const WF_MAX_UNITS_PER_PLAYER = 30;
 const WF_MAX_DT_MS = 1000;
+// How long an attacker stays visible to the team it just hit (spec "Under attack").
+const WF_REVEAL_MS = 3000;
 
 const TUNING = Object.freeze({
   baseHp: 120,
@@ -55,6 +59,10 @@ const TUNING = Object.freeze({
   luckBendRadius: 2,
   dominantClassRadius: 2,
   siegeVsStructureMult: 3,
+  // High ground (D13) and falling back out of reach (D14).
+  hillRangeBonus: 1,
+  uphillRangePenalty: 1,
+  fallBackMaxTiles: 3,
   // Economy modifiers named in the spec's Facilities / Events sections.
   refineryVeinBonus: 1,
   mineralRushMult: 2,
@@ -633,6 +641,8 @@ function makeUnit(id, type, owner, tileId) {
     stepEndsAt: 0,
     atkReadyAt: 0,
     haul: null,
+    holding: false,
+    revealedUntil: { red: 0, blue: 0 },
   };
 }
 
@@ -646,8 +656,8 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
   const baseOf = {};
   for (const b of map.bases) baseOf[b.team] = b.tileId;
   const bases = {
-    red: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.red, shieldUntil: 0 },
-    blue: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.blue, shieldUntil: 0 },
+    red: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.red, shieldUntil: 0, atkReadyAt: 0 },
+    blue: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.blue, shieldUntil: 0, atkReadyAt: 0 },
   };
   const armies = {};
   for (const { name, team, race } of roster) {
@@ -739,6 +749,7 @@ function orderMove(state, unit, to, now) {
     unit.stepEndsAt = now + stepMs(map, unit.type, path[0]);
   }
   unit.haul = null;
+  unit.holding = false;
   return true;
 }
 
@@ -764,6 +775,22 @@ function applyCommand(state, name, cmd, now) {
     for (const u of units) if (orderMove(state, u, toTileId, now)) moved++;
     if (!moved) return { ok: false, error: 'Already there' };
     return { ok: true, moved };
+  }
+  if (cmd.kind === 'hold') {
+    const { unitIds } = cmd;
+    if (!Array.isArray(unitIds) || !unitIds.length || unitIds.length > MAX_UNITS_PER_COMMAND) {
+      return { ok: false, error: 'Pick some units first' };
+    }
+    const wanted = new Set(unitIds);
+    const units = army.units.filter((u) => wanted.has(u.id) && UNIT_TYPES[u.type].move > 0);
+    if (!units.length) return { ok: false, error: 'Those units are not yours to command' };
+    for (const u of units) {
+      // Stop where it stands: a step in progress finishes (no snapping back), then nothing.
+      if (u.path.length > 1) u.path = [u.path[0]];
+      u.haul = null;
+      u.holding = true;
+    }
+    return { ok: true, held: units.length };
   }
   return { ok: false, error: 'Unknown command' };
 }
@@ -809,16 +836,245 @@ function stepMovement(state, dtMs, now, events) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Combat (spec "Combat", "High ground", "Under attack")
+// ---------------------------------------------------------------------------
+
+/** Hills are high ground; every other tile is low. */
+function isHigh(map, id) {
+  return terrainAt(map, id) === 'hills';
+}
+
+/**
+ * How far `attacker` ({ tileId, range }) reaches toward `targetTileId` (D13). Ranged
+ * units (base range ≥ 2) gain hillRangeBonus shooting down from a hill and lose
+ * uphillRangePenalty shooting up at one; same level = plain range. Melee range is fixed.
+ */
+function effectiveRange(map, attacker, targetTileId) {
+  const r = attacker.range;
+  if (r < 2) return r;
+  const high = isHigh(map, attacker.tileId);
+  const targetHigh = isHigh(map, targetTileId);
+  if (high && !targetHigh) return r + TUNING.hillRangeBonus;
+  if (!high && targetHigh) return Math.max(0, r - TUNING.uphillRangePenalty);
+  return r;
+}
+
+/** Whether `attacker` can hit a target on `targetTileId`: in range, and melee only on its own level. */
+function canReach(map, attacker, targetTileId) {
+  const d = manhattan(attacker.tileId, targetTileId, map.width);
+  if (attacker.range >= 2) return d <= effectiveRange(map, attacker, targetTileId);
+  return d <= attacker.range && isHigh(map, attacker.tileId) === isHigh(map, targetTileId);
+}
+
+/** Every fighter on the field this step: units (by id) and then both bases. */
+function combatants(state) {
+  const out = [];
+  for (const { unit, owner, team } of allUnits(state)) {
+    if (unit.hp <= 0) continue;
+    const t = UNIT_TYPES[unit.type];
+    out.push({
+      kind: 'unit', id: unit.id, unit, owner, team, race: t.race, cls: t.class, flags: t.flags,
+      tileId: unit.tileId, range: t.range, atk: t.atk, attackMs: t.attackMs,
+    });
+  }
+  out.sort((a, b) => a.id - b.id);
+  for (const team of ['red', 'blue']) {
+    const base = state.bases[team];
+    out.push({
+      kind: 'base', id: Infinity, base, owner: null, team, race: null, cls: 'structure', flags: [],
+      tileId: base.tileId, range: TUNING.baseRange, atk: TUNING.baseAtk, attackMs: TUNING.baseAttackMs,
+    });
+  }
+  return out;
+}
+
+/** A base can be damaged when it stands, isn't shielded, and no defender stands on it (D9). */
+function baseDamageable(state, team, fighters, now) {
+  const base = state.bases[team];
+  if (base.hp <= 0 || base.shieldUntil > now) return false;
+  return !fighters.some((f) => f.kind === 'unit' && f.team === team && f.tileId === base.tileId);
+}
+
+/** Whether `target` (a fighter) is something `attacker` may pick right now. */
+function isValidTarget(state, attacker, target, fighters, now) {
+  if (target.team === attacker.team) return false;
+  if (target.kind === 'unit' && target.unit.hp <= 0) return false;
+  if (target.kind === 'base' && (attacker.kind === 'base' || !baseDamageable(state, target.team, fighters, now))) return false;
+  return canReach(state.map, attacker, target.tileId);
+}
+
+/** Nearest enemy `attacker` can hit; ties break by unit id, a base after units. */
+function pickTarget(state, attacker, fighters, now) {
+  let best = null;
+  let bestD = Infinity;
+  for (const f of fighters) {
+    if (!isValidTarget(state, attacker, f, fighters, now)) continue;
+    const d = manhattan(attacker.tileId, f.tileId, state.map.width);
+    if (d < bestD || (d === bestD && f.id < best.id)) {
+      best = f;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * strategyEdge (D5): the enemy's dominant RPS class near the attacker, and the
+ * fraction of the attacker's team's RPS units near it that counter that class.
+ */
+function strategyEdge(state, attacker, fighters) {
+  const { width } = state.map;
+  const near = (f) => f.kind === 'unit' && RPS_BEATS[f.cls] && manhattan(attacker.tileId, f.tileId, width) <= TUNING.dominantClassRadius;
+  const counts = {};
+  for (const f of fighters) if (f.team !== attacker.team && near(f)) counts[f.cls] = (counts[f.cls] || 0) + 1;
+  let dominant = null;
+  let top = 0;
+  let tie = false;
+  for (const cls of RPS_CLASSES) {
+    const n = counts[cls] || 0;
+    if (n > top) {
+      dominant = cls;
+      top = n;
+      tie = false;
+    } else if (n && n === top) {
+      tie = true;
+    }
+  }
+  if (!dominant || tie) return 0;
+  const mine = fighters.filter((f) => f.team === attacker.team && near(f));
+  if (!mine.length) return 0;
+  return mine.filter((f) => RPS_BEATS[f.cls] === dominant).length / mine.length;
+}
+
+/** Whether a luckBend Archmage of `team` stands within luckBendRadius of `tileId` (D6). */
+function archmageNear(state, team, tileId, fighters) {
+  return fighters.some((f) => f.kind === 'unit' && f.team === team && f.flags.includes('luckBend')
+    && manhattan(f.tileId, tileId, state.map.width) <= TUNING.luckBendRadius);
+}
+
+/** One hit's damage, per the spec's formula. Draws exactly one number from `rng`. */
+function hitDamage(state, attacker, target, fighters, rng, now) {
+  let atk = attacker.atk * rpsMultiplier(attacker.cls, target.cls);
+  if (attacker.race === 'horde') atk *= TUNING.hordeAtkMult;
+  if (attacker.cls === 'siege' && target.cls === 'structure') atk *= TUNING.siegeVsStructureMult;
+  let defense = TERRAIN_TYPES[terrainAt(state.map, target.tileId)].defense || 1;
+  if (target.cls === 'structure') defense *= TUNING.structureDefense;
+  let luck = TUNING.luckMagnitude;
+  if (attacker.race === 'horde') luck *= TUNING.hordeLuckMult;
+  if (archmageNear(state, attacker.team, attacker.tileId, fighters)) luck *= TUNING.archmageOwnLuckMult;
+  if (archmageNear(state, target.team, target.tileId, fighters)) luck *= TUNING.archmageEnemyLuckMult;
+  const ev = state.event;
+  if (ev && ev.effectId === 'sandstorm' && ev.endsAt > now) luck *= TUNING.sandstormLuck;
+  const swing = (rng() * 2 - 1) * luck * (1 - strategyEdge(state, attacker, fighters));
+  const dmg = (atk / defense) * (1 + swing);
+  return Math.max(0, Math.round(dmg * 100) / 100);
+}
+
+/**
+ * The nearest passable tile, at most fallBackMaxTiles steps away, out of
+ * `attacker`'s reach (BFS, N/E/S/W tie-break), or null if there is none.
+ */
+function fallBackTile(state, unit, attacker) {
+  const { map } = state;
+  const depth = new Map([[unit.tileId, 0]]);
+  const queue = [unit.tileId];
+  for (let i = 0; i < queue.length; i++) {
+    const cur = queue[i];
+    const d = depth.get(cur);
+    if (d > 0 && !canReach(map, attacker, cur)) return cur;
+    if (d >= TUNING.fallBackMaxTiles) continue;
+    for (const n of neighbors(cur, map.width, map.height)) {
+      if (depth.has(n) || !isPassable(map, n)) continue;
+      depth.set(n, d + 1);
+      queue.push(n);
+    }
+  }
+  return null;
+}
+
+/**
+ * Everyone whose cooldown is up hits the nearest enemy they can reach. Targets are
+ * picked from the field as it stood at the start of the step and damage lands
+ * together, so the order units are listed in never decides a fight.
+ */
+function stepCombat(state, now, events) {
+  const rng = rngFor(state.seed, state.tick);
+  const fighters = combatants(state);
+  const hits = [];
+  for (const attacker of fighters) {
+    const holder = attacker.kind === 'unit' ? attacker.unit : attacker.base;
+    if (holder.atkReadyAt > now) continue;
+    if (attacker.kind === 'base' && attacker.base.hp <= 0) continue;
+    const target = pickTarget(state, attacker, fighters, now);
+    if (!target) continue;
+    holder.atkReadyAt = now + attacker.attackMs;
+    const victims = attacker.flags.includes('aoe') && target.kind === 'unit'
+      ? fighters.filter((f) => f.kind === 'unit' && f.team !== attacker.team && f.tileId === target.tileId)
+      : [target];
+    for (const victim of victims) hits.push({ attacker, victim, dmg: hitDamage(state, attacker, victim, fighters, rng, now) });
+  }
+
+  const hitBy = new Map(); // unit id -> attackers that hit it this step
+  for (const { attacker, victim, dmg } of hits) {
+    const base = {
+      tileId: victim.tileId, fromTileId: attacker.tileId, dmg,
+      by: attacker.kind === 'unit' ? attacker.unit.type : 'base', ranged: attacker.range >= 2,
+    };
+    if (victim.kind === 'base') {
+      victim.base.hp = Math.max(0, Math.round((victim.base.hp - dmg) * 100) / 100);
+      events.push({ type: 'baseHit', team: victim.team, hp: victim.base.hp, ...base });
+    } else {
+      victim.unit.hp = Math.round((victim.unit.hp - dmg) * 100) / 100;
+      events.push({ type: 'underAttack', owner: victim.owner, team: victim.team, unitId: victim.id, ...base });
+      if (!hitBy.has(victim.id)) hitBy.set(victim.id, []);
+      hitBy.get(victim.id).push(attacker);
+    }
+    // The victim's team sees whoever just hit them for a moment (D14).
+    if (attacker.kind === 'unit') {
+      const u = attacker.unit;
+      u.revealedUntil = { red: 0, blue: 0, ...u.revealedUntil, [victim.team]: now + WF_REVEAL_MS };
+    }
+  }
+
+  // Deaths: a loaded Worker leaves its cargo on the tile.
+  for (const [owner, army] of Object.entries(state.armies)) {
+    army.units = army.units.filter((u) => {
+      if (u.hp > 0) return true;
+      if (u.carrying > 0) {
+        state.pickups.mineralDrops[u.tileId] = (state.pickups.mineralDrops[u.tileId] || 0) + u.carrying;
+      }
+      events.push({ type: 'death', tileId: u.tileId, owner, team: army.team, unitId: u.id, unitType: u.type });
+      return false;
+    });
+  }
+
+  // Fall back: an idle unit hit only by enemies it can't answer steps out of reach.
+  for (const f of fighters) {
+    const attackers = f.kind === 'unit' && hitBy.get(f.id);
+    if (!attackers) continue;
+    const u = f.unit;
+    if (u.hp <= 0 || u.path.length || u.haul || u.holding || UNIT_TYPES[u.type].move <= 0) continue;
+    const live = attackers.filter((a) => a.kind === 'base' || a.unit.hp > 0);
+    if (!live.length) continue;
+    const me = { ...f, tileId: u.tileId };
+    if (live.some((a) => isValidTarget(state, me, a, fighters, now))) continue;
+    const to = fallBackTile(state, u, live[0]);
+    if (to != null) orderMove(state, u, to, now);
+  }
+}
+
 /**
  * Advances the world by one sim step ending at `now` (`dtMs` long, already
  * clamped by the caller). Mutates and returns `state` with this step's events.
- * Systems arrive step by step: movement (Step 5); combat, economy, events and
- * the win check come later.
+ * Systems arrive step by step: movement (Step 5), combat (Step 6); economy,
+ * events and the win check come later.
  */
 function stepSim(state, dtMs, { now }) {
   const events = [];
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
   stepMovement(state, dt, now, events);
+  stepCombat(state, now, events);
   state.tick += 1;
   state.clock.lastTickAt = now;
   return { state, events };
@@ -861,6 +1117,7 @@ function viewForPlayer(state, name) {
   const army = state.armies[name] || null;
   const team = army ? army.team : null;
   const vision = visionFor(state, team);
+  const now = state.clock.lastTickAt;
   const units = [];
   for (const { unit: u, owner, team: t } of allUnits(state)) {
     if (!team) break;
@@ -871,8 +1128,13 @@ function viewForPlayer(state, name) {
       v.stepEndsAt = u.stepEndsAt;
       v.carrying = u.carrying;
       v.haul = u.haul;
+      v.holding = Boolean(u.holding);
     } else {
-      if (!vision.has(u.tileId)) continue;
+      if (!vision.has(u.tileId)) {
+        // An attacker that just hit this team stays in sight for WF_REVEAL_MS (D14).
+        if (!(u.revealedUntil && u.revealedUntil[team] > now)) continue;
+        v.revealed = true;
+      }
       if (u.path.length) {
         v.nextTileId = u.path[0];
         v.stepStartedAt = u.stepStartedAt;
@@ -914,6 +1176,7 @@ module.exports = {
   WF_VISION,
   WF_MAX_UNITS_PER_PLAYER,
   WF_MAX_DT_MS,
+  WF_REVEAL_MS,
   TUNING,
   RACES,
   RPS_CLASSES,
@@ -944,6 +1207,10 @@ module.exports = {
   createBattleState,
   stepMs,
   applyCommand,
+  isHigh,
+  effectiveRange,
+  canReach,
+  fallBackTile,
   stepSim,
   visionFor,
   viewForPlayer,

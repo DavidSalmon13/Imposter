@@ -20,8 +20,15 @@ const WF_MAP_TIMEOUT_MS = 25000;
 const WF_TICK_MS = 200;
 const WF_BROADCAST_MS = 200; // == WF_TICK_MS: every tick is broadcast
 
+// "Under attack!" alert throttle (spec "Under attack"): per player, at most one alert
+// every WF_ALERT_COOLDOWN_MS unless the hit is WF_ALERT_AREA+ tiles from the last one.
+const WF_ALERT_COOLDOWN_MS = 10000;
+const WF_ALERT_AREA = 4;
+
 // roomCode -> interval handle of that room's sim loop (ephemeral, never persisted).
 const wfLoops = new Map();
+// roomCode -> Map(name -> { at, tileId }) of each player's last alert (ephemeral).
+const wfAlertLog = new Map();
 
 // Keys within room.state.warfront to persist: all of them (no ephemeral fields in
 // the namespace; the sim-loop interval handles live in a module-local map).
@@ -193,6 +200,7 @@ function stopLoop(roomCode) {
   const handle = wfLoops.get(roomCode);
   if (handle) clearInterval(handle);
   wfLoops.delete(roomCode);
+  wfAlertLog.delete(roomCode);
 }
 
 function startLoop(ctx, roomCode) {
@@ -220,6 +228,7 @@ function tickRoom(ctx, roomCode) {
     const { events } = engine.stepSim(wf, dt, { now });
     wf.clock.lastTickAt = now;
     broadcastLive(ctx, roomCode, room, events);
+    sendAlerts(ctx, roomCode, room, events, now);
   } catch (err) {
     console.error(`Warfront tick failed in room ${roomCode}:`, err);
   }
@@ -236,6 +245,34 @@ function broadcastLive(ctx, roomCode, room, events) {
       ...engine.viewForPlayer(wf, name),
       events: engine.eventsForPlayer(wf, name, events),
     });
+  }
+}
+
+/**
+ * Turns this step's hits into private "Under attack!" alerts: a unit hit alerts its
+ * owner, a base hit alerts that whole team. Per-socket only (never roomEmit), and
+ * throttled per player (WF_ALERT_COOLDOWN_MS, or at once in a new area).
+ */
+function sendAlerts(ctx, roomCode, room, events, now) {
+  const wf = room.state.warfront;
+  if (!wfAlertLog.has(roomCode)) wfAlertLog.set(roomCode, new Map());
+  const log = wfAlertLog.get(roomCode);
+  for (const e of events) {
+    let names;
+    if (e.type === 'underAttack') names = [e.owner];
+    else if (e.type === 'baseHit') names = Object.keys(wf.armies).filter((n) => wf.armies[n].team === e.team);
+    else continue;
+    for (const name of names) {
+      const last = log.get(name);
+      const fresh = !last || now - last.at >= WF_ALERT_COOLDOWN_MS
+        || engine.manhattan(last.tileId, e.tileId, wf.map.width) >= WF_ALERT_AREA;
+      if (!fresh) continue;
+      log.set(name, { at: now, tileId: e.tileId });
+      const p = room.players.get(name);
+      if (p && p.connected && p.socketId) {
+        ctx.io.to(p.socketId).emit('wfAlert', { tileId: e.tileId, base: e.type === 'baseHit' });
+      }
+    }
   }
 }
 
@@ -482,7 +519,7 @@ function registerHandlers(ctx, io, socket) {
     generateBattle(ctx, roomCode, room);
   });
 
-  // Live orders. Applied the instant they arrive; the next tick shows the result,
+  // Live orders (move, hold). Applied the instant they arrive; the next tick shows the result,
   // so there's no broadcast here.
   socket.on('wfCommand', (cmd, callback) => {
     callback = typeof callback === 'function' ? callback : () => {};
@@ -515,7 +552,10 @@ module.exports = {
   WF_MAP_TIMEOUT_MS,
   WF_TICK_MS,
   WF_BROADCAST_MS,
+  WF_ALERT_COOLDOWN_MS,
+  WF_ALERT_AREA,
   wfLoops,
+  wfAlertLog,
   startLoop,
   stopLoop,
   tickRoom,

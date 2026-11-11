@@ -533,13 +533,111 @@ test('wfLive is fogged per socket: an enemy shows up only within vision', async 
   assert.ok(ids('Bob').includes(raider.id));
   assert.ok(ids('Cat').includes(raider.id));
   assert.ok(ids('Host').includes(wf.armies.Bob.units[0].id));
-  // Move it back home: gone from blue's view (and nothing is roomEmitted).
+  // Move it back home: gone from blue's view (and nothing is roomEmitted). They traded
+  // blows on the base, so each side stays revealed to the other for WF_REVEAL_MS first.
   raider.tileId = wf.bases.red.tileId;
-  t.mock.timers.tick(warfront.WF_TICK_MS);
+  raider.path = [];
+  t.mock.timers.tick(engine.WF_REVEAL_MS + warfront.WF_TICK_MS);
   assert.ok(!ids('Bob').includes(raider.id));
   assert.ok(!ids('Host').includes(wf.armies.Bob.units[0].id));
   assert.ok(!emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfLive'));
   const live = wfLives(s.io, s.room, 'Bob').at(-1).payload;
   assert.equal(live.me.supply, engine.TUNING.startSupply);
   assert.ok(typeof live.serverNow === 'number');
+});
+
+// ---- Step 6: under-attack alerts --------------------------------------------
+
+const wfAlerts = (io, room, name) => emissionsFor(io, room, name).filter((e) => e.event === 'wfAlert');
+
+/** A Blue (Bob) unit of `type` placed `tileId`, holding. */
+function plant(wf, owner, type, tileId) {
+  const u = engine.makeUnit(wf.nextUnitId++, type, owner, tileId);
+  u.holding = true;
+  wf.armies[owner].units.push(u);
+  return u;
+}
+
+/** Two passable tiles in a row on plains, far from both bases: [a, b]. */
+function openPair(wf) {
+  const { map } = wf;
+  for (let id = 0; id < map.width * map.height; id++) {
+    const right = id + 1;
+    if (id % map.width === map.width - 1) continue;
+    if (map.tiles[id] !== 'plains' || map.tiles[right] !== 'plains') continue;
+    const far = (t) => engine.manhattan(t, wf.bases.red.tileId, map.width) > 4 && engine.manhattan(t, wf.bases.blue.tileId, map.width) > 4;
+    if (far(id) && far(right)) return [id, right];
+  }
+  throw new Error('no open pair on this map');
+}
+
+test('alerts: a hit alerts only the owner, privately; one per area per cooldown; a far hit alerts at once', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  for (const a of Object.values(wf.armies)) a.units = [];
+  const [a, b] = openPair(wf);
+  const victim = plant(wf, 'Bob', 'bastion', a); // can't move, takes a while to kill
+  plant(wf, 'Ann', 'warrior', b);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.deepEqual(wfAlerts(s.io, s.room, 'Bob').map((e) => e.payload), [{ tileId: a, base: false }]);
+  for (const n of ['Host', 'Ann', 'Cat']) assert.equal(wfAlerts(s.io, s.room, n).length, 0, n);
+  assert.ok(!emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfAlert'));
+
+  // More hits in the same place within the cooldown: no new alert.
+  t.mock.timers.tick(warfront.WF_ALERT_COOLDOWN_MS - warfront.WF_TICK_MS * 2);
+  assert.ok(victim.hp < engine.UNIT_TYPES.bastion.hp - 5);
+  assert.equal(wfAlerts(s.io, s.room, 'Bob').length, 1);
+
+  // A hit far away alerts at once, even inside the cooldown.
+  const far = plant(wf, 'Bob', 'bastion', wf.bases.red.tileId);
+  far.holding = true;
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  const got = wfAlerts(s.io, s.room, 'Bob').map((e) => e.payload.tileId);
+  assert.equal(got.length, 2);
+  assert.equal(got[1], wf.bases.red.tileId);
+
+  // And after the cooldown the first area alerts again.
+  t.mock.timers.tick(warfront.WF_ALERT_COOLDOWN_MS);
+  assert.ok(wfAlerts(s.io, s.room, 'Bob').length >= 3);
+});
+
+test('alerts: a base hit alerts every player on that team, nobody else', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  for (const a of Object.values(wf.armies)) a.units = [];
+  const near = engine.neighbors(wf.bases.blue.tileId, wf.map.width, wf.map.height)
+    .find((n) => engine.isPassable(wf.map, n) && wf.map.tiles[n] === wf.map.tiles[wf.bases.blue.tileId]);
+  plant(wf, 'Ann', 'warchief', near);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  for (const n of ['Bob', 'Cat']) {
+    assert.ok(wfAlerts(s.io, s.room, n).some((e) => e.payload.base && e.payload.tileId === wf.bases.blue.tileId), n);
+  }
+  assert.equal(wfAlerts(s.io, s.room, 'Host').length, 0);
+  // Ann got hit back by the base: her own alert, not about the base.
+  assert.ok(wfAlerts(s.io, s.room, 'Ann').every((e) => !e.payload.base));
+});
+
+test('alerts: the throttle is per room and forgotten when the loop stops', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  for (const a of Object.values(wf.armies)) a.units = [];
+  const [a, b] = openPair(wf);
+  plant(wf, 'Bob', 'bastion', a);
+  plant(wf, 'Ann', 'warrior', b);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.ok(warfront.wfAlertLog.get('WFWF').has('Bob'));
+  warfront.stopLoop('WFWF');
+  assert.ok(!warfront.wfAlertLog.has('WFWF'));
+});
+
+test('wfCommand hold: applied at once; the unit stays put', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const worker = wf.armies.Bob.units[0];
+  assert.deepEqual(await call(s.sockets.Bob, 'wfCommand', { kind: 'hold', unitIds: [worker.id] }), { ok: true });
+  assert.equal(worker.holding, true);
+  assert.equal((await call(s.sockets.Host, 'wfCommand', { kind: 'hold', unitIds: [worker.id] })).ok, false);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  const own = wfLives(s.io, s.room, 'Bob').at(-1).payload.units.find((u) => u.id === worker.id);
+  assert.equal(own.holding, true);
 });

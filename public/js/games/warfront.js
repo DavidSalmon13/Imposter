@@ -1,10 +1,11 @@
 /**
  * Warfront client module (specs/warfront-specs.md). A dumb renderer of the server's
  * wfState payloads: the team-select screen (design/warfront/1-team-select.html) and the
- * battlefield (design/warfront/2-battlefield.html). It never simulates anything.
+ * battlefield (design/warfront/2-battlefield.html) with the live combat effects of
+ * design/warfront/3-resolution.html. It never simulates anything.
  */
 
-import { sfx, haptics } from '../fx.js';
+import { sfx, haptics, haptic } from '../fx.js';
 import { confirmDialog } from '../shared/confirmDialog.js';
 import {
   UNIT_SPRITES,
@@ -328,6 +329,8 @@ const armyLabel = $('wf-army-label');
 const supplyEl = $('wf-supply');
 const mineralsEl = $('wf-minerals');
 const menuBtn = $('wf-menu-btn');
+const alertEl = $('wf-alert');
+const alertText = $('wf-alert-text');
 
 let builtFor = null; // clock.startedAt of the battle the world was built for
 let unitLayer = null;
@@ -348,6 +351,12 @@ let clickNodes = new Map(); // destination tileId -> .click marker
 let ordersSig = '';
 let rafId = null;
 let stripSeen = null; // whether the strip last showed enemies in sight
+let fxLayer = null; // one-shot combat effects (3-resolution.html), removed when they end
+let castleBoards = {}; // team -> the castle's billboard (for the burning state)
+let lastHp = { red: null, blue: null };
+let alertTile = null;
+let alertTimer = null;
+const stepSeen = new Map(); // stack key -> stepStartedAt we already puffed dust for
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -465,6 +474,9 @@ function buildWorld(data) {
     ...data.pickups.weapons.map((f) => f.tileId),
   ]);
   decor = [];
+  castleBoards = {};
+  lastHp = { red: null, blue: null };
+  stepSeen.clear();
   pickupNodes = new Map();
   stackNodes.clear();
   clickNodes = new Map();
@@ -578,7 +590,9 @@ function buildWorld(data) {
     const node = ent(c.x, c.y + 18, BASE_PAD_Z, `tm-${b.team}`);
     node.appendChild(el('span', `dec aura-${b.team}`));
     node.appendChild(el('span', 'dec bshadow'));
-    node.appendChild(billboard(CASTLE_SPRITE, 130, 130));
+    const castle = billboard(CASTLE_SPRITE, 130, 130);
+    node.appendChild(castle);
+    castleBoards[b.team] = castle;
     add(c.y + 18, node, b.tileId);
   });
   boards.sort((a, b) => a.y - b.y).forEach((b) => world.appendChild(b.node));
@@ -587,6 +601,8 @@ function buildWorld(data) {
   world.appendChild(orderLayer);
   unitLayer = el('div', 'wf-units');
   world.appendChild(unitLayer);
+  fxLayer = el('div', 'wf-fx');
+  world.appendChild(fxLayer);
 
   // Fog of war: a haze sheet on the ground (like the mockup's .fogp), plus one on top of
   // each raised plateau and castle pad so high ground is fogged too.
@@ -665,7 +681,7 @@ function fillStack(node, g, you) {
     });
   }
   const bb = el('div', `bb sqbb tm-${g.team}`);
-  bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : 'hp-y'}" style="width: ${pct}%"></span>`));
+  bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : pct >= 35 ? 'hp-y' : 'hp-r'}" style="width: ${pct}%"></span>`));
   bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
   form.forEach(([fx, fy], i) => {
     const fig = el('span', `fig d${i}${g.team !== 'red' ? ' flip' : ''}`);
@@ -790,11 +806,19 @@ function renderOrders() {
     lines.push({ mine, pts: corners(map, u.tileId, u.path) });
     if (mine) dests.add(u.path[u.path.length - 1]);
   });
-  const sig = JSON.stringify(lines.map((l) => [l.mine, l.pts.map((p) => p.id)]));
+  // Enemies in sight: only the step they're taking (the mockup's short .foe arrow).
+  live.units.forEach((u) => {
+    if (u.team === state.myTeam || u.nextTileId == null) return;
+    const key = `foe|${u.tileId}|${u.nextTileId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    lines.push({ foe: true, pts: [{ id: u.tileId }, { id: u.nextTileId }] });
+  });
+  const sig = JSON.stringify(lines.map((l) => [l.mine, l.foe, l.pts.map((p) => p.id)]));
   if (sig !== ordersSig) {
     ordersSig = sig;
     orderLayer.querySelectorAll('.gline').forEach((n) => n.remove());
-    lines.forEach(({ mine, pts }) => {
+    lines.forEach(({ mine, foe, pts }) => {
       for (let i = 0; i < pts.length - 1; i++) {
         const a = tileCentre(map, pts[i].id);
         const b = tileCentre(map, pts[i + 1].id);
@@ -802,11 +826,12 @@ function renderOrders() {
         const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
         const z = Math.max(elevationAt(map, pts[i].id), elevationAt(map, pts[i + 1].id)) + 2;
         const last = i === pts.length - 2;
-        const line = el('div', `gline${mine ? '' : ` ally wf-ally-${state.myTeam}`}${last ? '' : ' wf-noarrow'}`);
+        const kind = foe ? ' foe' : mine ? '' : ` ally wf-ally-${state.myTeam}`;
+        const line = el('div', `gline${kind}${last ? '' : ' wf-noarrow'}`);
         Object.assign(line.style, {
           left: `${a.x}px`,
           top: `${a.y}px`,
-          width: `${Math.max(0, len - (last ? 18 : 0))}px`,
+          width: `${Math.max(0, len - (last ? (foe ? 30 : 18) : 0))}px`,
           transform: `translateZ(${z}px) rotate(${ang}deg)`,
         });
         orderLayer.appendChild(line);
@@ -960,6 +985,151 @@ function lookAt(map, tileId) {
   syncView();
 }
 
+// ---------- Live combat effects (3-resolution.html, played once on the map) ----------
+
+const FX_LIFE = { dmg: 1400, loss: 1600, boom: 1100, spark: 800, bolt: 450, dust: 1600 };
+const ARCANE_TYPES = new Set(['acolyte', 'apprentice', 'mysticArcher', 'battlemage', 'summoner', 'archmage', 'golem']);
+
+/** A one-shot billboard on the fx layer at a tile's stand point, removed after `life` ms. */
+function fxBoard(tileId, html, { w = 120, h = 120, dy = 0, z = 0, life = 1400, team = null } = {}) {
+  if (!fxLayer) return null;
+  const { map } = state;
+  const p = standPoint(map, tileId, team || 'red', false);
+  const node = ent(p.x, p.y + dy, p.z + z);
+  const bb = billboard(html, w, h);
+  bb.style.setProperty('--life', `${life}ms`);
+  node.appendChild(bb);
+  fxLayer.appendChild(node);
+  setTimeout(() => node.remove(), life);
+  return node;
+}
+
+const fmtDmg = (n) => `−${n >= 3 ? Math.round(n) : Math.max(0.1, n).toFixed(1).replace(/\.0$/, '')}`;
+
+/** A bolt lying on the ground plane from the shooter to its target (frame 2's .bolt). */
+function fxBolt(fromTileId, toTileId, arcane) {
+  const { map } = state;
+  const a = standPoint(map, fromTileId, 'red', false);
+  const b = standPoint(map, toTileId, 'red', false);
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len < 1) return;
+  const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  const bolt = el('div', `bolt${arcane ? ' v' : ''}`);
+  Object.assign(bolt.style, {
+    left: `${Math.round(a.x)}px`,
+    top: `${Math.round(a.y)}px`,
+    width: `${Math.round(len)}px`,
+    transform: `translateZ(${Math.round(Math.max(a.z, b.z) + 24)}px) rotate(${ang}deg)`,
+  });
+  fxLayer.appendChild(bolt);
+  setTimeout(() => bolt.remove(), FX_LIFE.bolt);
+}
+
+const SPARKS = [20, 80, 140, -40, -100, 200]
+  .map((r, i) => `<span class="spk" style="top: 50px; transform: rotate(${r}deg)"><i style="animation-delay: -${(i % 3) * 0.1}s"></i></span>`)
+  .join('');
+
+/** Turns one snapshot's events into on-map effects. Hits are summed per tile so a big fight stays readable. */
+function playEffects(events) {
+  if (!fxLayer || !state || !state.map) return;
+  const hits = new Map(); // victim tile -> { dmg, base, team }
+  const shots = new Map(); // "from>to" -> { from, to, ranged, arcane }
+  const losses = new Map(); // "tile|team" -> { tileId, team, n }
+  events.forEach((e) => {
+    if (e.type === 'underAttack' || e.type === 'baseHit') {
+      const base = e.type === 'baseHit';
+      const k = `${e.tileId}|${base ? 'base' : e.team}`;
+      const h = hits.get(k) || { tileId: e.tileId, dmg: 0, base, team: e.team };
+      h.dmg += e.dmg;
+      hits.set(k, h);
+      if (e.fromTileId != null) {
+        shots.set(`${e.fromTileId}>${e.tileId}`, { from: e.fromTileId, to: e.tileId, ranged: e.ranged, arcane: ARCANE_TYPES.has(e.by) });
+      }
+    } else if (e.type === 'death') {
+      const k = `${e.tileId}|${e.team}`;
+      const l = losses.get(k) || { tileId: e.tileId, team: e.team, n: 0 };
+      l.n++;
+      losses.set(k, l);
+    }
+  });
+  shots.forEach((s) => {
+    if (s.ranged) fxBolt(s.from, s.to, s.arcane);
+    else fxBoard(s.to, SPARKS, { w: 60, h: 100, life: FX_LIFE.spark });
+  });
+  hits.forEach((h) => {
+    if (h.base) {
+      // Frame 3's siege burst over the castle, with the damage above it.
+      fxBoard(h.tileId, `<span class="boom" style="left: 17px; top: 6px; width: 76px; height: 76px"></span><span class="shock" style="left: 27px; top: 16px; width: 56px; height: 56px"></span><span class="dmg" style="left: 34px; top: -40px">${fmtDmg(h.dmg)}</span>`,
+        { w: 110, h: 110, dy: -30, z: 20, life: FX_LIFE.dmg });
+      const hud = hpSegEl[h.team];
+      hud.classList.remove('wf-hpdrop');
+      void hud.offsetWidth; // restart the blink
+      hud.classList.add('wf-hpdrop');
+    } else {
+      fxBoard(h.tileId, `<span class="dmg wf-unit" style="left: 40px; top: 0">${fmtDmg(h.dmg)}</span>`,
+        { w: 110, h: 120, z: 14, life: FX_LIFE.dmg, team: h.team });
+    }
+  });
+  losses.forEach((l) => {
+    fxBoard(l.tileId, `<span class="boom" style="left: 20px; top: 40px; width: 70px; height: 70px"></span><span class="loss c-${l.team}" style="left: 38px; top: -26px">−${l.n}</span>`,
+      { w: 110, h: 120, z: 30, life: FX_LIFE.loss, team: l.team });
+  });
+}
+
+/** Frame 1's dust: a puff behind every stack that sets off on a new step. */
+function marchDust() {
+  if (!fxLayer) return;
+  const live2 = new Set();
+  stackNodes.forEach((entry, key) => {
+    const g = entry.group;
+    if (g.next == null) return;
+    live2.add(key);
+    if (stepSeen.get(key) === g.stepStartedAt) return;
+    stepSeen.set(key, g.stepStartedAt);
+    fxBoard(g.tileId, '<span class="smoke dust"><span></span><span></span><span></span></span>', { w: 30, h: 10, life: FX_LIFE.dust, team: g.team });
+  });
+  [...stepSeen.keys()].forEach((k) => {
+    if (!live2.has(k)) stepSeen.delete(k);
+  });
+}
+
+const BURN = '<span class="wf-burn"><span class="flame" style="left: 107px; top: 35px"></span><span class="flame" style="left: 115px; top: 40px; animation-delay: -.2s; transform: scale(.8)"></span><span class="flame" style="left: 73px; top: 30px; animation-delay: -.1s"></span><span class="flame" style="left: 23px; top: 44px; animation-delay: -.25s; transform: scale(.7)"></span><span class="smoke" style="left: 86%; bottom: 92px"><span></span><span></span><span></span></span><span class="smoke" style="left: 58%; bottom: 98px"><span></span><span></span><span></span></span></span>';
+
+/** Below half HP a castle burns like the siege frame's. */
+function renderCastles(bases) {
+  ['red', 'blue'].forEach((team) => {
+    const bb = castleBoards[team];
+    const base = bases[team];
+    if (!bb || !base) return;
+    const burning = base.hp > 0 && base.hp / base.maxHp < 0.5;
+    const flames = bb.querySelector('.wf-burn');
+    if (burning && !flames) bb.insertAdjacentHTML('beforeend', BURN);
+    if (!burning && flames) flames.remove();
+  });
+}
+
+// ---------- Under attack (private alert from the server) ----------
+
+function onAlert({ tileId, base }) {
+  if (!state || state.phase !== 'playing' || !state.map) return;
+  alertTile = tileId;
+  alertText.textContent = base ? '▲ BASE UNDER ATTACK' : '▲ UNDER ATTACK';
+  alertEl.classList.remove('hidden');
+  clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => alertEl.classList.add('hidden'), 4000);
+  haptic([120, 60, 120]);
+  sfx.error();
+  // The mockup's amber ping on the tile, and a blinking marker on the minimap.
+  fxBoard(tileId, '<span class="ping" style="display: block"></span>', { w: 30, h: 30, z: 8, life: 3000 });
+  if (minimap) {
+    const c = tileCentre(state.map, tileId);
+    const m = el('span', 'wf-mping');
+    Object.assign(m.style, { left: `${c.x / 10}px`, top: `${c.y / 10}px` });
+    minimap.appendChild(m);
+    setTimeout(() => m.remove(), 3000);
+  }
+}
+
 // ---------- HUD ----------
 
 function renderHp(team, base) {
@@ -1063,6 +1233,9 @@ function applyLive(view) {
   renderOrders();
   renderHp('red', view.bases.red);
   renderHp('blue', view.bases.blue);
+  renderCastles(view.bases);
+  if (view.events && view.events.length) playEffects(view.events);
+  marchDust();
   tickClock();
   renderInfo();
   if (view.me) {
@@ -1233,6 +1406,11 @@ export const Warfront = {
 
     socket.on('wfState', applyState);
     socket.on('wfLive', applyLive);
+    socket.on('wfAlert', onAlert);
+    alertEl.addEventListener('click', () => {
+      if (state && state.map && alertTile != null) lookAt(state.map, alertTile);
+      alertEl.classList.add('hidden');
+    });
     world.addEventListener('click', (e) => {
       if (Date.now() < suppressClickUntil) return;
       const tile = e.target.closest('.tile');
@@ -1265,5 +1443,8 @@ export const Warfront = {
     clockTimer = null;
     clearTimeout(errorTimer);
     errorEl.textContent = '';
+    clearTimeout(alertTimer);
+    alertEl.classList.add('hidden');
+    if (fxLayer) fxLayer.innerHTML = '';
   },
 };

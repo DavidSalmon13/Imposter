@@ -321,7 +321,23 @@ the player strip says "in sight"/"hidden" for the enemy. `repairOnLoad` doesn't 
   later ticks.
 - **Browser:** two phones walk units around; each sees the other only within vision.
 
-### Step 6: Combat
+### Step 6: Combat ✅
+Done 2026-11-11. Combat runs after movement each step and is **simultaneous**: every fighter picks
+its target from the field as it stood at the step's start, then all damage lands together (so unit
+order never decides a fight). HP is kept to 2 decimals. Bases carry a new `atkReadyAt`; a base is
+not a target while contested, shielded or at 0 HP, and bases never shoot each other. "High shooting
+high" uses plain range (the spec's parenthesis), so the +1 is only for shooting down. Units gain
+`holding` and `revealedUntil`; the `hold` command lets the step in progress finish, then stops.
+Events: `underAttack` / `baseHit` (with `fromTileId`, `dmg`, attacker type `by`, `ranged`) and
+`death`; the module throttles them into per-socket `wfAlert { tileId, base }`. `armies[].stats`
+are **not** counted yet (Step 8). No Hold button yet: it arrives with the console (Step 7).
+Client: per-tile damage numbers, loss chips and bursts from `3-resolution`, bolts (violet for
+Arcane) for ranged hits and sparks for melee, dust puffs and the mockup's red `.foe` arrow for
+enemies on the move, a castle burns below half HP, the HUD bar blinks on a base hit; the alert is
+a `.pnl` banner ("▲ UNDER ATTACK", tap to look) plus the amber `.ping` on the tile and minimap and a
+buzz. **Browser check was done in a static harness** (real index.html + client module fed real
+engine snapshots, headless Chrome at 390px) because this session had no network for `npm install`;
+not yet played on two real phones, and no live disconnect/reconnect check.
 - Engine: per-unit `atkReadyAt` cooldown; target selection = nearest enemy in range (Manhattan,
   deterministic tie-break by unit id); damage formula from the spec with RPS, terrain defense,
   `structureDefense`, Horde ×1.15/luck ×0.6, Archmage (D6), Battlemage aoe (D8), siege ×3 vs
