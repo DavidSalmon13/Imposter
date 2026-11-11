@@ -91,6 +91,8 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `WF_MATCH_CAP_MS` | 720000 | Hard match length (12 min); at the cap, higher base HP wins |
 | `WF_EVENT_MS` | 60000 | Interval between battlefield events |
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
+| `WF_LIGHTHOUSE_VISION` | 5 | Vision radius (Manhattan) around each lighthouse a team controls (see "Lighthouses") |
+| `WF_MAX_LIGHTHOUSES` | 4 | Most lighthouses a map may have |
 | `WF_MAX_UNITS_PER_PLAYER` | 30 | Unit cap per player (structures and Golems included); Produce is a no-op at the cap. Bounds payload size and DOM count on phones |
 | `WF_MAX_DT_MS` | 1000 | Clamp on one sim step's `dt` (protects against event-loop stalls) |
 | `WF_REVEAL_MS` | 3000 | How long an attacker stays visible to the team it just hit (see "Under attack") |
@@ -257,7 +259,8 @@ Entered on Start Battle (and on Play Again). Sets `phase = 'generating'`, emits 
    bases at opposite ends, roughly mirror-symmetric fairness, water/rock impassable, **one supply
    source beside each base**, **1–2 mineral veins out in the contested middle** (the richest ones
    farthest from either base), **a few scattered weapon tokens** (rarer ones deeper in contested
-   ground), and natural chokepoints — plus a short theme + lore — with an **avoid-list** of recent
+   ground), **2–4 lighthouses** (one near each base, plus up to two at strategic contested spots;
+   see "Lighthouses"), and natural chokepoints — plus a short theme + lore — with an **avoid-list** of recent
    map themes (`room.state.warfront.mapHistory`) for variety, temp ~1.1, and a strict JSON shape.
    The model's output is a **suggestion only**.
 2. **Hard-validate** (`validateMap`): exact tile count, terrain enums, exactly one base per team on
@@ -290,6 +293,7 @@ same world (modulo its own fog) and tweens between snapshots.
   "supplySources": [ { "x": 1, "y": 3 }, { "x": 7, "y": 3 } ],     // exactly one adjacent to each base
   "veins":   [ { "x": 4, "y": 1, "richness": 1|2|3, "contested": true } ],  // 1-2 mineral veins to haul from
   "weapons": [ { "x": 4, "y": 5, "weaponId": "artillery|emp|airdrop|bombard|aegis" } ],  // ground pickups
+  "lighthouses": [ { "x": 2, "y": 2 }, { "x": 6, "y": 4 }, { "x": 4, "y": 1 } ],  // 2-4: one near each base + up to 2 contested
   "chokepoints": [ { "x": 4, "y": 2 } ]
 }
 ```
@@ -466,6 +470,29 @@ The AI map emits `chokepoints`, so a tower on a one-tile pass is geometry-strong
 enemy to commit real force (or a weapon) to break through. Because towers cost Minerals, security
 is always paid for out of your tech budget — never free.
 
+## Lighthouses (capture the high watch)
+
+Agreed with David 2026-11-11. **Lighthouses** are tall map features that give whoever controls
+them a far wider view, so they're worth fighting over (StarCraft's Xel'Naga towers).
+
+- **Placement (map gen).** At most `WF_MAX_LIGHTHOUSES` (4) per map, chosen for strategy: **exactly
+  one near each base** (on that base's half, within 4 tiles of it, not on the base tile), plus **0–2
+  more at contested spots** — high ground, chokepoints or near the veins — placed fairly (each extra one
+  roughly as far from one base as from the other, within 2 tiles, or as a mirrored pair). Passable
+  tile, reachable, never sharing a tile with another feature. `validateMap` checks all of this;
+  the procedural fallback map places one per base and a mirrored contested pair.
+- **Starting owner.** Each home lighthouse starts owned by that base's team; the contested ones
+  start **neutral**.
+- **Capture.** A lighthouse belongs to the team whose units stand on its tile. When units of only
+  one team stand on it, it flips to that team at once. If both teams stand on it, or nobody does,
+  it keeps its current owner. It can't be destroyed and never goes back to neutral.
+- **Vision.** A controlled lighthouse gives its team vision of every tile within
+  `WF_LIGHTHOUSE_VISION` (5, Manhattan) of it, on top of the normal `WF_VISION` around units and the
+  base. That's fog only: it gives no combat, range or economy bonus.
+- **Visible to all.** Lighthouses are static map features like veins: every player sees where they
+  are and which team (or nobody) controls each one; the lamp shows the owner's team colour.
+- A flip emits a `lighthouse { tileId, team }` event (client FX and a line in the map's notice style).
+
 ## Special weapons (found on the ground, fired live)
 
 Weapons are **map pickups**, not purchases (except via a Workshop). Map gen scatters weapon tokens
@@ -521,12 +548,12 @@ Menifot/Codenames — never via CSS.
 
 - **Fog:** every fogged snapshot a viewer always sees their own team's units and bases. Enemy
   units are included **only** if within `WF_VISION` (Manhattan) of a friendly unit or the friendly
-  base; enemy units outside vision are omitted entirely (so a push can be hidden until it's on top
+  base, or within `WF_LIGHTHOUSE_VISION` of a lighthouse their team controls; enemy units outside vision are omitted entirely (so a push can be hidden until it's on top
   of you — the real-time replacement for the old secret-commit mind game). An enemy Worker's
   **loaded (💎) status** is only revealed when it's in vision — you can't tell from afar whether
   that distant hauler is worth ambushing, which keeps raiding a read, not a certainty. Mineral
-  veins, supply sources, weapon tokens, and dropped-load pickups are **static map features and
-  always visible** (they're terrain, not hidden info). An enemy that just hit your team stays
+  veins, supply sources, weapon tokens, dropped-load pickups and lighthouses (with their owner) are
+  **static map features and always visible** (they're terrain, not hidden info). An enemy that just hit your team stays
   visible for `WF_REVEAL_MS` even outside vision (see "Under attack").
 - **Own-player data:** the payload carries only the viewer's own `supply`/`minerals`/`arsenal` and
   selection state; a player never sees another player's resources or arsenal (not even a
@@ -582,7 +609,8 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
   randomness is `rngFor(seed, tick)`, so a restarted match continues the same random stream.
 - `nextUnitId` — monotonically increasing unit-id counter (persisted so ids stay unique).
 - `winner` — `'red' | 'blue' | 'draw' | null`.
-- `map` — the battlefield (theme, lore, width, height, tiles, **supplySources**, **veins**,
+- `lighthouses` — `[{ tileId, team: 'red'|'blue'|null }]`, the map's lighthouses and who controls each.
+- `map` — the battlefield (theme, lore, width, height, tiles, **supplySources**, **veins**, **lighthouses**,
   **weapons** (spawn list), bases, chokepoints).
 - `bases` — `{ red:{hp,maxHp,tileId,shieldUntil}, blue:{...} }` (`shieldUntil` is an `aegis`
   expiry, 0 when none).

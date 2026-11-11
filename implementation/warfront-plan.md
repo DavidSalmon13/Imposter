@@ -44,6 +44,7 @@ spec**; change anything there first.
 | D11 | Forge "+1 per worker" vs "a bonus" | Forge Workers earn **+0.25 Supply/sec** on top of `supplyPerWorkerSec` (`TUNING.forgeWorkerBonusSec`). Forge's structure discount is **−1 💎** on every facility and tower (`TUNING.forgeStructureDiscount`). Bastion keeps its listed stats; it's already Forge-only. |
 | D13 | High ground (added 2026-11-11 with David) | Hills are high ground: ranged units (base `Rng` ≥ 2) get +1 range on hills, −1 range when shooting from low ground at a target on hills; melee (`Rng` 0–1, incl. Workers, Battlemage, towers, Golems, Bastion, a base's attack) only hits targets on the **same level**. Stacks with hills' ×1.45 defense. Implemented in Step 6 as `effectiveRange(state, attacker, target)` + `canReach(...)`. |
 | D14 | Under attack (added 2026-11-11 with David) | Hit → private "Under attack!" alert (banner + buzz + tile/minimap ping) for the owner, throttled per player (10 s, or at once if ≥4 tiles from the last alert); base hits alert the whole team. The attacker is revealed to the victim's team for 3 s. An idle unit hit by an enemy it can't hit back falls back ≤3 tiles out of that attacker's reach; units on **Hold** (new `hold` command) never do. |
+| D15 | Lighthouses (added 2026-11-11 with David) | 2–4 per map: one near each base (starts owned by that team) + up to 2 contested (start neutral). Stand on it with only your team's units to capture it instantly; both teams or nobody = no change; can't be destroyed. Owner sees Manhattan `WF_LIGHTHOUSE_VISION = 5` around it. Built in **Step 8b**. |
 | D12 | Unit cap (not in spec) | **New: `WF_MAX_UNITS_PER_PLAYER = 30`** (structures included, Golems included). Produce is a no-op at the cap. Needed to bound payload size and DOM count on phones. |
 
 **Numbers the spec references but doesn't give** (all live in `TUNING` and get revisited in the balance pass, Step 15)
@@ -398,6 +399,28 @@ not yet played on two real phones, and no live disconnect/reconnect check.
   points; `recordGameResult` participants shape; no tick runs after game over.
 - **Browser:** a full match (use a short `matchLength` dev override) through to the scoreboard and
   back to the lobby. **This is the first fully playable build.**
+
+### Step 8b: Lighthouses (D15)
+Added 2026-11-11 with David; comes after the game is playable end to end (Step 8).
+- Engine: `MAX_LIGHTHOUSES = 4`, `WF_LIGHTHOUSE_VISION = 5`. `validateMap` reads `lighthouses`:
+  2–4, exactly one per base half within Manhattan 4 of that base (not on it), extras fair (distance
+  to each base differs by ≤ 2, or a mirrored pair), passable, reachable, own tile. `buildFallbackMap`
+  places one per base and a mirrored contested pair (prefer hills/chokepoint tiles near the centre).
+  `createBattleState` adds `lighthouses: [{ tileId, team }]` (home ones owned, others `null`).
+  `stepSim` (after movement and combat) flips a lighthouse when only one team's units stand on it and
+  emits `lighthouse { tileId, team }`. `visionFor` adds radius `WF_LIGHTHOUSE_VISION` around each
+  lighthouse the team controls. `viewForPlayer` carries `lighthouses` (everyone sees owners).
+- Module: add `lighthouses` to `SAVED_FIELDS`; prompt asks for the lighthouses as in the spec.
+- Client: lighthouse SVG billboard in the sprite conventions (stone tower, lamp in the owner's team
+  colour via `.tc`, unlit grey when neutral, a soft light cone like the vein glow), minimap marker,
+  a flip flash + a notice line in the mockup's `[Team]` overlay style ("Red took the north
+  lighthouse").
+- Tests: validation (too many, none near a base, two near one base, unfair extra, on water);
+  fallback maps carry valid lighthouses across seeds and sizes; starting owners; capture by one team,
+  no flip while contested or empty; vision radius 5 from an owned lighthouse and none from an enemy or
+  neutral one; persisted through the snapshot round-trip.
+- **Browser:** walk a unit onto a contested lighthouse; your fog opens up to 5 tiles around it and the
+  enemy's view shows the lamp turn your colour.
 
 ### Step 9: Facilities + towers
 - Engine: `build` command (Mineral cost with Forge discount, visible-tile rule D4, one structure per tile,
