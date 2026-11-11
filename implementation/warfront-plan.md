@@ -42,6 +42,7 @@ spec**; change anything there first.
 | D9 | Base defense | **Bases have a weak tower-like attack**: atk 2, range 1, `attackMs` 1500 (`TUNING.baseAtk` / `baseRange` / `baseAttackMs`), so a lone raider can't chip a base for free. A base is also "contested" when ≥1 friendly unit stands on the base tile; while contested, enemy units can't damage it (except `bombard`). |
 | D10 | Build queues | Each spawn point's queue is **sequential**: one unit builds at a time. `doneAt` of item N+1 starts counting when item N finishes. |
 | D11 | Forge "+1 per worker" vs "a bonus" | Forge Workers earn **+0.25 Supply/sec** on top of `supplyPerWorkerSec` (`TUNING.forgeWorkerBonusSec`). Forge's structure discount is **−1 💎** on every facility and tower (`TUNING.forgeStructureDiscount`). Bastion keeps its listed stats; it's already Forge-only. |
+| D13 | High ground (added 2026-11-11 with David) | Hills are high ground: ranged units (base `Rng` ≥ 2) get +1 range on hills, −1 range when shooting from low ground at a target on hills; melee (`Rng` 0–1, incl. Workers, Battlemage, towers, Golems, Bastion, a base's attack) only hits targets on the **same level**. Stacks with hills' ×1.45 defense. Implemented in Step 6 as `effectiveRange(state, attacker, target)` + `canReach(...)`. |
 | D12 | Unit cap (not in spec) | **New: `WF_MAX_UNITS_PER_PLAYER = 30`** (structures included, Golems included). Produce is a no-op at the cap. Needed to bound payload size and DOM count on phones. |
 
 **Numbers the spec references but doesn't give** (all live in `TUNING` and get revisited in the balance pass, Step 15)
@@ -308,11 +309,16 @@ machine can't judge phone smoothness.
   `structureDefense`, Horde ×1.15/luck ×0.6, Archmage (D6), Battlemage aoe (D8), siege ×3 vs
   structures; `strategyEdge` (D5); deaths (Worker drops `carrying` into `pickups.mineralDrops`);
   idle units hold, moving units fire on the way. Base damage and the base's own weak attack per D9.
+  High ground per D13: `isHigh(map, tileId)`, `effectiveRange(map, attacker, targetTileId)` and a
+  same-level check for melee, used by target selection.
 - Emit `death`/`baseHit` events for client FX.
 - Tests: RPS matchup outcomes over many seeds (melee beats mounted on average); hills defender
   survives longer than plains; Horde luck spread narrower than Arcane's; aoe hits all units on one
   tile and none on the next; contested base takes no damage; a base shoots an adjacent raider; siege cracks a base 3× faster;
-  identical seed → identical fight.
+  identical seed → identical fight. High ground (D13): a Crossbow on a hill hits a target 3 tiles
+  away and the same Crossbow on plains doesn't; a ground Crossbow can't hit a hill target 2 tiles
+  away but can at 1; a ground Warrior next to a hill can't hit the unit on it and vice versa, and
+  can once it stands on a hill tile; the Battlemage (range 1) follows the melee rule.
 - Client: live combat effects ported from `design/warfront/3-resolution.html` (clash damage
   numbers, march trails, base-hit flash and HP drop), driven by `death`/`baseHit` events.
 - **Browser:** armies meet and fight without input; the effects look like the `3-resolution`

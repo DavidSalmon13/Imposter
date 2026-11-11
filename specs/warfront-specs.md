@@ -109,6 +109,8 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `TUNING.buildMsPerCost` | 1200 | Build/spawn time **per point of a unit's 🔩 Supply cost** |
 | `TUNING.attackMs` | 1000 | Base attack cooldown (per-unit overrides allowed) |
 | `TUNING.luckMagnitude` | 0.35 | ± per-hit damage swing at zero strategy edge |
+| `TUNING.hillRangeBonus` | 1 | Extra range for a **ranged** unit (base `Rng` ≥ 2) standing on hills (see "High ground") |
+| `TUNING.uphillRangePenalty` | 1 | Range lost by a ranged unit **off** the hills shooting at a target **on** hills |
 | `TUNING.structureDefense` | 1.5 | Extra defense × for every `structure` (bases, towers, facilities, Bastion, Golem); stacks with terrain |
 | `TUNING.veinLuckMagnitude` | 0.4 | ± swing on a *contested* (central) vein's load rate |
 | `TUNING.artilleryDmg` | 8 | `artillery` damage to each enemy unit on the target tile (through terrain/structure defense) |
@@ -211,7 +213,8 @@ Workers and basic units never need Minerals, a player who loses everything can a
 Defense × raises the HP cost of killing a unit **standing on** that tile, so hills/forest are
 strong to hold. **Move cost** now multiplies a unit's per-tile **step time** (forest/hills take
 ~2× as long to cross), so terrain shapes both where fights are winnable and how fast armies
-redeploy. Water/rock are impassable (they shape lanes and chokepoints).
+redeploy. Water/rock are impassable (they shape lanes and chokepoints). **Hills are also high
+ground**, which changes who can hit whom (see "High ground" under Combat).
 
 ## Phases
 
@@ -360,6 +363,23 @@ friendly unit standing on the base tile); **siege** ×3, so a Ballista is the pr
 A base also has its own **weak tower-like attack** (`baseAtk` 2, range 1, every `baseAttackMs`), so a
 lone raider can't chip it for free. Ties between equally near targets break by unit id, so the sim
 stays deterministic.
+
+**High ground (hills).** Each tile is either **high** (hills) or **low** (every other passable
+tile). A unit is **ranged** if its base `Rng` is 2 or more (Crossbow, Skirmisher, Mystic Archer,
+Apprentice, Summoner, Archmage, Ballista); everything with `Rng` 0–1 is **melee** for this rule
+(including Workers, the Battlemage, Towers, Golems, the Bastion and a base's own attack).
+- A **ranged** unit's effective range is its `Rng`, **+`hillRangeBonus`** (1) while it stands on
+  high ground, or **−`uphillRangePenalty`** (1) when it stands low and its target is high. (High
+  shooting high, and low shooting low, use plain `Rng`.) So archers on a hill outrange everything
+  around them, and ground archers must walk right up to the hill to answer.
+- A **melee** unit can only hit targets **on the same level**: high hits high, low hits low,
+  nobody strikes across the cliff edge in either direction. To fight a unit on a hill, melee
+  troops must climb onto a hill tile themselves. The same applies to a base: a base's own attack
+  and enemy melee on the base only reach units on the base tile's level.
+- These stack with the hills' defense × (1.45) — holding high ground is strong on purpose; the
+  balance pass may tune it.
+- Target selection ("nearest enemy in range") uses the effective range and the level rule, so a
+  unit never picks a target it can't hit.
 
 ### Economy (accrues continuously)
 
