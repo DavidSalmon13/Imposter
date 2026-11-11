@@ -215,7 +215,12 @@ match cap, event interval) are exported from the engine, loop/roster ones are le
 - Tests: every race has exactly one worker; every unit's race is real; RPS triangle is
   consistent (`rps(a,b) * rps(b,a) ≈ 1` for triangle pairs, 1 for everything outside it).
 
-### Step 2: Map helpers, validation, fallback
+### Step 2: Map helpers, validation, fallback ✅
+Done 2026-11-11. `validateMap` returns a normalized map (tiles as terrain strings, every feature
+carries `tileId`, supply sources carry the `team` they serve; bad chokepoints are dropped, not fatal).
+"Mirror-fair veins" = the richness-weighted mean Manhattan distance from each base to the veins
+differs by ≤ 2; ≤ 8 weapon tokens; features may not share a tile. Also exports `isPassable` and
+`floodFill`. Fallback maps mirror across the vertical axis.
 - `tileId`/`tileXY`/`neighbors`/`bfsPath` (passable-only BFS, deterministic tie-break order).
 - `validateMap(raw, size)`: the spec's hard checks (tile count, enums, one base per team on opposite
   halves and non-adjacent, one supply source adjacent to each base, veins/weapons on passable tiles,
