@@ -24,6 +24,14 @@ const WF_BROADCAST_MS = 200; // == WF_TICK_MS: every tick is broadcast
 // every WF_ALERT_COOLDOWN_MS unless the hit is WF_ALERT_AREA+ tiles from the last one.
 const WF_ALERT_COOLDOWN_MS = 10000;
 const WF_ALERT_AREA = 4;
+// Scoreboard points for each player on the winning team (spec "Ending the match").
+const WF_WIN_POINTS = 2;
+// Dev/testing only: set WF_DEV_MATCH_MS (e.g. 60000) to make every match that long,
+// so a full match can be played through to the game-over screen quickly.
+function devMatchMs() {
+  const ms = Number(process.env.WF_DEV_MATCH_MS);
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
 
 // roomCode -> interval handle of that room's sim loop (ephemeral, never persisted).
 const wfLoops = new Map();
@@ -161,7 +169,47 @@ function wfStatePayload(ctx, room, viewerName) {
     };
   }
   if (room.phase === 'playing') return { ...base, ...battlePayload(ctx, room, viewerName) };
+  if (room.phase === 'gameover' && room.state.warfront.map) return { ...base, ...gameOverPayload(ctx, room, viewerName) };
   return base;
+}
+
+/**
+ * The game-over screen for one viewer: winner, how it ended, the match time, the
+ * final map with the fog lifted, each player's battle stats with the MVP (most
+ * base damage), and the shared scoreboard. Nothing here is hidden any more.
+ */
+function gameOverPayload(ctx, room, viewerName) {
+  const wf = room.state.warfront;
+  const army = wf.armies[viewerName] || null;
+  const view = engine.finalView(wf);
+  const stats = view.stats.map((s) => {
+    const p = room.players.get(s.name);
+    return { ...s, connected: Boolean(p && p.connected) };
+  });
+  let mvp = null;
+  for (const s of stats) {
+    if (s.baseDmg <= 0) continue;
+    if (!mvp || s.baseDmg > mvp.baseDmg || (s.baseDmg === mvp.baseDmg && s.kills > mvp.kills)) mvp = s;
+  }
+  const destroyed = ['red', 'blue'].filter((t) => wf.bases[t].hp <= 0);
+  return {
+    serverNow: Date.now(),
+    map: wf.map,
+    myTeam: army ? army.team : null,
+    myRace: army ? army.race : null,
+    winner: wf.winner,
+    endReason: destroyed.length ? 'base' : 'time',
+    matchMs: Math.max(0, (wf.clock.endedAt || wf.clock.lastTickAt) - wf.clock.startedAt),
+    bases: view.bases,
+    clock: view.clock,
+    units: view.units,
+    visible: view.visible,
+    pickups: view.pickups,
+    stats,
+    mvp: mvp ? mvp.name : null,
+    scoreboard: ctx.scoreboardEntries(room),
+    canCommand: canCommandMatch(room, viewerName),
+  };
 }
 
 /**
@@ -241,10 +289,38 @@ function tickRoom(ctx, roomCode) {
     const { events } = engine.stepSim(wf, dt, { now });
     wf.clock.lastTickAt = now;
     broadcastLive(ctx, roomCode, room, events);
+    if (wf.winner) {
+      finishBattle(ctx, roomCode, room, wf.winner);
+      return;
+    }
     sendAlerts(ctx, roomCode, room, events, now);
   } catch (err) {
     console.error(`Warfront tick failed in room ${roomCode}:`, err);
   }
+}
+
+/**
+ * The match is decided: stop the loop, move to gameover, pay out points, record
+ * the result, and send everyone the final (unfogged) state.
+ */
+function finishBattle(ctx, roomCode, room, winner) {
+  stopLoop(roomCode);
+  const wf = room.state.warfront;
+  wf.winner = winner;
+  if (!wf.clock.endedAt) wf.clock.endedAt = Date.now();
+  room.phase = 'gameover';
+  awardWfScores(ctx, room, winner);
+  broadcastWfState(ctx, roomCode, room);
+}
+
+/** +2 to every player on the winning team, 0 to the losers and to everyone on a draw. */
+function awardWfScores(ctx, room, winner) {
+  const participants = Object.entries(room.state.warfront.armies).map(([name, army]) => {
+    const won = army.team === winner;
+    if (won) ctx.addScore(room, name, WF_WIN_POINTS);
+    return { name, team: army.team, won, points: won ? WF_WIN_POINTS : 0 };
+  });
+  ctx.recordGameResult(room, 'warfront', participants);
 }
 
 /** Per-socket fogged snapshot (never roomEmit: each view hides different things). */
@@ -382,7 +458,7 @@ async function generateBattle(ctx, roomCode, room) {
   const battle = engine.createBattleState(map, battleRoster(ctx, room), {
     seed,
     now: Date.now(),
-    matchCapMs: wf.phaseConfig.matchCapMs,
+    matchCapMs: devMatchMs() || wf.phaseConfig.matchCapMs,
   });
   Object.assign(wf, battle);
   wf.mapHistory.push(map.theme);
@@ -532,6 +608,25 @@ function registerHandlers(ctx, io, socket) {
     generateBattle(ctx, roomCode, room);
   });
 
+  // Play Again: a fresh map, the same teams and races (D1: host or either captain).
+  socket.on('playAgainWarfront', (callback) => {
+    callback = typeof callback === 'function' ? callback : () => {};
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'warfront' || room.phase !== 'gameover') {
+      return callback({ ok: false, error: 'The battle is not over yet' });
+    }
+    if (!canCommandMatch(room, socket.data.name)) {
+      return callback({ ok: false, error: 'Only the host or a captain can start the next battle' });
+    }
+    const blocker = startBlocker(ctx, room);
+    if (blocker) return callback({ ok: false, error: blocker });
+
+    callback({ ok: true });
+    generateBattle(ctx, roomCode, room);
+  });
+
   // Live orders (move, hold, produce, haul). Applied the instant they arrive; the next tick shows the result,
   // so there's no broadcast here.
   socket.on('wfCommand', (cmd, callback) => {
@@ -572,6 +667,9 @@ module.exports = {
   startLoop,
   stopLoop,
   tickRoom,
+  finishBattle,
+  awardWfScores,
+  WF_WIN_POINTS,
   generateBattle,
   WF_MIN_TEAM_SIZE,
   WF_MAX_TEAM_SIZE,

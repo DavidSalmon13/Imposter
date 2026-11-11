@@ -27,6 +27,7 @@ export const screens = {
   bluff: document.getElementById('bf-screen'),
   warfrontTeam: document.getElementById('wf-team-screen'),
   warfront: document.getElementById('wf-screen'),
+  warfrontOver: document.getElementById('wf-gameover-screen'),
 };
 
 export function showScreen(name) {

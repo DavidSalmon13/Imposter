@@ -407,7 +407,26 @@ mid-haul (Workers kept hauling). A real socket reconnect and two real phones are
   loaded hauler leaves a drop an enemy can collect.
 - **Browser:** a full economy loop: harvest, build an army, haul from the middle.
 
-### Step 8: Win, game over, scoreboard
+### Step 8: Win, game over, scoreboard ✅
+Done 2026-11-11. The win check runs at the end of each step; both bases falling in the same step is a
+draw (added to the spec). `clock.endedAt` records the end (the match cap itself on a timeout), and
+once `winner` is set `stepSim` is a no-op. A kill goes to the hit that drops the unit; `baseDmg`
+counts what the base actually lost (no overkill); bases earn no stats. `finalView(state)` is the
+unfogged end state. MVP = most base damage (> 0), ties to more kills; none if no base was hit.
+Points/participants come from `armies` (so a player who dropped mid-match still counts).
+`WF_DEV_MATCH_MS` (env, dev only) overrides the match length for quick test matches. Client: the
+scene is the real final map built by `buildWorld` into a second camera (the battlefield's CSS now
+also scopes `#wf-gameover-screen`), framed with a transform on the fallen base; the loser's castle
+becomes the mockup's ruin with its fire glow, flames and smoke, the winners' banners stand on its pad,
+scorch marks round it, winners' stacks cheer, confetti in the winners' colours. Additions in the
+mockup's style: Blue and draw title glows (and 44px for "BLUE WINS!", which overflows at 50px),
+◆ DEFEAT ◆ / ◆ STALEMATE ◆ under the title, "Time up · … · m:ss" lines, a dimmed Play Again plus a
+note for players who can't start it, and the shared scoreboard as a panel of wells. Portraits use
+the team roster's `RACE_PORTRAITS`. **Checked in a harness, not the real server** (no network for
+`npm install`): real `public/` + the real lobby/game modules behind a long-polling stand-in for
+socket.io, headless Chrome at 390px, two players: base kill → game over on both phones, reload on
+the board and on game over, Play Again (refused for a non-captain, then by the host), a time-up
+win, Back to Lobby. Not yet on two real phones.
 - Engine: win check each step (base ≤0 → other team wins; `now ≥ matchEndsAt` → `winnerByBaseHp`).
 - Module: `finishBattle` stops the loop, sets `winner`/`phase = 'gameover'`, `awardWfScores`
   (+2 per winning-team player, 0 on draw), `ctx.recordGameResult(room, 'warfront', participants)`,

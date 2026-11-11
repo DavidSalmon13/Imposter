@@ -99,3 +99,13 @@ export const LOAD_SPRITE = '<svg viewBox="0 0 14 16" aria-hidden="true"><path fi
 
 // A dropped load: a few crystal shards scattered on the ground where a hauler fell.
 export const DROP_SPRITE = '<svg class="glowc" viewBox="0 0 40 26" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="20" cy="24" rx="17" ry="2.4"></ellipse><path fill="#2a8fc0" d="M9 12 L13 16 L12 24 L6 24 L5 16 Z"></path><path fill="#bdefff" opacity=".6" d="M9 12 L9 24 L6 24 L5 16 Z"></path><path fill="#38b6e8" d="M21 3 L26 10 L24 24 L17 24 L16 10 Z"></path><path fill="#d6f8ff" opacity=".75" d="M21 3 L21 24 L17 24 L16 10 Z"></path><path class="twk" fill="#4cc8f0" d="M32 13 L35 17 L34 24 L29 24 L29 17 Z"></path><path class="twk" fill="#ffffff" opacity=".8" d="M20.4 6 L21 4 L21.6 6 L21 8 Z"></path></svg>';
+
+// ---------------------------------------------------------------------------
+// From design/warfront/4-game-over.html (source/GameOver.dc.html)
+// ---------------------------------------------------------------------------
+
+// The losing castle, in ruins (team colour on the torn banner).
+export const RUINED_CASTLE_SPRITE = '<svg viewBox="0 0 100 88" aria-hidden="true"><path fill="#6b717b" d="M6 88 V46 L12 40 L16 47 L20 41 L24 48 V88 Z"></path><path fill="#4a4f58" d="M76 88 V52 L81 45 L86 52 L90 46 L94 50 V88 Z"></path><path fill="#5d636d" d="M16 88 V58 L22 54 L26 60 L30 52 L34 62 V88 Z"></path><path fill="#7d8592" d="M36 88 V40 L42 30 L46 42 L52 28 L58 44 L64 38 V88 Z"></path><path fill="#000" opacity=".28" d="M52 88 V28 L58 44 L64 38 V88 Z"></path><path fill="#4f555e" d="M64 88 V60 L70 55 L74 62 L76 58 V88 Z"></path><path fill="#14171c" d="M44 88 V74 Q50 66 56 74 V88 Z"></path><path fill="#000" opacity=".45" d="M38 46 L60 46 L62 66 L36 66 Z"></path><path class="tc" d="M46 52 L52 52 L52 64 L49 61 L46 66 Z" opacity=".85"></path><path fill="#3a3e46" d="M2 88 L10 82 L22 85 L34 79 L48 86 L60 80 L72 86 L84 81 L98 88 Z"></path><path fill="#2a2e35" d="M24 88 L28 84 L33 86 L30 88 Z M66 88 L70 83 L75 86 L73 88 Z"></path></svg>';
+
+// A victory banner the winners plant around the ruins (team colour on the flag).
+export const BANNER_SPRITE = '<svg viewBox="0 0 34 64" aria-hidden="true"><path class="ln" stroke="#3b2a1e" d="M4 2 L4 63"></path><circle fill="#f5c542" cx="4" cy="2" r="2.2"></circle><path class="tc flag" d="M5 5 L32 9 L26 18 L32 27 L5 27 Z"></path><path fill="#f5c542" d="M13 12 L15 16 L19 16 L16 19 L17 23 L13 21 L9 23 L10 19 L7 16 L11 16 Z"></path></svg>';

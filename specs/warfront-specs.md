@@ -437,7 +437,8 @@ Agreed 2026-11-11 so a player never loses units without knowing it, even to an u
   AI-flavored, applied live for its stated duration.
 - **Weapons** apply the instant they're commanded (see "Special weapons").
 - The **win check** runs every step: a base at **≤0 HP ends the match immediately** (that team
-  loses); at `WF_MATCH_CAP_MS` the **higher-HP base wins** (`winnerByBaseHp`; equal HP is a draw).
+  loses; both bases falling in the same step is a draw); at `WF_MATCH_CAP_MS` the **higher-HP base
+  wins** (`winnerByBaseHp`; equal HP is a draw).
 
 ## Facilities (spend Minerals to reshape the map)
 

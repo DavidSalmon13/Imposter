@@ -1221,11 +1221,18 @@ function stepCombat(state, now, events) {
       tileId: victim.tileId, fromTileId: attacker.tileId, dmg,
       by: attacker.kind === 'unit' ? attacker.unit.type : 'base', ranged: attacker.range >= 2,
     };
+    // Battle stats (display only): the hit that drops a unit gets the kill, and
+    // base damage counts what the base actually lost.
+    const stats = attacker.kind === 'unit' ? statsOf(state.armies[attacker.owner]) : null;
     if (victim.kind === 'base') {
+      const before = victim.base.hp;
       victim.base.hp = Math.max(0, Math.round((victim.base.hp - dmg) * 100) / 100);
+      if (stats) stats.baseDmg = Math.round((stats.baseDmg + before - victim.base.hp) * 100) / 100;
       events.push({ type: 'baseHit', team: victim.team, hp: victim.base.hp, ...base });
     } else {
+      const before = victim.unit.hp;
       victim.unit.hp = Math.round((victim.unit.hp - dmg) * 100) / 100;
+      if (stats && before > 0 && victim.unit.hp <= 0) stats.kills += 1;
       events.push({ type: 'underAttack', owner: victim.owner, team: victim.team, unitId: victim.id, ...base });
       if (!hitBy.has(victim.id)) hitBy.set(victim.id, []);
       hitBy.get(victim.id).push(attacker);
@@ -1244,6 +1251,7 @@ function stepCombat(state, now, events) {
       if (u.carrying > 0) {
         state.pickups.mineralDrops[u.tileId] = (state.pickups.mineralDrops[u.tileId] || 0) + u.carrying;
       }
+      statsOf(army).lost += 1;
       events.push({ type: 'death', tileId: u.tileId, owner, team: army.team, unitId: u.id, unitType: u.type });
       return false;
     });
@@ -1264,14 +1272,49 @@ function stepCombat(state, now, events) {
   }
 }
 
+/** An army's battle stats, created if an older saved match lacks them. */
+function statsOf(army) {
+  if (!army.stats) army.stats = { kills: 0, lost: 0, baseDmg: 0 };
+  return army.stats;
+}
+
+// ---------------------------------------------------------------------------
+// Win check (spec "Battlefield events, weapons, win check")
+// ---------------------------------------------------------------------------
+
+/** At the match cap: the team with more base HP wins; equal HP is a draw. */
+function winnerByBaseHp(state) {
+  const { red, blue } = state.bases;
+  if (red.hp > blue.hp) return 'red';
+  if (blue.hp > red.hp) return 'blue';
+  return 'draw';
+}
+
+/**
+ * The winner after this step, or null while the match goes on: a base at ≤0 HP
+ * loses at once (both in the same step is a draw); at matchEndsAt the higher
+ * base HP wins.
+ */
+function checkWinner(state, now) {
+  const redDown = state.bases.red.hp <= 0;
+  const blueDown = state.bases.blue.hp <= 0;
+  if (redDown && blueDown) return { winner: 'draw', reason: 'base' };
+  if (redDown) return { winner: 'blue', reason: 'base' };
+  if (blueDown) return { winner: 'red', reason: 'base' };
+  if (now >= state.clock.matchEndsAt) return { winner: winnerByBaseHp(state), reason: 'time' };
+  return null;
+}
+
 /**
  * Advances the world by one sim step ending at `now` (`dtMs` long, already
  * clamped by the caller). Mutates and returns `state` with this step's events.
  * Systems arrive step by step: movement (Step 5), combat (Step 6), economy and
- * production (Step 7); events and the win check come later.
+ * production (Step 7), the win check (Step 8); battlefield events come later.
+ * Once a winner is set the match is over and further steps do nothing.
  */
 function stepSim(state, dtMs, { now }) {
   const events = [];
+  if (state.winner) return { state, events };
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
   stepMovement(state, dt, now, events);
   stepCombat(state, now, events);
@@ -1279,6 +1322,12 @@ function stepSim(state, dtMs, { now }) {
   stepProduction(state, now, events);
   state.tick += 1;
   state.clock.lastTickAt = now;
+  const result = checkWinner(state, now);
+  if (result) {
+    state.winner = result.winner;
+    state.clock.endedAt = Math.min(now, state.clock.matchEndsAt);
+    events.push({ type: 'gameOver', winner: result.winner, reason: result.reason });
+  }
   return { state, events };
 }
 
@@ -1392,6 +1441,32 @@ function eventsForPlayer(state, name, events) {
   return events.filter((e) => e.team === team || vision.has(e.tileId));
 }
 
+/**
+ * The finished battle with the fog lifted, for the game-over screen: every unit
+ * where it stood (no orders), both bases, the pickups left on the map, the clock,
+ * and each player's battle stats.
+ */
+function finalView(state) {
+  const units = allUnits(state).map(({ unit: u, owner, team }) => ({
+    id: u.id, type: u.type, tileId: u.tileId, hp: u.hp, owner, team, carrying: u.carrying || 0,
+  }));
+  const stats = Object.entries(state.armies).map(([name, a]) => ({
+    name, team: a.team, race: a.race, kills: 0, lost: 0, baseDmg: 0, ...a.stats,
+  }));
+  return {
+    winner: state.winner,
+    bases: state.bases,
+    clock: state.clock,
+    units,
+    visible: '1'.repeat(state.map.width * state.map.height),
+    pickups: {
+      weapons: state.pickups.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
+      mineralDrops: { ...state.pickups.mineralDrops },
+    },
+    stats,
+  };
+}
+
 module.exports = {
   WF_STEP_MS_BASE,
   WF_MATCH_CAP_MS,
@@ -1437,7 +1512,10 @@ module.exports = {
   canReach,
   fallBackTile,
   stepSim,
+  winnerByBaseHp,
+  checkWinner,
   visionFor,
   viewForPlayer,
   eventsForPlayer,
+  finalView,
 };
