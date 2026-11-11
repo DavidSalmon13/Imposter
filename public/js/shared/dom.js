@@ -26,6 +26,7 @@ export const screens = {
   mindMeld: document.getElementById('mm-screen'),
   bluff: document.getElementById('bf-screen'),
   warfrontTeam: document.getElementById('wf-team-screen'),
+  warfront: document.getElementById('wf-screen'),
 };
 
 export function showScreen(name) {

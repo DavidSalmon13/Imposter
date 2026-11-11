@@ -13,7 +13,12 @@ const {
   call,
   emissionsFor,
   emissionsForRoom,
+  mockOpenAi,
+  mockOpenAiFailure,
+  flush,
 } = require('../helpers/harness');
+const engine = require('../../server/games/warfrontEngine');
+const { rngFor } = require('../../server/lib/rng');
 
 const NAMES = ['Host', 'Ann', 'Bob', 'Cat'];
 
@@ -163,14 +168,29 @@ test('startWarfront: a non-host non-captain cannot start; host and captains can'
   assert.match(denied.error, /host or a captain/);
 
   room.players.get('Bob').leader = true;
-  const captain = await call(sockets.Bob, 'startWarfront');
+  const restore = mockOpenAiFailure();
+  let captain;
+  try {
+    captain = await call(sockets.Bob, 'startWarfront');
+  } finally {
+    restore();
+  }
   assert.equal(captain.ok, true);
 
-  const host = await call(sockets.Host, 'startWarfront');
-  assert.equal(host.ok, true);
-  // Step 3 stub: still in team select, everyone told.
-  assert.equal(room.phase, 'teamSelect');
-  assert.ok(emissionsForRoom(io, 'WFWF').some((e) => e.event === 'wfNotice'));
+  assert.equal(room.phase, 'generating');
+  assert.ok(emissionsForRoom(io, 'WFWF').some((e) => e.event === 'generating' && e.payload.game === 'warfront'));
+  await flush(); // let the (fallback) map generation finish
+});
+
+test('startWarfront: the host can start too', async () => {
+  const { sockets } = readyRoom();
+  const restore = mockOpenAiFailure();
+  try {
+    assert.equal((await call(sockets.Host, 'startWarfront')).ok, true);
+    await flush();
+  } finally {
+    restore();
+  }
 });
 
 test('unassigned players do not block the start', async () => {
@@ -179,7 +199,15 @@ test('unassigned players do not block the start', async () => {
   room.players.get('Host').team = 'red';
   room.players.get('Ann').team = 'blue';
   room.state.warfront.lobbyRaces = { Host: 'forge', Ann: 'horde' };
-  assert.equal((await call(sockets.Host, 'startWarfront')).ok, true);
+  const restore = mockOpenAiFailure();
+  try {
+    assert.equal((await call(sockets.Host, 'startWarfront')).ok, true);
+    await flush();
+  } finally {
+    restore();
+  }
+  // Bob has no team, so no army.
+  assert.deepEqual(Object.keys(room.state.warfront.armies).sort(), ['Ann', 'Host']);
 });
 
 test('every handler rejects the wrong game and the wrong phase', async () => {
@@ -233,4 +261,143 @@ test('clearState keeps options, races and avoid-lists; repairOnLoad reverts gene
   room.phase = 'generating';
   warfront.repairOnLoad(ctx, room);
   assert.equal(room.phase, 'teamSelect');
+});
+
+// ---- Step 4: map generation + static board ---------------------------------
+
+/** A valid medium map in the spec's JSON shape, as OpenAI would return it. */
+function aiMap(theme = 'Glass Canyon') {
+  const m = engine.buildFallbackMap('medium', rngFor(99, 0));
+  return {
+    theme,
+    lore: 'Shards of old glass glitter in the ravine.',
+    width: m.width,
+    height: m.height,
+    tiles: m.tiles.map((terrain) => ({ terrain })),
+    bases: m.bases.map(({ team, x, y }) => ({ team, x, y })),
+    supplySources: m.supplySources.map(({ x, y }) => ({ x, y })),
+    veins: m.veins.map(({ x, y, richness, contested }) => ({ x, y, richness, contested })),
+    weapons: m.weapons.map(({ x, y, weaponId }) => ({ x, y, weaponId })),
+    chokepoints: [],
+  };
+}
+
+async function startWith(mock) {
+  const s = readyRoom();
+  const restore = mock();
+  try {
+    await warfront.generateBattle(s.ctx, 'WFWF', s.room);
+  } finally {
+    restore();
+  }
+  return s;
+}
+
+test('a valid AI map is used and the battle reaches playing', async () => {
+  const { room, io } = await startWith(() => mockOpenAi(aiMap()));
+  const wf = room.state.warfront;
+  assert.equal(room.phase, 'playing');
+  assert.equal(wf.map.theme, 'Glass Canyon');
+  assert.deepEqual(wf.mapHistory, ['Glass Canyon']);
+  assert.equal(wf.map.width, 16);
+  assert.deepEqual(Object.keys(wf.armies).sort(), ['Ann', 'Bob', 'Cat', 'Host']);
+  assert.equal(wf.armies.Bob.race, 'arcane');
+  assert.equal(wf.armies.Bob.team, 'blue');
+  assert.ok(wf.seed > 0 || wf.seed === 0);
+  assert.equal(wf.clock.matchEndsAt - wf.clock.startedAt, wf.phaseConfig.matchCapMs);
+
+  const st = lastWfState(io, room, 'Bob');
+  assert.equal(st.phase, 'playing');
+  assert.equal(st.myTeam, 'blue');
+  assert.equal(st.map.theme, 'Glass Canyon');
+  assert.equal(st.me.supply, engine.TUNING.startSupply);
+  assert.equal(st.roster.length, 4);
+});
+
+test('garbage from OpenAI falls back to a procedural map; the game still starts', async () => {
+  const { room } = await startWith(() => mockOpenAi({ theme: 'Broken', width: 3, tiles: [] }));
+  assert.equal(room.phase, 'playing');
+  assert.notEqual(room.state.warfront.map.theme, 'Broken');
+  assert.doesNotThrow(() => engine.validateMap(room.state.warfront.map, 'medium'));
+});
+
+test('an OpenAI failure falls back too, at the chosen map size', async () => {
+  const s = readyRoom();
+  s.room.state.warfront.phaseConfig.mapSize = 'large';
+  const restore = mockOpenAiFailure();
+  try {
+    await warfront.generateBattle(s.ctx, 'WFWF', s.room);
+  } finally {
+    restore();
+  }
+  assert.equal(s.room.phase, 'playing');
+  assert.equal(s.room.state.warfront.map.width, 20);
+  assert.equal(s.room.state.warfront.map.height, 13);
+});
+
+test('a hung OpenAI call times out into the fallback map', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const s = readyRoom();
+  const originalFetch = global.fetch;
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key';
+  global.fetch = () => new Promise(() => {}); // never answers
+  try {
+    const done = warfront.generateBattle(s.ctx, 'WFWF', s.room);
+    assert.equal(s.room.phase, 'generating');
+    t.mock.timers.tick(warfront.WF_MAP_TIMEOUT_MS);
+    await done;
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OPENAI_API_KEY = originalKey;
+  }
+  assert.equal(s.room.phase, 'playing');
+});
+
+test('players only receive their own team\'s units before fog exists', async () => {
+  const { room, io } = await startWith(() => mockOpenAi(aiMap()));
+  const st = lastWfState(io, room, 'Host');
+  assert.ok(st.units.length > 0);
+  assert.ok(st.units.every((u) => u.team === 'red'));
+  assert.deepEqual([...new Set(st.units.map((u) => u.owner))].sort(), ['Ann', 'Host']);
+});
+
+test('back to lobby during generation: the late map is dropped', async () => {
+  const s = readyRoom();
+  const restore = mockOpenAi(aiMap());
+  try {
+    const done = warfront.generateBattle(s.ctx, 'WFWF', s.room);
+    s.room.phase = 'lobby';
+    s.room.game = null;
+    await done;
+  } finally {
+    restore();
+  }
+  assert.equal(s.room.phase, 'lobby');
+  assert.equal(s.room.state.warfront.map, null);
+});
+
+test('a team emptied during generation cancels back to team select', async () => {
+  const s = readyRoom();
+  const restore = mockOpenAi(aiMap());
+  try {
+    const done = warfront.generateBattle(s.ctx, 'WFWF', s.room);
+    s.room.players.get('Bob').connected = false;
+    s.room.players.get('Cat').connected = false;
+    await done;
+  } finally {
+    restore();
+  }
+  assert.equal(s.room.phase, 'teamSelect');
+  assert.ok(emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfNotice' && /cancelled/.test(e.payload.text)));
+});
+
+test('reconnectPayload in playing carries the board for that viewer', async () => {
+  const { ctx, room } = await startWith(() => mockOpenAi(aiMap()));
+  const res = warfront.reconnectPayload(ctx, room, room.players.get('Cat'));
+  assert.equal(res.ok, true);
+  assert.equal(res.phase, 'playing');
+  assert.equal(res.myTeam, 'blue');
+  assert.equal(res.myRace, 'forge');
+  assert.equal(res.map.theme, 'Glass Canyon');
 });

@@ -613,6 +613,80 @@ function buildFallbackMap(size, rng) {
   return validateMap(fallbackCandidate(width, height, rng, true), { width, height });
 }
 
+// ---------------------------------------------------------------------------
+// Battle state (spec "Map generation" step 4)
+// ---------------------------------------------------------------------------
+
+/** A fresh unit of `type` owned by `owner`, standing on `tileId`. */
+function makeUnit(id, type, owner, tileId) {
+  const t = UNIT_TYPES[type];
+  return {
+    id,
+    type,
+    class: t.class,
+    tileId,
+    hp: t.hp,
+    owner,
+    carrying: 0,
+    path: [],
+    stepEndsAt: 0,
+    atkReadyAt: 0,
+    haul: null,
+  };
+}
+
+/**
+ * The full live-match state for a validated `map`. `roster` is
+ * [{ name, team: 'red'|'blue', race }]; opts = { seed, now, matchCapMs }.
+ * Returns the fields the module stores under room.state.warfront.
+ */
+function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_MS }) {
+  let nextUnitId = 1;
+  const baseOf = {};
+  for (const b of map.bases) baseOf[b.team] = b.tileId;
+  const bases = {
+    red: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.red, shieldUntil: 0 },
+    blue: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.blue, shieldUntil: 0 },
+  };
+  const armies = {};
+  for (const { name, team, race } of roster) {
+    if (!RACES[race]) throw new Error(`unknown race "${race}" for ${name}`);
+    if (team !== 'red' && team !== 'blue') throw new Error(`unknown team "${team}" for ${name}`);
+    const units = [];
+    for (let i = 0; i < TUNING.startWorkers; i++) {
+      units.push(makeUnit(nextUnitId++, RACES[race].workerType, name, baseOf[team]));
+    }
+    armies[name] = {
+      team,
+      race,
+      supply: TUNING.startSupply,
+      minerals: TUNING.startMinerals,
+      arsenal: [],
+      facilities: [],
+      queues: {},
+      workshop: [],
+      stats: { kills: 0, lost: 0, baseDmg: 0 },
+      units,
+    };
+  }
+  return {
+    seed: seed >>> 0,
+    tick: 0,
+    nextUnitId,
+    winner: null,
+    map,
+    bases,
+    armies,
+    pickups: {
+      mineralDrops: {},
+      weapons: map.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
+    },
+    clock: { startedAt: now, matchEndsAt: now + matchCapMs, lastTickAt: now },
+    event: null,
+    nextEventAt: now + WF_EVENT_MS,
+  };
+}
+
 module.exports = {
   WF_STEP_MS_BASE,
   WF_MATCH_CAP_MS,
@@ -646,4 +720,6 @@ module.exports = {
   bfsPath,
   validateMap,
   buildFallbackMap,
+  makeUnit,
+  createBattleState,
 };

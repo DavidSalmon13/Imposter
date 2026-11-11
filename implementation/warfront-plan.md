@@ -254,7 +254,18 @@ clears the floating reaction row. Workers have no art yet (needed from Step 4).
 - **Browser:** choose Warfront, two phones join opposite teams, pick races, reconnect one phone on
   the team screen.
 
-### Step 4: Map generation + static board
+### Step 4: Map generation + static board ✅
+Done 2026-11-11. The prompt asks for the spec's JSON shape; the OpenAI call is capped at 25 s
+(`WF_MAP_TIMEOUT_MS`), then the fallback map is used. If a team empties while the map is generated,
+the battle is cancelled back to team select with a notice. Until fog (Step 5) the `playing` payload
+carries only the viewer's own team's units. The world is built from tiles with the mockup's own
+pieces (water = shore/water blobs, forest = floor + trees, hills = grass plateaus merged into
+rectangles, rock = rocky plateau + boulder, base = stone pad + castle). New art in the sprite
+conventions: three race Workers, a supply depot, five weapon tokens. The console shows the minimap,
+the map's theme/lore and 🔩/💎 only; Supply/sec arrives with the economy (Step 7). ☰ opens "Leave the
+battle?" (back to lobby). **Not yet checked on a real phone:** headless Chromium here has no GPU and
+pans the 20×13 board at ~26 fps, about the same as the mockup page itself (~29 fps), so this
+machine can't judge phone smoothness.
 - `generateBattlefield(room, size)`: prompt per spec (size from `phaseConfig.mapSize`, avoid-list
   from `mapHistory`, temp 1.1), then `validateMap`; on any throw → `buildFallbackMap`. Push the
   theme onto `mapHistory` (window 8).

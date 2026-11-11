@@ -1,7 +1,8 @@
 // Warfront SVG sprites, lifted verbatim from design/warfront/source/*.dc.html
 // (Units.dc.html for units, TeamSelect.dc.html for the castle and trees).
 // Team colour comes from a .tm-red / .tm-blue wrapper filling the .tc / .tcd parts.
-// Regenerate rather than hand-edit when the mockups change.
+// The lifted art below is verbatim; the "Drawn for the game" section at the end is new art
+// in the same conventions for things the mockups don't draw yet (see plan Step 14).
 
 export const UNIT_SPRITES = {
   militiaman: '<svg viewBox="0 0 32 40" aria-hidden="true"><ellipse class="sh" cx="16" cy="37.5" rx="9.5" ry="2.8"></ellipse><rect fill="#3d3328" x="12" y="28.5" width="3.6" height="8.5" rx="1.2"></rect><rect fill="#2f271e" x="16.6" y="28.5" width="3.6" height="8.5" rx="1.2"></rect><path class="tc" d="M11 15.5 L21 15.5 L22 30 L10 30 Z"></path><path fill="#000" opacity=".22" d="M16 15.5 L21 15.5 L22 30 L16 30 Z"></path><rect fill="#5a3b22" x="10.6" y="23.6" width="10.8" height="2"></rect><rect fill="#f59e0b" x="15.2" y="23.4" width="1.8" height="2.4"></rect><rect fill="#7d8592" x="8.2" y="24.6" width="3" height="4" rx=".6"></rect><circle fill="#e8c39e" cx="16" cy="12.4" r="3.4"></circle><path fill="#9aa2ae" d="M10.2 11.4 L21.8 11.4 L20 9.6 Q16 5.2 12 9.6 Z"></path><path fill="#000" opacity=".2" d="M16 6.6 Q18.4 7.2 20 9.6 L21.8 11.4 L16 11.4 Z"></path><circle fill="#2a1a10" cx="17.2" cy="12.8" r=".6"></circle><path class="ln" stroke="#e8c39e" d="M20.6 18 L23.6 20.4"></path><path class="ln" stroke="#8b6b3a" d="M24 4.5 L23.2 37"></path><path fill="#c9ccd2" d="M24.1 0.4 L25.8 5.2 L22.6 5.2 Z"></path></svg>',
@@ -23,6 +24,18 @@ export const UNIT_SPRITES = {
 
 export const CASTLE_SPRITE = '<svg viewBox="0 -10 100 100" aria-hidden="true"><rect fill="#7d8592" x="16" y="52" width="68" height="36"></rect><rect fill="#000" opacity=".22" x="50" y="52" width="34" height="36"></rect><path fill="#9aa2ae" d="M16 55 V48 H22 V52 H28 V48 H34 V52 H40 V48 H46 V52 H52 V48 H58 V52 H64 V48 H70 V52 H76 V48 H84 V55 Z"></path><rect fill="#a7afbb" x="36" y="26" width="28" height="40"></rect><rect fill="#000" opacity=".2" x="50" y="26" width="14" height="40"></rect><path class="tc" d="M32 28 L50 6 L68 28 Z"></path><path class="tcd" d="M50 6 L68 28 L50 28 Z"></path><rect fill="#ffcc66" x="46" y="36" width="8" height="10" rx="4" style="filter: drop-shadow(0 0 3px #ffb347)"></rect><rect fill="#8b93a1" x="6" y="38" width="18" height="50"></rect><rect fill="#000" opacity=".2" x="15" y="38" width="9" height="50"></rect><path class="tc" d="M3 40 L15 18 L27 40 Z"></path><path class="tcd" d="M15 18 L27 40 L15 40 Z"></path><rect fill="#8b93a1" x="76" y="38" width="18" height="50"></rect><rect fill="#000" opacity=".2" x="85" y="38" width="9" height="50"></rect><path class="tc" d="M73 40 L85 18 L97 40 Z"></path><path class="tcd" d="M85 18 L97 40 L85 40 Z"></path><path fill="#14171c" d="M42 88 V72 Q50 62 58 72 V88 Z"></path><circle class="torch" cx="39" cy="70" r="1.8"></circle><circle class="torch" cx="61" cy="70" r="1.8"></circle><path class="ln" stroke="#2a2f36" d="M50 6 V-9"></path><path class="tc flag" d="M50 -9 L63 -5.5 L50 -2 Z"></path></svg>';
 
+export const BUSH_SPRITE = '<svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse><circle fill="#b7e07a" cx="11" cy="4.5" r="1.4"></circle></svg>';
+
+export const BOULDER_SPRITE = '<svg viewBox="0 0 44 34" aria-hidden="true"><path fill="#5d626c" d="M3 33 L7 15 L18 6 L30 9 L41 21 L43 33 Z"></path><path fill="#9aa0ab" d="M7 15 L18 6 L30 9 L24 19 L11 21 Z"></path><path fill="#3a3e46" d="M30 9 L41 21 L43 33 L28 33 L24 19 Z"></path><path fill="#6f7580" d="M30 33 L34 24 L40 26 L42 33 Z"></path></svg>';
+
+/** A crystal field (mineral vein). Richness 2 and 3 add side crystals, as in Main.dc.html. */
+export function crystalSprite(richness) {
+  return '<svg class="glowc" viewBox="0 0 54 46" aria-hidden="true">'
+    + (richness >= 2 ? '<path fill="#2a8fc0" d="M13 14 L18 21 L17 45 L10 45 L8 22 Z"></path><path fill="#bdefff" opacity=".6" d="M13 14 L13 45 L10 45 L8 22 Z"></path><path class="twk" fill="#4cc8f0" d="M48 26 L51 31 L50 45 L45 45 L44 31 Z"></path>' : '')
+    + (richness >= 3 ? '<path fill="#2a8fc0" d="M41 9 L46 18 L44 45 L37 45 L36 18 Z"></path><path fill="#bdefff" opacity=".6" d="M41 9 L41 45 L37 45 L36 18 Z"></path><path class="twk" fill="#4cc8f0" d="M5 28 L8 32 L7 45 L2 45 L1 33 Z"></path>' : '')
+    + '<path fill="#38b6e8" d="M27 1 L34 14 L31 45 L23 45 L20 14 Z"></path><path fill="#d6f8ff" opacity=".75" d="M27 1 L27 45 L23 45 L20 14 Z"></path><path class="twk" fill="#ffffff" opacity=".8" d="M26 6 L27 3 L28 6 L27 9 Z"></path></svg>';
+}
+
 export const TREE_SPRITES = {
   pine: '<svg viewBox="0 0 46 64" aria-hidden="true"><rect fill="#3b2a1a" x="21" y="48" width="4" height="15"></rect><path fill="#173a1b" d="M23 18 L41 51 L5 51 Z"></path><path fill="#22552a" d="M23 9 L37 39 L9 39 Z"></path><path fill="#2f7334" d="M23 1 L33 27 L13 27 Z"></path><path fill="#000" opacity=".25" d="M23 1 L33 27 L23 27 Z M23 9 L37 39 L23 39 Z M23 18 L41 51 L23 51 Z"></path></svg>',
   leaf: '<svg viewBox="0 0 46 64" aria-hidden="true"><path fill="#4a3220" d="M20 63 L21.5 38 L24.5 38 L26 63 Z"></path><circle fill="#1d4419" cx="23" cy="32" r="17"></circle><circle fill="#2b6425" cx="15" cy="27" r="11"></circle><circle fill="#306e29" cx="31" cy="25" r="11"></circle><circle fill="#3f8a33" cx="22" cy="19" r="11"></circle><circle fill="#5aa843" cx="19" cy="14" r="7"></circle><circle fill="#88c964" cx="17" cy="11" r="3.4"></circle></svg>',
@@ -38,3 +51,41 @@ export const RACE_LINEUPS = {
 
 // The portrait shown beside a player's name on the team roster, per race.
 export const RACE_PORTRAITS = { forge: 'militiaman', horde: 'warrior', arcane: 'battlemage' };
+
+// ---------------------------------------------------------------------------
+// Drawn for the game (not in the mockups yet), in the mockups' sprite
+// conventions: 32x40 unit viewBox, ground shadow `.sh`, team-coloured
+// `.tc` / `.tcd` parts, flat shapes with a 20-28% black shade on the right.
+// ---------------------------------------------------------------------------
+
+const PICKAXE = '<path class="ln" stroke="#8b6b3a" d="M18.6 22 L25.2 8.2"></path><path fill="#9aa2ae" d="M21.2 7.4 Q25.6 5.2 29.6 9.6 Q25.8 7.8 22.6 9.6 Z"></path>';
+
+// Workers: Laborer (Forge, amber hard cap + apron), Peon (Horde, green skin),
+// Acolyte (Arcane, purple hood + glowing shard pick).
+UNIT_SPRITES.laborer = '<svg viewBox="0 0 32 40" aria-hidden="true"><ellipse class="sh" cx="16" cy="37.5" rx="8.5" ry="2.6"></ellipse><rect fill="#3d3328" x="12.4" y="29" width="3.2" height="8" rx="1.1"></rect><rect fill="#2f271e" x="16.4" y="29" width="3.2" height="8" rx="1.1"></rect><path class="tc" d="M11.5 17 L20.5 17 L21.2 30 L10.8 30 Z"></path><path fill="#000" opacity=".22" d="M16 17 L20.5 17 L21.2 30 L16 30 Z"></path><path fill="#6b4a2a" d="M12.8 21 L19.2 21 L19.6 30 L12.4 30 Z"></path><rect fill="#3b2a1a" x="11" y="22.6" width="10" height="1.6"></rect><circle fill="#e8c39e" cx="16" cy="13.6" r="3.3"></circle><path fill="#f59e0b" d="M12.4 12.8 Q16 7.4 19.6 12.8 Z"></path><rect fill="#c27a0a" x="11.6" y="12.3" width="8.8" height="1.3" rx=".5"></rect><circle fill="#2a1a10" cx="17.2" cy="14.2" r=".55"></circle><path class="ln" stroke="#e8c39e" d="M20.2 19.4 L22.6 16.6"></path>' + PICKAXE + '</svg>';
+UNIT_SPRITES.peon = '<svg viewBox="0 0 32 40" aria-hidden="true"><ellipse class="sh" cx="16" cy="37.5" rx="8.5" ry="2.6"></ellipse><rect fill="#4a5a2a" x="12.2" y="29" width="3.4" height="8" rx="1.1"></rect><rect fill="#3d4a22" x="16.4" y="29" width="3.4" height="8" rx="1.1"></rect><path fill="#6f7d3e" d="M11.6 17 L20.4 17 L21 25 L11 25 Z"></path><path class="tc" d="M10.8 24 L21.2 24 L22 31 L10 31 Z"></path><path fill="#000" opacity=".22" d="M16 17 L20.4 17 L22 31 L16 31 Z"></path><path fill="#5a3b22" d="M12 17 L15 17 L20 24 L17.4 24 Z"></path><circle fill="#6f7d3e" cx="16" cy="13" r="3.6"></circle><path fill="#e8e0c8" d="M14.2 15.4 L14.6 17 L15.2 15.6 Z M17.8 15.4 L17.4 17 L16.8 15.6 Z"></path><circle fill="#ff3b3b" cx="14.8" cy="12.8" r=".6"></circle><circle fill="#ff3b3b" cx="17.3" cy="12.8" r=".6"></circle><path class="ln" stroke="#6f7d3e" d="M20.2 19.4 L22.6 16.6"></path>' + PICKAXE + '</svg>';
+UNIT_SPRITES.acolyte = '<svg viewBox="0 0 32 40" aria-hidden="true"><ellipse class="sh" cx="16" cy="37.5" rx="8" ry="2.6"></ellipse><path class="tc" d="M16 17.5 L10 36.5 Q16 38.6 22 36.5 Z"></path><path fill="#000" opacity=".28" d="M16 17.5 L16 37.8 Q19.4 37.8 22 36.5 Z"></path><rect fill="#4a2a8a" x="11.6" y="27.4" width="8.8" height="1.8"></rect><path fill="#4a2a8a" d="M11.4 15.6 Q16 6.8 20.6 15.6 L19.4 17.6 L12.6 17.6 Z"></path><circle fill="#e8c39e" cx="16" cy="14.6" r="2.7"></circle><circle fill="#2a1a10" cx="15" cy="14.8" r=".5"></circle><circle fill="#2a1a10" cx="17.2" cy="14.8" r=".5"></circle><path class="ln" stroke="#3b2470" d="M19.6 21 L22.4 18.6"></path><path class="ln" stroke="#7a5a3a" d="M18.8 23 L25 10"></path><path class="orb" fill="#f0dcff" d="M24.2 6.4 L27.6 9.4 L25.6 11.8 L22.6 9.6 Z"></path></svg>';
+
+// Supply source: crates, sacks and a banner on a pole, in the base's team colour.
+export const SUPPLY_SPRITE = '<svg viewBox="0 0 60 56" aria-hidden="true"><ellipse fill="rgba(0,0,0,.4)" cx="30" cy="52" rx="26" ry="4"></ellipse><rect fill="#8a6338" x="6" y="30" width="20" height="20"></rect><rect fill="#000" opacity=".22" x="16" y="30" width="10" height="20"></rect><path fill="none" stroke="#5a3b22" stroke-width="1.6" d="M6 30 L26 50 M26 30 L6 50"></path><rect fill="none" stroke="#5a3b22" stroke-width="1.6" x="6" y="30" width="20" height="20"></rect><rect fill="#a07443" x="13" y="16" width="16" height="15"></rect><rect fill="#000" opacity=".22" x="21" y="16" width="8" height="15"></rect><rect fill="none" stroke="#5a3b22" stroke-width="1.4" x="13" y="16" width="16" height="15"></rect><path fill="#cdb98c" d="M30 50 Q28 38 35 36 Q42 34 44 40 Q47 50 44 50 Z"></path><path fill="#000" opacity=".18" d="M38 35.6 Q42 34 44 40 Q47 50 44 50 L38 50 Z"></path><path fill="#cdb98c" d="M43 50 Q42 41 48 40 Q54 40 55 46 Q56 50 54 50 Z"></path><rect fill="#7a5a3a" x="35.4" y="38" width="5" height="1.4"></rect><path class="ln" stroke="#2a2f36" d="M50 41 V4"></path><path class="tc flag" d="M50 4 L62 8 L50 12 Z"></path></svg>';
+
+// Weapon tokens: a stone pedestal with a glowing glyph per weapon id.
+const WEAPON_GLYPHS = {
+  artillery: ['#ff9a3c', '<circle fill="#2a1a10" cx="22" cy="13" r="5"></circle><circle fill="#ffd2a0" cx="20.4" cy="11.4" r="1.4"></circle><path class="ln" stroke="#ffd27a" d="M25.4 9 L28.4 5.4"></path><path fill="#ffe08a" d="M28.4 5.4 L31 3.6 L29.6 6.6 Z"></path>'],
+  emp: ['#5ad8ff', '<path fill="#d6f8ff" d="M23.6 4 L17 14.6 L21.6 14.6 L19.4 23 L27 11.4 L22.4 11.4 Z"></path>'],
+  airdrop: ['#4dff7a', '<path fill="#e8fff0" d="M13 12 Q22 1 31 12 Z"></path><path class="ln" stroke="#c8f5d6" stroke-width="1" d="M14 12 L20.6 18 M30 12 L23.4 18 M22 12 L22 18"></path><rect fill="#8a6338" x="19.6" y="17.6" width="4.8" height="4.4"></rect>'],
+  bombard: ['#ff5a5f', '<circle fill="#1a1d22" cx="22" cy="14.6" r="6.4"></circle><circle fill="#ff9a9c" cx="19.8" cy="12.4" r="1.6"></circle><path class="ln" stroke="#8b6b3a" stroke-width="1.4" d="M25 9.4 Q27 6 30 6.6"></path><circle class="fire" fill="#ffb347" cx="30.4" cy="6.4" r="1.6"></circle>'],
+  aegis: ['#ffcc33', '<path fill="#ffe9a8" d="M22 3.6 L30 6.6 Q30 17 22 22 Q14 17 14 6.6 Z"></path><path fill="#000" opacity=".18" d="M22 3.6 L30 6.6 Q30 17 22 22 Z"></path>'],
+};
+export function weaponSprite(weaponId) {
+  const [glow, glyph] = WEAPON_GLYPHS[weaponId] || WEAPON_GLYPHS.artillery;
+  return '<svg viewBox="0 0 44 40" aria-hidden="true" style="filter: drop-shadow(0 0 5px ' + glow + ')"><ellipse fill="rgba(0,0,0,.4)" cx="22" cy="37" rx="15" ry="3"></ellipse><path fill="#7d8592" d="M12 36 L14 27 L30 27 L32 36 Z"></path><path fill="#000" opacity=".22" d="M22 27 L30 27 L32 36 L22 36 Z"></path><rect fill="#a7afbb" x="12.6" y="25" width="18.8" height="3" rx=".8"></rect><g class="float">' + glyph + '</g></svg>';
+}
+
+// Chip icons for stacks, from the spec's unit tables (the mockup's chips use these too).
+export const UNIT_ICONS = {
+  laborer: '⛏️', peon: '⛏️', acolyte: '⛏️',
+  militiaman: '🛠️', crossbow: '🎯', outrider: '🐴', bastion: '🏯', ballista: '💥',
+  warrior: '🗡️', skirmisher: '🪃', raider: '🐎', berserker: '🪓', warchief: '👑',
+  apprentice: '✨', mysticArcher: '🏹', battlemage: '🔥', summoner: '🧿', archmage: '🪄', golem: '🗿',
+};
