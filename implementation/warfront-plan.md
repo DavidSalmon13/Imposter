@@ -201,7 +201,12 @@ Each step ends with `npm test` green and a browser check. Steps 1–2 are pure a
 Done 2026-11-11: `specs/warfront-specs.md` now carries D1–D12, the unit prices and the numbers
 table. The spec remains the rules source of truth; change a rule there first, then here.
 
-### Step 1: RNG + data tables
+### Step 1: RNG + data tables ✅
+Done 2026-11-11. Unit ids are camelCase (`laborer`, `mysticArcher`, …); the tower lives in
+`FACILITIES` with its combat stats; engine-side `WF_*` constants (vision, step time, unit cap, dt clamp,
+match cap, event interval) are exported from the engine, loop/roster ones are left for the module.
+`TEAM_PHRASES` = the mockup's four (`push`/`defend`/`needResources`/`hitBase`). RNG tests live in
+`tests/games/rng.test.js`.
 - `server/lib/rng.js`. Tests: same seed+tick → same sequence; different tick → different sequence;
   output in `[0,1)`.
 - `warfrontEngine.js` data tables only: `RACES`, `UNIT_TYPES` (hp, atk, cost, move, class, range,
