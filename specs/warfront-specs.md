@@ -51,18 +51,33 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `WF_MATCH_CAP_MS` | 720000 | Hard match length (12 min); at the cap, higher base HP wins |
 | `WF_EVENT_MS` | 60000 | Interval between battlefield events |
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
+| `WF_MAX_UNITS_PER_PLAYER` | 30 | Unit cap per player (structures and Golems included); Produce is a no-op at the cap. Bounds payload size and DOM count on phones |
+| `WF_MAX_DT_MS` | 1000 | Clamp on one sim step's `dt` (protects against event-loop stalls) |
+| `MAP_SIZES` | Small 12×8 · Medium 16×11 · Large 20×13 | Host's map-size option (width×height in tiles) |
+| `MATCH_LENGTHS` | Short 8 min · Standard 12 min · Long 16 min | Host's match-length option (sets `WF_MATCH_CAP_MS`; Standard is the default) |
 | `TUNING.baseHp` | 120 | Starting base HP |
+| `TUNING.baseAtk` / `baseRange` / `baseAttackMs` | 2 / 1 / 1500 | A base's own weak tower-like attack (see "Combat") |
 | `TUNING.startSupply` | 6 | Each player's **🔩 Supply** at match start |
 | `TUNING.startMinerals` | 0 | Each player's **💎 Minerals** at match start (minerals are earned by hauling) |
 | `TUNING.startWorkers` | 2 | Worker units each player begins with, on their base tile |
 | `TUNING.baseTrickleSec` | 0.3 | Flat Supply **per second** per player (so a worker-less player never hard-stalls) |
 | `TUNING.supplyPerWorkerSec` | 0.5 | Supply **per second** per Worker on a friendly supply source |
+| `TUNING.forgeWorkerBonusSec` | 0.25 | Extra Supply/sec per **Forge** Worker on a friendly supply source |
+| `TUNING.forgeStructureDiscount` | 1 | 💎 off every facility and tower a **Forge** player builds |
 | `TUNING.mineLoadSec` | 0.5 | Minerals **per second** a Worker loads on a vein, × the vein's richness |
 | `TUNING.carryCap` | 4 | Max Minerals a Worker carries before the auto-haul loop returns to deposit |
-| `TUNING.buildMsPerCost` | 1200 | Build/spawn time **per point of a unit's cost** |
+| `TUNING.buildMsPerCost` | 1200 | Build/spawn time **per point of a unit's 🔩 Supply cost** |
 | `TUNING.attackMs` | 1000 | Base attack cooldown (per-unit overrides allowed) |
 | `TUNING.luckMagnitude` | 0.35 | ± per-hit damage swing at zero strategy edge |
+| `TUNING.structureDefense` | 1.5 | Extra defense × for every `structure` (bases, towers, facilities, Bastion, Golem); stacks with terrain |
 | `TUNING.veinLuckMagnitude` | 0.4 | ± swing on a *contested* (central) vein's load rate |
+| `TUNING.artilleryDmg` | 8 | `artillery` damage to each enemy unit on the target tile (through terrain/structure defense) |
+| `TUNING.bombardDmg` | 15 | `bombard` damage to an enemy base (ignores contest and terrain) |
+| `TUNING.empMs` / `aegisMs` | 15000 / 10000 | `emp` disable time / `aegis` base-shield time |
+| `TUNING.airdropCount` | 3 | Units an `airdrop` spawns (the firer's race's basic melee unit: Militiaman / Warrior / Apprentice) |
+| `TUNING.workshopWeaponCost` / `workshopWeaponMs` | 💎6 / 10000 | Price and build time of one Workshop weapon |
+| `TUNING.supplyDropAmount` | 5 | Supply each player gets from a `supplyDrop` event |
+| `TUNING.sandstormLuck` | 2 | `luckMagnitude` multiplier while a `sandstorm` is active |
 
 ### Races & units (the `RACES` + `UNIT_TYPES` data tables)
 
@@ -80,10 +95,10 @@ Every unit has a **combat class** that plugs into a universal rock-paper-scissor
 
 **Real-time reading of the stat columns.** Because the match is a live sim: a unit's **`Move` is
 its walking speed** — tiles/sec, higher is faster (a Raider blitzes), slowed by terrain move-cost —
-not a per-round step budget. Each combat unit also has an **attack range** by class (melee/mounted
-`1`, ranged/siege `2`, casters per unit, a Tower `1`) and an **attack cooldown** (`attackMs`); it
-auto-attacks the nearest enemy in range each cooldown. `Cost` still drives price **and** now
-build time (`buildMsPerCost × cost`). See "Combat" under the simulation section.
+not a per-round step budget. Each combat unit also has an **attack range** (the `Rng` column, Manhattan
+distance; `0` = its own tile only) and an **attack cooldown** (`attackMs`); it auto-attacks the
+nearest enemy in range each cooldown. The 🔩 Supply cost also sets build time
+(`buildMsPerCost × 🔩`). See "Combat" under the simulation section.
 
 Four classes sit outside the triangle and interact via flags instead: **worker** (harvests Supply
 at home and hauls Minerals from veins — barely fights, `atk 1`; the economic engine and the game's
@@ -94,49 +109,52 @@ Forge's Bastion, a summoned Golem). Each race also has a **signature** modifier.
 **Every race fields a Worker** (same stats, race flavor name). Workers are how both resources
 flow, so losing them starves you — defend yours, hunt theirs.
 
-| Unit | Icon | Class | HP | Atk | Cost | Move | Notes |
-|---|---|---|---|---|---|---|---|
-| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 5 | 1 | 🔩3 | 1 | harvests Supply on a supply source; loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
+| Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 5 | 1 | 3 | 0 | 1 | 1 | harvests Supply on a supply source; loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
 
-**⚒️ FORGE — the great builders.** Specialty: **defense + economy** (Forge Workers earn bonus
-Supply, and Forge gets a cheaper/sturdier Bastion plus — tuning — a discount on structures). All
-races can build, but Forge turtles and out-produces best.
+**⚒️ FORGE — the great builders.** Specialty: **defense + economy** (Forge Workers earn
+`+forgeWorkerBonusSec` Supply/sec, every Forge facility and tower costs `forgeStructureDiscount` 💎
+less, and only Forge fields the Bastion). All races can build, but Forge turtles and out-produces
+best.
 
-| Unit | Icon | Class | HP | Atk | Cost | Move | Notes |
-|---|---|---|---|---|---|---|---|
-| Militiaman | 🛠️ | melee | 11 | 4 | 3 | 1 | cheap, sturdy |
-| Crossbow | 🎯 | ranged | 7 | 5 | 4 | 1 | |
-| Outrider | 🐴 | mounted | 8 | 4 | 5 | 2 | |
-| Bastion | 🏯 | structure | 20 | 3 | 6 | 0 | can't move; very high defense; damages enemies on its tile |
-| Ballista | 💥 | siege | 8 | 4 | 6 | 1 | `×3` atk vs structures **and** bases |
+| Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Militiaman | 🛠️ | melee | 11 | 4 | 3 | 0 | 1 | 1 | basic; cheap, sturdy |
+| Crossbow | 🎯 | ranged | 7 | 5 | 4 | 0 | 1 | 2 | basic |
+| Outrider | 🐴 | mounted | 8 | 4 | 5 | 2 | 2 | 1 | |
+| Bastion | 🏯 | structure | 20 | 3 | 6 | 3 | 0 | 0 | can't move; very high defense; attacks enemies on its own tile |
+| Ballista | 💥 | siege | 8 | 4 | 6 | 4 | 1 | 2 | `×3` atk vs structures **and** bases |
 
 **⚔️ HORDE — the great fighters.** Specialty: **raw combat** — Horde units get `×1.15` attack
 and a **reduced luck swing** (`×0.6`); reliable brutes for whom strategy beats luck.
 
-| Unit | Icon | Class | HP | Atk | Cost | Move | Notes |
-|---|---|---|---|---|---|---|---|
-| Warrior | 🗡️ | melee | 11 | 5 | 3 | 1 | |
-| Skirmisher | 🪃 | ranged | 7 | 5 | 4 | 1 | |
-| Raider | 🐎 | mounted | 9 | 4 | 5 | 3 | fastest unit in the game |
-| Berserker | 🪓 | melee | 6 | 9 | 5 | 1 | glass cannon |
-| Warchief | 👑 | melee | 16 | 7 | 8 | 1 | elite bruiser |
+| Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Warrior | 🗡️ | melee | 11 | 5 | 3 | 0 | 1 | 1 | basic |
+| Skirmisher | 🪃 | ranged | 7 | 5 | 4 | 0 | 1 | 2 | basic |
+| Raider | 🐎 | mounted | 9 | 4 | 5 | 2 | 3 | 1 | fastest unit in the game |
+| Berserker | 🪓 | melee | 6 | 9 | 5 | 2 | 1 | 1 | glass cannon |
+| Warchief | 👑 | melee | 16 | 7 | 8 | 5 | 1 | 1 | elite bruiser |
 
 **🔮 ARCANE — the magicians.** Specialty: **area magic + luck manipulation** (fragile,
 expensive, high-impact — and the race that bends the game's luck, tying into the gambling theme).
 
-| Unit | Icon | Class | HP | Atk | Cost | Move | Notes |
-|---|---|---|---|---|---|---|---|
-| Apprentice | ✨ | caster | 6 | 4 | 3 | 1 | |
-| Mystic Archer | 🏹 | ranged | 6 | 5 | 4 | 1 | |
-| Battlemage | 🔥 | caster | 8 | 6 | 6 | 1 | `aoe`: hits **every** enemy unit on the tile |
-| Summoner | 🧿 | caster | 7 | 3 | 6 | 1 | producing one also summons a **Golem** at the base |
-| Archmage | 🪄 | caster | 10 | 7 | 9 | 1 | `luckBend`: in any battle it joins, Arcane's luck swing `×0.5`, the enemy's `×1.5` |
-| Golem | 🗿 | structure | 18 | 5 | — | 0 | summoned by a Summoner (not built directly); can't move |
+| Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Apprentice | ✨ | caster | 6 | 4 | 3 | 0 | 1 | 2 | basic |
+| Mystic Archer | 🏹 | ranged | 6 | 5 | 4 | 0 | 1 | 2 | basic |
+| Battlemage | 🔥 | caster | 8 | 6 | 6 | 3 | 1 | 1 | `aoe`: hits **every** enemy unit on its target's tile |
+| Summoner | 🧿 | caster | 7 | 3 | 6 | 4 | 1 | 2 | producing one also summons a **Golem** at the base |
+| Archmage | 🪄 | caster | 10 | 7 | 9 | 6 | 1 | 2 | `luckBend`: hits by friendlies within 2 tiles of it get luck `×0.5`; hits on friendlies within 2 tiles of it get the enemy's luck `×1.5` (several Archmages don't stack) |
+| Golem | 🗿 | structure | 18 | 5 | — | — | 0 | 1 | summoned by a Summoner (not built directly); can't move |
 
-**Cost currency:** unit `Cost` is **🔩 Supply** unless marked 💎 (Minerals). Every unit in the race
-tables above is Supply-bought; **Minerals are spent only on facilities, towers, elite units, and
-special weapons** (see those sections). This split is what gives hauled Minerals a purpose: Supply
-keeps an army on the field, Minerals are what let you out-tech and crack a base.
+**Cost currency:** **basic units** (each race's two cheapest fighters) and **Workers** cost 🔩
+Supply only. **Advanced units** cost 🔩 Supply **plus** 💎 Minerals — the stronger the unit, the more
+Minerals. Minerals also buy facilities, towers and Workshop weapons (see those sections). This split
+is what gives hauled Minerals a purpose: Supply keeps a basic army on the field from the first
+second, Minerals are what let you field the strong units, out-tech and crack a base. Because
+Workers and basic units never need Minerals, a player who loses everything can always rebuild.
 
 (Stats above are the starting balance point and will be tuned.)
 
@@ -168,18 +186,19 @@ battlefield event, the match clock) lives in `room.state.warfront`, never in `ro
 - Choosing the game takes everyone to a team-select screen (its own `#wf-team-screen`, modeled
   on Codenames' `#team-select-screen` but Warfront-owned so the two games don't share DOM).
 - Players tap **Join Red** / **Join Blue**. One player per team may **Become Captain**
-  (`p.leader`) — the captain is who may start/replay a match and is the fallback authority,
-  mirroring Codenames' leader. A captain is **not** required to play (unlike Codenames' spymaster)
+  (`p.leader`) — the **host or either captain** may start/replay a match, mirroring Codenames'
+  leader. A captain is **not** required to play (unlike Codenames' spymaster)
   — any team with ≥ `WF_MIN_TEAM_SIZE` members can start.
-- **Each player also picks a race** (Forge / Horde / Arcane) for themselves — stored on
-  `room.state.warfront.armies[name].race` at Start (or on a per-player field until then).
+- **Each player also picks a race** (Forge / Horde / Arcane) for themselves — stored in
+  `room.state.warfront.lobbyRaces[name]` during team-select and copied to
+  `armies[name].race` at Start (kept for Play Again).
   Races are independent per player, so a team can be any blend. A player's race decides which
   units they may produce for the whole match. The screen shows each player's chosen race beside
   their name on the roster, and a short tooltip of each race's specialty.
-- Host-only options on this screen: **match length** (a short/standard/long `WF_MATCH_CAP_MS`) and
-  **map size** (Small / Medium / Large). A **Randomize Teams** button (host-only) splits the roster
+- Host-only options on this screen: **match length** (`MATCH_LENGTHS`: 8 / 12 / 16 min) and
+  **map size** (`MAP_SIZES`: Small 12×8 / Medium 16×11 / Large 20×13). A **Randomize Teams** button (host-only) splits the roster
   evenly, like Codenames (it does not change anyone's race).
-- Host taps **Start Battle** once both teams have ≥ `WF_MIN_TEAM_SIZE` members **and every
+- The host or either captain taps **Start Battle** once both teams have ≥ `WF_MIN_TEAM_SIZE` members **and every
   joined player has chosen a race**. This moves to `generating`.
 
 ## Map generation (`generating`)
@@ -253,17 +272,19 @@ commit, no debit-at-reveal. The single `wfCommand` event carries one of:
   units can be selected and sent together (so "move several soldiers to different places" is just
   several move commands).
 - **Produce** `{ kind:'produce', unitType, atTileId }` — must be one of the player's **own race's**
-  units; **Supply/Minerals cost is debited immediately**; the unit enters that spawn point's build
-  queue and appears after `buildMsPerCost × cost`. Spawns at the player's **base** or a friendly
+  units and the player must be under `WF_MAX_UNITS_PER_PLAYER`; its **🔩 Supply (and 💎 Minerals
+  for an advanced unit) is debited immediately**; the unit enters that spawn point's build queue and
+  appears after `buildMsPerCost × 🔩`. Each spawn point builds **one unit at a time** — a queued
+  unit's timer starts when the one ahead of it finishes. Spawns at the player's **base** or a friendly
   **Forward Barracks**. Producing an Arcane **Summoner** also spawns a **Golem** at the base.
 - **Build** `{ kind:'build', facility, tileId }` — debits **Minerals** now; the structure rises on
-  a friendly-controlled passable tile after its build time (see "Facilities"/"Towers").
+  a buildable tile (see "Facilities") after its build time (see "Facilities"/"Towers").
 - **Haul** `{ kind:'haul', workerIds, veinTileId }` — puts Worker(s) into the **auto-haul loop** on
   that vein (see Economy). Any plain move command cancels the loop.
 - **Fire weapon** `{ kind:'weapon', weaponId, targetTileId }` — spends a weapon from the player's
   **arsenal**; the effect applies live (see "Special weapons").
 
-All commands are validated server-side (ownership, race, affordability, control, passability) and
+All commands are validated server-side (ownership, race, affordability, unit cap, buildable tile, passability) and
 ignored if invalid — a bad tap is a no-op, never an error that stalls the sim.
 
 ### Movement (grid-step, real time)
@@ -278,26 +299,32 @@ don't block tiles, they trigger combat. Stacking still renders as **one stack pe
 ### Combat (continuous, auto-attack)
 
 Each combat unit auto-attacks on its `attackMs` cooldown, dealing damage to the **nearest enemy in
-range** (range by class: melee/mounted `1`, ranged/siege `2`, Tower `1`, casters per unit):
+range** (the unit's `Rng` from the race tables; Tower `1`, base `1`):
 
 > `dmg = atk × rpsMultiplier(attacker,target) ÷ terrainDefense(targetTile) × (1 + luckSwing)`,
-> where `luckSwing = (rng·2−1) × luckMagnitude × (1 − strategyEdge)` is rolled **per hit**, and
-> `strategyEdge` is the fraction of nearby friendlies that counter the enemy's dominant class.
+> where `luckSwing = (rng·2−1) × luckMagnitude × (1 − strategyEdge)` is rolled **per hit**.
+> The enemy's **dominant class** is the most common RPS class (melee/mounted/ranged) among enemy
+> units within 2 tiles of the attacker (a tie or none = no dominant class, edge 0);
+> `strategyEdge` is the fraction of the attacker's team's RPS units within 2 tiles that counter it.
+> Structures also divide damage by `structureDefense`.
 
 The **rock-paper-scissors** triangle (melee>mounted>ranged, ×1.5/×0.67), **terrain defense**, and
 all **race/flag modifiers** apply per hit: **Horde** ×1.15 atk and
-×0.6 luck; an **Archmage** bends luck (own side ×0.5 / enemy ×1.5); a **Battlemage** (`aoe`) hits
-**every** enemy in range, not just one; **siege** deals ×3 vs structures and bases. A unit at ≤0 HP
+×0.6 luck; an **Archmage** bends luck (own side ×0.5 / enemy ×1.5 within 2 tiles of it); a
+**Battlemage** (`aoe`) hits **every** enemy on its target's tile, not just one; **siege** deals ×3 vs structures and bases. A unit at ≤0 HP
 dies immediately (a loaded Worker **drops its cargo** on its tile). **Behaviour:** an idle unit (no
 move order) **holds position and auto-attacks** enemies that enter range but does not chase; a unit
 with a move order pursues it and fires at anything in range along the way. The enemy **base tile**
-takes attack damage from adjacent/overlapping enemies whenever no friendly unit is contesting it;
-**siege** ×3, so a Ballista is the premier base-cracker.
+takes attack damage from enemies in range whenever no friendly unit is **contesting** it (≥1
+friendly unit standing on the base tile); **siege** ×3, so a Ballista is the premier base-cracker.
+A base also has its own **weak tower-like attack** (`baseAtk` 2, range 1, every `baseAttackMs`), so a
+lone raider can't chip it for free. Ties between equally near targets break by unit id, so the sim
+stays deterministic.
 
 ### Economy (accrues continuously)
 
 - **🔩 Supply:** each player accrues `baseTrickleSec` plus `supplyPerWorkerSec` for every Worker on
-  (or orthogonally adjacent to) a friendly **supply source**; **Forge** Workers earn a bonus. It
+  (or orthogonally adjacent to) a friendly **supply source**; **Forge** Workers earn `+forgeWorkerBonusSec` each. It
   ticks up smoothly and the HUD shows the current rate. No passive node income exists — Supply is
   **earned by where your Workers stand**.
 - **💎 Minerals via the auto-haul loop:** a Worker given a `haul` command runs hands-off — mine on
@@ -318,28 +345,29 @@ takes attack damage from adjacent/overlapping enemies whenever no friendly unit 
 
 ## Facilities (spend Minerals to reshape the map)
 
-Facilities are **player-owned `structure`s** placed by a `build` command on a **friendly-controlled**
-passable tile (validated for Mineral cost, control, and one-structure-per-tile the instant the
-command arrives; Minerals debit now, the structure rises after its build time). They are the
+Facilities are **player-owned `structure`s** placed by a `build` command on a **buildable** tile:
+any tile currently in the player's team vision that is passable, has no enemy unit on it and has no
+structure (validated with the Mineral cost the instant the command arrives; Minerals debit now, the structure rises after its build time). They are the
 concrete form of the `armies[name].facilities` the state block reserves — on-map tech instead of an
 abstract tree. All can't move, have high defense, and are killable; destroying one removes its
 effect immediately. All cost **💎 Minerals**, so every facility is a bet that map control will
 outpace the army you didn't build.
 
-| Facility | Icon | Cost | Effect |
-|---|---|---|---|
-| Refinery | 🏗️ | 💎5 | Built on/adjacent a **vein**: loaded Workers may deposit here (short-haul, no trip home) **and** the vein's load rate `+1`. The premier raid target — taking it kills an enemy's whole mineral tempo. |
-| Forward Barracks | 🏭 | 💎7 | A second spawn point: that player may produce units **here** instead of their home base, shortening the reinforcement line into the contested middle. |
-| Workshop | 🔧 | 💎7 | Lets the player **construct** a special weapon from Minerals (one per build order) — an alternative to finding one on the ground, and a reliable Mineral sink when the map's weapon tokens are already taken. |
+| Facility | Icon | Cost | HP | Build | Effect |
+|---|---|---|---|---|---|
+| Refinery | 🏗️ | 💎5 | 15 | 8s | Built on/adjacent a **vein**: loaded Workers may deposit here (short-haul, no trip home) **and** the vein's load rate `+1`. The premier raid target — taking it kills an enemy's whole mineral tempo. |
+| Forward Barracks | 🏭 | 💎7 | 20 | 10s | A second spawn point: that player may produce units **here** instead of their home base, shortening the reinforcement line into the contested middle. |
+| Workshop | 🔧 | 💎7 | 15 | 10s | Lets the player **construct** a special weapon of their choice (`workshopWeaponCost` 💎6, `workshopWeaponMs` 10s, one at a time) — an alternative to finding one on the ground, and a reliable Mineral sink when the map's weapon tokens are already taken. |
 
 **Structures are no longer Forge-exclusive** — all races may build facilities and towers. Forge's
-edge is now its **cheaper/sturdier Bastion**, the `+1`-per-worker Supply bonus, and (tuning) a
-discount on structures; it is still the turtle race, just not the only one that can fortify.
+edge is the **Bastion** (Forge-only), the `forgeWorkerBonusSec` Supply bonus, and
+`forgeStructureDiscount` 💎 off every facility and tower; it is still the turtle race, just not the
+only one that can fortify.
 
 ## Towers (hold a place so your army can leave)
 
-A **Tower** (`{ kind:'build', facility:'tower', tileId }`, **💎4**) is a `structure` that can't
-move, has high defense, and **auto-attacks enemy units within range `1`** (its own + adjacent
+A **Tower** (`{ kind:'build', facility:'tower', tileId }`, **💎4**, HP 18, atk 3, builds in 6s) is
+a `structure` that can't move, has high defense, and **auto-attacks enemy units within range `1`** (its own + adjacent
 tiles) on its `attackMs` cooldown like any unit. Its whole purpose is the answer to *"if I push, my
 base/vein is open"*:
 a single Worker + a Tower can **hold a vein or a chokepoint** while your army operates elsewhere.
@@ -363,10 +391,10 @@ weapon, it only places ids from this list):
 
 | id | Icon | Effect (enumerated) |
 |---|---|---|
-| `artillery` | 🎯 | Burst damage to **every enemy unit** on the target tile. |
+| `artillery` | 🎯 | `artilleryDmg` to **every enemy unit** on the target tile. |
 | `emp` | ⚡ | Disables an enemy **facility/tower** on the target tile for `empMs` (no yield, no attack). |
-| `airdrop` | 🪂 | Spawns a free squad on a **friendly, visible** target tile — instant reinforcement behind the lines. |
-| `bombard` | 💣 | Direct damage to an enemy **base**, ignoring the "contested by a defender" rule — reach over a wall. |
+| `airdrop` | 🪂 | Spawns `airdropCount` of the firer's race's basic melee unit on a **friendly-visible**, passable target tile — instant reinforcement behind the lines. |
+| `bombard` | 💣 | `bombardDmg` direct damage to an enemy **base**, ignoring the "contested by a defender" rule — reach over a wall. |
 | `aegis` | 🛡️ | Your **base takes no damage for `aegisMs`** — a comeback / anti-snowball tool. |
 
 (Damage/spawn magnitudes and durations live in `TUNING`; weapon mix and spawn counts are a
@@ -383,9 +411,9 @@ and the client can always render it. v1 menu (`EVENT_EFFECTS`):
 
 | id | Effect (enumerated) | Duration |
 |---|---|---|
-| `supplyDrop` | instant +N **Supply** to both teams' players | instant |
+| `supplyDrop` | instant +`supplyDropAmount` **Supply** to every player | instant |
 | `mineralRush` | all vein load rates **doubled** for everyone (haul while it's hot) | `WF_EVENT_MS` |
-| `sandstorm` | combat `luckMagnitude` ↑ (variance up for everyone) | `WF_EVENT_MS` |
+| `sandstorm` | combat `luckMagnitude` ×`sandstormLuck` (variance up for everyone) | `WF_EVENT_MS` |
 | `reinforcements` | one free Worker spawns at **each** base (rebuild a lost economy) | instant |
 | `calm` | no mechanical effect (pure flavor) | — |
 
@@ -453,12 +481,19 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
 
 **Persisted (`savedFields`):**
 - `phaseConfig` — `{ matchCapMs, mapSize }` chosen at team-select.
+- `lobbyRaces` — `{ [name]: race }` picked at team-select (copied into `armies` at Start, kept for
+  Play Again).
+- `seed`, `tick` — the match's RNG seed (set at battle start) and the step counter; step N's
+  randomness is `rngFor(seed, tick)`, so a restarted match continues the same random stream.
+- `nextUnitId` — monotonically increasing unit-id counter (persisted so ids stay unique).
+- `winner` — `'red' | 'blue' | 'draw' | null`.
 - `map` — the battlefield (theme, lore, width, height, tiles, **supplySources**, **veins**,
   **weapons** (spawn list), bases, chokepoints).
 - `bases` — `{ red:{hp,maxHp,tileId,shieldUntil}, blue:{...} }` (`shieldUntil` is an `aegis`
   expiry, 0 when none).
 - `armies` — `{ [name]: { team, race, supply, minerals, arsenal:[weaponId],
-  facilities:[{id,type,tileId}], queues:{ [spawnTileId]:[{unitType,doneAt}] }, units:[Unit] } }`.
+  facilities:[{id,type,tileId}], queues:{ [spawnTileId]:[{unitType,doneAt}] },
+  workshop:[{weaponId,doneAt}], units:[Unit] } }`.
   A **Unit** = `{ id, type, class, tileId, hp, owner, carrying, path:[tileId…], stepEndsAt,
   atkReadyAt, haul:{veinTileId}|null }`. `race` is fixed for the match; `carrying` is a loaded
   Worker's Minerals (0 otherwise); `path`/`stepEndsAt` drive movement; `atkReadyAt` gates the next
@@ -474,8 +509,7 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
 **Ephemeral (NOT persisted, rebuilt on load):**
 - the module-local **sim-loop interval** handle (`wfTimers: Map<roomCode, Interval>`), recreated
   by `repairOnLoad`/`startBattle`.
-- the per-room **seed stream position** is derived from the persisted seed + tick, so randomness
-  stays deterministic across a restart.
+- nothing else: the seed stream position is derived from the persisted `seed` + `tick`.
 
 Team membership is **not** duplicated here — it's sourced from `p.team`/`p.leader` on
 `room.players` (reset by `resetToLobby`), and `armies` is keyed by player name.
