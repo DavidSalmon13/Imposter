@@ -354,12 +354,13 @@ test('a hung OpenAI call times out into the fallback map', async (t) => {
   assert.equal(s.room.phase, 'playing');
 });
 
-test('players only receive their own team\'s units before fog exists', async () => {
+test('at the start each side sees only its own units (the enemy base is beyond vision)', async () => {
   const { room, io } = await startWith(() => mockOpenAi(aiMap()));
   const st = lastWfState(io, room, 'Host');
   assert.ok(st.units.length > 0);
   assert.ok(st.units.every((u) => u.team === 'red'));
   assert.deepEqual([...new Set(st.units.map((u) => u.owner))].sort(), ['Ann', 'Host']);
+  assert.equal(st.visible.length, st.map.width * st.map.height);
 });
 
 test('back to lobby during generation: the late map is dropped', async () => {
@@ -400,4 +401,145 @@ test('reconnectPayload in playing carries the board for that viewer', async () =
   assert.equal(res.myTeam, 'blue');
   assert.equal(res.myRace, 'forge');
   assert.equal(res.map.theme, 'Glass Canyon');
+});
+
+// ---- Step 5: sim loop + live orders ----------------------------------------
+
+test.afterEach(() => {
+  for (const code of [...warfront.wfLoops.keys()]) warfront.stopLoop(code);
+});
+
+const wfLives = (io, room, name) => emissionsFor(io, room, name).filter((e) => e.event === 'wfLive');
+
+async function playingRoom(t) {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: 1_000_000 });
+  return startWith(() => mockOpenAi(aiMap()));
+}
+
+test('loop: starts on battle start, ticks every WF_TICK_MS, stops on back to lobby', async (t) => {
+  const s = await playingRoom(t);
+  assert.ok(warfront.wfLoops.has('WFWF'));
+  assert.equal(wfLives(s.io, s.room, 'Bob').length, 0);
+  t.mock.timers.tick(warfront.WF_TICK_MS * 3);
+  assert.equal(s.room.state.warfront.tick, 3);
+  assert.equal(wfLives(s.io, s.room, 'Bob').length, 3);
+  assert.equal(s.room.state.warfront.clock.lastTickAt, Date.now());
+
+  // Back to lobby (lobby.js resetToLobby -> clearAllGameState -> clearState(room, code)).
+  s.room.game = null;
+  s.room.phase = 'lobby';
+  warfront.clearState(s.room, 'WFWF');
+  assert.ok(!warfront.wfLoops.has('WFWF'));
+  t.mock.timers.tick(warfront.WF_TICK_MS * 5);
+  assert.equal(wfLives(s.io, s.room, 'Bob').length, 3);
+});
+
+test('loop: stops itself once the room is gone or no longer playing', async (t) => {
+  const s = await playingRoom(t);
+  s.ctx.rooms.delete('WFWF');
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.ok(!warfront.wfLoops.has('WFWF'));
+});
+
+test('loop: a thrown error inside one tick does not stop later ticks', async (t) => {
+  const s = await playingRoom(t);
+  const original = engine.stepSim;
+  let calls = 0;
+  const errors = [];
+  t.mock.method(console, 'error', (...args) => errors.push(args));
+  engine.stepSim = (...args) => {
+    calls++;
+    if (calls === 2) throw new Error('boom');
+    return original(...args);
+  };
+  try {
+    t.mock.timers.tick(warfront.WF_TICK_MS * 4);
+  } finally {
+    engine.stepSim = original;
+  }
+  assert.equal(calls, 4);
+  assert.equal(errors.length, 1);
+  assert.ok(warfront.wfLoops.has('WFWF'));
+  assert.equal(wfLives(s.io, s.room, 'Bob').length, 3);
+});
+
+test('loop: a long stall is clamped to WF_MAX_DT_MS', async (t) => {
+  const s = await playingRoom(t);
+  const seen = [];
+  const original = engine.stepSim;
+  engine.stepSim = (st, dt, opts) => {
+    seen.push(dt);
+    return original(st, dt, opts);
+  };
+  try {
+    // The event loop stalled for a minute since the last tick.
+    s.room.state.warfront.clock.lastTickAt -= 60000;
+    t.mock.timers.tick(warfront.WF_TICK_MS);
+  } finally {
+    engine.stepSim = original;
+  }
+  assert.deepEqual(seen, [engine.WF_MAX_DT_MS]);
+});
+
+test('wfCommand move: applied at once, no broadcast, and the next ticks walk the unit', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const worker = wf.armies.Host.units[0];
+  const from = worker.tileId;
+  const to = engine.neighbors(from, wf.map.width, wf.map.height).find((n) => engine.isPassable(wf.map, n));
+  const before = s.io.emissions.length;
+  const res = await call(s.sockets.Host, 'wfCommand', { kind: 'move', unitIds: [worker.id], toTileId: to });
+  assert.deepEqual(res, { ok: true });
+  assert.equal(s.io.emissions.length, before, 'no broadcast from the command itself');
+  assert.deepEqual(worker.path, [to]);
+  t.mock.timers.tick(engine.stepMs(wf.map, worker.type, to) + warfront.WF_TICK_MS);
+  assert.equal(worker.tileId, to);
+  const live = wfLives(s.io, s.room, 'Host').at(-1).payload;
+  assert.equal(live.units.find((u) => u.id === worker.id).tileId, to);
+});
+
+test('wfCommand guards: wrong phase, wrong game, someone else\'s units, no army, bad target', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const bobUnit = wf.armies.Bob.units[0];
+  const near = (u) => engine.neighbors(u.tileId, wf.map.width, wf.map.height).find((n) => engine.isPassable(wf.map, n));
+  // Host can't move Bob's units.
+  assert.equal((await call(s.sockets.Host, 'wfCommand', { kind: 'move', unitIds: [bobUnit.id], toTileId: near(bobUnit) })).ok, false);
+  assert.deepEqual(bobUnit.path, []);
+  // Garbage.
+  assert.equal((await call(s.sockets.Bob, 'wfCommand', null)).ok, false);
+  assert.equal((await call(s.sockets.Bob, 'wfCommand', { kind: 'move', unitIds: [bobUnit.id], toTileId: -4 })).ok, false);
+  // A player with no army (joined after the start).
+  wf.armies = { ...wf.armies };
+  delete wf.armies.Cat;
+  assert.equal((await call(s.sockets.Cat, 'wfCommand', { kind: 'move', unitIds: [1], toTileId: 0 })).ok, false);
+  // Wrong phase / wrong game.
+  s.room.phase = 'gameover';
+  assert.equal((await call(s.sockets.Bob, 'wfCommand', { kind: 'move', unitIds: [bobUnit.id], toTileId: near(bobUnit) })).ok, false);
+  s.room.phase = 'playing';
+  s.room.game = 'codenames';
+  assert.equal((await call(s.sockets.Bob, 'wfCommand', { kind: 'move', unitIds: [bobUnit.id], toTileId: near(bobUnit) })).ok, false);
+  assert.deepEqual(bobUnit.path, []);
+});
+
+test('wfLive is fogged per socket: an enemy shows up only within vision', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const raider = engine.makeUnit(wf.nextUnitId++, 'raider', 'Ann', wf.bases.blue.tileId);
+  wf.armies.Ann.units.push(raider);
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  const ids = (name) => wfLives(s.io, s.room, name).at(-1).payload.units.map((u) => u.id);
+  // Ann's raider stands on the blue base: blue sees it, and red sees blue's workers there.
+  assert.ok(ids('Bob').includes(raider.id));
+  assert.ok(ids('Cat').includes(raider.id));
+  assert.ok(ids('Host').includes(wf.armies.Bob.units[0].id));
+  // Move it back home: gone from blue's view (and nothing is roomEmitted).
+  raider.tileId = wf.bases.red.tileId;
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.ok(!ids('Bob').includes(raider.id));
+  assert.ok(!ids('Host').includes(wf.armies.Bob.units[0].id));
+  assert.ok(!emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfLive'));
+  const live = wfLives(s.io, s.room, 'Bob').at(-1).payload;
+  assert.equal(live.me.supply, engine.TUNING.startSupply);
+  assert.ok(typeof live.serverNow === 'number');
 });

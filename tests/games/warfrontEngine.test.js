@@ -324,3 +324,264 @@ test('createBattleState rejects an unknown race or team', () => {
   assert.throws(() => E.createBattleState(map, [{ name: 'A', team: 'red', race: 'elves' }], { seed: 1, now: 0 }), /race/);
   assert.throws(() => E.createBattleState(map, [{ name: 'A', team: 'green', race: 'forge' }], { seed: 1, now: 0 }), /team/);
 });
+
+// ---- Step 5: movement, pickups, fog ----------------------------------------
+
+/**
+ * A tiny hand-made battle. `rows` are strings, one char per tile:
+ * . plains  f forest  h hills  ~ water  # rock  R red base  B blue base.
+ * `units` = [{ owner, type, at: [x, y] }]; owners are 'Red' (red) and 'Blue' (blue).
+ * Returns { st, at(x, y) -> tileId, unit(owner, i) }.
+ */
+function makeBattle({ rows, units = [], weapons = [] }) {
+  const height = rows.length;
+  const width = rows[0].length;
+  const terrain = { '.': 'plains', f: 'forest', h: 'hills', '~': 'water', '#': 'rock', R: 'plains', B: 'plains' };
+  const tiles = [];
+  const bases = {};
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    tiles.push(terrain[ch]);
+    if (ch === 'R') bases.red = E.tileId(x, y, width);
+    if (ch === 'B') bases.blue = E.tileId(x, y, width);
+  }));
+  const map = {
+    theme: 'Test', lore: '', width, height, tiles,
+    bases: [{ team: 'red', tileId: bases.red }, { team: 'blue', tileId: bases.blue }],
+    supplySources: [], veins: [], chokepoints: [],
+    weapons: weapons.map(([x, y, weaponId]) => ({ x, y, tileId: E.tileId(x, y, width), weaponId })),
+  };
+  const st = E.createBattleState(map, [
+    { name: 'Red', team: 'red', race: 'horde' },
+    { name: 'Blue', team: 'blue', race: 'forge' },
+  ], { seed: 7, now: 0 });
+  st.armies.Red.units = [];
+  st.armies.Blue.units = [];
+  for (const { owner, type, at } of units) {
+    st.armies[owner].units.push(E.makeUnit(st.nextUnitId++, type, owner, E.tileId(at[0], at[1], width)));
+  }
+  return {
+    st,
+    at: (x, y) => E.tileId(x, y, width),
+    unit: (owner, i = 0) => st.armies[owner].units[i],
+  };
+}
+
+/** Steps the sim from `from` to `to` (ms) in 200 ms ticks. */
+function run(st, from, to, dt = 200) {
+  for (let now = from + dt; now <= to; now += dt) E.stepSim(st, dt, { now });
+}
+
+const move = (st, owner, ids, toTileId, now) => E.applyCommand(st, owner, { kind: 'move', unitIds: ids, toTileId }, now);
+
+test('move: walks around water, one tile at a time, and stops on the target', () => {
+  const b = makeBattle({
+    rows: [
+      'R.~..',
+      '..~..',
+      '....B',
+    ],
+    units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }],
+  });
+  const w = b.unit('Red');
+  assert.deepEqual(move(b.st, 'Red', [w.id], b.at(3, 0), 0), { ok: true, moved: 1 });
+  // Shortest way round the water: down to row 2, across, back up. 7 steps.
+  assert.equal(w.path.length, 7);
+  const visited = [];
+  for (let now = 200; now <= 7 * E.WF_STEP_MS_BASE + 200; now += 200) {
+    E.stepSim(b.st, 200, { now });
+    if (visited[visited.length - 1] !== w.tileId) visited.push(w.tileId);
+  }
+  assert.equal(w.tileId, b.at(3, 0));
+  assert.deepEqual(w.path, []);
+  assert.equal(w.stepEndsAt, 0);
+  for (const t of visited) assert.ok(E.isPassable(b.st.map, t));
+  assert.ok(visited.includes(b.at(2, 2)), 'crossed below the water');
+});
+
+test('move: a forest step takes twice as long as a plains step', () => {
+  const b = makeBattle({
+    rows: ['R.f..B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [1, 0] }, { owner: 'Red', type: 'warrior', at: [3, 0] }],
+  });
+  const [onPlains, beforeForest] = b.st.armies.Red.units;
+  assert.equal(E.stepMs(b.st.map, 'warrior', b.at(4, 0)), E.WF_STEP_MS_BASE);
+  assert.equal(E.stepMs(b.st.map, 'warrior', b.at(2, 0)), 2 * E.WF_STEP_MS_BASE);
+  move(b.st, 'Red', [onPlains.id], b.at(2, 0), 0); // into the forest
+  move(b.st, 'Red', [beforeForest.id], b.at(4, 0), 0); // onto plains
+  E.stepSim(b.st, 900, { now: 900 });
+  assert.equal(beforeForest.tileId, b.at(4, 0));
+  assert.equal(onPlains.tileId, b.at(1, 0), 'still on its way into the forest');
+  E.stepSim(b.st, 899, { now: 1799 });
+  assert.equal(onPlains.tileId, b.at(1, 0));
+  E.stepSim(b.st, 1, { now: 1800 });
+  assert.equal(onPlains.tileId, b.at(2, 0));
+});
+
+test('move: a Raider (Move 3) outpaces a Warrior over the same road', () => {
+  const b = makeBattle({
+    rows: ['R........B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }, { owner: 'Red', type: 'raider', at: [0, 0] }],
+  });
+  const [warrior, raider] = b.st.armies.Red.units;
+  move(b.st, 'Red', [warrior.id, raider.id], b.at(8, 0), 0);
+  run(b.st, 0, 2400);
+  assert.equal(E.tileXY(raider.tileId, 10).x, 8, 'raider: 300 ms a tile');
+  assert.equal(E.tileXY(warrior.tileId, 10).x, 2, 'warrior: 900 ms a tile');
+});
+
+test('move: re-issuing an order repaths; the step in progress finishes first', () => {
+  const b = makeBattle({
+    rows: [
+      '.....',
+      'R...B',
+      '.....',
+    ],
+    units: [{ owner: 'Red', type: 'warrior', at: [1, 1] }],
+  });
+  const w = b.unit('Red');
+  move(b.st, 'Red', [w.id], b.at(4, 0), 0);
+  run(b.st, 0, 400);
+  const next = w.path[0];
+  assert.equal(w.tileId, b.at(1, 1));
+  assert.deepEqual(move(b.st, 'Red', [w.id], b.at(0, 2), 400), { ok: true, moved: 1 });
+  assert.equal(w.path[0], next, 'keeps the tile it is stepping onto');
+  assert.equal(w.path[w.path.length - 1], b.at(0, 2));
+  run(b.st, 400, 6000);
+  assert.equal(w.tileId, b.at(0, 2));
+});
+
+test('move: guards ownership, passability and non-moving units; bad orders change nothing', () => {
+  const b = makeBattle({
+    rows: ['R.~.B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }, { owner: 'Blue', type: 'militiaman', at: [4, 0] }, { owner: 'Blue', type: 'bastion', at: [3, 0] }],
+  });
+  const w = b.unit('Red');
+  const enemy = b.unit('Blue');
+  assert.equal(move(b.st, 'Red', [enemy.id], b.at(1, 0), 0).ok, false);
+  assert.equal(move(b.st, 'Red', [w.id], b.at(2, 0), 0).ok, false, 'water');
+  assert.equal(move(b.st, 'Red', [w.id], 999, 0).ok, false, 'off the map');
+  assert.equal(move(b.st, 'Red', [w.id], b.at(4, 0), 0).ok, false, 'unreachable across the water');
+  assert.equal(move(b.st, 'Red', [w.id], b.at(0, 0), 0).ok, false, 'already there');
+  assert.equal(move(b.st, 'Blue', [b.unit('Blue', 1).id], b.at(4, 0), 0).ok, false, 'a Bastion cannot move');
+  assert.equal(move(b.st, 'Red', [], b.at(1, 0), 0).ok, false);
+  assert.equal(E.applyCommand(b.st, 'Nobody', { kind: 'move', unitIds: [w.id], toTileId: 1 }, 0).ok, false);
+  assert.equal(E.applyCommand(b.st, 'Red', { kind: 'dance' }, 0).ok, false);
+  assert.equal(E.applyCommand(b.st, 'Red', null, 0).ok, false);
+  assert.deepEqual(w.path, []);
+  assert.deepEqual(enemy.path, []);
+});
+
+test('move: a stalled loop does not fast-forward units through a backlog of steps', () => {
+  const b = makeBattle({ rows: ['R........B'], units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }] });
+  const w = b.unit('Red');
+  move(b.st, 'Red', [w.id], b.at(8, 0), 0);
+  // 30 s pass in one call, clamped to WF_MAX_DT_MS: the unit finishes the step it was
+  // on, then only walks what fits in that last second, not 30 s worth of tiles.
+  E.stepSim(b.st, 30000, { now: 30000 });
+  assert.equal(E.tileXY(w.tileId, 10).x, 2);
+  assert.equal(w.stepEndsAt, 30000 - E.WF_MAX_DT_MS + 2 * E.WF_STEP_MS_BASE);
+});
+
+test('arriving on a weapon token or a mineral drop collects it', () => {
+  const b = makeBattle({
+    rows: ['R....B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }],
+    weapons: [[2, 0, 'artillery']],
+  });
+  b.st.pickups.mineralDrops[b.at(3, 0)] = 3;
+  const w = b.unit('Red');
+  move(b.st, 'Red', [w.id], b.at(3, 0), 0);
+  const events = [];
+  for (let now = 200; now <= 3000; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  assert.deepEqual(b.st.armies.Red.arsenal, ['artillery']);
+  assert.deepEqual(b.st.pickups.weapons, []);
+  assert.equal(b.st.armies.Red.minerals, 3);
+  assert.deepEqual(b.st.pickups.mineralDrops, {});
+  assert.deepEqual(events.map((e) => [e.type, e.weaponId || e.minerals]), [['pickup', 'artillery'], ['pickup', 3]]);
+});
+
+test('stepSim advances tick and the clock', () => {
+  const b = makeBattle({ rows: ['R..B'] });
+  E.stepSim(b.st, 200, { now: 200 });
+  E.stepSim(b.st, 200, { now: 400 });
+  assert.equal(b.st.tick, 2);
+  assert.equal(b.st.clock.lastTickAt, 400);
+});
+
+test('fog: an enemy 3 tiles away is hidden, at 2 it shows', () => {
+  const b = makeBattle({
+    rows: ['R.........B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [5, 0] }, { owner: 'Blue', type: 'militiaman', at: [8, 0] }],
+  });
+  const enemy = b.unit('Blue');
+  let view = E.viewForPlayer(b.st, 'Red');
+  assert.deepEqual(view.units.map((u) => u.owner), ['Red']);
+  assert.equal(view.visible[b.at(8, 0)], '0');
+  assert.equal(view.visible[b.at(7, 0)], '1');
+  enemy.tileId = b.at(7, 0);
+  view = E.viewForPlayer(b.st, 'Red');
+  assert.deepEqual(view.units.map((u) => u.owner).sort(), ['Blue', 'Red']);
+  // The own base also gives vision.
+  assert.equal(view.visible[b.at(2, 0)], '1');
+  assert.equal(view.visible[b.at(3, 0)], '1', 'from the warrior at x=5');
+  // Each side sees its own units no matter what.
+  assert.ok(E.viewForPlayer(b.st, 'Blue').units.some((u) => u.owner === 'Blue'));
+});
+
+test('fog: an enemy shows only the tile it steps onto, never its destination; own units show the path', () => {
+  const b = makeBattle({
+    rows: ['R......B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [2, 0] }, { owner: 'Blue', type: 'militiaman', at: [4, 0] }],
+  });
+  move(b.st, 'Blue', [b.unit('Blue').id], b.at(0, 0), 0);
+  const seen = E.viewForPlayer(b.st, 'Red').units.find((u) => u.owner === 'Blue');
+  assert.equal(seen.nextTileId, b.at(3, 0));
+  assert.equal(seen.path, undefined);
+  const own = E.viewForPlayer(b.st, 'Blue').units.find((u) => u.owner === 'Blue');
+  assert.deepEqual(own.path, [3, 2, 1, 0].map((x) => b.at(x, 0)));
+});
+
+test('fog: an enemy hauler\'s carrying is absent outside vision and shown inside it', () => {
+  const b = makeBattle({
+    rows: ['R.........B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [3, 0] }, { owner: 'Blue', type: 'laborer', at: [8, 0] }],
+  });
+  b.unit('Blue').carrying = 4;
+  const enemies = (view) => view.units.filter((u) => u.owner === 'Blue');
+  assert.deepEqual(enemies(E.viewForPlayer(b.st, 'Red')), [], 'nothing about the hauler leaks');
+  assert.ok(!JSON.stringify(E.viewForPlayer(b.st, 'Red')).includes('"carrying":4'));
+  b.unit('Blue').tileId = b.at(5, 0);
+  const seen = E.viewForPlayer(b.st, 'Red').units.find((u) => u.owner === 'Blue');
+  assert.equal(seen.carrying, 4);
+});
+
+test('fog: a spectator with no army sees no units; events are filtered by team and vision', () => {
+  const b = makeBattle({
+    rows: ['R.........B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [1, 0] }, { owner: 'Blue', type: 'militiaman', at: [9, 0] }],
+  });
+  const view = E.viewForPlayer(b.st, 'Watcher');
+  assert.deepEqual(view.units, []);
+  assert.equal(view.me, null);
+  assert.ok(!view.visible.includes('1'));
+  const events = [{ type: 'pickup', tileId: b.at(9, 0), owner: 'Blue', team: 'blue' }];
+  assert.deepEqual(E.eventsForPlayer(b.st, 'Red', events), []);
+  assert.equal(E.eventsForPlayer(b.st, 'Blue', events).length, 1);
+  assert.deepEqual(E.eventsForPlayer(b.st, 'Watcher', events), []);
+});
+
+test('the same orders and seed give the same world (no hidden clock or randomness)', () => {
+  const play = () => {
+    const b = makeBattle({
+      rows: ['R..f..h..~', '.........B', '...#......'],
+      units: [{ owner: 'Red', type: 'raider', at: [0, 1] }, { owner: 'Blue', type: 'outrider', at: [9, 1] }],
+    });
+    move(b.st, 'Red', [b.unit('Red').id], b.at(8, 2), 0);
+    move(b.st, 'Blue', [b.unit('Blue').id], b.at(0, 0), 0);
+    run(b.st, 0, 3000);
+    move(b.st, 'Red', [b.unit('Red').id], b.at(2, 0), 3000);
+    run(b.st, 3000, 12000);
+    return JSON.stringify(b.st);
+  };
+  assert.equal(play(), play());
+});

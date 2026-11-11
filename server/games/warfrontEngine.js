@@ -629,6 +629,7 @@ function makeUnit(id, type, owner, tileId) {
     owner,
     carrying: 0,
     path: [],
+    stepStartedAt: 0,
     stepEndsAt: 0,
     atkReadyAt: 0,
     haul: null,
@@ -687,6 +688,225 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
   };
 }
 
+// ---------------------------------------------------------------------------
+// Lookups
+// ---------------------------------------------------------------------------
+
+function teamOf(state, name) {
+  const a = state.armies[name];
+  return a ? a.team : null;
+}
+
+/** Every unit on the field, with its army's team: [{ unit, owner, team }]. */
+function allUnits(state) {
+  const out = [];
+  for (const [owner, a] of Object.entries(state.armies)) {
+    for (const u of a.units) out.push({ unit: u, owner, team: a.team });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Movement (spec "Movement (grid-step, real time)")
+// ---------------------------------------------------------------------------
+
+/** Time to walk onto `toTileId`: WF_STEP_MS_BASE ÷ Move × the entered tile's move cost. */
+function stepMs(map, unitType, toTileId) {
+  const move = UNIT_TYPES[unitType].move;
+  const cost = TERRAIN_TYPES[terrainAt(map, toTileId)].moveCost;
+  return Math.round((WF_STEP_MS_BASE / move) * cost);
+}
+
+const MAX_UNITS_PER_COMMAND = WF_MAX_UNITS_PER_PLAYER;
+
+/**
+ * Sends one unit toward `to`. A unit already mid-step finishes that step first
+ * (its next tile is kept and the new path continues from there), so a re-issued
+ * order never snaps a unit backwards. Returns false when there's nowhere to go.
+ */
+function orderMove(state, unit, to, now) {
+  const { map } = state;
+  // Mid-step (or a finished step the next sim step hasn't applied yet): keep it.
+  if (unit.path.length) {
+    const next = unit.path[0];
+    if (next !== to && !bfsPath(map, next, to).length) return false;
+    unit.path = next === to ? [next] : [next, ...bfsPath(map, next, to)];
+  } else {
+    const path = bfsPath(map, unit.tileId, to);
+    if (!path.length) return false;
+    unit.path = path;
+    unit.stepStartedAt = now;
+    unit.stepEndsAt = now + stepMs(map, unit.type, path[0]);
+  }
+  unit.haul = null;
+  return true;
+}
+
+/**
+ * Applies one player command instantly (spec "Commands"). Pure apart from
+ * mutating `state`; returns { ok: true } or { ok: false, error }. An invalid
+ * command changes nothing.
+ */
+function applyCommand(state, name, cmd, now) {
+  const army = state.armies[name];
+  if (!army) return { ok: false, error: 'You have no army in this battle' };
+  if (!cmd || typeof cmd !== 'object') return { ok: false, error: 'Invalid command' };
+  if (cmd.kind === 'move') {
+    const { unitIds, toTileId } = cmd;
+    if (!Array.isArray(unitIds) || !unitIds.length || unitIds.length > MAX_UNITS_PER_COMMAND) {
+      return { ok: false, error: 'Pick some units first' };
+    }
+    if (!isPassable(state.map, toTileId)) return { ok: false, error: "Units can't go there" };
+    const wanted = new Set(unitIds);
+    const units = army.units.filter((u) => wanted.has(u.id) && UNIT_TYPES[u.type].move > 0);
+    if (!units.length) return { ok: false, error: 'Those units are not yours to move' };
+    let moved = 0;
+    for (const u of units) if (orderMove(state, u, toTileId, now)) moved++;
+    if (!moved) return { ok: false, error: 'Already there' };
+    return { ok: true, moved };
+  }
+  return { ok: false, error: 'Unknown command' };
+}
+
+/** Collects whatever lies on the tile a unit just walked onto. */
+function arriveAt(state, owner, unit, events) {
+  const army = state.armies[owner];
+  const { pickups } = state;
+  const wi = pickups.weapons.findIndex((w) => w.tileId === unit.tileId);
+  if (wi >= 0) {
+    const [w] = pickups.weapons.splice(wi, 1);
+    army.arsenal.push(w.weaponId);
+    events.push({ type: 'pickup', tileId: unit.tileId, owner, team: army.team, weaponId: w.weaponId });
+  }
+  const drop = pickups.mineralDrops[unit.tileId];
+  if (drop) {
+    delete pickups.mineralDrops[unit.tileId];
+    army.minerals += drop;
+    events.push({ type: 'pickup', tileId: unit.tileId, owner, team: army.team, minerals: drop });
+  }
+}
+
+/**
+ * Walks every unit with a path through each step that finishes by `now`. A
+ * new step starts when the last one ended, but never earlier than this sim
+ * step began (`now - dtMs`), so a stalled loop or a restart can't fast-forward
+ * a unit through a long backlog of steps.
+ */
+function stepMovement(state, dtMs, now, events) {
+  const floor = now - dtMs;
+  for (const { unit, owner } of allUnits(state)) {
+    while (unit.path.length && unit.stepEndsAt <= now) {
+      unit.tileId = unit.path.shift();
+      arriveAt(state, owner, unit, events);
+      if (unit.path.length) {
+        unit.stepStartedAt = Math.max(unit.stepEndsAt, floor);
+        unit.stepEndsAt = unit.stepStartedAt + stepMs(state.map, unit.type, unit.path[0]);
+      } else {
+        unit.stepStartedAt = 0;
+        unit.stepEndsAt = 0;
+      }
+    }
+  }
+}
+
+/**
+ * Advances the world by one sim step ending at `now` (`dtMs` long, already
+ * clamped by the caller). Mutates and returns `state` with this step's events.
+ * Systems arrive step by step: movement (Step 5); combat, economy, events and
+ * the win check come later.
+ */
+function stepSim(state, dtMs, { now }) {
+  const events = [];
+  const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
+  stepMovement(state, dt, now, events);
+  state.tick += 1;
+  state.clock.lastTickAt = now;
+  return { state, events };
+}
+
+// ---------------------------------------------------------------------------
+// Fog of war + per-viewer view (spec "Fog of war")
+// ---------------------------------------------------------------------------
+
+/** Tiles a team can see: Manhattan WF_VISION around its units and its base. */
+function visionFor(state, team) {
+  const { width, height } = state.map;
+  const seen = new Set();
+  if (!team) return seen;
+  const sources = new Set([state.bases[team].tileId]);
+  for (const { unit, team: t } of allUnits(state)) if (t === team) sources.add(unit.tileId);
+  for (const src of sources) {
+    const { x, y } = tileXY(src, width);
+    for (let dy = -WF_VISION; dy <= WF_VISION; dy++) {
+      const span = WF_VISION - Math.abs(dy);
+      for (let dx = -span; dx <= span; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < width && ny < height) seen.add(tileId(nx, ny, width));
+      }
+    }
+  }
+  return seen;
+}
+
+/**
+ * The live (dynamic) part of the battle as `name` may see it. Own team: every
+ * unit with its full path. Enemies: only units on a tile in the team's vision,
+ * with just the tile they're stepping onto (never their destination), and a
+ * Worker's `carrying` only then. Spectators (no army) see no units at all.
+ * `visible` is a '0'/'1' string per tile (row-major). Static map features are
+ * in the wfState payload, not here.
+ */
+function viewForPlayer(state, name) {
+  const army = state.armies[name] || null;
+  const team = army ? army.team : null;
+  const vision = visionFor(state, team);
+  const units = [];
+  for (const { unit: u, owner, team: t } of allUnits(state)) {
+    if (!team) break;
+    const v = { id: u.id, type: u.type, tileId: u.tileId, hp: u.hp, owner, team: t };
+    if (t === team) {
+      v.path = u.path.slice();
+      v.stepStartedAt = u.stepStartedAt;
+      v.stepEndsAt = u.stepEndsAt;
+      v.carrying = u.carrying;
+      v.haul = u.haul;
+    } else {
+      if (!vision.has(u.tileId)) continue;
+      if (u.path.length) {
+        v.nextTileId = u.path[0];
+        v.stepStartedAt = u.stepStartedAt;
+        v.stepEndsAt = u.stepEndsAt;
+      }
+      if (u.class === 'worker') v.carrying = u.carrying;
+    }
+    units.push(v);
+  }
+  let visible = '';
+  for (let i = 0; i < state.map.width * state.map.height; i++) visible += vision.has(i) ? '1' : '0';
+  return {
+    tick: state.tick,
+    bases: state.bases,
+    clock: state.clock,
+    event: state.event,
+    me: army ? { supply: army.supply, minerals: army.minerals, arsenal: army.arsenal.slice() } : null,
+    units,
+    visible,
+    pickups: {
+      weapons: state.pickups.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
+      mineralDrops: { ...state.pickups.mineralDrops },
+    },
+  };
+}
+
+/** The events of one step that `name` may hear about (own team's, or on a tile they can see). */
+function eventsForPlayer(state, name, events) {
+  const team = teamOf(state, name);
+  if (!team || !events.length) return [];
+  const vision = visionFor(state, team);
+  return events.filter((e) => e.team === team || vision.has(e.tileId));
+}
+
 module.exports = {
   WF_STEP_MS_BASE,
   WF_MATCH_CAP_MS,
@@ -722,4 +942,10 @@ module.exports = {
   buildFallbackMap,
   makeUnit,
   createBattleState,
+  stepMs,
+  applyCommand,
+  stepSim,
+  visionFor,
+  viewForPlayer,
+  eventsForPlayer,
 };

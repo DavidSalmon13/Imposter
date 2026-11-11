@@ -16,6 +16,12 @@ const WF_MAX_TEAM_SIZE = 4;
 const TEAMS = ['red', 'blue'];
 // Give up on OpenAI after this long and use the procedural map instead.
 const WF_MAP_TIMEOUT_MS = 25000;
+// The sim loop: advance the world, then push each player their fogged view.
+const WF_TICK_MS = 200;
+const WF_BROADCAST_MS = 200; // == WF_TICK_MS: every tick is broadcast
+
+// roomCode -> interval handle of that room's sim loop (ephemeral, never persisted).
+const wfLoops = new Map();
 
 // Keys within room.state.warfront to persist: all of them (no ephemeral fields in
 // the namespace; the sim-loop interval handles live in a module-local map).
@@ -61,7 +67,8 @@ function createState() {
 }
 
 /** Back-to-lobby reset: keep the host's options, race picks and AI avoid-lists. */
-function clearState(room) {
+function clearState(room, roomCode) {
+  if (roomCode) stopLoop(roomCode); // tickRoom also stops itself once the room isn't playing
   const { phaseConfig, lobbyRaces, mapHistory, eventHistory } = room.state.warfront;
   room.state.warfront = createState();
   Object.assign(room.state.warfront, { phaseConfig, lobbyRaces, mapHistory, eventHistory });
@@ -151,35 +158,23 @@ function wfStatePayload(ctx, room, viewerName) {
 }
 
 /**
- * The battlefield for one viewer: the static map plus their side of the live
- * state. Until fog of war (Step 5) only the viewer's own team's units are sent.
+ * The battlefield for one viewer: the static map and roster (sent once, with
+ * wfState) plus their fogged live view (the same shape wfLive repeats).
  */
 function battlePayload(ctx, room, viewerName) {
   const wf = room.state.warfront;
   const army = wf.armies[viewerName] || null;
-  const myTeam = army ? army.team : null;
   const roster = Object.entries(wf.armies).map(([name, a]) => {
     const p = room.players.get(name);
     return { name, team: a.team, race: a.race, connected: Boolean(p && p.connected) };
   });
-  const units = [];
-  for (const [name, a] of Object.entries(wf.armies)) {
-    if (!myTeam || a.team !== myTeam) continue;
-    for (const u of a.units) {
-      units.push({ id: u.id, type: u.type, tileId: u.tileId, hp: u.hp, owner: name, team: a.team });
-    }
-  }
   return {
     serverNow: Date.now(),
     map: wf.map,
-    bases: wf.bases,
-    clock: wf.clock,
-    myTeam,
+    myTeam: army ? army.team : null,
     myRace: army ? army.race : null,
-    me: army ? { supply: army.supply, minerals: army.minerals, arsenal: army.arsenal } : null,
     roster,
-    units,
-    weapons: wf.pickups ? wf.pickups.weapons : [],
+    ...engine.viewForPlayer(wf, viewerName),
   };
 }
 
@@ -190,6 +185,59 @@ function broadcastWfState(ctx, roomCode, room) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sim loop (one setInterval per playing room)
+// ---------------------------------------------------------------------------
+
+function stopLoop(roomCode) {
+  const handle = wfLoops.get(roomCode);
+  if (handle) clearInterval(handle);
+  wfLoops.delete(roomCode);
+}
+
+function startLoop(ctx, roomCode) {
+  stopLoop(roomCode);
+  const handle = setInterval(() => tickRoom(ctx, roomCode), WF_TICK_MS);
+  // The loop alone never keeps the process alive (tests, shutdown).
+  if (handle && typeof handle.unref === 'function') handle.unref();
+  wfLoops.set(roomCode, handle);
+}
+
+/**
+ * One sim step for a room: clamp dt, step the engine, push every player their
+ * view. Exception-safe: a throw is logged and the next tick runs as normal.
+ */
+function tickRoom(ctx, roomCode) {
+  const room = ctx.rooms.get(roomCode);
+  if (!room || room.game !== 'warfront' || room.phase !== 'playing' || !room.state.warfront.clock) {
+    stopLoop(roomCode);
+    return;
+  }
+  const wf = room.state.warfront;
+  try {
+    const now = Date.now();
+    const dt = Math.min(Math.max(0, now - wf.clock.lastTickAt), engine.WF_MAX_DT_MS);
+    const { events } = engine.stepSim(wf, dt, { now });
+    wf.clock.lastTickAt = now;
+    broadcastLive(ctx, roomCode, room, events);
+  } catch (err) {
+    console.error(`Warfront tick failed in room ${roomCode}:`, err);
+  }
+}
+
+/** Per-socket fogged snapshot (never roomEmit: each view hides different things). */
+function broadcastLive(ctx, roomCode, room, events) {
+  const wf = room.state.warfront;
+  const serverNow = Date.now();
+  for (const [name, p] of room.players.entries()) {
+    if (!p.connected || !p.socketId) continue;
+    ctx.io.to(p.socketId).emit('wfLive', {
+      serverNow,
+      ...engine.viewForPlayer(wf, name),
+      events: engine.eventsForPlayer(wf, name, events),
+    });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Map generation (spec "Map generation")
@@ -293,6 +341,7 @@ async function generateBattle(ctx, roomCode, room) {
   }
   room.phase = 'playing';
   broadcastWfState(ctx, roomCode, room);
+  startLoop(ctx, roomCode);
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +349,7 @@ async function generateBattle(ctx, roomCode, room) {
 // ---------------------------------------------------------------------------
 
 function onChoose(ctx, roomCode, room) {
-  clearState(room);
+  clearState(room, roomCode);
   for (const p of room.players.values()) {
     p.team = null;
     p.leader = false;
@@ -432,6 +481,22 @@ function registerHandlers(ctx, io, socket) {
     callback({ ok: true });
     generateBattle(ctx, roomCode, room);
   });
+
+  // Live orders. Applied the instant they arrive; the next tick shows the result,
+  // so there's no broadcast here.
+  socket.on('wfCommand', (cmd, callback) => {
+    callback = typeof callback === 'function' ? callback : () => {};
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'warfront' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'No battle running' });
+    }
+    const wf = room.state.warfront;
+    const name = socket.data.name;
+    if (!wf.armies[name]) return callback({ ok: false, error: 'You have no army in this battle' });
+    const res = engine.applyCommand(wf, name, cmd, Date.now());
+    callback(res.ok ? { ok: true } : { ok: false, error: res.error });
+  });
 }
 
 module.exports = {
@@ -448,6 +513,12 @@ module.exports = {
   clearState,
   // exported for tests
   WF_MAP_TIMEOUT_MS,
+  WF_TICK_MS,
+  WF_BROADCAST_MS,
+  wfLoops,
+  startLoop,
+  stopLoop,
+  tickRoom,
   generateBattle,
   WF_MIN_TEAM_SIZE,
   WF_MAX_TEAM_SIZE,

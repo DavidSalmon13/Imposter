@@ -9,7 +9,9 @@ code from their own phones; one game runs at a time per room, with a shared
 scoreboard that persists across games. Games today: Imposter, Codenames,
 10 Seconds, Menifot, Music Timeline, All-In or Fold, Mind Meld, Bluff, and
 Warfront (a real-time strategy game still being built step by step from
-`implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`).
+`implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`, driven by
+a per-room `setInterval` sim loop in `server/games/warfront.js` that pushes each player a fogged
+`wfLive` snapshot 5×/s).
 Game rules/UX for each live in `specs/*.md` — read the
 relevant one before changing that game's logic.
 

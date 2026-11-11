@@ -322,6 +322,8 @@ const minimap = $('wf-minimap');
 const infoPortrait = $('wf-info-portrait');
 const infoTitle = $('wf-info-title');
 const infoSub = $('wf-info-sub');
+const infoHp = $('wf-info-hp');
+const infoOrder = $('wf-info-order');
 const armyLabel = $('wf-army-label');
 const supplyEl = $('wf-supply');
 const mineralsEl = $('wf-minerals');
@@ -329,10 +331,23 @@ const menuBtn = $('wf-menu-btn');
 
 let builtFor = null; // clock.startedAt of the battle the world was built for
 let unitLayer = null;
+let orderLayer = null;
+let fogRects = []; // per tile: the fog <rect> on the haze plane
+let decor = []; // [{ tileId, node }]: billboards that dim under fog
+let pickupNodes = new Map(); // tileId -> weapon-token billboard
 let miniUnits = null;
+let miniFog = null;
 let miniView = null;
 let clockTimer = null;
 let clockSkew = 0; // server clock minus ours
+let live = null; // the latest fogged view (wfState's live part, then every wfLive)
+let lastVisible = null;
+const selected = new Set(); // ids of my own selected units
+const stackNodes = new Map(); // stack key -> { node, sig, group }
+let clickNodes = new Map(); // destination tileId -> .click marker
+let ordersSig = '';
+let rafId = null;
+let stripSeen = null; // whether the strip last showed enemies in sight
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -384,7 +399,42 @@ function plateaus(map, terrain, topClass, z) {
       else runs.push({ x0, len: x - x0, y0: y, rows: 1 });
     }
   }
-  return runs.map((r) => platEl(r.x0 * TILE, r.y0 * TILE, r.len * TILE, r.rows * TILE, z, topClass));
+  return runs.map((r) => ({
+    node: platEl(r.x0 * TILE, r.y0 * TILE, r.len * TILE, r.rows * TILE, z, topClass),
+    x0: r.x0, y0: r.y0, cols: r.len, rows: r.rows,
+  }));
+}
+
+/**
+ * A fog sheet: one blurred rect per tile of a cols×rows block starting at (x0, y0),
+ * registered in fogRects so renderFog can lift it where the team can see. `onlyTile`
+ * makes a single-rect sheet (a castle pad) for that tile.
+ */
+function fogSheet(map, x0, y0, cols, rows, onlyTile) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'wf-fog');
+  svg.setAttribute('viewBox', `0 0 ${cols} ${rows}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  // No 3D transform of its own: it lies flat on its ground and paints over it by DOM
+  // order (with a translateZ Chrome dropped the sheet's last row from the raster).
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('filter', 'url(#wf-fog-blur)');
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const id = onlyTile != null ? onlyTile : (y0 + y) * map.width + (x0 + x);
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', x - 0.01);
+      r.setAttribute('y', y - 0.01);
+      r.setAttribute('width', 1.02);
+      r.setAttribute('height', 1.02);
+      g.appendChild(r);
+      fogRects[id].push(r);
+    }
+  }
+  svg.appendChild(g);
+  return svg;
 }
 
 function platEl(x, y, w, h, z, topClass) {
@@ -412,8 +462,14 @@ function buildWorld(data) {
     ...map.bases.map((b) => b.tileId),
     ...map.supplySources.map((f) => f.tileId),
     ...map.veins.map((f) => f.tileId),
-    ...data.weapons.map((f) => f.tileId),
+    ...data.pickups.weapons.map((f) => f.tileId),
   ]);
+  decor = [];
+  pickupNodes = new Map();
+  stackNodes.clear();
+  clickNodes = new Map();
+  ordersSig = '';
+  lastVisible = null;
 
   // Flat ground: water and forest floors, painted on the terrain texture.
   const terrain = el('div', 'terrain');
@@ -436,7 +492,7 @@ function buildWorld(data) {
   ground.forEach((g) => terrain.appendChild(g));
   world.appendChild(terrain);
 
-  // The tap layer (selection and orders arrive with movement, Step 5).
+  // The tap layer: select your stack, then tap where it should go.
   const tiles = el('div', 'tiles');
   tiles.style.gridTemplateColumns = `repeat(${map.width}, ${TILE}px)`;
   tiles.style.gridTemplateRows = `repeat(${map.height}, ${TILE}px)`;
@@ -450,16 +506,22 @@ function buildWorld(data) {
   world.appendChild(tiles);
 
   // Raised ground: grass hills, rocky outcrops, and a stone pad under each castle.
-  plateaus(map, 'hills', 'ptop pt-grass', ELEVATION.hills).forEach((p) => world.appendChild(p));
-  plateaus(map, 'rock', 'ptop pt-rock', ELEVATION.rock).forEach((p) => world.appendChild(p));
-  map.bases.forEach((b) => {
+  const plats = [...plateaus(map, 'hills', 'ptop pt-grass', ELEVATION.hills), ...plateaus(map, 'rock', 'ptop pt-rock', ELEVATION.rock)];
+  plats.forEach((p) => world.appendChild(p.node));
+  const padNodes = map.bases.map((b) => {
     const c = tileCentre(map, b.tileId);
-    world.appendChild(platEl(c.x - 49, c.y - 49, 98, 98, BASE_PAD_Z, 'ptop pt-stone'));
+    const node = platEl(c.x - 49, c.y - 49, 98, 98, BASE_PAD_Z, 'ptop pt-stone');
+    world.appendChild(node);
+    return { node, tileId: b.tileId };
   });
 
   // Billboards, back to front.
   const boards = [];
-  const add = (y, node) => boards.push({ y, node });
+  const add = (y, node, tileId) => {
+    boards.push({ y, node });
+    const bb = node.querySelector('.bb');
+    if (bb) decor.push({ tileId, bb });
+  };
   map.tiles.forEach((t, id) => {
     const c = tileCentre(map, id);
     const z = elevationAt(map, id);
@@ -472,7 +534,7 @@ function buildWorld(data) {
         const tree = ent(c.x + ox, c.y + oy, z);
         tree.appendChild(el('span', 'dec tshadow'));
         tree.appendChild(billboard(noise(id, i + 21) < 0.4 ? TREE_SPRITES.pine : TREE_SPRITES.leaf, Math.round(46 * sc), Math.round(64 * sc)));
-        add(c.y + oy, tree);
+        add(c.y + oy, tree, id);
       }
     } else if (t === 'rock') {
       const boulder = ent(c.x + (noise(id, 3) - 0.5) * 16, c.y + 6, z);
@@ -480,11 +542,11 @@ function buildWorld(data) {
       Object.assign(shadow.style, { width: '60px', height: '28px' });
       boulder.appendChild(shadow);
       boulder.appendChild(billboard(BOULDER_SPRITE, 52, 40));
-      add(c.y + 6, boulder);
+      add(c.y + 6, boulder, id);
     } else if ((t === 'plains' || t === 'hills') && !isFeature.has(id) && noise(id, 5) < 0.35) {
       const bush = ent(c.x + (noise(id, 6) - 0.5) * 50, c.y + (noise(id, 8) - 0.5) * 50, z);
       bush.appendChild(billboard(BUSH_SPRITE, 24, 16));
-      add(c.y, bush);
+      add(c.y, bush, id);
     }
   });
   map.veins.forEach((v) => {
@@ -493,7 +555,7 @@ function buildWorld(data) {
     node.appendChild(el('span', 'dec cglow'));
     if (v.contested) node.appendChild(el('span', 'dec cring'));
     node.appendChild(billboard(crystalSprite(v.richness), 58, 50));
-    add(c.y + 8, node);
+    add(c.y + 8, node, v.tileId);
   });
   map.supplySources.forEach((src) => {
     const c = tileCentre(map, src.tileId);
@@ -502,13 +564,14 @@ function buildWorld(data) {
     Object.assign(shadow.style, { width: '70px', height: '30px' });
     node.appendChild(shadow);
     node.appendChild(billboard(SUPPLY_SPRITE, 60, 56));
-    add(c.y + 10, node);
+    add(c.y + 10, node, src.tileId);
   });
-  data.weapons.forEach((w) => {
+  data.pickups.weapons.forEach((w) => {
     const c = tileCentre(map, w.tileId);
     const node = ent(c.x, c.y + 6, elevationAt(map, w.tileId));
     node.appendChild(billboard(weaponSprite(w.weaponId), 40, 36));
-    add(c.y + 6, node);
+    add(c.y + 6, node, w.tileId);
+    pickupNodes.set(w.tileId, node);
   });
   map.bases.forEach((b) => {
     const c = tileCentre(map, b.tileId);
@@ -516,64 +579,279 @@ function buildWorld(data) {
     node.appendChild(el('span', `dec aura-${b.team}`));
     node.appendChild(el('span', 'dec bshadow'));
     node.appendChild(billboard(CASTLE_SPRITE, 130, 130));
-    add(c.y + 18, node);
+    add(c.y + 18, node, b.tileId);
   });
   boards.sort((a, b) => a.y - b.y).forEach((b) => world.appendChild(b.node));
 
+  orderLayer = el('div', 'wf-orders');
+  world.appendChild(orderLayer);
   unitLayer = el('div', 'wf-units');
   world.appendChild(unitLayer);
+
+  // Fog of war: a haze sheet on the ground (like the mockup's .fogp), plus one on top of
+  // each raised plateau and castle pad so high ground is fogged too.
+  fogRects = map.tiles.map(() => []);
+  const groundFog = fogSheet(map, 0, 0, map.width, map.height);
+  groundFog.insertAdjacentHTML('afterbegin', '<defs><filter id="wf-fog-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.3"></feGaussianBlur></filter></defs>');
+  world.appendChild(groundFog);
+  plats.forEach(({ node, x0, y0, cols, rows }) => node.appendChild(fogSheet(map, x0, y0, cols, rows)));
+  padNodes.forEach(({ node, tileId: id }) => node.appendChild(fogSheet(map, 0, 0, 1, 1, id)));
 
   buildMinimap(map);
 }
 
-/** One stack per occupied tile and team: up to four figures, a count chip and an HP bar. */
-function renderUnits(data) {
-  if (!unitLayer) return;
-  const { map } = data;
-  unitLayer.innerHTML = '';
-  const stacks = new Map();
-  data.units.forEach((u) => {
-    const key = `${u.tileId}:${u.team}`;
-    if (!stacks.has(key)) stacks.set(key, { tileId: u.tileId, team: u.team, units: [] });
-    stacks.get(key).units.push(u);
-  });
-  const nodes = [];
-  stacks.forEach((st) => {
-    const counts = new Map();
-    st.units.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
-    const types = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
-    const figTypes = [];
-    for (let i = 0; figTypes.length < Math.min(st.units.length, 4); i++) figTypes.push(types[i % types.length]);
-    const hp = st.units.reduce((a, u) => a + u.hp, 0);
-    const maxHp = st.units.reduce((a, u) => a + (UNIT_MAX_HP[u.type] || u.hp), 0);
-    const pct = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+// ---------- Units: one stack per tile and team, tweened between ticks ----------
 
-    const c = tileCentre(map, st.tileId);
-    // Two teams on one tile stand apart instead of on top of each other.
-    const shared = stacks.has(`${st.tileId}:${st.team === 'red' ? 'blue' : 'red'}`);
-    const x = c.x + (shared ? (st.team === 'red' ? -16 : 16) : 0);
-    // On a base tile, stand in front of the castle's gate rather than behind its walls.
-    const onBase = map.bases.some((b) => b.tileId === st.tileId);
-    const y = c.y + (onBase ? 44 : 14);
-    const node = ent(x, y, elevationAt(map, st.tileId));
-    node.appendChild(el('span', 'dec sqsh'));
-    node.appendChild(el('span', `dec rg-${st.team}`));
-    const bb = el('div', `bb sqbb tm-${st.team}`);
-    bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : 'hp-y'}" style="width: ${pct}%"></span>`));
-    bb.appendChild(el('span', `chip c-${st.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${st.units.length}`;
-    FORMATIONS[figTypes.length].forEach(([fx, fy], i) => {
-      const fig = el('span', `fig d${i}${st.team !== 'red' ? ' flip' : ''}`);
-      fig.style.left = `${fx}px`;
-      fig.style.top = `${fy}px`;
-      const spw = el('span', 'spw', (UNIT_SPRITES[figTypes[i]] || '').replace('<svg ', '<svg class="sp" '));
-      fig.appendChild(spw);
-      bb.appendChild(fig);
-    });
-    node.appendChild(bb);
-    nodes.push({ y, node });
+const serverNow = () => Date.now() + clockSkew;
+
+/** The tile a unit is stepping onto (own units: path[0]; enemies: nextTileId), or null. */
+function nextTileOf(u) {
+  if (!u.stepEndsAt) return null;
+  if (u.path && u.path.length) return u.path[0];
+  return u.nextTileId != null ? u.nextTileId : null;
+}
+
+/**
+ * Groups units into stacks: everyone of one team standing on one tile, or walking the
+ * same step together. Keyed by the lowest unit id, so a squad keeps its node while it walks.
+ */
+function groupUnits(units) {
+  const byKey = new Map();
+  units.forEach((u) => {
+    const next = nextTileOf(u);
+    const k = next == null ? `${u.team}|${u.tileId}` : `${u.team}|${u.tileId}>${next}@${u.stepEndsAt}`;
+    if (!byKey.has(k)) byKey.set(k, { team: u.team, tileId: u.tileId, next, stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt, units: [] });
+    byKey.get(k).units.push(u);
   });
-  nodes.sort((a, b) => a.y - b.y).forEach((n) => unitLayer.appendChild(n.node));
-  renderMiniUnits(data);
+  const groups = new Map();
+  byKey.forEach((g) => {
+    g.key = `${g.team}:${Math.min(...g.units.map((u) => u.id))}`;
+    groups.set(g.key, g);
+  });
+  return groups;
+}
+
+function stackSig(g, you) {
+  const counts = new Map();
+  g.units.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
+  const hp = g.units.reduce((a, u) => a + u.hp, 0);
+  const sel = g.units.some((u) => u.owner === you && selected.has(u.id));
+  return `${g.team}|${[...counts.entries()].sort().join(',')}|${hp}|${sel ? 1 : 0}`;
+}
+
+/** Builds a stack's billboard (the mockup's squad: ring, figures, count chip, HP bar). */
+function fillStack(node, g, you) {
+  node.innerHTML = '';
+  const counts = new Map();
+  g.units.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
+  const types = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const figTypes = [];
+  for (let i = 0; figTypes.length < Math.min(g.units.length, 4); i++) figTypes.push(types[i % types.length]);
+  const hp = g.units.reduce((a, u) => a + u.hp, 0);
+  const maxHp = g.units.reduce((a, u) => a + (UNIT_MAX_HP[u.type] || u.hp), 0);
+  const pct = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+  const isSel = g.units.some((u) => u.owner === you && selected.has(u.id));
+  const form = FORMATIONS[figTypes.length];
+
+  node.appendChild(el('span', 'dec sqsh'));
+  // Selected: the team ring gives way to a green ring under each figure (mockup).
+  node.appendChild(el('span', `dec ${isSel ? 'rg-unk' : `rg-${g.team}`}`));
+  if (isSel) {
+    form.forEach(([fx, fy]) => {
+      const r = el('span', 'selr');
+      r.style.left = `${fx - 21}px`;
+      r.style.top = `${Math.round((fy - 22) * 0.9)}px`;
+      node.appendChild(r);
+    });
+  }
+  const bb = el('div', `bb sqbb tm-${g.team}`);
+  bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : 'hp-y'}" style="width: ${pct}%"></span>`));
+  bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
+  form.forEach(([fx, fy], i) => {
+    const fig = el('span', `fig d${i}${g.team !== 'red' ? ' flip' : ''}`);
+    fig.style.left = `${fx}px`;
+    fig.style.top = `${fy}px`;
+    fig.appendChild(el('span', 'spw', (UNIT_SPRITES[figTypes[i]] || '').replace('<svg ', '<svg class="sp" ')));
+    bb.appendChild(fig);
+  });
+  node.appendChild(bb);
+}
+
+/** Where a stack stands on a tile: in front of a castle's gate, or beside an enemy stack. */
+function standPoint(map, tileId, team, shared) {
+  const c = tileCentre(map, tileId);
+  const onBase = map.bases.some((b) => b.tileId === tileId);
+  return {
+    x: c.x + (shared ? (team === 'red' ? -16 : 16) : 0),
+    y: c.y + (onBase ? 44 : 14),
+    z: elevationAt(map, tileId),
+  };
+}
+
+/** Positions one stack for the current moment (slides along its step). */
+function placeStack(map, entry, now) {
+  const g = entry.group;
+  let p = standPoint(map, g.tileId, g.team, entry.shared);
+  if (g.next != null && g.stepEndsAt > g.stepStartedAt) {
+    const q = standPoint(map, g.next, g.team, false);
+    const t = Math.max(0, Math.min(1, (now - g.stepStartedAt) / (g.stepEndsAt - g.stepStartedAt)));
+    p = { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t, z: p.z + (q.z - p.z) * t };
+  }
+  const { node } = entry;
+  node.style.left = `${Math.round(p.x)}px`;
+  node.style.top = `${Math.round(p.y)}px`;
+  node.style.transform = p.z ? `translateZ(${Math.round(p.z)}px)` : '';
+}
+
+function renderUnits() {
+  if (!unitLayer || !live || !state) return;
+  const { map } = state;
+  const you = state.you;
+  const groups = groupUnits(live.units);
+  const still = new Set();
+  groups.forEach((g) => {
+    if (g.next == null) still.add(`${g.team}|${g.tileId}`);
+  });
+  stackNodes.forEach((entry, key) => {
+    if (!groups.has(key)) {
+      entry.node.remove();
+      stackNodes.delete(key);
+    }
+  });
+  const fresh = [];
+  groups.forEach((g, key) => {
+    let entry = stackNodes.get(key);
+    if (!entry) {
+      entry = { node: ent(0, 0, 0), sig: '' };
+      stackNodes.set(key, entry);
+      fresh.push({ y: tileCentre(map, g.tileId).y, node: entry.node });
+    }
+    entry.group = g;
+    entry.shared = g.next == null && still.has(`${g.team === 'red' ? 'blue' : 'red'}|${g.tileId}`);
+    const sig = `${stackSig(g, you)}|${entry.shared ? 1 : 0}`;
+    if (sig !== entry.sig) {
+      fillStack(entry.node, g, you);
+      entry.sig = sig;
+    }
+    placeStack(map, entry, serverNow());
+  });
+  fresh.sort((a, b) => a.y - b.y).forEach((f) => unitLayer.appendChild(f.node));
+  renderMiniUnits();
+  startTween();
+}
+
+/** Slides walking stacks every frame between the 5 Hz snapshots. */
+function startTween() {
+  if (rafId) return;
+  const frame = () => {
+    rafId = null;
+    if (!state || state.phase !== 'playing' || !live) return;
+    let moving = false;
+    const now = serverNow();
+    stackNodes.forEach((entry) => {
+      if (entry.group.next != null) {
+        placeStack(state.map, entry, now);
+        moving = true;
+      }
+    });
+    if (moving) rafId = requestAnimationFrame(frame);
+  };
+  rafId = requestAnimationFrame(frame);
+}
+
+// ---------- Orders: dashed march lines + the destination marker ----------
+
+/** A path's corners: the start, every turn, the end. */
+function corners(map, from, path) {
+  const pts = [from, ...path].map((id) => ({ x: id % map.width, y: Math.floor(id / map.width), id }));
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const c = pts[i + 1];
+    if (b.x - a.x !== c.x - b.x || b.y - a.y !== c.y - b.y) out.push(b);
+  }
+  if (pts.length > 1) out.push(pts[pts.length - 1]);
+  return out;
+}
+
+function renderOrders() {
+  if (!orderLayer || !live || !state) return;
+  const { map } = state;
+  const lines = [];
+  const dests = new Set();
+  const seen = new Set();
+  live.units.forEach((u) => {
+    if (u.team !== state.myTeam || !u.path || !u.path.length) return;
+    const mine = u.owner === state.you;
+    const key = `${mine ? 1 : 0}|${u.tileId}|${u.path.join(',')}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    lines.push({ mine, pts: corners(map, u.tileId, u.path) });
+    if (mine) dests.add(u.path[u.path.length - 1]);
+  });
+  const sig = JSON.stringify(lines.map((l) => [l.mine, l.pts.map((p) => p.id)]));
+  if (sig !== ordersSig) {
+    ordersSig = sig;
+    orderLayer.querySelectorAll('.gline').forEach((n) => n.remove());
+    lines.forEach(({ mine, pts }) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = tileCentre(map, pts[i].id);
+        const b = tileCentre(map, pts[i + 1].id);
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        const z = Math.max(elevationAt(map, pts[i].id), elevationAt(map, pts[i + 1].id)) + 2;
+        const last = i === pts.length - 2;
+        const line = el('div', `gline${mine ? '' : ` ally wf-ally-${state.myTeam}`}${last ? '' : ' wf-noarrow'}`);
+        Object.assign(line.style, {
+          left: `${a.x}px`,
+          top: `${a.y}px`,
+          width: `${Math.max(0, len - (last ? 18 : 0))}px`,
+          transform: `translateZ(${z}px) rotate(${ang}deg)`,
+        });
+        orderLayer.appendChild(line);
+      }
+    });
+  }
+  // Destination markers are keyed so their pulse doesn't restart every tick.
+  clickNodes.forEach((node, id) => {
+    if (!dests.has(id)) {
+      node.remove();
+      clickNodes.delete(id);
+    }
+  });
+  dests.forEach((id) => {
+    if (clickNodes.has(id)) return;
+    const c = tileCentre(map, id);
+    const node = el('div', 'click');
+    Object.assign(node.style, { left: `${c.x}px`, top: `${c.y}px`, transform: `translateZ(${elevationAt(map, id) + 2}px)` });
+    orderLayer.appendChild(node);
+    clickNodes.set(id, node);
+  });
+}
+
+// ---------- Fog of war ----------
+
+function renderFog() {
+  if (!live || live.visible === lastVisible || !fogRects.length) return;
+  const vis = live.visible;
+  fogRects.forEach((rects, id) => rects.forEach((r) => r.setAttribute('class', vis[id] === '1' ? '' : 'on')));
+  decor.forEach(({ tileId, bb }) => bb.classList.toggle('dim', vis[tileId] !== '1'));
+  renderMiniFog(vis);
+  lastVisible = vis;
+}
+
+/** Weapon tokens disappear once someone walks over them. */
+function renderPickups() {
+  if (!live) return;
+  const left = new Set(live.pickups.weapons.map((w) => w.tileId));
+  pickupNodes.forEach((node, tileId) => {
+    if (!left.has(tileId)) {
+      node.remove();
+      pickupNodes.delete(tileId);
+      decor = decor.filter((d) => d.bb.parentNode !== node);
+    }
+  });
 }
 
 // Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES).
@@ -611,6 +889,9 @@ function buildMinimap(map) {
     const c = tileCentre(map, b.tileId);
     minimap.appendChild(miniRect(c.x / 10 - 3.5, c.y / 10 - 3.5, 7, 7, b.team === 'red' ? '#ff5a5f' : '#4f93ff', '1px'));
   });
+  miniFog = el('span');
+  Object.assign(miniFog.style, { position: 'absolute', inset: '0' });
+  minimap.appendChild(miniFog);
   miniUnits = el('span');
   Object.assign(miniUnits.style, { position: 'absolute', inset: '0' });
   minimap.appendChild(miniUnits);
@@ -619,17 +900,37 @@ function buildMinimap(map) {
   minimap.appendChild(miniView);
 }
 
-function renderMiniUnits(data) {
-  if (!miniUnits) return;
+function renderMiniUnits() {
+  if (!miniUnits || !live) return;
   miniUnits.innerHTML = '';
   const seen = new Set();
-  data.units.forEach((u) => {
+  live.units.forEach((u) => {
     const key = `${u.tileId}:${u.team}`;
     if (seen.has(key)) return;
     seen.add(key);
-    const c = tileCentre(data.map, u.tileId);
+    const c = tileCentre(state.map, u.tileId);
     miniUnits.appendChild(miniRect(c.x / 10 - 2, c.y / 10 + 1, 4, 4, u.team === 'red' ? '#ff5a5f' : '#4f93ff', '50%'));
   });
+}
+
+/** Fogged tiles darken on the minimap too (the mockup's dark edge over unseen ground). */
+function renderMiniFog(vis) {
+  if (!miniFog) return;
+  miniFog.innerHTML = '';
+  const { map } = state;
+  const s2 = TILE / 10;
+  for (let y = 0; y < map.height; y++) {
+    let x = 0;
+    while (x < map.width) {
+      if (vis[y * map.width + x] === '1') {
+        x++;
+        continue;
+      }
+      const x0 = x;
+      while (x < map.width && vis[y * map.width + x] !== '1') x++;
+      miniFog.appendChild(miniRect(x0 * s2, y * s2, (x - x0) * s2, s2, 'rgba(0,0,0,.6)'));
+    }
+  }
 }
 
 /** Viewport box on the minimap + the ◀ ▶ edge hints. */
@@ -712,49 +1013,137 @@ function renderStrip(data) {
       p.connected ? RACE_NAMES[p.race].toLowerCase() : 'offline');
   });
   if (enemies.length) {
+    // The mockup's "hidden" now says whether any of them are inside your vision.
     const t = enemies[0].team;
-    line('#4c5b69', `${t.toUpperCase()} ×${enemies.length}`, teamColour(t), 'hidden');
+    const seen = Boolean(live && live.units.some((u) => u.team === t));
+    line(seen ? '#ffcc33' : '#4c5b69', `${t.toUpperCase()} ×${enemies.length}`, teamColour(t), seen ? 'in sight' : 'hidden');
   }
 }
 
 function renderBattle(data) {
-  clockSkew = data.serverNow ? data.serverNow - Date.now() : 0;
   const fresh = builtFor !== data.clock.startedAt;
   if (fresh) {
+    selected.clear();
     buildWorld(data);
     builtFor = data.clock.startedAt;
   }
-  renderUnits(data);
-  renderHp('red', data.bases.red);
-  renderHp('blue', data.bases.blue);
-  renderStrip(data);
-  tickClock();
   clearInterval(clockTimer);
   clockTimer = setInterval(tickClock, 1000);
-
-  const team = data.myTeam || 'red';
-  infoPortrait.className = `scan tm-${team}`;
-  infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
-  infoTitle.textContent = data.map.theme;
-  infoSub.textContent = data.map.lore || '';
-  if (data.me) {
-    armyLabel.textContent = `Army · ${RACE_NAMES[data.myRace]}`;
-    supplyEl.textContent = Math.floor(data.me.supply);
-    mineralsEl.textContent = Math.floor(data.me.minerals);
-  } else {
-    armyLabel.textContent = 'Watching · no army this match';
-    supplyEl.textContent = '–';
-    mineralsEl.textContent = '–';
-  }
+  stripSeen = null;
+  applyLive(data);
 
   ctx.showScreen('warfront');
   if (fresh) {
     // Start the camera on your own castle (needs the screen laid out first).
     requestAnimationFrame(() => {
-      const home = data.map.bases.find((b) => b.team === team);
+      const home = data.map.bases.find((b) => b.team === (data.myTeam || 'red'));
       lookAt(data.map, home ? home.tileId : 0);
     });
   }
+}
+
+/** One fogged snapshot (from wfState, then every wfLive tick). */
+function applyLive(view) {
+  if (!state || state.phase !== 'playing' || !view || !view.units) return;
+  if (view.serverNow) clockSkew = view.serverNow - Date.now();
+  live = view;
+  // Drop selected units that are gone (dead, or no longer mine).
+  const mine = new Set(view.units.filter((u) => u.owner === state.you).map((u) => u.id));
+  [...selected].forEach((id) => {
+    if (!mine.has(id)) selected.delete(id);
+  });
+  const seen = view.units.some((u) => u.team !== state.myTeam);
+  if (seen !== stripSeen) {
+    stripSeen = seen;
+    renderStrip(state);
+  }
+  renderFog();
+  renderPickups();
+  renderUnits();
+  renderOrders();
+  renderHp('red', view.bases.red);
+  renderHp('blue', view.bases.blue);
+  tickClock();
+  renderInfo();
+  if (view.me) {
+    armyLabel.textContent = `Army · ${RACE_NAMES[state.myRace]}`;
+    supplyEl.textContent = Math.floor(view.me.supply);
+    mineralsEl.textContent = Math.floor(view.me.minerals);
+  } else {
+    armyLabel.textContent = 'Watching · no army this match';
+    supplyEl.textContent = '–';
+    mineralsEl.textContent = '–';
+  }
+}
+
+const UNIT_NAMES = {
+  laborer: 'Laborer', peon: 'Peon', acolyte: 'Acolyte',
+  militiaman: 'Militiaman', crossbow: 'Crossbow', outrider: 'Outrider', bastion: 'Bastion', ballista: 'Ballista',
+  warrior: 'Warrior', skirmisher: 'Skirmisher', raider: 'Raider', berserker: 'Berserker', warchief: 'Warchief',
+  apprentice: 'Apprentice', mysticArcher: 'Mystic Archer', battlemage: 'Battlemage', summoner: 'Summoner', archmage: 'Archmage', golem: 'Golem',
+};
+const plural = (name, n) => (n === 1 ? name : name.endsWith('man') ? `${name.slice(0, -3)}men` : `${name}s`);
+const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1}-${(id % map.width) + 1}`;
+
+/** The console's info well: the selected stack (mockup), or the battlefield's name and lore. */
+function renderInfo() {
+  const { map } = state;
+  const team = state.myTeam || 'red';
+  const sel = live.units.filter((u) => u.owner === state.you && selected.has(u.id));
+  infoPortrait.className = `scan tm-${team}`;
+  infoHp.innerHTML = '';
+  if (!sel.length) {
+    infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
+    infoTitle.textContent = map.theme;
+    infoSub.textContent = map.lore || '';
+    infoOrder.textContent = state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
+    return;
+  }
+  const counts = new Map();
+  sel.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
+  const [lead] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  infoPortrait.innerHTML = (UNIT_SPRITES[lead] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
+  infoTitle.textContent = counts.size === 1 ? `${plural(UNIT_NAMES[lead], sel.length)} ×${sel.length}` : `Squad ×${sel.length}`;
+  const here = sel[0].tileId;
+  infoSub.textContent = `${RACE_NAMES[state.myRace]} · ${map.tiles[here]}`;
+  sel.slice(0, 10).forEach((u) => {
+    const max = UNIT_MAX_HP[u.type] || u.hp;
+    const c = u.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
+    const pip = el('span');
+    Object.assign(pip.style, { width: '20px', height: '5px', background: c, boxShadow: `0 0 4px ${c}` });
+    infoHp.appendChild(pip);
+  });
+  const dest = sel.find((u) => u.path && u.path.length);
+  infoOrder.textContent = dest ? `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}` : '▸ TAP A TILE TO MOVE';
+}
+
+/** Tap on the battlefield: pick up your stack on that tile, or send the selection there. */
+function onTileTap(tileId) {
+  if (!state || state.phase !== 'playing' || !live || !state.myTeam) return;
+  const mineHere = live.units.filter((u) => u.owner === state.you && u.tileId === tileId).map((u) => u.id);
+  const selHere = mineHere.filter((id) => selected.has(id));
+  if (mineHere.length && (!selected.size || selHere.length < mineHere.length)) {
+    // Select (or switch to) the stack on this tile.
+    selected.clear();
+    mineHere.forEach((id) => selected.add(id));
+    sfx.click();
+    haptics.tap();
+  } else if (mineHere.length && selHere.length === mineHere.length && selected.size === selHere.length) {
+    selected.clear(); // tapping your selected stack again lets go of it
+  } else if (selected.size) {
+    const unitIds = [...selected];
+    ctx.socket.emit('wfCommand', { kind: 'move', unitIds, toTileId: tileId }, (res) => {
+      if (res && !res.ok) {
+        sfx.error();
+        haptics.warn();
+      }
+    });
+    haptics.tap();
+  } else {
+    return;
+  }
+  renderUnits();
+  renderInfo();
 }
 
 /** Mouse drag-to-pan (touch already pans the scrolling viewport natively). */
@@ -773,9 +1162,11 @@ function enableMousePan() {
     vp.scrollTop = drag.top - dy;
   });
   window.addEventListener('pointerup', () => {
+    if (drag && drag.moved) suppressClickUntil = Date.now() + 50;
     drag = null;
   });
 }
+let suppressClickUntil = 0;
 
 function applyState(data) {
   if (!data || data.game !== 'warfront') return;
@@ -783,6 +1174,7 @@ function applyState(data) {
   if (data.phase !== 'playing') {
     clearInterval(clockTimer);
     clockTimer = null;
+    live = null;
   }
   if (data.phase === 'teamSelect') {
     applyTeamSelect(data);
@@ -840,6 +1232,12 @@ export const Warfront = {
     });
 
     socket.on('wfState', applyState);
+    socket.on('wfLive', applyLive);
+    world.addEventListener('click', (e) => {
+      if (Date.now() < suppressClickUntil) return;
+      const tile = e.target.closest('.tile');
+      if (tile) onTileTap(Number(tile.dataset.tile));
+    });
     socket.on('wfNotice', ({ text }) => {
       clearTimeout(errorTimer);
       errorEl.classList.add('wf-notice');
@@ -858,7 +1256,11 @@ export const Warfront = {
 
   stop() {
     state = null;
+    live = null;
     builtFor = null;
+    selected.clear();
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
     clearInterval(clockTimer);
     clockTimer = null;
     clearTimeout(errorTimer);

@@ -285,7 +285,24 @@ machine can't judge phone smoothness.
   game still reaches `playing`; `repairOnLoad` in `generating` → `teamSelect`.
 - **Browser:** start a battle with and without `OPENAI_API_KEY`; both reach the board.
 
-### Step 5: Loop + movement + fog
+### Step 5: Loop + movement + fog ✅
+Done 2026-11-11. Units carry a new `stepStartedAt` (the client tweens from it to `stepEndsAt`); the
+step time uses the terrain of the tile being **entered**. A re-issued move lets the step in progress
+finish (the new path continues from that tile), so units never snap back. `stepSim` itself bumps
+`tick` and `clock.lastTickAt`, and chains steps from `max(stepEndsAt, now − dt)` so a stall or
+restart can't fast-forward a unit through a backlog. Mineral drops are collected by any unit into
+its owner's 💎 (no drop art yet; drops only appear once combat exists). `wfLive` = `viewForPlayer`
+(own team: full paths; enemies in vision: only the tile they're stepping onto; spectators: no units)
++ `visible` ('0'/'1' per tile) + `eventsForPlayer` (own team's, or on a seen tile). The loop's
+interval is `unref`'d. Client: tap your stack to select it (the mockup's green `.selr` rings),
+tap any other tile to send it, tap it again to let go, tap another own stack to switch (so you
+can't merge onto your own stack by tapping yet: the Move button comes with the console in Step 7);
+`.gline` march lines (teammates' as `.ally`, blue variant added) and a `.click` marker; the info
+well shows the selected stack like the mockup. Fog = a blurred SVG haze sheet per ground plane
+(flat ground, each plateau, each castle pad; no 3D transform on the sheet, which made Chrome drop
+its last row) plus the mockup's `.dim` on billboards in fog; the minimap darkens fogged tiles and
+the player strip says "in sight"/"hidden" for the enemy. `repairOnLoad` doesn't restart the loop yet
+(Step 13): a server restart mid-match freezes the board until then.
 - Engine: `applyCommand` `move` (ownership, passable target, BFS path; empty path = no-op);
   `stepSim` movement (`stepMs` per spec × terrain move cost; advance through as many steps as `dt`
   allows); weapon-token and mineral-drop pickup on arrival; `viewForPlayer` with fog (D: Manhattan

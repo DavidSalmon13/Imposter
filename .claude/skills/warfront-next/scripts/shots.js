@@ -14,7 +14,8 @@
  *   --full   capture the whole scrolling screen instead of one phone viewport
  *
  * If a step adds UI that needs an action first (select a unit, move, open a tab...),
- * add it in the `afterBattle` hook below before the battle screenshots.
+ * add it in the `afterBattle` hook below before the battle screenshots. The hook may take
+ * its own shot to replace 1-team-select.png (Step 5 does: red marching out of its base).
  * Exits non-zero (and prints the page errors) if anything fails.
  */
 
@@ -38,8 +39,91 @@ try {
   process.exit(2);
 }
 
-/** Hook for step-specific actions before the battle screenshots. */
-async function afterBattle(/* host, bob */) {}
+/** The latest wfState payload a page received (parsed from its socket.io frames). */
+function trackWfState(page) {
+  page.wfState = null;
+  page.on('websocket', (ws) => {
+    ws.on('framereceived', ({ payload }) => {
+      if (typeof payload !== 'string' || !payload.startsWith('42["wfState"')) return;
+      try {
+        page.wfState = JSON.parse(payload.slice(2))[1];
+      } catch (e) {
+        // not ours
+      }
+    });
+  });
+}
+
+/** Taps one battlefield tile (the .tiles buttons under the tilted world). */
+async function tapTile(page, tileId) {
+  const tile = page.locator(`#wf-world .tile[data-tile="${tileId}"]`);
+  await tile.scrollIntoViewIfNeeded();
+  await tile.click({ force: true });
+}
+
+/**
+ * Step 5 (movement + fog): red selects its Workers and marches out (shot 1 replaces the
+ * team-select shot: selection rings, march line, destination marker, fog around the base),
+ * both sides meet in the middle, then red pushes on toward the blue base (shot 2) while
+ * blue watches the red stack inside its vision (shot 3).
+ *
+ * `shot(page, screenSel, file)` saves a screenshot. Return the file name of a shot that
+ * replaces 1-team-select.png, or nothing to keep the team-select shot.
+ */
+async function afterBattle(host, bob, shot) {
+  const st = host.wfState;
+  if (!st || !st.map) throw new Error('no battlefield state captured');
+  const { map } = st;
+  const base = (team) => map.bases.find((b) => b.team === team).tileId;
+  const at = (x, y) => y * map.width + x;
+  const passableNear = (x, y) => {
+    for (let r = 0; r < 4; r++) {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
+          if (['plains', 'forest', 'hills'].includes(map.tiles[at(nx, ny)])) return at(nx, ny);
+        }
+      }
+    }
+    return at(x, y);
+  };
+  const row = Math.floor(base('red') / map.width);
+  const mid = Math.floor(map.width / 2);
+  const meet = passableNear(mid, row);
+  await tapTile(host, base('red'));
+  await tapTile(host, meet);
+  await tapTile(bob, base('blue'));
+  await tapTile(bob, meet);
+  await host.waitForTimeout(1200);
+  await centreOn(host, 'red');
+  await host.waitForTimeout(300);
+  await shot(host, '#wf-screen', '1-battle-march.png');
+  // Wait until red can see blue's stack (both march to the same tile).
+  await host.waitForSelector('#wf-world .chip.c-blue', { timeout: 40000 });
+  await host.waitForTimeout(1500);
+  // Red pushes on toward the blue side; shoot while it marches.
+  await tapTile(host, base('blue'));
+  await host.waitForTimeout(900);
+  await centreOn(host, 'red');
+  await centreOn(bob, 'blue');
+  await host.waitForTimeout(300);
+  return '1-battle-march.png';
+}
+
+/** Scrolls a phone's camera onto its selected stack (or its own team's first stack). */
+async function centreOn(page, team) {
+  await page.evaluate((t) => {
+    const vp = document.getElementById('wf-vp');
+    const target = document.querySelector('#wf-world .selr') || document.querySelector(`#wf-world .chip.c-${t}`);
+    if (!target) return;
+    const r = target.getBoundingClientRect();
+    const v = vp.getBoundingClientRect();
+    vp.scrollLeft += r.left + r.width / 2 - (v.left + v.width / 2);
+    vp.scrollTop += r.top + r.height / 2 - (v.top + v.height / 2);
+  }, team);
+}
 
 async function main() {
   fs.mkdirSync(outDir, { recursive: true });
@@ -64,6 +148,7 @@ async function main() {
     async function player(name) {
       const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
       const p = await c.newPage();
+      trackWfState(p);
       p.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
       p.on('console', (m) => {
         if (m.type() === 'error' && !/vibrate/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
@@ -107,7 +192,8 @@ async function main() {
     await host.waitForSelector('#wf-screen:not(.hidden)', { timeout: 20000 });
     await bob.waitForSelector('#wf-screen:not(.hidden)', { timeout: 20000 });
     await host.waitForTimeout(1000);
-    await afterBattle(host, bob);
+    const replaced = await afterBattle(host, bob, shot);
+    if (replaced) fs.rmSync(path.join(outDir, '1-team-select.png'), { force: true });
     await shot(host, '#wf-screen', '2-battle-red.png');
     await shot(bob, '#wf-screen', '3-battle-blue.png');
   } finally {
