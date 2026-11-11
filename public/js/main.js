@@ -10,6 +10,7 @@ import { MusicTimeline } from './games/musicTimeline.js';
 import { AllInOrFold } from './games/allInOrFold.js';
 import { MindMeld } from './games/mindMeld.js';
 import { Bluff } from './games/bluff.js';
+import { Warfront } from './games/warfront.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';
@@ -79,6 +80,7 @@ const AIOF_MIN_PLAYERS = 2;
 const MM_MIN_PLAYERS = 3;
 const BF_MIN_PLAYERS = 2;
 const MF_MIN_PLAYERS = 2;
+const WF_MIN_PLAYERS = 2;
 
 // Choose-game errors (e.g. "Need at least N players") should flash briefly, not sit
 // on screen permanently — see lobby fix 2.
@@ -130,7 +132,6 @@ const chooseCodenamesBtn = document.getElementById('choose-codenames-btn');
 const chooseTensSecondsBtn = document.getElementById('choose-tenseconds-btn');
 const chooseMenifotBtn = document.getElementById('choose-menifot-btn');
 const chooseWarfrontBtn = document.getElementById('choose-warfront-btn');
-const warfrontTileSub = document.getElementById('warfront-tile-sub');
 const chooseMindMeldBtn = document.getElementById('choose-mindmeld-btn');
 const chooseBluffBtn = document.getElementById('choose-bluff-btn');
 const chooseAllInOrFoldBtn = document.getElementById('choose-allinorfold-btn');
@@ -518,6 +519,7 @@ function renderLobby(players, scoreboard, playerStickers, playerSignedIn, player
   chooseMenifotBtn.classList.toggle('tile-underfilled', players.length < MF_MIN_PLAYERS);
   chooseMindMeldBtn.classList.toggle('tile-underfilled', players.length < MM_MIN_PLAYERS);
   chooseBluffBtn.classList.toggle('tile-underfilled', players.length < BF_MIN_PLAYERS);
+  chooseWarfrontBtn.classList.toggle('tile-underfilled', players.length < WF_MIN_PLAYERS);
   lastLobbyPlayerCount = players.length;
   updateAiofTile();
 
@@ -548,6 +550,7 @@ MusicTimeline.init(gameCtx);
 AllInOrFold.init(gameCtx);
 MindMeld.init(gameCtx);
 Bluff.init(gameCtx);
+Warfront.init(gameCtx);
 
 const GAMES = {
   imposter: Imposter,
@@ -558,6 +561,7 @@ const GAMES = {
   allinorfold: AllInOrFold,
   mindmeld: MindMeld,
   bluff: Bluff,
+  warfront: Warfront,
 };
 
 function handleJoinResult(res, name) {
@@ -687,19 +691,7 @@ chooseImposterBtn.addEventListener('click', () => chooseGame('imposter'));
 chooseCodenamesBtn.addEventListener('click', () => chooseGame('codenames'));
 chooseTensSecondsBtn.addEventListener('click', () => chooseGame('tenseconds'));
 chooseMenifotBtn.addEventListener('click', () => chooseGame('menifot'));
-// WARFRONT has no server module yet: any player tapping it just sees "Coming soon".
-let warfrontPokeTimer = null;
-chooseWarfrontBtn.addEventListener('click', () => {
-  clearTimeout(warfrontPokeTimer);
-  chooseWarfrontBtn.classList.remove('wip-poked');
-  void chooseWarfrontBtn.offsetWidth; // restart the shake animation
-  chooseWarfrontBtn.classList.add('wip-poked');
-  warfrontTileSub.textContent = 'Coming soon!';
-  warfrontPokeTimer = setTimeout(() => {
-    chooseWarfrontBtn.classList.remove('wip-poked');
-    warfrontTileSub.textContent = 'Under construction';
-  }, 2000);
-});
+chooseWarfrontBtn.addEventListener('click', () => chooseGame('warfront'));
 chooseMindMeldBtn.addEventListener('click', () => chooseGame('mindmeld'));
 chooseBluffBtn.addEventListener('click', () => chooseGame('bluff'));
 

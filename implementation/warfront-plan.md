@@ -230,7 +230,15 @@ differs by ≤ 2; ≤ 8 weapon tokens; features may not share a tile. Also expor
 - Tests: fallback maps pass validation across 200 seeds and all three sizes; hand-built bad maps
   fail with the right reason (disconnected base, missing supply source, bad enum, wrong count).
 
-### Step 3: Module skeleton + team select (first browser step)
+### Step 3: Module skeleton + team select (first browser step) ✅
+Done 2026-11-11. `startWarfront` validates (host/captain, both teams 1–4, every team member has a
+race; unassigned players don't block) then stays in `teamSelect` and sends everyone a `wfNotice`
+("the battlefield is still being built") until Step 4. Teams are capped at 4 (`WF_MAX_TEAM_SIZE`).
+`clearState` keeps `phaseConfig`, `lobbyRaces` and the avoid-lists. `warfront.css` scopes every
+rule through `:is(#wf-team-screen) .wf` so the mockup's buttons beat style.css's global `button`
+hover/active rules; add later screen ids to that `:is()`. Additions the mockup doesn't draw, in its
+style: a "Not on a team" line, a Back to Lobby button, an error/notice line, and bottom padding that
+clears the floating reaction row. Workers have no art yet (needed from Step 4).
 - `warfront.js` with `createState`/`clearState`/`onChoose` (→ `teamSelect`, reset `p.team`/
   `p.leader`), team-select handlers, `broadcastWfState`, `reconnectPayload` for `teamSelect`.
   Register in `gameRegistry.js`.

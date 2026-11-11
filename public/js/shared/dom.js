@@ -25,6 +25,7 @@ export const screens = {
   allInOrFold: document.getElementById('aiof-screen'),
   mindMeld: document.getElementById('mm-screen'),
   bluff: document.getElementById('bf-screen'),
+  warfrontTeam: document.getElementById('wf-team-screen'),
 };
 
 export function showScreen(name) {
@@ -44,6 +45,9 @@ export function showGenerating(game) {
   } else if (game === 'musictimeline') {
     generatingTitle.textContent = 'Picking a song…';
     generatingSubtitle.textContent = 'Asking ChatGPT for a song.';
+  } else if (game === 'warfront') {
+    generatingTitle.textContent = 'Building the battlefield…';
+    generatingSubtitle.textContent = 'Asking ChatGPT to draw a map.';
   } else if (game === 'mindmeld') {
     generatingTitle.textContent = 'Thinking of a question…';
     generatingSubtitle.textContent = 'Asking ChatGPT to come up with a question.';

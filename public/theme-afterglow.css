@@ -413,23 +413,7 @@
 }
 
 :where(:root[data-theme="afterglow"]) #choose-warfront-btn {
-  --tile-grad: linear-gradient(135deg, #64748b, #334155);
-}
-
-/* WARFRONT "under construction" tile: progress bar sits under the name/sub column. */
-:where(:root[data-theme="afterglow"]) .game-tile.tile-wip {
-  grid-template-rows: auto auto auto;
-  padding-bottom: 0.9rem;
-}
-
-:where(:root[data-theme="afterglow"]) .game-tile.tile-wip .game-tile-icon {
-  grid-row: 1 / span 3;
-}
-
-:where(:root[data-theme="afterglow"]) .tile-wip .wip-progress {
-  grid-column: 2;
-  width: 100%;
-  margin: 0.2rem 0 0;
+  --tile-grad: linear-gradient(135deg, #ff5a5f, #7c1418);
 }
 
 :where(:root[data-theme="afterglow"]) #choose-mindmeld-btn {

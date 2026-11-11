@@ -23,6 +23,8 @@ function createRoomState() {
     // (intra-hand sub-state lives in room.state.allinorfold.hand.stage, not room.phase — the client stays on
     // the same table screen for the whole 'playing' phase; only that hand.stage changes the UI.)
     // Bluff phases: 'seating' | 'playing' | 'gameover'
+    // Warfront phases: 'teamSelect' | 'generating' | 'playing' | 'gameover'
+    // Warfront fields live in state.warfront (see server/games/warfront.js createState).
     hostName: null,
     players: new Map(), // name -> { socketId, connected, role, word, hint, vote, team, leader, eliminatedReport }
     wordLanguage: 'english', // 'english' | 'hebrew' - language for ChatGPT-generated words/hints

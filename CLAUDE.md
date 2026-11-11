@@ -6,8 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Shorot: a same-room party game web app. Players join a shared room by 4-character
 code from their own phones; one game runs at a time per room, with a shared
-scoreboard that persists across games. Four games today: Imposter, Codenames,
-10 Seconds, Menifot. Game rules/UX for each live in `specs/*.md` — read the
+scoreboard that persists across games. Games today: Imposter, Codenames,
+10 Seconds, Menifot, Music Timeline, All-In or Fold, Mind Meld, Bluff, and
+Warfront (a real-time strategy game still being built step by step from
+`implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`).
+Game rules/UX for each live in `specs/*.md` — read the
 relevant one before changing that game's logic.
 
 ## Commands

@@ -8,6 +8,7 @@ const musictimeline = require('./games/musicTimeline');
 const allinorfold = require('./games/allInOrFold');
 const mindmeld = require('./games/mindMeld');
 const bluff = require('./games/bluff');
+const warfront = require('./games/warfront');
 
 const GAMES = {
   imposter,
@@ -18,6 +19,7 @@ const GAMES = {
   allinorfold,
   mindmeld,
   bluff,
+  warfront,
 };
 
 /**
