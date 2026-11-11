@@ -35,6 +35,46 @@ the opponents sit right next to you).
   the way `pokerEval.js`/`bluffHands.js` are. The module owns the per-room `setInterval` sim loop
   that drives `stepSim` and broadcasts; the engine itself stays free of sockets/OpenAI/timers.
 
+## Look & feel — the design is binding
+
+**The game must look exactly like the design mockups in `design/warfront/`.** They are the visual
+source of truth the same way this spec is the rules source of truth: layout, colours, typography,
+panels, the 2.5D tilted battlefield, the SVG unit/building/terrain art, team colouring and
+animations all come from there. Build every screen by porting the mockup's markup, CSS and SVG
+(editable originals in `design/warfront/source/*.dc.html`; how they're built is in
+`design/warfront/README.md`) — not by re-creating a look-alike, and never with placeholder emoji
+art. If something here can't be matched (for example the 2.5D camera is too slow on a phone), stop
+and ask; don't silently ship a different look.
+
+| Screen | Mockup |
+|---|---|
+| Team select | `1-team-select.html` |
+| Battlefield (map, HUD, unit stacks, command console, team channel) | `2-battlefield.html` |
+| Unit and structure art, race colours | `2b-unit-roster.html` (+ `source/Units.dc.html`) |
+| Produce panels per race | `2c-command-cards.html` |
+| Live combat effects (movement trails, clash damage numbers, base-hit flashes) | `3-resolution.html` |
+| Game over | `4-game-over.html` |
+
+**The mockups were drawn for the earlier round-based design.** Keep their look, but swap these
+round-based elements for their real-time equivalent, styled with the same components:
+
+| In the mockup | In the real game |
+|---|---|
+| "Planning time" option (team select) | **Match length** option (8 / 12 / 16 min), same segmented control |
+| `RND 7 · PLAN` + per-round countdown (HUD) | **Match clock** counting down to `matchEndsAt` |
+| ▲ Chance card | **Battlefield event** banner with its countdown |
+| Player strip `planning` / `locked` / `hidden` | Player strip shows each teammate's name, race and online status |
+| "Last rd" summary | Removed (combat is live; the `3-resolution` effects play on the map instead) |
+| 💰 single currency, "of 8 · +3/rd" | **🔩 Supply** with its per-second rate **and 💎 Minerals**; unit cards show 🔩 and, for advanced units, 💎 |
+| Move / Hold / Undo / Clear | **Move**, **Haul** (Workers), **Hold**; commands apply instantly so Undo/Clear go away |
+| 🔒 LOCK ORDERS bar | Removed; the console gets **Produce / Build / Weapons** tabs in the same panel style |
+| `3-resolution` as a separate reveal screen | No reveal screen; its march / clash / base-hit visuals become live on-map effects |
+| "round 11" on game over | Match time at the end |
+
+Facilities, towers, veins, hauling Workers, mineral drops, weapon tokens and the Build/Weapons tabs
+aren't drawn in the mockups yet: design them in the same visual language (panel chamfers, glow,
+team colours, the SVG sprite conventions) and add them to the mockups (see the plan's Step 14).
+
 ## Configurable constants
 
 Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the module
@@ -454,8 +494,11 @@ Menifot/Codenames — never via CSS.
   to `room.scoreboard[name]`; the losing team gets 0. A **draw** (match cap, equal HP) awards 0
   to everyone. `ctx.recordGameResult(room, 'warfront', participants)` records lifetime history
   with `{ name, team, won, points }` per player.
-- The `gameover` screen shows the winner, both bases' final HP, the final map, and the shared
-  scoreboard (`renderScoreboard`). A **Play Again** (captain or host) regenerates a **fresh
+- The `gameover` screen (matching `4-game-over.html`) shows the winner, both bases' final HP, the
+  final map, a **per-player battle stats table** — **Kills**, **Lost** (own units lost), **Dmg**
+  (damage dealt to the enemy base) — with a **★ MVP** for the most base damage, and the shared
+  scoreboard (`renderScoreboard`). Stats are tracked live in `armies[name].stats` and are
+  display-only (they don't change points). A **Play Again** (captain or host) regenerates a **fresh
   map** and starts a new battle with the same teams; **Back to Lobby** clears state.
 
 ## Disconnects & reconnect
@@ -493,7 +536,7 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
   expiry, 0 when none).
 - `armies` — `{ [name]: { team, race, supply, minerals, arsenal:[weaponId],
   facilities:[{id,type,tileId}], queues:{ [spawnTileId]:[{unitType,doneAt}] },
-  workshop:[{weaponId,doneAt}], units:[Unit] } }`.
+  workshop:[{weaponId,doneAt}], stats:{kills,lost,baseDmg}, units:[Unit] } }`.
   A **Unit** = `{ id, type, class, tileId, hp, owner, carrying, path:[tileId…], stepEndsAt,
   atkReadyAt, haul:{veinTileId}|null }`. `race` is fixed for the match; `carrying` is a loaded
   Worker's Minerals (0 otherwise); `path`/`stepEndsAt` drive movement; `atkReadyAt` gates the next

@@ -5,6 +5,12 @@ game does); this doc is the source of truth for *how it gets built*: file names,
 event names, the decisions the spec leaves open, and a step order where every step ends in
 something you can run (`npm test`) and play in a browser.
 
+**The game must look exactly like `design/warfront/`** (spec section "Look & feel — the design is
+binding"). Every client step below ports the matching mockup's markup, CSS and SVG directly, from
+the first screen onward; there is no placeholder-art phase. A client step isn't done until its
+screen matches its mockup side by side (open the mockup and the game on the same phone width and
+compare), apart from the round-based elements the spec's swap table replaces.
+
 Read `../specs/warfront-specs.md` in full before Step 1. This doc doesn't repeat rule details, only
 where they land in code. Read `refactor_plan.md` §4 for the game-module contract.
 
@@ -103,7 +109,8 @@ setInterval(WF_TICK_MS) ─► warfront.js tickRoom ──► engine.stepSim(sta
   `codenames.js`).
 - `public/js/games/warfront.js`: client module (`init` / `applyState` / `applyJoin` / `stop`).
 - `public/js/games/warfrontSprites.js`: the unit/building/terrain SVG strings, lifted from
-  `design/warfront/source/Units.dc.html` and `Main.dc.html` (Step 14). Until then, emoji icons.
+  `design/warfront/source/Units.dc.html` and `Main.dc.html`. Created in Step 3 and used by every
+  client step; never emoji placeholders.
 - `public/warfront.css`: `wf-*` styles. A separate file because it'll be large (terrain textures,
   sprites, keyframes); loaded after `theme-afterglow.css`.
 - `tests/helpers/` stays as is; new `tests/games/warfrontEngine.test.js` (pure engine) and
@@ -124,7 +131,8 @@ setInterval(WF_TICK_MS) ─► warfront.js tickRoom ──► engine.stepSim(sta
   `#choose-warfront-btn` once the tile is live.
 - `CLAUDE.md`: "Four games today" is already stale; update the game count/list and mention
   Warfront's sim loop under Architecture.
-- `design/warfront/`: update the mockups to real time (Step 14).
+- `design/warfront/`: add the screens/elements the mockups don't have yet and replace the
+  round-based ones (Step 14).
 
 ## Event & function naming reference
 
@@ -216,9 +224,11 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - `warfront.js` with `createState`/`clearState`/`onChoose` (→ `teamSelect`, reset `p.team`/
   `p.leader`), team-select handlers, `broadcastWfState`, `reconnectPayload` for `teamSelect`.
   Register in `gameRegistry.js`.
-- Client: enable the tile, `#wf-team-screen` (Red/Blue columns, race picker per player, captain
-  button, host options, Randomize, Start). Use `design/warfront/1-team-select.html` as the visual
-  reference.
+- Client: enable the tile, `#wf-team-screen` ported from `design/warfront/1-team-select.html`
+  (Red/Blue columns, race picker, captain button, host options, Randomize, Start), with the mockup's
+  "Planning time" control turned into **Match length** (8 / 12 / 16 min). Create `warfront.css` and
+  `warfrontSprites.js` here, porting the shared panel/typography styles and the race art the screen
+  uses.
 - `startWarfront` at this step just validates and moves to `generating` → immediately back with a
   "next step" toast (or stub straight to Step 4).
 - Tests: join/captain/race/options/randomize guards; Start refused until both teams have
@@ -233,9 +243,13 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - `createBattleState(map, roster, opts)` in the engine: armies, starting Workers, bases at
   `baseHp`, pickups, `seed`, `tick = 0`, clock. `generateBattle` stores it, sets `playing`,
   broadcasts `wfState`. **No loop yet.**
-- Client: `#wf-screen` renders the static map as a CSS grid of tiles (terrain colour + icons for
-  bases, supply sources, veins, weapon tokens) and each player's units as stacks; HUD shows
-  Supply/Minerals/base HP/clock. Pan/scroll the board inside the phone viewport.
+- Client: `#wf-screen` ported from `design/warfront/2-battlefield.html`: the **2.5D tilted world**
+  (`perspective` camera, `rotateX(40deg)` plane, raised ground, cliff walls), terrain textures,
+  billboarded SVG castles/trees/crystals and unit stacks with count badges, the `.tiles` tap layer,
+  drag-to-pan, and the HUD (base HP bars, match clock in place of `RND · PLAN`, 🔩 Supply + 💎
+  Minerals). Supply sources, veins and weapon tokens that the mockup doesn't draw get SVG art in
+  the same style. Check it on a real mid-range phone now: if the 2.5D camera stutters, **stop and
+  ask David** rather than switching to a flat board.
 - Tests: OpenAI mock returns a valid map → used; returns garbage / fails → fallback used and the
   game still reaches `playing`; `repairOnLoad` in `generating` → `teamSelect`.
 - **Browser:** start a battle with and without `OPENAI_API_KEY`; both reach the board.
@@ -270,7 +284,10 @@ table. The spec remains the rules source of truth; change a rule there first, th
   survives longer than plains; Horde luck spread narrower than Arcane's; aoe hits all units on one
   tile and none on the next; contested base takes no damage; a base shoots an adjacent raider; siege cracks a base 3× faster;
   identical seed → identical fight.
-- **Browser:** armies meet and fight without input; HP bars drop; deaths animate.
+- Client: live combat effects ported from `design/warfront/3-resolution.html` (clash damage
+  numbers, march trails, base-hit flash and HP drop), driven by `death`/`baseHit` events.
+- **Browser:** armies meet and fight without input; the effects look like the `3-resolution`
+  frames.
 
 ### Step 7: Economy + production + hauling
 - Engine: Supply accrual (trickle + workers on/adjacent to own supply source + Forge bonus); `produce`
@@ -278,8 +295,10 @@ table. The spec remains the rules source of truth; change a rule there first, th
   Golem); `haul` (auto-loop state machine on the unit: `toVein` → `loading` → `toDeposit` →
   deposit → repeat; contested-vein luck on load rate; nearest deposit = base or own Refinery); plain
   `move` clears `haul`.
-- Client: the command console (Produce tab with own-race unit cards, cost, queue progress); Worker
-  selection shows a Haul button when a vein is tapped; HUD shows Supply rate.
+- Client: the command console ported from `2-battlefield.html` + `2c-command-cards.html` (per-race
+  glow, unit cards with letter keys, greyed when unaffordable), showing 🔩 and, for advanced units,
+  💎 instead of 💰; queue progress; **Move / Haul / Hold** buttons replace Move / Hold / Undo /
+  Clear; the Lock Orders bar is removed. HUD shows the Supply rate per second.
 - Tests: worker-less player still gains trickle; two Workers on the supply source double the
   worker share; produce debits the unit's Supply (+ Minerals for advanced units) immediately (refused if short) and spawns after `buildMsPerCost × cost`; queue is
   sequential; wrong-race produce is a no-op; full haul cycle deposits `carryCap` Minerals; killing a
@@ -291,8 +310,10 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - Module: `finishBattle` stops the loop, sets `winner`/`phase = 'gameover'`, `awardWfScores`
   (+2 per winning-team player, 0 on draw), `ctx.recordGameResult(room, 'warfront', participants)`,
   broadcasts. `playAgainWarfront` regenerates; back-to-lobby clears.
-- Client: `#wf-gameover-screen` (winner banner, final base HP, final map unfogged, shared
-  scoreboard). Reference `design/warfront/4-game-over.html`.
+- Engine: track `armies[name].stats` (`kills`, `lost`, `baseDmg`) during combat.
+- Client: `#wf-gameover-screen` ported from `design/warfront/4-game-over.html` (winner banner,
+  final base HP, final map unfogged, Kills / Lost / Dmg table with ★ MVP for most base damage,
+  Play Again / Back to Lobby, shared scoreboard); "round N" becomes the match time.
 - Tests: base kill ends immediately and awards points; timeout winner by HP; equal HP → draw, 0
   points; `recordGameResult` participants shape; no tick runs after game over.
 - **Browser:** a full match (use a short `matchLength` dev override) through to the scoreboard and
@@ -302,12 +323,16 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - Engine: `build` command (Mineral cost with Forge discount, visible-tile rule D4, one structure per tile,
   Refinery adjacency), structures as `structure` units with build-complete time; Refinery deposit
   point + vein rate +1; Forward Barracks as a spawn point; Workshop weapon queue; Tower auto-attack.
+- Client: Build tab in the console's panel style; SVG art for Refinery, Forward Barracks, Workshop
+  and Tower in the mockups' sprite conventions (team-coloured `.tc` parts, the square iron frames
+  `2c-command-cards` gives structures).
 - Tests: each placement rule; destroying a Refinery stops its effect immediately; Barracks spawn.
 
 ### Step 10: Special weapons
 - Engine: `weapon` command for each id per the spec + numbers table; aegis via
   `bases[team].shieldUntil`; emp via a `disabledUntil` on the structure unit.
-- Client: arsenal tray; firing mode (tap weapon → tap target tile); FX per id.
+- Client: Weapons tab and firing mode (tap weapon → tap target tile) in the console's panel style;
+  FX per id in the `3-resolution` effect style.
 - Tests: each effect, including artillery whiffing on an empty tile and airdrop refused on a fogged
   tile.
 
@@ -316,7 +341,7 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - Module: after a roll, `fetchEventFlavor` asynchronously (OpenAI, avoid-list `eventHistory`);
   when it resolves, write `title`/`text` **only if the same event is still active**. Never awaited
   inside `tickRoom`.
-- Client: banner + countdown.
+- Client: the mockup's ▲ Chance card component, reused as the event banner with a countdown.
 - Tests: events roll on schedule; `mineralRush` doubles load rate for its duration; flavor failure
   leaves the generic title; a slow flavor call doesn't delay ticks.
 
@@ -336,15 +361,14 @@ table. The spec remains the rules source of truth; change a rule there first, th
 - **Browser:** kill and restart the server mid-match; both phones resume. Disconnect one phone
   mid-haul; its Workers keep hauling.
 
-### Step 14: Visual pass (port the mockups) + update the mockups
-- Lift the SVG sprites (`.tc`/`.tcd` team-colour parts), terrain textures and keyframes from
-  `design/warfront/source/*.dc.html` into `warfrontSprites.js` / `warfront.css`.
-- Optional 2.5D camera from the mockup (`rotateX(40deg)` world + billboarded sprites). Keep the
-  `.tiles` layer as the tap target exactly as the mockup README describes. Do this only if it stays
-  smooth on a mid-range phone; the flat board is the fallback.
-- Update `design/warfront/` to the real-time design: replace Lock Orders with the live command
-  console, turn `3-resolution.html` into live-combat FX frames, rewrite the README's round-based
-  description.
+### Step 14: Design fidelity pass + update the mockups
+- Side-by-side check of every screen against its mockup at phone width (team select, battlefield,
+  command console for all three races, combat effects, game over); fix every difference that isn't
+  in the spec's swap table.
+- Update `design/warfront/` so the mockups match the real-time game: the HUD clock, event banner,
+  🔩/💎 costs, Move/Haul/Hold, Produce/Build/Weapons tabs, facilities, towers, veins, hauling
+  Workers, drops and weapon tokens; turn `3-resolution.html` into live-effect frames; rewrite the
+  README's round-based description.
 
 ### Step 15: Performance + balance pass
 - **Measure** `wfLive` payload bytes per player at 4v4 with the unit cap reached
