@@ -93,6 +93,10 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
 | `WF_MAX_UNITS_PER_PLAYER` | 30 | Unit cap per player (structures and Golems included); Produce is a no-op at the cap. Bounds payload size and DOM count on phones |
 | `WF_MAX_DT_MS` | 1000 | Clamp on one sim step's `dt` (protects against event-loop stalls) |
+| `WF_REVEAL_MS` | 3000 | How long an attacker stays visible to the team it just hit (see "Under attack") |
+| `WF_ALERT_COOLDOWN_MS` | 10000 | Minimum gap between two "Under attack!" alerts for one player in the same area |
+| `WF_ALERT_AREA` | 4 | A hit at least this many tiles (Manhattan) from the last alert's tile counts as a new area and alerts at once |
+| `TUNING.fallBackMaxTiles` | 3 | Furthest an idle unit walks on its own to get out of an attacker's reach |
 | `MAP_SIZES` | Small 12×8 · Medium 16×11 · Large 20×13 | Host's map-size option (width×height in tiles) |
 | `MATCH_LENGTHS` | Short 8 min · Standard 12 min · Long 16 min | Host's match-length option (sets `WF_MATCH_CAP_MS`; Standard is the default) |
 | `TUNING.baseHp` | 120 | Starting base HP |
@@ -324,6 +328,9 @@ commit, no debit-at-reveal. The single `wfCommand` event carries one of:
   a buildable tile (see "Facilities") after its build time (see "Facilities"/"Towers").
 - **Haul** `{ kind:'haul', workerIds, veinTileId }` — puts Worker(s) into the **auto-haul loop** on
   that vein (see Economy). Any plain move command cancels the loop.
+- **Hold** `{ kind:'hold', unitIds }` — the units stop where they are (path and haul loop cleared)
+  and **stand their ground**: a holding unit never falls back on its own (see "Under attack"). A
+  later move or haul order clears `holding`.
 - **Fire weapon** `{ kind:'weapon', weaponId, targetTileId }` — spends a weapon from the player's
   **arsenal**; the effect applies live (see "Special weapons").
 
@@ -356,8 +363,10 @@ all **race/flag modifiers** apply per hit: **Horde** ×1.15 atk and
 ×0.6 luck; an **Archmage** bends luck (own side ×0.5 / enemy ×1.5 within 2 tiles of it); a
 **Battlemage** (`aoe`) hits **every** enemy on its target's tile, not just one; **siege** deals ×3 vs structures and bases. A unit at ≤0 HP
 dies immediately (a loaded Worker **drops its cargo** on its tile). **Behaviour:** an idle unit (no
-move order) **holds position and auto-attacks** enemies that enter range but does not chase; a unit
-with a move order pursues it and fires at anything in range along the way. The enemy **base tile**
+move order) **stays put and auto-attacks** enemies that enter range but does not chase — unless it
+is hit by an enemy it can't hit back, in which case it **falls back** (see "Under attack"); a unit
+with a move order pursues it and fires at anything in range along the way; a unit on **Hold**
+never moves on its own. The enemy **base tile**
 takes attack damage from enemies in range whenever no friendly unit is **contesting** it (≥1
 friendly unit standing on the base tile); **siege** ×3, so a Ballista is the premier base-cracker.
 A base also has its own **weak tower-like attack** (`baseAtk` 2, range 1, every `baseAttackMs`), so a
@@ -380,6 +389,28 @@ Apprentice, Summoner, Archmage, Ballista); everything with `Rng` 0–1 is **mele
   balance pass may tune it.
 - Target selection ("nearest enemy in range") uses the effective range and the level rule, so a
   unit never picks a target it can't hit.
+
+### Under attack (alerts, reveal, fall back)
+
+Agreed 2026-11-11 so a player never loses units without knowing it, even to an unseen shooter
+(an archer on a hill outranges your `WF_VISION`).
+
+- **Alert.** Whenever one of a player's units or structures takes damage, the sim emits an
+  `underAttack { tileId, owner }` event. The module turns it into a private **"Under attack!"**
+  alert for that owner only (per-socket, never `roomEmit`): a banner, a phone buzz and a flashing
+  ping on the tile and on the minimap. It is throttled per player: at most one alert every
+  `WF_ALERT_COOLDOWN_MS`, except that a hit `WF_ALERT_AREA`+ tiles from the last alert's tile
+  alerts at once. Damage to a **base** alerts every player on that team. The throttle is
+  ephemeral module state (not persisted).
+- **Reveal.** An enemy unit that damages a unit or structure becomes visible to the victim's whole
+  team for `WF_REVEAL_MS` after each hit (`unit.revealedUntil[team]`), even outside their vision,
+  so you can see where the attack is coming from.
+- **Fall back.** An **idle** unit (no path, no haul loop, not on Hold, not a structure) that is hit
+  by an enemy it **can't hit back** (out of its effective range, or across the cliff edge for
+  melee) automatically walks to the nearest passable tile that is out of that attacker's effective
+  reach, at most `fallBackMaxTiles` steps away (BFS, deterministic N/E/S/W tie-break). If no such
+  tile exists it stays. Afterwards it is idle again. A unit that **can** hit the attacker fights
+  instead; a unit on **Hold** stands its ground; a unit with an order keeps following it.
 
 ### Economy (accrues continuously)
 
@@ -495,7 +526,8 @@ Menifot/Codenames — never via CSS.
   **loaded (💎) status** is only revealed when it's in vision — you can't tell from afar whether
   that distant hauler is worth ambushing, which keeps raiding a read, not a certainty. Mineral
   veins, supply sources, weapon tokens, and dropped-load pickups are **static map features and
-  always visible** (they're terrain, not hidden info).
+  always visible** (they're terrain, not hidden info). An enemy that just hit your team stays
+  visible for `WF_REVEAL_MS` even outside vision (see "Under attack").
 - **Own-player data:** the payload carries only the viewer's own `supply`/`minerals`/`arsenal` and
   selection state; a player never sees another player's resources or arsenal (not even a
   teammate's, to keep payloads simple — teammates coordinate via the channel below).
@@ -558,7 +590,7 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
   facilities:[{id,type,tileId}], queues:{ [spawnTileId]:[{unitType,doneAt}] },
   workshop:[{weaponId,doneAt}], stats:{kills,lost,baseDmg}, units:[Unit] } }`.
   A **Unit** = `{ id, type, class, tileId, hp, owner, carrying, path:[tileId…], stepEndsAt,
-  atkReadyAt, haul:{veinTileId}|null }`. `race` is fixed for the match; `carrying` is a loaded
+  atkReadyAt, haul:{veinTileId}|null, holding, revealedUntil:{red,blue} }`. `race` is fixed for the match; `carrying` is a loaded
   Worker's Minerals (0 otherwise); `path`/`stepEndsAt` drive movement; `atkReadyAt` gates the next
   auto-attack; `haul` marks a Worker in the auto-haul loop. `facilities` are also mirrored as
   `structure` units for combat; `arsenal` is picked-up/built weapons not yet fired.
