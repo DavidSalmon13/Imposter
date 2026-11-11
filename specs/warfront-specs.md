@@ -87,7 +87,7 @@ Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the 
 | `WF_MIN_TEAM_SIZE` | 1 | Players a team needs to start |
 | `WF_TICK_MS` | 200 | Simulation step interval (server advances the world ~5×/s) |
 | `WF_BROADCAST_MS` | 200 | How often a fogged snapshot is pushed to each socket |
-| `WF_STEP_MS_BASE` | 900 | Time to walk one tile at `Move 1` on plains (÷ Move, × terrain move-cost) |
+| `WF_STEP_MS_BASE` | 4300 | Time to walk one plains tile at `Move 1` (÷ the Move speed factor, × terrain move-cost). A Warrior crosses a medium map (14 tiles) in ~60 s, a Raider in ~30 s |
 | `WF_MATCH_CAP_MS` | 720000 | Hard match length (12 min); at the cap, higher base HP wins |
 | `WF_EVENT_MS` | 60000 | Interval between battlefield events |
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
@@ -142,8 +142,9 @@ Every unit has a **combat class** that plugs into a universal rock-paper-scissor
 > the enemy also **shrinks your own luck swing** (strategy buys consistency — see "Combat").
 
 **Real-time reading of the stat columns.** Because the match is a live sim: a unit's **`Move` is
-its walking speed** — tiles/sec, higher is faster (a Raider blitzes), slowed by terrain move-cost —
-not a per-round step budget. Each combat unit also has an **attack range** (the `Rng` column, Manhattan
+its walking speed**, not a per-round step budget: Move 1 / 2 / 3 walk at ×1 / ×1.5 / ×2 the base
+speed (a speed factor of `(1 + Move) ÷ 2`), slowed by terrain move-cost. On open plains a Warrior
+crosses a medium map in about a minute and a Raider in about 30 s, so a raid is seen coming. Each combat unit also has an **attack range** (the `Rng` column, Manhattan
 distance; `0` = its own tile only) and an **attack cooldown** (`attackMs`); it auto-attacks the
 nearest enemy in range each cooldown. The 🔩 Supply cost also sets build time
 (`buildMsPerCost × 🔩`). See "Combat" under the simulation section.
@@ -344,7 +345,7 @@ ignored if invalid — a bad tap is a no-op, never an error that stalls the sim.
 ### Movement (grid-step, real time)
 
 A unit occupies a tile and, when it has a path, walks to the next tile over
-`stepMs = WF_STEP_MS_BASE ÷ moveStat × terrainMoveCost(nextTile)`. When a step completes the unit
+`stepMs = WF_STEP_MS_BASE ÷ ((1 + moveStat) ÷ 2) × terrainMoveCost(nextTile)`. When a step completes the unit
 snaps to the next tile and begins the next; the client slides the stack between tile centres for
 the step's duration (the minimal animation). Units path around **impassable terrain only** — enemies
 don't block tiles, they trigger combat. Stacking still renders as **one stack per occupied tile**

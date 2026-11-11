@@ -12,7 +12,8 @@ const { rngFor } = require('../lib/rng');
 // (WF_TICK_MS, WF_BROADCAST_MS, roster limits) lives in the module, warfront.js.
 // ---------------------------------------------------------------------------
 
-const WF_STEP_MS_BASE = 900;
+// One plains tile at Move 1 (D16): a Warrior crosses a medium map in ~60 s.
+const WF_STEP_MS_BASE = 4300;
 const WF_MATCH_CAP_MS = 720000;
 const WF_EVENT_MS = 60000;
 const WF_VISION = 2;
@@ -720,11 +721,16 @@ function allUnits(state) {
 // Movement (spec "Movement (grid-step, real time)")
 // ---------------------------------------------------------------------------
 
-/** Time to walk onto `toTileId`: WF_STEP_MS_BASE ÷ Move × the entered tile's move cost. */
+/** Move 1 / 2 / 3 walk at ×1 / ×1.5 / ×2 the base speed (D16). */
+function speedFactor(move) {
+  return (1 + move) / 2;
+}
+
+/** Time to walk onto `toTileId`: WF_STEP_MS_BASE ÷ the speed factor × the entered tile's move cost. */
 function stepMs(map, unitType, toTileId) {
   const move = UNIT_TYPES[unitType].move;
   const cost = TERRAIN_TYPES[terrainAt(map, toTileId)].moveCost;
-  return Math.round((WF_STEP_MS_BASE / move) * cost);
+  return Math.round((WF_STEP_MS_BASE / speedFactor(move)) * cost);
 }
 
 const MAX_UNITS_PER_COMMAND = WF_MAX_UNITS_PER_PLAYER;

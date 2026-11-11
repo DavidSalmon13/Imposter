@@ -411,25 +411,30 @@ test('move: a forest step takes twice as long as a plains step', () => {
   assert.equal(E.stepMs(b.st.map, 'warrior', b.at(2, 0)), 2 * E.WF_STEP_MS_BASE);
   move(b.st, 'Red', [onPlains.id], b.at(2, 0), 0); // into the forest
   move(b.st, 'Red', [beforeForest.id], b.at(4, 0), 0); // onto plains
-  E.stepSim(b.st, 900, { now: 900 });
+  const P = E.WF_STEP_MS_BASE;
+  E.stepSim(b.st, 200, { now: P });
   assert.equal(beforeForest.tileId, b.at(4, 0));
   assert.equal(onPlains.tileId, b.at(1, 0), 'still on its way into the forest');
-  E.stepSim(b.st, 899, { now: 1799 });
+  E.stepSim(b.st, 200, { now: 2 * P - 1 });
   assert.equal(onPlains.tileId, b.at(1, 0));
-  E.stepSim(b.st, 1, { now: 1800 });
+  E.stepSim(b.st, 1, { now: 2 * P });
   assert.equal(onPlains.tileId, b.at(2, 0));
 });
 
-test('move: a Raider (Move 3) outpaces a Warrior over the same road', () => {
+test('move: a Raider (Move 3) walks twice as fast as a Warrior; an Outrider (Move 2) 1.5x (D16)', () => {
   const b = makeBattle({
     rows: ['R........B'],
     units: [{ owner: 'Red', type: 'warrior', at: [0, 0] }, { owner: 'Red', type: 'raider', at: [0, 0] }],
   });
   const [warrior, raider] = b.st.armies.Red.units;
   move(b.st, 'Red', [warrior.id, raider.id], b.at(8, 0), 0);
-  run(b.st, 0, 2400);
-  assert.equal(E.tileXY(raider.tileId, 10).x, 8, 'raider: 300 ms a tile');
-  assert.equal(E.tileXY(warrior.tileId, 10).x, 2, 'warrior: 900 ms a tile');
+  assert.equal(E.stepMs(b.st.map, 'raider', b.at(1, 0)), Math.round(E.WF_STEP_MS_BASE / 2));
+  assert.equal(E.stepMs(b.st.map, 'outrider', b.at(1, 0)), Math.round(E.WF_STEP_MS_BASE / 1.5));
+  run(b.st, 0, 8 * Math.round(E.WF_STEP_MS_BASE / 2) + 200);
+  assert.equal(E.tileXY(raider.tileId, 10).x, 8, 'raider: half a Warrior step a tile');
+  assert.equal(E.tileXY(warrior.tileId, 10).x, 4, 'warrior: one full step a tile');
+  // A Warrior crosses a medium map (14 tiles of plains) in about a minute.
+  assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 60000) < 1000);
 });
 
 test('move: re-issuing an order repaths; the step in progress finishes first', () => {
@@ -449,7 +454,7 @@ test('move: re-issuing an order repaths; the step in progress finishes first', (
   assert.deepEqual(move(b.st, 'Red', [w.id], b.at(0, 2), 400), { ok: true, moved: 1 });
   assert.equal(w.path[0], next, 'keeps the tile it is stepping onto');
   assert.equal(w.path[w.path.length - 1], b.at(0, 2));
-  run(b.st, 400, 6000);
+  run(b.st, 400, 6 * E.WF_STEP_MS_BASE);
   assert.equal(w.tileId, b.at(0, 2));
 });
 
@@ -481,8 +486,8 @@ test('move: a stalled loop does not fast-forward units through a backlog of step
   // 30 s pass in one call, clamped to WF_MAX_DT_MS: the unit finishes the step it was
   // on, then only walks what fits in that last second, not 30 s worth of tiles.
   E.stepSim(b.st, 30000, { now: 30000 });
-  assert.equal(E.tileXY(w.tileId, 10).x, 2);
-  assert.equal(w.stepEndsAt, 30000 - E.WF_MAX_DT_MS + 2 * E.WF_STEP_MS_BASE);
+  assert.equal(E.tileXY(w.tileId, 10).x, 1);
+  assert.equal(w.stepEndsAt, 30000 - E.WF_MAX_DT_MS + E.WF_STEP_MS_BASE);
 });
 
 test('arriving on a weapon token or a mineral drop collects it', () => {
@@ -495,7 +500,7 @@ test('arriving on a weapon token or a mineral drop collects it', () => {
   const w = b.unit('Red');
   move(b.st, 'Red', [w.id], b.at(3, 0), 0);
   const events = [];
-  for (let now = 200; now <= 3000; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  for (let now = 200; now <= 3 * E.WF_STEP_MS_BASE + 200; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
   assert.deepEqual(b.st.armies.Red.arsenal, ['artillery']);
   assert.deepEqual(b.st.pickups.weapons, []);
   assert.equal(b.st.armies.Red.minerals, 3);
@@ -798,12 +803,13 @@ test('combat: a marching unit fires on the way and keeps marching; arrived, it s
   });
   const s = b.unit('Red');
   move(b.st, 'Red', [s.id], b.at(7, 0), 0);
-  const events = fight(b, 6000);
+  const arrive = 5 * E.WF_STEP_MS_BASE + 200;
+  const events = fight(b, arrive);
   const shots = events.filter((e) => e.type === 'underAttack' && e.owner === 'Blue');
   assert.ok(shots.length >= 2, 'fired while walking past');
   assert.equal(s.tileId, b.at(7, 0), 'and still arrived');
   assert.deepEqual(s.path, []);
-  fight(b, 9000, 6000);
+  fight(b, arrive + 3000, arrive);
   assert.equal(s.tileId, b.at(7, 0), 'an idle unit never chases');
 });
 
@@ -863,10 +869,13 @@ test('under attack: an idle Warrior shot by a Crossbow it cannot reach walks out
   });
   const b = setup(false);
   const w = b.unit('Red');
+  w.hp = 100; // tough enough to survive the bolts during its 4.3 s step away
   E.stepSim(b.st, 200, { now: 200 });
-  assert.ok(w.hp < E.UNIT_TYPES.warrior.hp);
+  assert.ok(w.hp < 100);
   assert.deepEqual(w.path, [b.at(2, 0)], 'one step west is out of reach');
-  const later = fight(b, 6000, 200).filter((e) => e.type === 'underAttack' && e.owner === 'Red');
+  const away = E.WF_STEP_MS_BASE + 400;
+  fight(b, away, 200);
+  const later = fight(b, away + 5000, away).filter((e) => e.type === 'underAttack' && e.owner === 'Red');
   assert.equal(w.tileId, b.at(2, 0));
   assert.equal(w.path.length, 0, 'idle again');
   assert.equal(E.manhattan(w.tileId, b.unit('Blue').tileId, 11), 3);
@@ -915,16 +924,25 @@ test('under attack: a fogged shooter shows in the victim team\'s view for WF_REV
     units: [{ owner: 'Red', type: 'warrior', at: [2, 0] }, { owner: 'Blue', type: 'crossbow', at: [5, 0], hold: true }],
   });
   const xbow = b.unit('Blue');
+  b.unit('Red').hp = 100; // survives the bolts while it steps away
   const seen = () => E.viewForPlayer(b.st, 'Red').units.find((u) => u.id === xbow.id);
   assert.equal(seen(), undefined, 'three tiles off: beyond vision');
   E.stepSim(b.st, 200, { now: 200 });
-  assert.equal(b.unit('Red').hp < E.UNIT_TYPES.warrior.hp, true, 'shot from the hill');
+  assert.equal(b.unit('Red').hp < 100, true, 'shot from the hill');
   assert.equal(seen().revealed, true);
   assert.equal(E.viewForPlayer(b.st, 'Red').visible[xbow.tileId], '0', 'the tile itself stays fogged');
-  // The warrior falls back out of reach; nothing more hits it.
-  for (let now = 400; now <= 3000; now += 200) E.stepSim(b.st, 200, { now });
+  // The warrior falls back out of reach (one 4.3 s step), taking a bolt each second until it's
+  // there; the shooter stays revealed until WF_REVEAL_MS after the last one.
+  let lastHit = 200;
+  const leaves = E.WF_STEP_MS_BASE + 200;
+  for (let now = 400; now <= leaves + 200; now += 200) {
+    if (E.stepSim(b.st, 200, { now }).events.some((e) => e.type === 'underAttack')) lastHit = now;
+  }
+  assert.equal(b.unit('Red').tileId, b.at(1, 0));
+  const closes = lastHit + E.WF_REVEAL_MS;
+  for (let now = leaves + 400; now < closes; now += 200) E.stepSim(b.st, 200, { now });
   assert.ok(seen(), 'still revealed just before the window closes');
-  E.stepSim(b.st, 200, { now: 3200 });
+  E.stepSim(b.st, 200, { now: closes });
   assert.equal(seen(), undefined);
 });
 
@@ -935,10 +953,11 @@ test('hold: stops at the end of the current step, clears any march, and a move c
   assert.deepEqual(E.applyCommand(b.st, 'Red', { kind: 'hold', unitIds: [w.id] }, 100), { ok: true, held: 1 });
   assert.equal(w.holding, true);
   assert.deepEqual(w.path, [b.at(2, 0)]);
-  fight(b, 2000, 100);
+  const t = E.WF_STEP_MS_BASE + 2000;
+  fight(b, t, 100);
   assert.equal(w.tileId, b.at(2, 0));
   assert.equal(E.viewForPlayer(b.st, 'Red').units[0].holding, true);
-  move(b.st, 'Red', [w.id], b.at(4, 0), 2000);
+  move(b.st, 'Red', [w.id], b.at(4, 0), t);
   assert.equal(w.holding, false);
   assert.equal(E.applyCommand(b.st, 'Red', { kind: 'hold', unitIds: [] }, 0).ok, false);
   assert.equal(E.applyCommand(b.st, 'Blue', { kind: 'hold', unitIds: [w.id] }, 0).ok, false);
