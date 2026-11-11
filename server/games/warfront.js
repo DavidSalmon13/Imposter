@@ -180,9 +180,22 @@ function battlePayload(ctx, room, viewerName) {
     map: wf.map,
     myTeam: army ? army.team : null,
     myRace: army ? army.race : null,
+    catalog: army ? produceCatalog(army.race) : [],
+    carryCap: engine.TUNING.carryCap,
     roster,
     ...engine.viewForPlayer(wf, viewerName),
   };
+}
+
+/** The unit cards a race's console shows: price, build time, structure or not. */
+function produceCatalog(race) {
+  return engine.producibleTypes(race).map((id) => {
+    const t = engine.UNIT_TYPES[id];
+    return {
+      unitType: id, name: t.name, supply: t.supply, minerals: t.minerals,
+      structure: t.class === 'structure', worker: t.class === 'worker', buildMs: engine.buildMs(id),
+    };
+  });
 }
 
 function broadcastWfState(ctx, roomCode, room) {
@@ -519,7 +532,7 @@ function registerHandlers(ctx, io, socket) {
     generateBattle(ctx, roomCode, room);
   });
 
-  // Live orders (move, hold). Applied the instant they arrive; the next tick shows the result,
+  // Live orders (move, hold, produce, haul). Applied the instant they arrive; the next tick shows the result,
   // so there's no broadcast here.
   socket.on('wfCommand', (cmd, callback) => {
     callback = typeof callback === 'function' ? callback : () => {};

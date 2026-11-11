@@ -392,6 +392,41 @@
 :is(#wf-screen) .wf .wf-alert .lbl { font-size: 8.5px; }
 :is(#wf-screen) .wf .wf-mping { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border: 1.5px solid #ffcc33; box-shadow: 0 0 6px #ffcc33; box-sizing: border-box; transform: rotate(45deg); animation: wfBlink .5s steps(1) infinite; }
 
+/* ---------- Ported from 2c-command-cards.html (source/Rosters.dc.html): per-race command cards ---------- */
+
+:is(#wf-screen) .wf .f .cmd{background:radial-gradient(ellipse 80% 22% at 50% 70%,rgba(150,130,90,.45),transparent 70%),radial-gradient(ellipse at 50% 40%,#3a2a0e 0%,#1a1308 60%,#0b0f13 100%)}
+:is(#wf-screen) .wf .h .cmd{background:radial-gradient(ellipse 80% 22% at 50% 70%,rgba(150,120,90,.45),transparent 70%),radial-gradient(ellipse at 50% 40%,#3e1010 0%,#1c0808 60%,#0b0f13 100%)}
+:is(#wf-screen) .wf .f .cn{color:#f1d9a6}
+:is(#wf-screen) .wf .h .cn{color:#efe3cc}
+:is(#wf-screen) .wf .cmd.struct{box-shadow:inset 0 0 0 2px #8b93a1,inset 0 0 0 3px #06080a,inset 0 0 14px rgba(245,158,11,.25);border-radius:0}
+:is(#wf-screen) .wf .cmd .tag{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:6.5px;font-weight:800;letter-spacing:.14em;color:#8b93a1}
+:is(#wf-screen) .wf .cmd.on{box-shadow:inset 0 0 0 1px #4dff7a,inset 0 0 0 2px #06080a,inset 0 0 16px rgba(77,255,122,.35),0 0 10px rgba(77,255,122,.4)}
+:is(#wf-screen) .wf .cmd.dim{opacity:.38;filter:grayscale(.85)}
+
+/* ---------- Command console: real-time parts the mockups don't draw ---------- */
+
+/* The 💎 price under the 🔩 one (advanced units), in the HUD's mineral cyan. */
+:is(#wf-screen) .wf .cmd .wf-cm { position: absolute; top: 16px; right: 4px; font-size: 8.5px; font-weight: 800; color: #5ad8ff; text-shadow: 0 0 5px rgba(90,216,255,.6); }
+/* A structure card's tag sits under its prices so the two never touch. */
+:is(#wf-screen) .wf .cmd.struct .tag { top: 28px; }
+/* Queue: how many are coming (under the hotkey) and the one being built (a bar like the stacks' HP). */
+:is(#wf-screen) .wf .cmd .wf-q { position: absolute; top: 15px; left: 5px; font-size: 9px; font-weight: 800; color: #4dff7a; text-shadow: 0 0 6px rgba(77,255,122,.6); }
+:is(#wf-screen) .wf .cmd .wf-qbar { position: absolute; left: 4px; right: 4px; bottom: 2px; height: 3px; background: #050505; box-shadow: 0 0 0 1px #000; }
+:is(#wf-screen) .wf .cmd .wf-qbar span { display: block; height: 100%; background: repeating-linear-gradient(90deg,#4dff7a 0 5px,#0a2a12 5px 6px); transition: width .2s linear; }
+:is(#wf-screen) .wf .cmd.wf-busy { box-shadow: inset 0 0 0 1px #2f8a4a, inset 0 0 0 2px #06080a, inset 0 0 14px rgba(77,255,122,.18); }
+:is(#wf-screen) .wf .cmd.struct.wf-busy { box-shadow: inset 0 0 0 2px #8b93a1, inset 0 0 0 3px #06080a, inset 0 0 14px rgba(77,255,122,.3); }
+:is(#wf-screen) .wf .cmd .cn { hyphens: manual; }
+:is(#wf-screen) .wf .cmd:disabled { cursor: default; }
+:is(#wf-screen) .wf .cmd.sys.dim { opacity: .38; filter: grayscale(.85); }
+/* A loaded hauler carries a crystal over its stack; a dropped load lies on the ground. */
+:is(#wf-screen) .wf .wf-load { position: absolute; top: 6px; left: 31px; width: 14px; height: 16px; animation: wfFloat 2s ease-in-out infinite; filter: drop-shadow(0 0 4px rgba(90,216,255,.95)); }
+:is(#wf-screen) .wf .wf-load svg { width: 100%; height: 100%; display: block; }
+:is(#wf-screen) .wf .wf-dropglow { width: 54px; height: 34px; background: radial-gradient(ellipse, rgba(90,216,255,.5), rgba(90,216,255,.1) 45%, transparent 70%); animation: wfPulse 2.2s ease-in-out infinite; }
+/* Gains float up like the damage numbers, in mineral cyan. */
+:is(#wf-screen) .wf .dmg.wf-gain { font-size: 20px; color: #5ad8ff; text-shadow: 0 0 12px rgba(90,216,255,.95), 0 2px 0 #000; }
+/* Notice lines over the map, in the mockup's "[Team] …" overlay style. */
+:is(#wf-screen) .wf #wf-feed > span { animation: wfFxOut 3.5s linear forwards; }
+
 @media (prefers-reduced-motion: reduce) {
   :is(#wf-team-screen, #wf-screen) .wf *,
   :is(#wf-team-screen, #wf-screen) .wf *::before,

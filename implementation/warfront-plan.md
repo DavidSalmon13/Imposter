@@ -371,7 +371,27 @@ not yet played on two real phones, and no live disconnect/reconnect check.
 - **Browser:** armies meet and fight without input; the effects look like the `3-resolution`
   frames.
 
-### Step 7: Economy + production + hauling
+### Step 7: Economy + production + hauling ✅
+Done 2026-11-11. Runs after combat each step: Supply accrual, then the haul loops, then finished
+queue items spawn (`spawn` / `deposit` events). `unit.haul` is `{ veinTileId, stage, luck }`;
+a contested vein's ± swing is rolled **once per load** (per step it averaged away) from its own RNG
+stream, so combat's draws are unchanged. The unit cap counts queued orders too, and a Summoner needs
+two free slots (its Golem). Only the base is a spawn point / deposit for now (`spawnPoints` /
+`depositTiles` grow Barracks and Refineries in Step 9); `mineralRush` and the Refinery +1 come with
+Steps 11 and 9. `wfState` carries the viewer's race `catalog` (prices, build time) and `carryCap`;
+`me` gains `supplyRate`, `units`/`unitCap` and `queues`. Client: the mockup's command card with the
+Worker as a sixth card (long names hyphenated like the mockup's "Militia-man"), 2c's per-race glow and
+structure frame, 🔩 on the card and 💎 under it in mineral cyan, hotkeys, a queue count and a build bar
+in the stacks' HP-bar style; Move / Haul / Hold (Haul arms "tap a vein"; tapping a vein with only
+Workers selected hauls too); `+N/s` beside 🔩. New art in the sprite conventions: the Golem, a
+crystal over loaded haulers, a dropped-load billboard; "+4💎" rises over the base on a deposit and
+"<Unit> ready" lines use the mockup's `[Team]` overlay style. No Produce/Build/Weapons tab bar yet
+(only Produce exists; the bar arrives with Build in Step 9); team pings/phrases stay for Step 12.
+**Checked in a harness, not the real server:** packages couldn't be installed here (no network), so
+the browser check ran the real `public/` client against the real engine and `wfStatePayload` via a
+polling stand-in for socket.io (390px, headless Chrome, 4× sim speed): select Workers → Haul → vein,
+queue units by tap and hotkey, spawns incl. Summoner + Golem, two deposits of 4 💎, page reload
+mid-haul (Workers kept hauling). A real socket reconnect and two real phones are still unchecked.
 - Engine: Supply accrual (trickle + workers on/adjacent to own supply source + Forge bonus); `produce`
   (race check, affordability in 🔩 and, for advanced units, 💎 per D2, debit now, sequential queue per spawn tile, unit cap D12, Summoner →
   Golem); `haul` (auto-loop state machine on the unit: `toVein` → `loading` → `toDeposit` →

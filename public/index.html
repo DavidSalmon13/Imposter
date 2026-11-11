@@ -862,11 +862,12 @@
           <button type="button" class="pnl chamf wf-alert hidden" id="wf-alert"><span class="amb" id="wf-alert-text">▲ UNDER ATTACK</span><span class="lbl">Tap to look</span></button>
           <button type="button" id="wf-menu-btn" aria-label="Menu" style="position: absolute; left: 8px; top: 8px; z-index: 9; width: 36px; height: 36px; display: grid; place-items: center; font-size: 16px; color: #cfe0ee; background: rgba(3,5,8,.8); box-shadow: inset 0 0 0 1px #3d4955">☰</button>
           <div id="wf-strip" style="position: absolute; right: 8px; top: 8px; z-index: 9; display: flex; flex-direction: column; align-items: flex-end; gap: 3px"></div>
+          <div id="wf-feed" style="position: absolute; left: 8px; bottom: 10px; z-index: 9; display: flex; flex-direction: column; gap: 1px; font-size: 11px; line-height: 1.35; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none"></div>
           <div class="edge hidden" id="wf-edge-r" style="right: 4px; top: 50%; width: 18px; height: 40px; margin-top: -20px; background: rgba(3,5,8,.55)">▶</div>
           <div class="edge hidden" id="wf-edge-l" style="left: 4px; top: 50%; width: 18px; height: 40px; margin-top: -20px; background: rgba(3,5,8,.55)">◀</div>
         </div>
 
-        <!-- Console: minimap, selected stack, resources (unit cards and commands arrive with production, Step 7) -->
+        <!-- Console: minimap, selected stack, resources, command card, Move / Haul / Hold -->
         <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 16px; flex: 1">
           <div style="display: flex; gap: 8px">
             <div class="well" style="padding: 5px; flex: none; align-self: flex-start">
@@ -883,11 +884,18 @@
             </div>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center">
-            <span class="lbl" id="wf-army-label">Army</span>
-            <span style="display: flex; align-items: baseline; gap: 10px">
+            <span class="lbl" id="wf-army-label">Recruit</span>
+            <span style="display: flex; align-items: baseline; gap: 5px">
               <span class="amb" style="font-size: 17px; font-weight: 700">🔩 <span id="wf-supply">0</span></span>
+              <span id="wf-supply-rate" style="font-size: 10px; color: #8fa3b5; margin-right: 5px">+0/s</span>
               <span style="font-size: 17px; font-weight: 700; color: #5ad8ff; text-shadow: 0 0 6px rgba(90,216,255,.5)">💎 <span id="wf-minerals">0</span></span>
             </span>
+          </div>
+          <div class="well tm-red" id="wf-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px"></div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
+            <button type="button" class="cmd sys" id="wf-cmd-move"><span class="ci">➤</span><span class="cn">Move</span></button>
+            <button type="button" class="cmd sys" id="wf-cmd-haul"><span class="ci">⛏️</span><span class="cn">Haul</span></button>
+            <button type="button" class="cmd sys" id="wf-cmd-hold"><span class="ci">🛡️</span><span class="cn">Hold</span></button>
           </div>
         </div>
       </div>

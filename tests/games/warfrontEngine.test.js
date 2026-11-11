@@ -334,7 +334,7 @@ test('createBattleState rejects an unknown race or team', () => {
  * `hold` puts the unit on Hold (it never falls back).
  * Returns { st, at(x, y) -> tileId, unit(owner, i) }.
  */
-function makeBattle({ rows, units = [], weapons = [] }) {
+function makeBattle({ rows, units = [], weapons = [], sources = [], veins = [], races = {} }) {
   const height = rows.length;
   const width = rows[0].length;
   const terrain = { '.': 'plains', f: 'forest', h: 'hills', '~': 'water', '#': 'rock', R: 'plains', B: 'plains' };
@@ -348,12 +348,14 @@ function makeBattle({ rows, units = [], weapons = [] }) {
   const map = {
     theme: 'Test', lore: '', width, height, tiles,
     bases: [{ team: 'red', tileId: bases.red }, { team: 'blue', tileId: bases.blue }],
-    supplySources: [], veins: [], chokepoints: [],
+    supplySources: sources.map(([x, y, team]) => ({ x, y, tileId: E.tileId(x, y, width), team })),
+    veins: veins.map(([x, y, richness, contested]) => ({ x, y, tileId: E.tileId(x, y, width), richness, contested: Boolean(contested) })),
+    chokepoints: [],
     weapons: weapons.map(([x, y, weaponId]) => ({ x, y, tileId: E.tileId(x, y, width), weaponId })),
   };
   const st = E.createBattleState(map, [
-    { name: 'Red', team: 'red', race: 'horde' },
-    { name: 'Blue', team: 'blue', race: 'forge' },
+    { name: 'Red', team: 'red', race: races.Red || 'horde' },
+    { name: 'Blue', team: 'blue', race: races.Blue || 'forge' },
   ], { seed: 7, now: 0 });
   st.armies.Red.units = [];
   st.armies.Blue.units = [];
@@ -961,4 +963,239 @@ test('hold: stops at the end of the current step, clears any march, and a move c
   assert.equal(w.holding, false);
   assert.equal(E.applyCommand(b.st, 'Red', { kind: 'hold', unitIds: [] }, 0).ok, false);
   assert.equal(E.applyCommand(b.st, 'Blue', { kind: 'hold', unitIds: [w.id] }, 0).ok, false);
+});
+
+// ---- Step 7: economy, production, hauling ----------------------------------
+
+const produce = (st, owner, unitType, now, atTileId) => E.applyCommand(st, owner, { kind: 'produce', unitType, atTileId }, now);
+const haul = (st, owner, ids, veinTileId, now) => E.applyCommand(st, owner, { kind: 'haul', workerIds: ids, veinTileId }, now);
+
+test('economy: a player with no Workers still gains the flat trickle', () => {
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']] });
+  run(b.st, 0, 10000);
+  assert.ok(Math.abs(b.st.armies.Red.supply - (E.TUNING.startSupply + E.TUNING.baseTrickleSec * 10)) < 1e-6);
+  assert.equal(E.supplyRate(b.st, b.st.armies.Red), E.TUNING.baseTrickleSec);
+});
+
+test('economy: two Workers on the supply source earn twice one Worker\'s share; Forge Workers earn a bonus', () => {
+  const rows = ['R.......B'];
+  const sources = [[1, 0, 'red'], [7, 0, 'blue']];
+  const one = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
+  const two = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [1, 0] }, { owner: 'Red', type: 'peon', at: [0, 0] }] });
+  const far = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [3, 0] }] });
+  const trickle = E.TUNING.baseTrickleSec;
+  const share1 = E.supplyRate(one.st, one.st.armies.Red) - trickle;
+  const share2 = E.supplyRate(two.st, two.st.armies.Red) - trickle;
+  assert.ok(Math.abs(share1 - E.TUNING.supplyPerWorkerSec) < 1e-9);
+  assert.ok(Math.abs(share2 - 2 * share1) < 1e-9, 'on the source and beside it both count');
+  assert.equal(E.supplyRate(far.st, far.st.armies.Red), trickle, 'two tiles away earns nothing');
+  // Over time the accrual matches the rate.
+  run(two.st, 0, 4000);
+  assert.ok(Math.abs(two.st.armies.Red.supply - (E.TUNING.startSupply + 4 * (trickle + share2))) < 1e-6);
+  // Forge Workers (Blue here) earn forgeWorkerBonusSec on top.
+  const forge = makeBattle({ rows, sources, units: [{ owner: 'Blue', type: 'laborer', at: [7, 0] }] });
+  assert.ok(Math.abs(E.supplyRate(forge.st, forge.st.armies.Blue) - (trickle + E.TUNING.supplyPerWorkerSec + E.TUNING.forgeWorkerBonusSec)) < 1e-9);
+  // An enemy's supply source pays nothing.
+  const enemySrc = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [7, 0] }] });
+  assert.equal(E.supplyRate(enemySrc.st, enemySrc.st.armies.Red), trickle);
+});
+
+test('produce: debits Supply now (and Minerals for advanced units), spawns after buildMsPerCost × cost', () => {
+  const b = makeBattle({ rows: ['R.....B'] });
+  const red = b.st.armies.Red;
+  red.supply = 5;
+  red.minerals = 1;
+  const base = b.at(0, 0);
+  assert.equal(produce(b.st, 'Red', 'raider', 0).ok, false, 'a Raider needs 2 Minerals');
+  assert.equal(red.supply, 5);
+  red.minerals = 2;
+  assert.equal(produce(b.st, 'Red', 'raider', 0, base).ok, true);
+  assert.equal(red.supply, 0);
+  assert.equal(red.minerals, 0);
+  assert.equal(produce(b.st, 'Red', 'warrior', 0).ok, false, 'out of Supply');
+  assert.deepEqual(red.queues[base], [{ unitType: 'raider', doneAt: 5 * E.TUNING.buildMsPerCost }]);
+  const events = [];
+  run(b.st, 0, 5 * E.TUNING.buildMsPerCost - 200);
+  assert.equal(red.units.length, 0, 'not yet');
+  events.push(...E.stepSim(b.st, 200, { now: 5 * E.TUNING.buildMsPerCost }).events);
+  assert.equal(red.units.length, 1);
+  assert.equal(red.units[0].type, 'raider');
+  assert.equal(red.units[0].tileId, base);
+  assert.deepEqual(red.queues, {});
+  assert.ok(events.some((e) => e.type === 'spawn' && e.owner === 'Red' && e.unitType === 'raider' && e.tileId === base));
+  // Basic units cost Supply only.
+  red.supply = 3;
+  red.minerals = 0;
+  assert.equal(produce(b.st, 'Red', 'warrior', 6000).ok, true);
+  assert.equal(red.supply, 0);
+});
+
+test('produce: each spawn point builds one unit at a time (sequential queue)', () => {
+  const b = makeBattle({ rows: ['R.....B'] });
+  const red = b.st.armies.Red;
+  red.supply = 20;
+  const T = 3 * E.TUNING.buildMsPerCost; // a Warrior
+  assert.equal(produce(b.st, 'Red', 'warrior', 0).ok, true);
+  assert.equal(produce(b.st, 'Red', 'warrior', 0).ok, true);
+  assert.deepEqual(red.queues[b.at(0, 0)].map((q) => q.doneAt), [T, 2 * T]);
+  run(b.st, 0, T);
+  assert.equal(red.units.length, 1);
+  run(b.st, T, 2 * T - 200);
+  assert.equal(red.units.length, 1, 'the second starts only when the first is done');
+  run(b.st, 2 * T - 200, 2 * T);
+  assert.equal(red.units.length, 2);
+  // Ordered into an empty queue later, a unit's timer starts then, not back at the last finish.
+  run(b.st, 2 * T, 10 * T);
+  assert.equal(produce(b.st, 'Red', 'warrior', 10 * T).ok, true);
+  assert.equal(red.queues[b.at(0, 0)][0].doneAt, 11 * T);
+});
+
+test('produce: another race\'s unit, a Golem, an unknown type or a foreign tile is a no-op', () => {
+  const b = makeBattle({ rows: ['R.....B'] });
+  const red = b.st.armies.Red; // Horde
+  red.supply = 50;
+  red.minerals = 50;
+  for (const unitType of ['militiaman', 'apprentice', 'golem', 'dragon']) {
+    assert.equal(produce(b.st, 'Red', unitType, 0).ok, false, unitType);
+  }
+  assert.equal(produce(b.st, 'Red', 'warrior', 0, b.at(3, 0)).ok, false, 'not a spawn point');
+  assert.equal(produce(b.st, 'Red', 'warrior', 0, b.at(6, 0)).ok, false, 'the enemy base');
+  assert.equal(red.supply, 50);
+  assert.equal(red.minerals, 50);
+  assert.deepEqual(red.queues, {});
+});
+
+test('produce: the unit cap counts units and queued orders; a Summoner needs room for its Golem (D12)', () => {
+  const b = makeBattle({ rows: ['R.....B'], races: { Red: 'arcane' } });
+  const red = b.st.armies.Red;
+  red.supply = 500;
+  red.minerals = 500;
+  for (let i = 0; i < E.WF_MAX_UNITS_PER_PLAYER - 2; i++) red.units.push(E.makeUnit(b.st.nextUnitId++, 'apprentice', 'Red', b.at(0, 0)));
+  assert.equal(produce(b.st, 'Red', 'apprentice', 0).ok, true, '29 of 30');
+  assert.equal(produce(b.st, 'Red', 'summoner', 0).ok, false, 'Summoner + Golem would make 31');
+  assert.equal(produce(b.st, 'Red', 'apprentice', 0).ok, true, '30 of 30');
+  const before = red.supply;
+  assert.equal(produce(b.st, 'Red', 'acolyte', 0).ok, false, 'at the cap');
+  assert.equal(red.supply, before);
+});
+
+test('produce: a Summoner also brings a Golem to the base', () => {
+  const b = makeBattle({ rows: ['R.....B'], races: { Red: 'arcane' } });
+  const red = b.st.armies.Red;
+  red.supply = 6;
+  red.minerals = 4;
+  assert.equal(produce(b.st, 'Red', 'summoner', 0).ok, true);
+  const events = [];
+  for (let now = 200; now <= 6 * E.TUNING.buildMsPerCost; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  assert.deepEqual(red.units.map((u) => u.type).sort(), ['golem', 'summoner']);
+  assert.ok(red.units.every((u) => u.tileId === b.at(0, 0)));
+  assert.deepEqual(events.filter((e) => e.type === 'spawn').map((e) => e.unitType), ['summoner', 'golem']);
+});
+
+test('haul: a full cycle walks out, loads carryCap, brings it home and goes back', () => {
+  const b = makeBattle({ rows: ['R.......B'], veins: [[4, 0, 2, false]], units: [{ owner: 'Red', type: 'peon', at: [0, 0] }] });
+  const red = b.st.armies.Red;
+  const w = b.unit('Red');
+  assert.deepEqual(haul(b.st, 'Red', [w.id], b.at(4, 0), 0), { ok: true, hauling: 1 });
+  assert.equal(w.haul.stage, 'toVein');
+  const P = E.WF_STEP_MS_BASE;
+  run(b.st, 0, 4 * P);
+  assert.equal(w.tileId, b.at(4, 0));
+  assert.equal(w.haul.stage, 'loading');
+  // richness 2 → 1 Mineral a second: carryCap 4 takes 4 s.
+  run(b.st, 4 * P, 4 * P + 2000);
+  assert.ok(Math.abs(w.carrying - 2) < 0.21, `half loaded, got ${w.carrying}`);
+  const events = [];
+  for (let now = 4 * P + 2200; now <= 8 * P + 4400; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  assert.equal(red.minerals, E.TUNING.carryCap);
+  assert.equal(w.carrying, 0);
+  assert.equal(w.haul.stage, 'toVein', 'and back out again');
+  assert.ok(w.path.length > 0);
+  assert.deepEqual(events.filter((e) => e.type === 'deposit').map((e) => [e.owner, e.minerals, e.tileId]), [['Red', E.TUNING.carryCap, b.at(0, 0)]]);
+  // A plain move ends the loop; the load stays on the Worker.
+  w.carrying = 1.5;
+  move(b.st, 'Red', [w.id], b.at(2, 0), 9 * P);
+  assert.equal(w.haul, null);
+  assert.equal(w.carrying, 1.5);
+});
+
+test('haul: a contested vein\'s load rate swings by up to ±veinLuckMagnitude, per load and per seed', () => {
+  const fillTime = (seed) => {
+    const b = makeBattle({ rows: ['Rv....B'], veins: [[1, 0, 1, true]], units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
+    b.st.seed = seed;
+    const w = b.unit('Red');
+    haul(b.st, 'Red', [w.id], b.at(1, 0), 0);
+    let now = 0;
+    while (w.carrying < E.TUNING.carryCap && now < 60000) E.stepSim(b.st, 200, { now: (now += 200) });
+    return now;
+  };
+  const plain = E.TUNING.carryCap / E.TUNING.mineLoadSec; // 8 s at richness 1
+  const times = [1, 2, 3, 4, 5, 6, 7, 8].map(fillTime);
+  for (const t of times) {
+    assert.ok(t >= (plain * 1000) / (1 + E.TUNING.veinLuckMagnitude) - 200, `${t} too fast`);
+    assert.ok(t <= (plain * 1000) / (1 - E.TUNING.veinLuckMagnitude) + 200, `${t} too slow`);
+  }
+  assert.ok(new Set(times).size > 1, 'luck varies between seeds');
+  assert.equal(fillTime(5), fillTime(5), 'and is deterministic');
+});
+
+test('haul: only Workers, only onto a vein; an already loaded Worker heads straight home', () => {
+  const b = makeBattle({
+    rows: ['R......B'],
+    veins: [[4, 0, 1, false]],
+    units: [{ owner: 'Red', type: 'peon', at: [2, 0] }, { owner: 'Red', type: 'warrior', at: [2, 0] }],
+  });
+  const [w, warrior] = b.st.armies.Red.units;
+  assert.equal(haul(b.st, 'Red', [warrior.id], b.at(4, 0), 0).ok, false);
+  assert.equal(haul(b.st, 'Red', [w.id], b.at(3, 0), 0).ok, false, 'not a vein');
+  assert.equal(haul(b.st, 'Blue', [w.id], b.at(4, 0), 0).ok, false, 'not yours');
+  assert.equal(w.haul, null);
+  w.carrying = E.TUNING.carryCap;
+  assert.equal(haul(b.st, 'Red', [w.id, warrior.id], b.at(4, 0), 0).hauling, 1);
+  assert.equal(w.haul.stage, 'toDeposit');
+  assert.equal(w.path[w.path.length - 1], b.at(0, 0));
+  run(b.st, 0, 2 * E.WF_STEP_MS_BASE + 200);
+  assert.equal(b.st.armies.Red.minerals, E.TUNING.carryCap);
+  assert.equal(w.haul.stage, 'toVein');
+});
+
+test('haul: killing a loaded hauler leaves its load as a drop the enemy can collect', () => {
+  const b = makeBattle({
+    rows: ['R.......B'],
+    veins: [[4, 0, 1, false]],
+    units: [{ owner: 'Red', type: 'peon', at: [4, 0] }, { owner: 'Blue', type: 'militiaman', at: [5, 0] }],
+  });
+  const w = b.unit('Red');
+  haul(b.st, 'Red', [w.id], b.at(4, 0), 0);
+  w.carrying = 3;
+  w.hp = 1;
+  E.stepSim(b.st, 200, { now: 200 });
+  assert.deepEqual(b.st.armies.Red.units, []);
+  assert.deepEqual(b.st.pickups.mineralDrops, { [b.at(4, 0)]: 3 });
+  const m = b.unit('Blue');
+  move(b.st, 'Blue', [m.id], b.at(4, 0), 200);
+  run(b.st, 200, E.WF_STEP_MS_BASE + 400);
+  assert.equal(b.st.armies.Blue.minerals, 3);
+  assert.deepEqual(b.st.pickups.mineralDrops, {});
+});
+
+test('view: a player sees only their own Supply rate, Minerals and queues', () => {
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
+  b.st.armies.Red.supply = 10;
+  produce(b.st, 'Red', 'warrior', 0);
+  produce(b.st, 'Red', 'warrior', 0);
+  const me = E.viewForPlayer(b.st, 'Red').me;
+  assert.equal(me.supply, 4);
+  assert.equal(me.supplyRate, E.TUNING.baseTrickleSec + E.TUNING.supplyPerWorkerSec);
+  assert.equal(me.units, 3);
+  assert.equal(me.unitCap, E.WF_MAX_UNITS_PER_PLAYER);
+  const T = 3 * E.TUNING.buildMsPerCost;
+  assert.deepEqual(me.queues, [{ tileId: b.at(0, 0), items: [
+    { unitType: 'warrior', startedAt: 0, doneAt: T },
+    { unitType: 'warrior', startedAt: T, doneAt: 2 * T },
+  ] }]);
+  const blue = E.viewForPlayer(b.st, 'Blue');
+  assert.deepEqual(blue.me.queues, []);
+  assert.equal(blue.me.supply, E.TUNING.startSupply);
+  assert.ok(!JSON.stringify(blue).includes('"queues":[{'), 'no trace of Red\'s queue');
 });

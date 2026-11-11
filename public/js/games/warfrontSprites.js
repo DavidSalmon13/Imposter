@@ -89,3 +89,13 @@ export const UNIT_ICONS = {
   warrior: '🗡️', skirmisher: '🪃', raider: '🐎', berserker: '🪓', warchief: '👑',
   apprentice: '✨', mysticArcher: '🏹', battlemage: '🔥', summoner: '🧿', archmage: '🪄', golem: '🗿',
 };
+
+// Golem (Arcane, summoned with a Summoner): a stone hulk with glowing rune eyes and a
+// team-coloured belt.
+UNIT_SPRITES.golem = '<svg viewBox="0 0 32 40" aria-hidden="true"><ellipse class="sh" cx="16" cy="37.5" rx="12.5" ry="3"></ellipse><rect fill="#5d626c" x="9.4" y="28" width="5.2" height="9" rx="1.6"></rect><rect fill="#4a4f58" x="17.4" y="28" width="5.2" height="9" rx="1.6"></rect><rect fill="#7d8592" x="2.4" y="15" width="5.6" height="12.5" rx="2.2"></rect><path fill="#8b93a1" d="M7 13.5 L25 13.5 L24 30 L8 30 Z"></path><path fill="#000" opacity=".24" d="M16 13.5 L25 13.5 L24 30 L16 30 Z"></path><rect fill="#5d626c" x="24" y="15" width="5.6" height="12.5" rx="2.2"></rect><circle fill="#9aa0ab" cx="5.2" cy="28.2" r="3.2"></circle><circle fill="#6f7580" cx="26.8" cy="28.2" r="3.2"></circle><path class="tc" d="M8.5 24 L23.5 24 L23.3 26.6 L8.7 26.6 Z"></path><path class="rune" d="M12.6 16.6 L19.4 16.6 L16 21.8 Z"></path><path class="ln" stroke="#5d626c" stroke-width="1" d="M9.6 18 L11.6 20.6 M21.6 27.6 L20.4 29.6"></path><path fill="#9aa0ab" d="M11.4 5.4 L20.6 5.4 L21.6 13.6 L10.4 13.6 Z"></path><path fill="#000" opacity=".2" d="M16 5.4 L20.6 5.4 L21.6 13.6 L16 13.6 Z"></path><rect class="orb" fill="#e2c6ff" x="12.4" y="8.8" width="2.6" height="1.5"></rect><rect class="orb" fill="#e2c6ff" x="17" y="8.8" width="2.6" height="1.5"></rect></svg>';
+
+// The crystal a loaded hauler carries, drawn over its stack (the vein crystal, small).
+export const LOAD_SPRITE = '<svg viewBox="0 0 14 16" aria-hidden="true"><path fill="#38b6e8" d="M7 0 L11 5 L9.6 16 L4.4 16 L3 5 Z"></path><path fill="#d6f8ff" opacity=".75" d="M7 0 L7 16 L4.4 16 L3 5 Z"></path></svg>';
+
+// A dropped load: a few crystal shards scattered on the ground where a hauler fell.
+export const DROP_SPRITE = '<svg class="glowc" viewBox="0 0 40 26" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="20" cy="24" rx="17" ry="2.4"></ellipse><path fill="#2a8fc0" d="M9 12 L13 16 L12 24 L6 24 L5 16 Z"></path><path fill="#bdefff" opacity=".6" d="M9 12 L9 24 L6 24 L5 16 Z"></path><path fill="#38b6e8" d="M21 3 L26 10 L24 24 L17 24 L16 10 Z"></path><path fill="#d6f8ff" opacity=".75" d="M21 3 L21 24 L17 24 L16 10 Z"></path><path class="twk" fill="#4cc8f0" d="M32 13 L35 17 L34 24 L29 24 L29 17 Z"></path><path class="twk" fill="#ffffff" opacity=".8" d="M20.4 6 L21 4 L21.6 6 L21 8 Z"></path></svg>';

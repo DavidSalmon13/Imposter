@@ -542,7 +542,9 @@ test('wfLive is fogged per socket: an enemy shows up only within vision', async 
   assert.ok(!ids('Host').includes(wf.armies.Bob.units[0].id));
   assert.ok(!emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfLive'));
   const live = wfLives(s.io, s.room, 'Bob').at(-1).payload;
-  assert.equal(live.me.supply, engine.TUNING.startSupply);
+  // Supply accrues from the trickle (and Workers by the supply source) since Step 7.
+  assert.ok(live.me.supply > engine.TUNING.startSupply);
+  assert.equal(live.me.supply, wf.armies.Bob.supply);
   assert.ok(typeof live.serverNow === 'number');
 });
 
@@ -640,4 +642,57 @@ test('wfCommand hold: applied at once; the unit stays put', async (t) => {
   t.mock.timers.tick(warfront.WF_TICK_MS);
   const own = wfLives(s.io, s.room, 'Bob').at(-1).payload.units.find((u) => u.id === worker.id);
   assert.equal(own.holding, true);
+});
+
+// ---- Step 7: economy, production, hauling -----------------------------------
+
+test('wfState in playing carries the viewer\'s own race catalog with 🔩/💎 prices', async () => {
+  const { io, room } = await startWith(() => mockOpenAi(aiMap()));
+  const bob = lastWfState(io, room, 'Bob'); // Arcane
+  assert.deepEqual(bob.catalog.map((c) => c.unitType), ['acolyte', 'apprentice', 'mysticArcher', 'battlemage', 'summoner', 'archmage']);
+  const archmage = bob.catalog.find((c) => c.unitType === 'archmage');
+  assert.deepEqual([archmage.supply, archmage.minerals, archmage.buildMs], [9, 6, 9 * engine.TUNING.buildMsPerCost]);
+  assert.equal(bob.catalog[0].worker, true);
+  const cat = lastWfState(io, room, 'Cat'); // Forge
+  assert.equal(cat.catalog.find((c) => c.unitType === 'bastion').structure, true);
+  assert.equal(typeof bob.me.supplyRate, 'number');
+});
+
+test('wfCommand produce: pays at once, no broadcast; the unit spawns on a later tick and shows in wfLive', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const army = wf.armies.Ann; // Horde
+  const base = wf.bases.red.tileId;
+  const before = s.io.emissions.length;
+  assert.deepEqual(await call(s.sockets.Ann, 'wfCommand', { kind: 'produce', unitType: 'warrior', atTileId: base }), { ok: true });
+  assert.equal(s.io.emissions.length, before);
+  assert.equal(army.supply, engine.TUNING.startSupply - 3);
+  assert.equal((await call(s.sockets.Ann, 'wfCommand', { kind: 'produce', unitType: 'militiaman' })).ok, false, 'Forge unit');
+  assert.equal((await call(s.sockets.Ann, 'wfCommand', { kind: 'produce', unitType: 'raider' })).ok, false, 'no Minerals yet');
+  t.mock.timers.tick(engine.buildMs('warrior') + warfront.WF_TICK_MS);
+  const warrior = army.units.find((u) => u.type === 'warrior');
+  assert.ok(warrior);
+  assert.equal(warrior.tileId, base);
+  const live = wfLives(s.io, s.room, 'Ann').at(-1).payload;
+  assert.ok(live.units.some((u) => u.id === warrior.id));
+  assert.ok(live.me.supply > army.supply - 1, 'the live view carries the current Supply');
+  // A teammate never sees Ann's Supply or queue.
+  const host = wfLives(s.io, s.room, 'Host').at(-1).payload;
+  assert.equal(host.me.supply, wf.armies.Host.supply);
+});
+
+test('wfCommand haul: a Worker runs the loop and Minerals reach its owner', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const worker = wf.armies.Bob.units[0];
+  const vein = wf.map.veins[0];
+  assert.deepEqual(await call(s.sockets.Bob, 'wfCommand', { kind: 'haul', workerIds: [worker.id], veinTileId: vein.tileId }), { ok: true });
+  assert.equal(worker.haul.stage, 'toVein');
+  assert.equal((await call(s.sockets.Host, 'wfCommand', { kind: 'haul', workerIds: [worker.id], veinTileId: vein.tileId })).ok, false);
+  // Walk out, load, walk home: give it plenty of time.
+  const walk = engine.bfsPath(wf.map, worker.tileId, vein.tileId).length * 2 * engine.WF_STEP_MS_BASE * 2;
+  for (let ms = 0; ms < walk + 20000 && wf.armies.Bob.minerals === 0; ms += 1000) t.mock.timers.tick(1000);
+  assert.equal(wf.armies.Bob.minerals, engine.TUNING.carryCap);
+  const own = wfLives(s.io, s.room, 'Bob').at(-1).payload.units.find((u) => u.id === worker.id);
+  assert.ok(own.haul && own.haul.veinTileId === vein.tileId);
 });

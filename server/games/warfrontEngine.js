@@ -782,6 +782,8 @@ function applyCommand(state, name, cmd, now) {
     if (!moved) return { ok: false, error: 'Already there' };
     return { ok: true, moved };
   }
+  if (cmd.kind === 'produce') return orderProduce(state, name, army, cmd, now);
+  if (cmd.kind === 'haul') return orderHaul(state, army, cmd, now);
   if (cmd.kind === 'hold') {
     const { unitIds } = cmd;
     if (!Array.isArray(unitIds) || !unitIds.length || unitIds.length > MAX_UNITS_PER_COMMAND) {
@@ -799,6 +801,198 @@ function applyCommand(state, name, cmd, now) {
     return { ok: true, held: units.length };
   }
   return { ok: false, error: 'Unknown command' };
+}
+
+// ---------------------------------------------------------------------------
+// Economy: production and hauling (spec "Commands", "Economy")
+// ---------------------------------------------------------------------------
+
+/** Build/spawn time of a unit type: buildMsPerCost × its 🔩 Supply cost. */
+function buildMs(unitType) {
+  return TUNING.buildMsPerCost * UNIT_TYPES[unitType].supply;
+}
+
+/** Unit slots a produce order takes: a Summoner brings its Golem along. */
+function slotsFor(unitType) {
+  return UNIT_TYPES[unitType].flags.includes('summonsGolem') ? 2 : 1;
+}
+
+/** Unit slots an army uses toward WF_MAX_UNITS_PER_PLAYER: units on the field plus everything queued (D12). */
+function unitSlotsUsed(army) {
+  let n = army.units.length;
+  for (const q of Object.values(army.queues)) for (const item of q) n += slotsFor(item.unitType);
+  return n;
+}
+
+/** Tiles where `army` may produce: its base (Forward Barracks join in Step 9). */
+function spawnPoints(state, army) {
+  return [state.bases[army.team].tileId];
+}
+
+/** Tiles where `army`'s haulers may unload: its base (Refineries join in Step 9). */
+function depositTiles(state, army) {
+  return [state.bases[army.team].tileId];
+}
+
+/**
+ * Produce (D2, D10, D12): own race, under the unit cap, affordable in 🔩 (and 💎 for
+ * advanced units). Pays now; the unit joins the spawn point's sequential queue and
+ * appears buildMs later than the one ahead of it.
+ */
+function orderProduce(state, name, army, cmd, now) {
+  const t = UNIT_TYPES[cmd.unitType];
+  if (!t || !t.producible) return { ok: false, error: 'Unknown unit' };
+  if (t.race !== army.race) return { ok: false, error: `Only ${RACES[t.race].name} can produce that` };
+  const points = spawnPoints(state, army);
+  const at = cmd.atTileId == null ? points[0] : cmd.atTileId;
+  if (!points.includes(at)) return { ok: false, error: 'Units can only be produced at your base' };
+  if (unitSlotsUsed(army) + slotsFor(t.id) > WF_MAX_UNITS_PER_PLAYER) {
+    return { ok: false, error: `Army is at the ${WF_MAX_UNITS_PER_PLAYER}-unit cap` };
+  }
+  if (army.supply < t.supply) return { ok: false, error: 'Not enough Supply' };
+  if (army.minerals < t.minerals) return { ok: false, error: 'Not enough Minerals' };
+  army.supply = round3(army.supply - t.supply);
+  army.minerals = round3(army.minerals - t.minerals);
+  const queue = army.queues[at] || (army.queues[at] = []);
+  const startsAt = queue.length ? Math.max(queue[queue.length - 1].doneAt, now) : now;
+  queue.push({ unitType: t.id, doneAt: startsAt + buildMs(t.id) });
+  return { ok: true };
+}
+
+/**
+ * Haul: Workers enter the auto-haul loop on a vein. One already loaded heads
+ * straight for a deposit; the rest walk to the vein (a step in progress finishes first).
+ */
+function orderHaul(state, army, cmd, now) {
+  const { workerIds, veinTileId } = cmd;
+  if (!Array.isArray(workerIds) || !workerIds.length || workerIds.length > MAX_UNITS_PER_COMMAND) {
+    return { ok: false, error: 'Pick some Workers first' };
+  }
+  if (!state.map.veins.some((v) => v.tileId === veinTileId)) return { ok: false, error: 'Haul from a mineral vein' };
+  const wanted = new Set(workerIds);
+  const workers = army.units.filter((u) => wanted.has(u.id) && u.class === 'worker');
+  if (!workers.length) return { ok: false, error: 'Only Workers can haul' };
+  for (const u of workers) {
+    if (u.carrying >= TUNING.carryCap) {
+      u.haul = { veinTileId, stage: 'toDeposit', luck: 0 };
+      headFor(state, army, u, nearestTile(state, u, depositTiles(state, army)), now);
+    } else {
+      u.haul = { veinTileId, stage: 'toVein', luck: 0 };
+      headFor(state, army, u, veinTileId, now);
+    }
+  }
+  return { ok: true, hauling: workers.length };
+}
+
+/** Points a hauler at `to` without dropping its haul loop (orderMove clears it). */
+function headFor(state, army, u, to, now) {
+  const haul = u.haul;
+  if (u.tileId !== to || u.path.length) orderMove(state, u, to, now);
+  u.haul = haul;
+  u.holding = false;
+}
+
+/** Of `tiles`, the one with the shortest walk from where `u` stands (or is stepping to); ties keep list order. */
+function nearestTile(state, u, tiles) {
+  const from = u.path.length ? u.path[0] : u.tileId;
+  let best = tiles[0];
+  let bestLen = Infinity;
+  for (const t of tiles) {
+    const len = t === from ? 0 : bfsPath(state.map, from, t).length || Infinity;
+    if (len < bestLen) {
+      best = t;
+      bestLen = len;
+    }
+  }
+  return best;
+}
+
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
+/** 🔩 Supply per second for one army: trickle + Workers on/beside a friendly supply source (+Forge bonus). */
+function supplyRate(state, army) {
+  const { width } = state.map;
+  const sources = state.map.supplySources.filter((s) => s.team === army.team).map((s) => s.tileId);
+  let rate = TUNING.baseTrickleSec;
+  if (!sources.length) return rate;
+  const perWorker = TUNING.supplyPerWorkerSec + (army.race === 'forge' ? TUNING.forgeWorkerBonusSec : 0);
+  for (const u of army.units) {
+    if (u.class === 'worker' && sources.some((s) => manhattan(s, u.tileId, width) <= 1)) rate += perWorker;
+  }
+  return rate;
+}
+
+/** Finished queue items step onto their spawn tile; a Summoner brings a Golem to the base. */
+function stepProduction(state, now, events) {
+  for (const [owner, army] of Object.entries(state.armies)) {
+    for (const [key, queue] of Object.entries(army.queues)) {
+      const tile = Number(key);
+      while (queue.length && queue[0].doneAt <= now) {
+        const { unitType } = queue.shift();
+        const spawned = [[unitType, tile]];
+        if (UNIT_TYPES[unitType].flags.includes('summonsGolem')) spawned.push(['golem', state.bases[army.team].tileId]);
+        for (const [type, at] of spawned) {
+          const u = makeUnit(state.nextUnitId++, type, owner, at);
+          army.units.push(u);
+          events.push({ type: 'spawn', tileId: at, owner, team: army.team, unitId: u.id, unitType: type });
+        }
+      }
+      if (!queue.length) delete army.queues[key];
+    }
+  }
+}
+
+/**
+ * Supply accrual, then every hauler's loop: walk to the vein, load at
+ * mineLoadSec × richness (a contested vein swings ±veinLuckMagnitude, rolled once
+ * per load), carry carryCap to the nearest deposit, unload, go back.
+ */
+function stepEconomy(state, dtMs, now, events) {
+  const rng = rngFor((state.seed ^ 0x5bd1e995) >>> 0, state.tick); // its own stream, apart from combat's
+  const secs = dtMs / 1000;
+  for (const [owner, army] of Object.entries(state.armies)) {
+    army.supply = round3(army.supply + supplyRate(state, army) * secs);
+    for (const u of army.units) {
+      const h = u.haul;
+      if (!h || u.hp <= 0) continue;
+      const vein = state.map.veins.find((v) => v.tileId === h.veinTileId);
+      if (!vein) {
+        u.haul = null;
+        continue;
+      }
+      if (u.path.length) continue; // still walking this leg
+      if (h.stage === 'toVein') {
+        if (u.tileId !== vein.tileId) {
+          headFor(state, army, u, vein.tileId, now);
+          continue;
+        }
+        h.stage = 'loading';
+        h.luck = vein.contested ? (rng() * 2 - 1) * TUNING.veinLuckMagnitude : 0;
+      }
+      if (h.stage === 'loading') {
+        const rate = TUNING.mineLoadSec * vein.richness * (1 + (h.luck || 0));
+        u.carrying = Math.min(TUNING.carryCap, round3(u.carrying + rate * secs));
+        if (u.carrying < TUNING.carryCap) continue;
+        h.stage = 'toDeposit';
+        headFor(state, army, u, nearestTile(state, u, depositTiles(state, army)), now);
+        continue;
+      }
+      if (h.stage === 'toDeposit') {
+        const deposits = depositTiles(state, army);
+        if (!deposits.includes(u.tileId)) {
+          headFor(state, army, u, nearestTile(state, u, deposits), now);
+          continue;
+        }
+        if (u.carrying > 0) {
+          army.minerals = round3(army.minerals + u.carrying);
+          events.push({ type: 'deposit', tileId: u.tileId, owner, team: army.team, unitId: u.id, minerals: u.carrying });
+          u.carrying = 0;
+        }
+        h.stage = 'toVein';
+        headFor(state, army, u, vein.tileId, now);
+      }
+    }
+  }
 }
 
 /** Collects whatever lies on the tile a unit just walked onto. */
@@ -1073,14 +1267,16 @@ function stepCombat(state, now, events) {
 /**
  * Advances the world by one sim step ending at `now` (`dtMs` long, already
  * clamped by the caller). Mutates and returns `state` with this step's events.
- * Systems arrive step by step: movement (Step 5), combat (Step 6); economy,
- * events and the win check come later.
+ * Systems arrive step by step: movement (Step 5), combat (Step 6), economy and
+ * production (Step 7); events and the win check come later.
  */
 function stepSim(state, dtMs, { now }) {
   const events = [];
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
   stepMovement(state, dt, now, events);
   stepCombat(state, now, events);
+  stepEconomy(state, dt, now, events);
+  stepProduction(state, now, events);
   state.tick += 1;
   state.clock.lastTickAt = now;
   return { state, events };
@@ -1157,13 +1353,34 @@ function viewForPlayer(state, name) {
     bases: state.bases,
     clock: state.clock,
     event: state.event,
-    me: army ? { supply: army.supply, minerals: army.minerals, arsenal: army.arsenal.slice() } : null,
+    me: army ? ownEconomy(state, army) : null,
     units,
     visible,
     pickups: {
       weapons: state.pickups.weapons.map((w) => ({ tileId: w.tileId, weaponId: w.weaponId })),
       mineralDrops: { ...state.pickups.mineralDrops },
     },
+  };
+}
+
+/**
+ * A player's own resources (never shown to anyone else): 🔩 with its rate per
+ * second, 💎, arsenal, unit slots used toward the cap, and each spawn point's
+ * queue with when the item being built started.
+ */
+function ownEconomy(state, army) {
+  const queues = Object.entries(army.queues).map(([key, q]) => ({
+    tileId: Number(key),
+    items: q.map((item) => ({ unitType: item.unitType, startedAt: item.doneAt - buildMs(item.unitType), doneAt: item.doneAt })),
+  }));
+  return {
+    supply: army.supply,
+    supplyRate: round3(supplyRate(state, army)),
+    minerals: army.minerals,
+    arsenal: army.arsenal.slice(),
+    units: unitSlotsUsed(army),
+    unitCap: WF_MAX_UNITS_PER_PLAYER,
+    queues,
   };
 }
 
@@ -1212,6 +1429,8 @@ module.exports = {
   makeUnit,
   createBattleState,
   stepMs,
+  buildMs,
+  supplyRate,
   applyCommand,
   isHigh,
   effectiveRange,

@@ -619,9 +619,9 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
   facilities:[{id,type,tileId}], queues:{ [spawnTileId]:[{unitType,doneAt}] },
   workshop:[{weaponId,doneAt}], stats:{kills,lost,baseDmg}, units:[Unit] } }`.
   A **Unit** = `{ id, type, class, tileId, hp, owner, carrying, path:[tileId…], stepEndsAt,
-  atkReadyAt, haul:{veinTileId}|null, holding, revealedUntil:{red,blue} }`. `race` is fixed for the match; `carrying` is a loaded
+  atkReadyAt, haul:{veinTileId, stage:'toVein'|'loading'|'toDeposit', luck}|null, holding, revealedUntil:{red,blue} }`. `race` is fixed for the match; `carrying` is a loaded
   Worker's Minerals (0 otherwise); `path`/`stepEndsAt` drive movement; `atkReadyAt` gates the next
-  auto-attack; `haul` marks a Worker in the auto-haul loop. `facilities` are also mirrored as
+  auto-attack; `haul` marks a Worker in the auto-haul loop (`luck` is the contested-vein swing, rolled once per load). `facilities` are also mirrored as
   `structure` units for combat; `arsenal` is picked-up/built weapons not yet fired.
 - `pickups` — `{ mineralDrops: { [tileId]: amount }, weapons: [{ tileId, weaponId }] }` — dropped
   hauler loads + weapon tokens **still on the map** (map gen's `weapons` minus collected).

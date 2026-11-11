@@ -19,6 +19,8 @@ import {
   RACE_PORTRAITS,
   crystalSprite,
   weaponSprite,
+  LOAD_SPRITE,
+  DROP_SPRITE,
 } from './warfrontSprites.js';
 
 const RACES = [
@@ -327,7 +329,11 @@ const infoHp = $('wf-info-hp');
 const infoOrder = $('wf-info-order');
 const armyLabel = $('wf-army-label');
 const supplyEl = $('wf-supply');
+const supplyRateEl = $('wf-supply-rate');
 const mineralsEl = $('wf-minerals');
+const cardsEl = $('wf-cards');
+const cmdBtn = { move: $('wf-cmd-move'), haul: $('wf-cmd-haul'), hold: $('wf-cmd-hold') };
+const feedEl = $('wf-feed');
 const menuBtn = $('wf-menu-btn');
 const alertEl = $('wf-alert');
 const alertText = $('wf-alert-text');
@@ -357,6 +363,10 @@ let lastHp = { red: null, blue: null };
 let alertTile = null;
 let alertTimer = null;
 const stepSeen = new Map(); // stack key -> stepStartedAt we already puffed dust for
+let mode = 'move'; // what a tap on the map does with the selection: 'move' | 'haul'
+let cardsFor = ''; // race|team the command card was built for
+const cardNodes = new Map(); // unitType -> { btn, q, bar, sig }
+let dropNodes = new Map(); // tileId -> dropped-load billboard
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -478,6 +488,7 @@ function buildWorld(data) {
   lastHp = { red: null, blue: null };
   stepSeen.clear();
   pickupNodes = new Map();
+  dropNodes = new Map();
   stackNodes.clear();
   clickNodes = new Map();
   ordersSig = '';
@@ -652,7 +663,8 @@ function stackSig(g, you) {
   g.units.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
   const hp = g.units.reduce((a, u) => a + u.hp, 0);
   const sel = g.units.some((u) => u.owner === you && selected.has(u.id));
-  return `${g.team}|${[...counts.entries()].sort().join(',')}|${hp}|${sel ? 1 : 0}`;
+  const loaded = g.units.some((u) => u.carrying > 0);
+  return `${g.team}|${[...counts.entries()].sort().join(',')}|${hp}|${sel ? 1 : 0}|${loaded ? 1 : 0}`;
 }
 
 /** Builds a stack's billboard (the mockup's squad: ring, figures, count chip, HP bar). */
@@ -690,6 +702,8 @@ function fillStack(node, g, you) {
     fig.appendChild(el('span', 'spw', (UNIT_SPRITES[figTypes[i]] || '').replace('<svg ', '<svg class="sp" ')));
     bb.appendChild(fig);
   });
+  // A hauler with a load (yours, or an enemy's in sight) carries a crystal over the squad.
+  if (g.units.some((u) => u.carrying > 0)) bb.appendChild(el('span', 'wf-load', LOAD_SPRITE));
   node.appendChild(bb);
 }
 
@@ -866,9 +880,26 @@ function renderFog() {
   lastVisible = vis;
 }
 
-/** Weapon tokens disappear once someone walks over them. */
+/** Weapon tokens disappear once someone walks over them; dropped loads come and go. */
 function renderPickups() {
   if (!live) return;
+  const drops = live.pickups.mineralDrops || {};
+  dropNodes.forEach((node, tileId) => {
+    if (!drops[tileId]) {
+      node.remove();
+      dropNodes.delete(tileId);
+    }
+  });
+  Object.keys(drops).forEach((key) => {
+    const tileId = Number(key);
+    if (dropNodes.has(tileId) || !unitLayer) return;
+    const c = tileCentre(state.map, tileId);
+    const node = ent(c.x + 14, c.y + 22, elevationAt(state.map, tileId));
+    node.appendChild(el('span', 'dec wf-dropglow'));
+    node.appendChild(billboard(DROP_SPRITE, 34, 22));
+    unitLayer.parentNode.insertBefore(node, unitLayer);
+    dropNodes.set(tileId, node);
+  });
   const left = new Set(live.pickups.weapons.map((w) => w.tileId));
   pickupNodes.forEach((node, tileId) => {
     if (!left.has(tileId)) {
@@ -1045,6 +1076,10 @@ function playEffects(events) {
       if (e.fromTileId != null) {
         shots.set(`${e.fromTileId}>${e.tileId}`, { from: e.fromTileId, to: e.tileId, ranged: e.ranged, arcane: ARCANE_TYPES.has(e.by) });
       }
+    } else if (e.type === 'deposit' && e.owner === state.you) {
+      fxBoard(e.tileId, `<span class="dmg wf-gain" style="left: 34px; top: 0">+${Math.round(e.minerals)}💎</span>`, { w: 110, h: 120, z: 24, life: FX_LIFE.dmg, team: e.team });
+    } else if (e.type === 'spawn' && e.owner === state.you) {
+      feed(`${UNIT_NAMES[e.unitType] || 'Unit'} ready`);
     } else if (e.type === 'death') {
       const k = `${e.tileId}|${e.team}`;
       const l = losses.get(k) || { tileId: e.tileId, team: e.team, n: 0 };
@@ -1194,9 +1229,11 @@ function renderBattle(data) {
   const fresh = builtFor !== data.clock.startedAt;
   if (fresh) {
     selected.clear();
+    mode = 'move';
     buildWorld(data);
     builtFor = data.clock.startedAt;
   }
+  buildCards(data);
   clearInterval(clockTimer);
   clockTimer = setInterval(tickClock, 1000);
   stripSeen = null;
@@ -1238,15 +1275,17 @@ function applyLive(view) {
   marchDust();
   tickClock();
   renderInfo();
+  renderSys();
   if (view.me) {
-    armyLabel.textContent = `Army · ${RACE_NAMES[state.myRace]}`;
     supplyEl.textContent = Math.floor(view.me.supply);
+    supplyRateEl.textContent = `+${(Math.round(view.me.supplyRate * 10) / 10).toFixed(1)}/s`;
     mineralsEl.textContent = Math.floor(view.me.minerals);
   } else {
-    armyLabel.textContent = 'Watching · no army this match';
     supplyEl.textContent = '–';
+    supplyRateEl.textContent = '';
     mineralsEl.textContent = '–';
   }
+  renderCards();
 }
 
 const UNIT_NAMES = {
@@ -1270,6 +1309,7 @@ function renderInfo() {
     infoTitle.textContent = map.theme;
     infoSub.textContent = map.lore || '';
     infoOrder.textContent = state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
+    renderSys();
     return;
   }
   const counts = new Map();
@@ -1287,12 +1327,203 @@ function renderInfo() {
     infoHp.appendChild(pip);
   });
   const dest = sel.find((u) => u.path && u.path.length);
-  infoOrder.textContent = dest ? `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}` : '▸ TAP A TILE TO MOVE';
+  const hauler = sel.find((u) => u.haul);
+  const cap = state.carryCap || 4;
+  let order;
+  if (mode === 'haul') order = '▸ TAP A MINERAL VEIN TO HAUL';
+  else if (hauler && hauler.haul.stage === 'loading') order = `▸ HAULING · LOADING 💎 ${Math.floor(hauler.carrying * 10) / 10}/${cap}`;
+  else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ HAULING · 💎 ${Math.round(hauler.carrying)} → BASE`;
+  else if (hauler) order = '▸ HAULING · TO THE VEIN';
+  else if (dest) order = `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}`;
+  else if (sel.every((u) => u.holding)) order = '▸ HOLDING · TAP A TILE TO MOVE';
+  else order = '▸ TAP A TILE TO MOVE';
+  infoOrder.textContent = order;
+}
+
+// ---------- Command console (2-battlefield.html + 2c-command-cards.html) ----------
+
+// Letter keys, as the mockup's cards show them (desktop players can press them too).
+const HOTKEYS = {
+  laborer: 'W', militiaman: 'M', crossbow: 'C', outrider: 'O', bastion: 'B', ballista: 'L',
+  peon: 'P', warrior: 'W', skirmisher: 'S', raider: 'R', berserker: 'B', warchief: 'C',
+  acolyte: 'C', apprentice: 'A', mysticArcher: 'R', battlemage: 'B', summoner: 'S', archmage: 'G',
+};
+// Card labels break long names the way the mockup does.
+const CARD_NAMES = {
+  militiaman: 'Militia-man', skirmisher: 'Skirmish-er', battlemage: 'Battle-mage', mysticArcher: 'Mystic Archer',
+  // Six cards a row (the Worker joins the mockup's five) leave a little less room.
+  apprentice: 'Appren-tice', summoner: 'Summon-er', archmage: 'Arch-mage', crossbow: 'Cross-bow', berserker: 'Berserk-er',
+};
+const RACE_CARD_CLASS = { forge: 'f', horde: 'h', arcane: '' };
+const WORKER_TYPES = new Set(['laborer', 'peon', 'acolyte']);
+
+/** A unit sprite with the `sp` class the console's sizing rules expect. */
+function cardSprite(unitType) {
+  const svg = UNIT_SPRITES[unitType] || '';
+  return svg.includes('<svg class="') ? svg.replace('<svg class="', '<svg class="sp ') : svg.replace('<svg ', '<svg class="sp" ');
+}
+
+/** One line in the map's notice overlay (the mockup's "[Team] …" lines); fades by itself. */
+function feed(text, tone = 'grn') {
+  const line = el('span', tone === 'grn' ? 'grn' : '');
+  if (tone !== 'grn') line.style.color = '#ffcc33';
+  line.textContent = text;
+  feedEl.appendChild(line);
+  while (feedEl.children.length > 3) feedEl.firstChild.remove();
+  setTimeout(() => line.remove(), 3500);
+}
+
+function myBaseTile() {
+  const base = state && state.map && state.map.bases.find((b) => b.team === state.myTeam);
+  return base ? base.tileId : null;
+}
+
+/** The race's unit cards, built once per battle (race and team never change mid-match). */
+function buildCards(data) {
+  const key = `${data.myRace}|${data.myTeam}|${data.clock.startedAt}`;
+  if (cardsFor === key) return;
+  cardsFor = key;
+  cardNodes.clear();
+  cardsEl.innerHTML = '';
+  cardsEl.className = `well tm-${data.myTeam || 'red'} ${RACE_CARD_CLASS[data.myRace] || ''}`;
+  armyLabel.textContent = data.myRace ? `Recruit · ${RACE_NAMES[data.myRace]}` : 'Watching · no army this match';
+  cardsEl.classList.toggle('hidden', !data.catalog || !data.catalog.length);
+  (data.catalog || []).forEach((c) => {
+    const btn = el('button', `cmd${c.structure ? ' struct' : ''}`);
+    btn.type = 'button';
+    const price = c.minerals ? `${c.supply} Supply and ${c.minerals} Minerals` : `${c.supply} Supply`;
+    btn.setAttribute('aria-label', `Produce ${c.name}, costs ${price}`);
+    btn.appendChild(el('span', 'hk')).textContent = HOTKEYS[c.unitType] || '';
+    btn.appendChild(el('span', 'cc')).textContent = c.supply;
+    if (c.minerals) btn.appendChild(el('span', 'wf-cm')).textContent = `💎${c.minerals}`;
+    if (c.structure) btn.appendChild(el('span', 'tag')).textContent = 'STRUCTURE';
+    const q = btn.appendChild(el('span', 'wf-q'));
+    btn.appendChild(el('span', 'cs', cardSprite(c.unitType)));
+    btn.appendChild(el('span', 'cn')).textContent = CARD_NAMES[c.unitType] || c.name;
+    const bar = el('span', 'wf-qbar hidden', '<span style="width: 0%"></span>');
+    btn.appendChild(bar);
+    btn.addEventListener('click', () => produceUnit(c.unitType));
+    cardsEl.appendChild(btn);
+    cardNodes.set(c.unitType, { btn, q, bar, info: c, sig: '' });
+  });
+}
+
+/** Greys out what you can't afford (or have no room for) and shows each type's queue. */
+function renderCards() {
+  if (!live || !state) return;
+  const me = live.me;
+  const now = serverNow();
+  const queued = new Map(); // unitType -> count
+  const building = new Map(); // unitType -> progress 0..1 of the one at the front of a queue
+  ((me && me.queues) || []).forEach(({ items }) => {
+    items.forEach((it, i) => {
+      queued.set(it.unitType, (queued.get(it.unitType) || 0) + 1);
+      if (i === 0) {
+        const p = Math.max(0, Math.min(1, (now - it.startedAt) / Math.max(1, it.doneAt - it.startedAt)));
+        building.set(it.unitType, Math.max(building.get(it.unitType) || 0, p));
+      }
+    });
+  });
+  cardNodes.forEach((card, unitType) => {
+    const c = card.info;
+    const roomFor = me ? me.unitCap - me.units >= (unitType === 'summoner' ? 2 : 1) : false;
+    const afford = Boolean(me) && me.supply >= c.supply && me.minerals >= c.minerals && roomFor;
+    const n = queued.get(unitType) || 0;
+    const sig = `${afford ? 1 : 0}|${n}`;
+    if (sig !== card.sig) {
+      card.sig = sig;
+      card.btn.classList.toggle('dim', !afford);
+      card.btn.classList.toggle('wf-busy', n > 0);
+      card.q.textContent = n ? `×${n}` : '';
+      card.bar.classList.toggle('hidden', !building.has(unitType));
+    }
+    if (building.has(unitType)) card.bar.firstChild.style.width = `${Math.round(building.get(unitType) * 100)}%`;
+  });
+}
+
+function produceUnit(unitType) {
+  if (!state || state.phase !== 'playing' || !state.myTeam || !live || !live.me) return;
+  const card = cardNodes.get(unitType);
+  if (card) {
+    card.btn.classList.add('on');
+    setTimeout(() => card.btn.classList.remove('on'), 220);
+  }
+  haptics.tap();
+  ctx.socket.emit('wfCommand', { kind: 'produce', unitType, atTileId: myBaseTile() }, (res) => {
+    if (res && !res.ok) {
+      feed(res.error, 'amb');
+      sfx.error();
+      haptics.warn();
+    } else {
+      sfx.click();
+    }
+  });
+}
+
+function selectedUnits() {
+  if (!live || !state) return [];
+  return live.units.filter((u) => u.owner === state.you && selected.has(u.id));
+}
+
+/** Move / Haul / Hold: lit for what the selection can do, green for the tap mode in use. */
+function renderSys() {
+  const sel = selectedUnits();
+  const workers = sel.some((u) => WORKER_TYPES.has(u.type));
+  if (mode === 'haul' && !workers) mode = 'move';
+  cmdBtn.move.classList.toggle('dim', !sel.length);
+  cmdBtn.move.classList.toggle('on', Boolean(sel.length) && mode === 'move');
+  cmdBtn.haul.classList.toggle('dim', !workers);
+  cmdBtn.haul.classList.toggle('on', workers && mode === 'haul');
+  cmdBtn.hold.classList.toggle('dim', !sel.length);
+  cmdBtn.hold.classList.toggle('on', Boolean(sel.length) && sel.every((u) => u.holding));
+}
+
+function sendOrder(cmd) {
+  ctx.socket.emit('wfCommand', cmd, (res) => {
+    if (res && !res.ok) {
+      feed(res.error, 'amb');
+      sfx.error();
+      haptics.warn();
+    }
+  });
+  haptics.tap();
+}
+
+function onSysButton(kind) {
+  const sel = selectedUnits();
+  if (!sel.length) {
+    feed('Tap your units first', 'amb');
+    return;
+  }
+  if (kind === 'move') mode = 'move';
+  else if (kind === 'haul') {
+    if (!sel.some((u) => WORKER_TYPES.has(u.type))) {
+      feed('Only Workers can haul', 'amb');
+      return;
+    }
+    mode = mode === 'haul' ? 'move' : 'haul';
+  } else if (kind === 'hold') {
+    mode = 'move';
+    sendOrder({ kind: 'hold', unitIds: sel.map((u) => u.id) });
+  }
+  sfx.click();
+  renderSys();
+  renderInfo();
 }
 
 /** Tap on the battlefield: pick up your stack on that tile, or send the selection there. */
 function onTileTap(tileId) {
   if (!state || state.phase !== 'playing' || !live || !state.myTeam) return;
+  const vein = state.map.veins.some((v) => v.tileId === tileId);
+  const workerIds = selectedUnits().filter((u) => WORKER_TYPES.has(u.type)).map((u) => u.id);
+  if (mode === 'haul') {
+    mode = 'move';
+    if (!vein) feed('Tap a mineral vein to haul from it', 'amb');
+    else if (workerIds.length) sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
+    renderSys();
+    renderInfo();
+    return;
+  }
   const mineHere = live.units.filter((u) => u.owner === state.you && u.tileId === tileId).map((u) => u.id);
   const selHere = mineHere.filter((id) => selected.has(id));
   if (mineHere.length && (!selected.size || selHere.length < mineHere.length)) {
@@ -1303,6 +1534,9 @@ function onTileTap(tileId) {
     haptics.tap();
   } else if (mineHere.length && selHere.length === mineHere.length && selected.size === selHere.length) {
     selected.clear(); // tapping your selected stack again lets go of it
+  } else if (selected.size && vein && workerIds.length === selected.size) {
+    // Workers sent onto a vein start hauling from it.
+    sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
   } else if (selected.size) {
     const unitIds = [...selected];
     ctx.socket.emit('wfCommand', { kind: 'move', unitIds, toTileId: tileId }, (res) => {
@@ -1316,6 +1550,7 @@ function onTileTap(tileId) {
     return;
   }
   renderUnits();
+  renderSys();
   renderInfo();
 }
 
@@ -1411,6 +1646,17 @@ export const Warfront = {
       if (state && state.map && alertTile != null) lookAt(state.map, alertTile);
       alertEl.classList.add('hidden');
     });
+    ['move', 'haul', 'hold'].forEach((kind) => cmdBtn[kind].addEventListener('click', () => onSysButton(kind)));
+    document.addEventListener('keydown', (e) => {
+      if (!state || state.phase !== 'playing' || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+      const key = e.key.toUpperCase();
+      const hit = (state.catalog || []).find((c) => HOTKEYS[c.unitType] === key);
+      if (hit) {
+        e.preventDefault();
+        produceUnit(hit.unitType);
+      }
+    });
     world.addEventListener('click', (e) => {
       if (Date.now() < suppressClickUntil) return;
       const tile = e.target.closest('.tile');
@@ -1446,5 +1692,8 @@ export const Warfront = {
     clearTimeout(alertTimer);
     alertEl.classList.add('hidden');
     if (fxLayer) fxLayer.innerHTML = '';
+    mode = 'move';
+    cardsFor = '';
+    feedEl.innerHTML = '';
   },
 };
