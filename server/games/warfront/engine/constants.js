@@ -38,7 +38,7 @@ const TUNING = Object.freeze({
   mineLoadSec: 0.5,
   carryCap: 4,
   buildMsPerCost: 1200,
-  attackMs: 1000,
+  attackMs: 1500, // slowed from 1000 with unit HP ×2 (2026-11-12): fights last ~3× longer
   luckMagnitude: 0.35,
   structureDefense: 1.5,
   veinLuckMagnitude: 0.4,

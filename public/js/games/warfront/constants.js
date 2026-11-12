@@ -51,10 +51,10 @@ export const WEAPON_IDS = Object.keys(WEAPON_NAMES);
 // Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES and FACILITIES).
 export const UNIT_MAX_HP = {
   refinery: 15, barracks: 20, workshop: 15, tower: 18,
-  laborer: 5, peon: 5, acolyte: 5,
-  militiaman: 11, crossbow: 7, outrider: 8, bastion: 20, ballista: 8,
-  warrior: 11, skirmisher: 7, raider: 9, berserker: 6, warchief: 16,
-  apprentice: 6, mysticArcher: 6, battlemage: 8, summoner: 7, archmage: 10, golem: 18,
+  laborer: 10, peon: 10, acolyte: 10,
+  militiaman: 22, crossbow: 14, outrider: 16, bastion: 40, ballista: 16,
+  warrior: 22, skirmisher: 14, raider: 18, berserker: 12, warchief: 32,
+  apprentice: 12, mysticArcher: 12, battlemage: 16, summoner: 14, archmage: 20, golem: 36,
 };
 
 export const UNIT_NAMES = {

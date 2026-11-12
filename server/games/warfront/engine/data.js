@@ -64,28 +64,28 @@ function unit(id, name, race, cls, hp, atk, supply, minerals, move, range, flags
 
 const UNIT_TYPES = Object.freeze({
   // Workers (same stats, race flavour name)
-  laborer: unit('laborer', 'Laborer', 'forge', 'worker', 5, 1, 3, 0, 1, 1),
-  peon: unit('peon', 'Peon', 'horde', 'worker', 5, 1, 3, 0, 1, 1),
-  acolyte: unit('acolyte', 'Acolyte', 'arcane', 'worker', 5, 1, 3, 0, 1, 1),
+  laborer: unit('laborer', 'Laborer', 'forge', 'worker', 10, 1, 3, 0, 1, 1),
+  peon: unit('peon', 'Peon', 'horde', 'worker', 10, 1, 3, 0, 1, 1),
+  acolyte: unit('acolyte', 'Acolyte', 'arcane', 'worker', 10, 1, 3, 0, 1, 1),
   // Forge
-  militiaman: unit('militiaman', 'Militiaman', 'forge', 'melee', 11, 4, 3, 0, 1, 1),
-  crossbow: unit('crossbow', 'Crossbow', 'forge', 'ranged', 7, 5, 4, 0, 1, 2),
-  outrider: unit('outrider', 'Outrider', 'forge', 'mounted', 8, 4, 5, 2, 2, 1),
-  bastion: unit('bastion', 'Bastion', 'forge', 'structure', 20, 3, 6, 3, 0, 0),
-  ballista: unit('ballista', 'Ballista', 'forge', 'siege', 8, 4, 6, 4, 1, 2),
+  militiaman: unit('militiaman', 'Militiaman', 'forge', 'melee', 22, 4, 3, 0, 1, 1),
+  crossbow: unit('crossbow', 'Crossbow', 'forge', 'ranged', 14, 5, 4, 0, 1, 2),
+  outrider: unit('outrider', 'Outrider', 'forge', 'mounted', 16, 4, 5, 2, 2, 1),
+  bastion: unit('bastion', 'Bastion', 'forge', 'structure', 40, 3, 6, 3, 0, 0),
+  ballista: unit('ballista', 'Ballista', 'forge', 'siege', 16, 4, 6, 4, 1, 2),
   // Horde
-  warrior: unit('warrior', 'Warrior', 'horde', 'melee', 11, 5, 3, 0, 1, 1),
-  skirmisher: unit('skirmisher', 'Skirmisher', 'horde', 'ranged', 7, 5, 4, 0, 1, 2),
-  raider: unit('raider', 'Raider', 'horde', 'mounted', 9, 4, 5, 2, 3, 1),
-  berserker: unit('berserker', 'Berserker', 'horde', 'melee', 6, 9, 5, 2, 1, 1),
-  warchief: unit('warchief', 'Warchief', 'horde', 'melee', 16, 7, 8, 5, 1, 1),
+  warrior: unit('warrior', 'Warrior', 'horde', 'melee', 22, 5, 3, 0, 1, 1),
+  skirmisher: unit('skirmisher', 'Skirmisher', 'horde', 'ranged', 14, 5, 4, 0, 1, 2),
+  raider: unit('raider', 'Raider', 'horde', 'mounted', 18, 4, 5, 2, 3, 1),
+  berserker: unit('berserker', 'Berserker', 'horde', 'melee', 12, 9, 5, 2, 1, 1),
+  warchief: unit('warchief', 'Warchief', 'horde', 'melee', 32, 7, 8, 5, 1, 1),
   // Arcane
-  apprentice: unit('apprentice', 'Apprentice', 'arcane', 'caster', 6, 4, 3, 0, 1, 2),
-  mysticArcher: unit('mysticArcher', 'Mystic Archer', 'arcane', 'ranged', 6, 5, 4, 0, 1, 2),
-  battlemage: unit('battlemage', 'Battlemage', 'arcane', 'caster', 8, 6, 6, 3, 1, 1, ['aoe']),
-  summoner: unit('summoner', 'Summoner', 'arcane', 'caster', 7, 3, 6, 4, 1, 2, ['summonsGolem']),
-  archmage: unit('archmage', 'Archmage', 'arcane', 'caster', 10, 7, 9, 6, 1, 2, ['luckBend']),
-  golem: unit('golem', 'Golem', 'arcane', 'structure', 18, 5, 0, 0, 0, 1, ['summoned']),
+  apprentice: unit('apprentice', 'Apprentice', 'arcane', 'caster', 12, 4, 3, 0, 1, 2),
+  mysticArcher: unit('mysticArcher', 'Mystic Archer', 'arcane', 'ranged', 12, 5, 4, 0, 1, 2),
+  battlemage: unit('battlemage', 'Battlemage', 'arcane', 'caster', 16, 6, 6, 3, 1, 1, ['aoe']),
+  summoner: unit('summoner', 'Summoner', 'arcane', 'caster', 14, 3, 6, 4, 1, 2, ['summonsGolem']),
+  archmage: unit('archmage', 'Archmage', 'arcane', 'caster', 20, 7, 9, 6, 1, 2, ['luckBend']),
+  golem: unit('golem', 'Golem', 'arcane', 'structure', 36, 5, 0, 0, 0, 1, ['summoned']),
 });
 
 /** Unit type ids a player of `race` may produce (summoned units excluded). */

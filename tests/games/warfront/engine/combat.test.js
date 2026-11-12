@@ -122,7 +122,9 @@ test('combat: a contested base takes no damage; once the defender is gone it doe
   E.stepSim(b.st, 200, { now: 2600 });
   E.stepSim(b.st, 200, { now: 2800 });
   E.stepSim(b.st, 200, { now: 3000 });
-  assert.ok(b.st.bases.blue.hp < E.TUNING.baseHp);
+  E.stepSim(b.st, 200, { now: 3200 });
+  E.stepSim(b.st, 200, { now: 3400 });
+  assert.ok(b.st.bases.blue.hp < E.TUNING.baseHp, 'hit on the next cooldown (attackMs 1500)');
 });
 
 test('combat: a base shoots an adjacent raider every baseAttackMs, but never across the cliff', () => {

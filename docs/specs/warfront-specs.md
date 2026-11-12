@@ -113,7 +113,7 @@ balance) and the shell's `server/games/warfront/constants.js` (timing/roster). A
 | `TUNING.mineLoadSec` | 0.5 | Minerals **per second** a Worker loads on a vein, × the vein's richness |
 | `TUNING.carryCap` | 4 | Max Minerals a Worker carries before the auto-haul loop returns to deposit |
 | `TUNING.buildMsPerCost` | 1200 | Build/spawn time **per point of a unit's 🔩 Supply cost** |
-| `TUNING.attackMs` | 1000 | Base attack cooldown (per-unit overrides allowed) |
+| `TUNING.attackMs` | 1500 | Base attack cooldown (per-unit overrides allowed). Slowed from 1000 together with every unit's HP ×2 (2026-11-12) so fights last ~3× longer |
 | `TUNING.luckMagnitude` | 0.35 | ± per-hit damage swing at zero strategy edge |
 | `TUNING.hillRangeBonus` | 1 | Extra range for a **ranged** unit (base `Rng` ≥ 2) standing on hills (see "High ground") |
 | `TUNING.uphillRangePenalty` | 1 | Range lost by a ranged unit **off** the hills shooting at a target **on** hills |
@@ -160,7 +160,7 @@ flow, so losing them starves you — defend yours, hunt theirs.
 
 | Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 5 | 1 | 3 | 0 | 1 | 1 | harvests Supply on a supply source; loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
+| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 10 | 1 | 3 | 0 | 1 | 1 | harvests Supply on a supply source; loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
 
 **⚒️ FORGE — the great builders.** Specialty: **defense + economy** (Forge Workers earn
 `+forgeWorkerBonusSec` Supply/sec, every Forge facility and tower costs `forgeStructureDiscount` 💎
@@ -169,34 +169,34 @@ best.
 
 | Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Militiaman | 🛠️ | melee | 11 | 4 | 3 | 0 | 1 | 1 | basic; cheap, sturdy |
-| Crossbow | 🎯 | ranged | 7 | 5 | 4 | 0 | 1 | 2 | basic |
-| Outrider | 🐴 | mounted | 8 | 4 | 5 | 2 | 2 | 1 | |
-| Bastion | 🏯 | structure | 20 | 3 | 6 | 3 | 0 | 0 | can't move; very high defense; attacks enemies on its own tile |
-| Ballista | 💥 | siege | 8 | 4 | 6 | 4 | 1 | 2 | `×3` atk vs structures **and** bases |
+| Militiaman | 🛠️ | melee | 22 | 4 | 3 | 0 | 1 | 1 | basic; cheap, sturdy |
+| Crossbow | 🎯 | ranged | 14 | 5 | 4 | 0 | 1 | 2 | basic |
+| Outrider | 🐴 | mounted | 16 | 4 | 5 | 2 | 2 | 1 | |
+| Bastion | 🏯 | structure | 40 | 3 | 6 | 3 | 0 | 0 | can't move; very high defense; attacks enemies on its own tile |
+| Ballista | 💥 | siege | 16 | 4 | 6 | 4 | 1 | 2 | `×3` atk vs structures **and** bases |
 
 **⚔️ HORDE — the great fighters.** Specialty: **raw combat** — Horde units get `×1.15` attack
 and a **reduced luck swing** (`×0.6`); reliable brutes for whom strategy beats luck.
 
 | Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Warrior | 🗡️ | melee | 11 | 5 | 3 | 0 | 1 | 1 | basic |
-| Skirmisher | 🪃 | ranged | 7 | 5 | 4 | 0 | 1 | 2 | basic |
-| Raider | 🐎 | mounted | 9 | 4 | 5 | 2 | 3 | 1 | fastest unit in the game |
-| Berserker | 🪓 | melee | 6 | 9 | 5 | 2 | 1 | 1 | glass cannon |
-| Warchief | 👑 | melee | 16 | 7 | 8 | 5 | 1 | 1 | elite bruiser |
+| Warrior | 🗡️ | melee | 22 | 5 | 3 | 0 | 1 | 1 | basic |
+| Skirmisher | 🪃 | ranged | 14 | 5 | 4 | 0 | 1 | 2 | basic |
+| Raider | 🐎 | mounted | 18 | 4 | 5 | 2 | 3 | 1 | fastest unit in the game |
+| Berserker | 🪓 | melee | 12 | 9 | 5 | 2 | 1 | 1 | glass cannon |
+| Warchief | 👑 | melee | 32 | 7 | 8 | 5 | 1 | 1 | elite bruiser |
 
 **🔮 ARCANE — the magicians.** Specialty: **area magic + luck manipulation** (fragile,
 expensive, high-impact — and the race that bends the game's luck, tying into the gambling theme).
 
 | Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Apprentice | ✨ | caster | 6 | 4 | 3 | 0 | 1 | 2 | basic |
-| Mystic Archer | 🏹 | ranged | 6 | 5 | 4 | 0 | 1 | 2 | basic |
-| Battlemage | 🔥 | caster | 8 | 6 | 6 | 3 | 1 | 1 | `aoe`: hits **every** enemy unit on its target's tile |
-| Summoner | 🧿 | caster | 7 | 3 | 6 | 4 | 1 | 2 | producing one also summons a **Golem** at the base |
-| Archmage | 🪄 | caster | 10 | 7 | 9 | 6 | 1 | 2 | `luckBend`: hits by friendlies within 2 tiles of it get luck `×0.5`; hits on friendlies within 2 tiles of it get the enemy's luck `×1.5` (several Archmages don't stack) |
-| Golem | 🗿 | structure | 18 | 5 | — | — | 0 | 1 | summoned by a Summoner (not built directly); can't move |
+| Apprentice | ✨ | caster | 12 | 4 | 3 | 0 | 1 | 2 | basic |
+| Mystic Archer | 🏹 | ranged | 12 | 5 | 4 | 0 | 1 | 2 | basic |
+| Battlemage | 🔥 | caster | 16 | 6 | 6 | 3 | 1 | 1 | `aoe`: hits **every** enemy unit on its target's tile |
+| Summoner | 🧿 | caster | 14 | 3 | 6 | 4 | 1 | 2 | producing one also summons a **Golem** at the base |
+| Archmage | 🪄 | caster | 20 | 7 | 9 | 6 | 1 | 2 | `luckBend`: hits by friendlies within 2 tiles of it get luck `×0.5`; hits on friendlies within 2 tiles of it get the enemy's luck `×1.5` (several Archmages don't stack) |
+| Golem | 🗿 | structure | 36 | 5 | — | — | 0 | 1 | summoned by a Summoner (not built directly); can't move |
 
 **Cost currency:** **basic units** (each race's two cheapest fighters) and **Workers** cost 🔩
 Supply only. **Advanced units** cost 🔩 Supply **plus** 💎 Minerals — the stronger the unit, the more

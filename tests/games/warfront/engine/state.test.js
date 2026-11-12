@@ -31,7 +31,7 @@ test('createBattleState seeds armies, bases, pickups and the clock', () => {
   assert.equal(st.armies.Ann.units.length, E.TUNING.startWorkers);
   assert.ok(st.armies.Ann.units.every((u) => u.type === 'laborer' && u.tileId === st.bases.red.tileId && u.owner === 'Ann'));
   assert.ok(st.armies.Bob.units.every((u) => u.type === 'acolyte' && u.tileId === st.bases.blue.tileId));
-  assert.ok(st.armies.Cat.units.every((u) => u.type === 'peon' && u.class === 'worker' && u.hp === 5));
+  assert.ok(st.armies.Cat.units.every((u) => u.type === 'peon' && u.class === 'worker' && u.hp === 10));
 
   const ids = Object.values(st.armies).flatMap((a) => a.units.map((u) => u.id));
   assert.equal(new Set(ids).size, ids.length);
