@@ -738,7 +738,18 @@ labels (`translateZ(40px)`) so the 3D sort never hides it. Checked in headless C
   while it stands still (no infinite pulse).
 - **Tests:** covered by `makeupSig` (selection already rebuilds the stack).
 
-### Step 22: Soldier HP and army size
+### Step 22: Soldier HP and army size ✅
+Done 2026-11-12. A stack's HP bar is one segment per soldier (lowest HP first, up to 8), each a
+`scaleX` fill; the stack is rebuilt only when its make-up changes (new pure `stackSig.js`, which
+also does Step 16's sig split) and HP repaints the segments in place. The info well lists every
+selected soldier's bar (up to 10, then "+N"), lowest first, and "HP 5 · 9 · 33 (of N each)". The
+header shows `⚔ soldiers/cap`. **Deviation:** the number is soldiers on the field, not `me.units`,
+which also counts units in training and buildings (cap slots); the count turns amber when the cap is
+full so a blocked Produce card makes sense. The bar's class is `sqhp`, not `seg` (the segmented
+control's `.seg` padding squashed it to 0 px). Also fixed: `hp-r` had no CSS, so a badly hurt
+stack never turned red. Checked in headless Chrome at 360px: wounding two of three soldiers through
+the live store repaints the segments red/amber/green, keeps the same figure nodes, and matches the
+console.
 - **Goal:** you can see how much life each soldier has, and how many soldiers you have in total.
 - **Mockup first, then show David:** (a) on the map, one thin HP bar per figure under its feet
   (up to the 4 figures a stack draws) instead of the single stack bar, or the stack bar split into one

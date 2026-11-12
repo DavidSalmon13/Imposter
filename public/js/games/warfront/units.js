@@ -13,6 +13,7 @@ import { serverNow } from './clock.js';
 import { renderStructures } from './structures.js';
 import { renderMiniUnits } from './minimap.js';
 import { resumeAttacks } from './attacks.js';
+import { makeupSig, hpSegments, hpSig, hpClass } from './stackSig.js';
 
 // ---------- Units: one stack per tile and team, tweened between ticks ----------
 
@@ -58,12 +59,30 @@ function groupUnits(units) {
 }
 
 function stackSig(g, you) {
-  const counts = new Map();
-  g.units.forEach((u) => counts.set(u.type, (counts.get(u.type) || 0) + 1));
-  const hp = g.units.reduce((a, u) => a + u.hp, 0);
-  const sel = g.units.some((u) => u.owner === you && S.selected.has(u.id));
+  const selected = g.units.some((u) => u.owner === you && S.selected.has(u.id));
   const loaded = g.units.some((u) => u.carrying > 0);
-  return `${g.team}|${[...counts.entries()].sort().join(',')}|${hp}|${sel ? 1 : 0}|${loaded ? 1 : 0}`;
+  return makeupSig(g.units, g.team, { selected, loaded });
+}
+
+/**
+ * Paints a stack's HP bar in place: one segment per soldier (lowest first, up to 8), each
+ * filled with a scaleX transform. Rebuilds the segment nodes only if their number changed.
+ */
+function paintHp(entry, g) {
+  const segs = hpSegments(g.units, UNIT_MAX_HP);
+  const sig = hpSig(segs);
+  if (entry.hpSig === sig) return;
+  entry.hpSig = sig;
+  const bar = entry.node.querySelector('.hpb');
+  if (!bar) return;
+  if (bar.children.length !== segs.length) {
+    bar.innerHTML = segs.map(() => '<i><b></b></i>').join('');
+  }
+  segs.forEach((f, i) => {
+    const b = bar.children[i].firstChild;
+    b.className = hpClass(f);
+    b.style.transform = `scaleX(${f.toFixed(3)})`;
+  });
 }
 
 /** Builds a stack's billboard (the mockup's squad: ring, figures, count chip, HP bar). */
@@ -74,9 +93,6 @@ function fillStack(node, g, you) {
   const types = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
   const figTypes = [];
   for (let i = 0; figTypes.length < Math.min(g.units.length, 4); i++) figTypes.push(types[i % types.length]);
-  const hp = g.units.reduce((a, u) => a + u.hp, 0);
-  const maxHp = g.units.reduce((a, u) => a + (UNIT_MAX_HP[u.type] || u.hp), 0);
-  const pct = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
   const isSel = g.units.some((u) => u.owner === you && S.selected.has(u.id));
   const form = FORMATIONS[figTypes.length];
 
@@ -94,7 +110,7 @@ function fillStack(node, g, you) {
   }
   const bb = el('div', `bb sqbb tm-${g.team}`);
   if (isSel) bb.appendChild(el('span', 'selm'));
-  bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : pct >= 35 ? 'hp-y' : 'hp-r'}" style="width: ${pct}%"></span>`));
+  bb.appendChild(el('span', 'hpb sqhp')); // segments painted by paintHp (plan Step 22)
   bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
   form.forEach(([fx, fy], i) => {
     const fig = el('span', `fig d${i}${g.team !== 'red' ? ' flip' : ''}`);
@@ -171,7 +187,9 @@ export function renderUnits() {
     if (sig !== entry.sig) {
       fillStack(entry.node, g, you);
       entry.sig = sig;
+      entry.hpSig = null;
     }
+    paintHp(entry, g);
     placeStack(map, entry, serverNow());
   });
   fresh.sort((a, b) => a.y - b.y).forEach((f) => S.unitLayer.appendChild(f.node));

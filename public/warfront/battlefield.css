@@ -100,6 +100,11 @@
 :is(#wf-screen, #wf-gameover-screen) .wf .hpb span{display:block;height:100%}
 :is(#wf-screen, #wf-gameover-screen) .wf .hp-g{background:repeating-linear-gradient(90deg,#4dff7a 0 5px,#0a2a12 5px 6px)}
 :is(#wf-screen, #wf-gameover-screen) .wf .hp-y{background:repeating-linear-gradient(90deg,#ffcc33 0 5px,#2a2005 5px 6px)}
+/* One HP segment per soldier (plan Step 22): lowest first, each filled by a scaleX transform. */
+:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp{display:flex;gap:1px}
+:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp i{flex:1;height:100%;position:relative;display:block;overflow:hidden;background:#3a1012}
+:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp b{position:absolute;inset:0;display:block;transform-origin:0 50%}
+:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp b.hp-g{background:#4dff7a}:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp b.hp-y{background:#ffcc33}:is(#wf-screen, #wf-gameover-screen) .wf .hpb.sqhp b.hp-r{background:#ff5a5f}
 :is(#wf-screen, #wf-gameover-screen) .wf .chip{position:absolute;top:-5px;right:-14px;font-size:10px;font-weight:800;padding:1px 6px 1px 4px;color:#fff;white-space:nowrap;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 :is(#wf-screen, #wf-gameover-screen) .wf .c-red{background:linear-gradient(180deg,#ff5a5f,#a8262b)}
 :is(#wf-screen, #wf-gameover-screen) .wf .c-blue{background:linear-gradient(180deg,#4f93ff,#1d4fb0)}

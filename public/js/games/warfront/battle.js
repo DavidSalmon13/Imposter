@@ -5,8 +5,9 @@
  */
 
 import { S } from './store.js';
-import { supplyEl, supplyRateEl, mineralsEl } from './dom.js';
+import { supplyEl, supplyRateEl, mineralsEl, armyEl, armyCapEl } from './dom.js';
 import { buildWorld } from './world/build.js';
+import { FACILITY_TYPES } from './constants.js';
 import { syncClock } from './clock.js';
 import { renderUnits } from './units.js';
 import { renderOrders } from './orders.js';
@@ -88,10 +89,17 @@ export function applyLive(view) {
     supplyEl.textContent = Math.floor(view.me.supply);
     supplyRateEl.textContent = `+${(Math.round(view.me.supplyRate * 10) / 10).toFixed(1)}/s`;
     mineralsEl.textContent = Math.floor(view.me.minerals);
+    // Soldiers on the field (not buildings, not ones still training); amber once the cap is
+    // used up, since training units and buildings count toward it too (engine unitSlotsUsed).
+    armyEl.textContent = view.units.filter((u) => u.owner === S.state.you && !FACILITY_TYPES.has(u.type)).length;
+    armyCapEl.textContent = `/${view.me.unitCap}`;
+    armyEl.parentNode.classList.toggle('wf-army-full', view.me.units >= view.me.unitCap);
   } else {
     supplyEl.textContent = '–';
     supplyRateEl.textContent = '';
     mineralsEl.textContent = '–';
+    armyEl.textContent = '–';
+    armyCapEl.textContent = '';
   }
   renderCards();
   renderBuildCards();

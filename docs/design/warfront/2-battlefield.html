@@ -118,10 +118,10 @@ a{color:#4dff7a}a:hover{color:#b6ffc9}
 /* ===== Proposal, plan Steps 21-23 (2026-11-12): selection, per-soldier HP, army size, bulk ===== */
 .sc .selg{width:76px;height:76px;border:2.5px solid #4dff7a;box-shadow:0 0 10px rgba(77,255,122,.8),inset 0 0 12px rgba(77,255,122,.45);background:radial-gradient(circle,rgba(77,255,122,.2),transparent 70%)}
 .sc .selm{position:absolute;left:50%;top:-21px;margin-left:-9px;width:18px;height:12px;background:#4dff7a;clip-path:polygon(0 0,100% 0,50% 100%);box-shadow:0 0 6px #4dff7a}
-.sc .hpb.seg{display:flex;gap:1px;padding:0}
-.sc .hpb.seg i{flex:1;position:relative;display:block;background:#3a1012}
-.sc .hpb.seg b{position:absolute;left:0;top:0;bottom:0;display:block}
-.sc .hpb.seg b.hp-g{background:#4dff7a}.sc .hpb.seg b.hp-y{background:#ffcc33}.sc .hpb.seg b.hp-r{background:#ff5a5f}
+.sc .hpb.sqhp{display:flex;gap:1px;padding:0}
+.sc .hpb.sqhp i{flex:1;position:relative;display:block;background:#3a1012}
+.sc .hpb.sqhp b{position:absolute;left:0;top:0;bottom:0;display:block}
+.sc .hpb.sqhp b.hp-g{background:#4dff7a}.sc .hpb.sqhp b.hp-y{background:#ffcc33}.sc .hpb.sqhp b.hp-r{background:#ff5a5f}
 .sc .uhp{position:relative;display:block;width:30px;height:6px;background:#3a1012;box-shadow:inset 0 0 0 1px #000}
 .sc .uhp b{position:absolute;left:0;top:0;bottom:0;display:block;background:#4dff7a;box-shadow:0 0 4px #4dff7a}
 .sc .uhp b.y{background:#ffcc33;box-shadow:0 0 4px #ffcc33}.sc .uhp b.r{background:#ff5a5f;box-shadow:0 0 4px #ff5a5f}
@@ -1016,7 +1016,7 @@ body{display:flex;justify-content:center}
               <span class="selr" style="left: 0px; top: -11px"></span><span class="selr" style="left: -18px; top: 5px"></span><span class="selr" style="left: 18px; top: 5px"></span>
               <div class="bb sqbb tm-red ">
                 <span class="selm"></span>
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 34%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 34%"></b></i></span>
                 <span class="chip c-red">🔥×3</span>
                 
                   <span class="fig d0" style="left: 21px; top: 10px">
@@ -1084,7 +1084,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🪓×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1133,7 +1133,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🏹×3</span>
                 
                   <span class="fig d0" style="left: 21px; top: 10px">
@@ -1201,7 +1201,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">✨×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1250,7 +1250,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🪄×1</span>
                 
                   <span class="fig d0" style="left: 21px; top: 24px">
@@ -1280,7 +1280,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 90%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 90%"></b></i></span>
                 <span class="chip c-red">🧿×1</span>
                 
                   <span class="fig d0" style="left: 21px; top: 24px">
@@ -1310,7 +1310,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-y" style="width: 40%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-y" style="width: 40%"></b></i></span>
                 <span class="chip c-red">🗡️×4</span>
                 
                   <span class="fig d0" style="left: 6px; top: 10px">
@@ -1397,7 +1397,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 20%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 20%"></b></i></span>
                 <span class="chip c-red">🐎×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1446,7 +1446,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 10%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 10%"></b></i></span>
                 <span class="chip c-blue">🗡️×3</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 10px">
@@ -1514,7 +1514,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">👑×1</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 24px">
@@ -1544,7 +1544,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🪃×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1593,7 +1593,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🛠️×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1642,7 +1642,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 80%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 80%"></b></i></span>
                 <span class="chip c-blue">🐴×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1691,7 +1691,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🎯×3</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 10px">
@@ -1759,7 +1759,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
+                <span class="hpb sqhp"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">💥×1</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 24px">

@@ -46,3 +46,16 @@
 :is(#wf-screen) .wf .cmd .wf-cstat .s { color: #ffcc33; letter-spacing: -1px; }
 :is(#wf-screen) .wf .cmd { -webkit-touch-callout: none; user-select: none; }
 :is(#wf-screen) .wf #wf-info-sub .wf-stl { display: block; margin-top: 2px; color: #ffcc33; font-weight: 700; letter-spacing: .02em; }
+
+/* Plan Step 22 (2-battlefield.html info well + console header): one HP bar per selected soldier,
+   lowest first, their HP as numbers, and your army size against the unit cap. */
+:is(#wf-screen, #wf-gameover-screen) .wf #wf-info-hp { align-items: center; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp { position: relative; display: block; width: 24px; height: 6px; overflow: hidden; background: #3a1012; box-shadow: inset 0 0 0 1px #000; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp b { position: absolute; inset: 0; display: block; transform-origin: 0 50%; background: #4dff7a; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp b.hp-y { background: #ffcc33; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp b.hp-r { background: #ff5a5f; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp-more { font-size: 9px; font-weight: 700; color: #8fa3b5; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-uhp-txt { flex-basis: 100%; font-size: 9px; color: #8fa3b5; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-army { margin-left: 6px; font-size: 13px; font-weight: 700; color: #cfe0ee; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-army-cap { font-size: 10px; color: #8fa3b5; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-army.wf-army-full { color: #ffcc33; text-shadow: 0 0 6px rgba(255,204,51,.5); }

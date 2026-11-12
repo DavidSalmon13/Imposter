@@ -21,6 +21,7 @@ import {
 } from '../constants.js';
 import { infoPortrait, infoTitle, infoSub, infoHp, infoOrder, cmdBtn } from '../dom.js';
 import { serverNow } from '../clock.js';
+import { hpFraction, hpClass } from '../stackSig.js';
 
 const plural = (name, n) => (n === 1 ? name : name.endsWith('man') ? `${name.slice(0, -3)}men` : `${name}s`);
 const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1}-${(id % map.width) + 1}`;
@@ -33,7 +34,7 @@ export function renderInfo() {
   infoPortrait.className = `scan tm-${team}`;
   // Only rebuild the portrait and HP pips when they change: re-parsing the SVG every
   // snapshot (5×/s) cost a layout each time and restarted the portrait's animations.
-  const hpSig = sel.slice(0, 10).map((u) => `${u.type}:${u.hp}`).join(',');
+  const hpSig = sel.map((u) => `${u.type}:${Math.ceil(u.hp)}`).join(',');
   const lead0 = sel.length ? sel.map((u) => u.type).sort().join(',') : 'castle';
   const changed = (key, value) => {
     if (S.infoSig[key] === value) return false;
@@ -92,13 +93,7 @@ export function renderInfo() {
   if (portraitChanged) infoPortrait.innerHTML = (UNIT_SPRITES[lead] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
   infoTitle.textContent = counts.size === 1 ? `${plural(UNIT_NAMES[lead], sel.length)} ×${sel.length}` : `Squad ×${sel.length}`;
   setSub(`u:${lead}`, UNIT_INFO[lead] || `${RACE_NAMES[S.state.myRace]} · ${map.tiles[sel[0].tileId]}`, statLine(lead));
-  if (hpChanged) sel.slice(0, 10).forEach((u) => {
-    const max = UNIT_MAX_HP[u.type] || u.hp;
-    const c = u.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
-    const pip = el('span');
-    Object.assign(pip.style, { width: '20px', height: '5px', background: c, boxShadow: `0 0 4px ${c}` });
-    infoHp.appendChild(pip);
-  });
+  if (hpChanged) renderSelHp(sel, counts.size === 1 ? lead : null);
   const dest = sel.find((u) => u.path && u.path.length);
   const hauler = sel.find((u) => u.haul);
   const cap = S.state.carryCap || 4;
@@ -117,6 +112,26 @@ export function renderInfo() {
   else if (sel.every((u) => u.holding)) order = '▸ HOLDING · TAP A TILE TO MOVE';
   else order = '▸ TAP A TILE TO MOVE';
   infoOrder.textContent = order;
+}
+
+const SEL_BARS = 10; // HP bars shown for a selection; the rest are counted (+N)
+
+/**
+ * One HP bar per selected soldier, lowest first, then their HP as numbers (plan Step 22,
+ * 2-battlefield.html info well). `oneType`: the type when they're all the same, for "of N each".
+ */
+function renderSelHp(sel, oneType) {
+  const rows = sel.map((u) => ({ u, f: hpFraction(u, UNIT_MAX_HP) })).sort((a, b) => a.f - b.f);
+  rows.slice(0, SEL_BARS).forEach(({ f }) => {
+    const bar = el('span', 'wf-uhp');
+    const fill = bar.appendChild(el('b', hpClass(f)));
+    fill.style.transform = `scaleX(${f.toFixed(3)})`;
+    infoHp.appendChild(bar);
+  });
+  if (rows.length > SEL_BARS) infoHp.appendChild(el('span', 'wf-uhp-more')).textContent = `+${rows.length - SEL_BARS}`;
+  const nums = rows.slice(0, 6).map(({ u }) => Math.ceil(u.hp)).join(' · ');
+  const each = oneType && UNIT_MAX_HP[oneType] ? ` of ${UNIT_MAX_HP[oneType]} each` : '';
+  infoHp.appendChild(el('span', 'wf-uhp-txt')).textContent = `HP ${nums}${rows.length > 6 ? ' …' : ''}${each}`;
 }
 
 /** The info well's sub line: a description, then (optionally) a stat line under it. */

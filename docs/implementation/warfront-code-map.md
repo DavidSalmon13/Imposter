@@ -66,7 +66,8 @@ warfront/
   teamSelect.js         the team-select screen
   world/geometry.js     tileCentre, elevationAt, ent, billboard, plateaus, standPoint, stepPoint, compass
   world/build.js        buildWorld: the static battlefield (terrain, plateaus, decor, bases, layers)
-  units.js              unit stacks: grouping, sprite/labels, placement, tweening (startTween)
+  units.js              unit stacks: grouping, sprite/labels, placement, tweening (startTween), HP bar painted in place
+  stackSig.js           pure: make-up sig (when a stack rebuilds), per-soldier HP segments + colour class (tested)
   orders.js             own march lines + destination marker
   fog.js                fog sheet + lifting it where the team sees
   minimap.js            the 1:10 minimap (terrain, units, fog)
@@ -113,6 +114,7 @@ handlers.test.js          team-select handlers, guards, contract
 battlefield.test.js       AI map, fallback, timeout, cancel, lighthouses on AI maps
 loop.test.js              sim loop, wfCommand, fogged wfLive, alerts, economy, facilities, persistence
 gameOver.test.js          win, game over, points, Play Again
+client/*.test.mjs         pure client helpers (DOM-free modules only, e.g. stackSig.js), imported as ES modules
 shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, playingRoom, plant, …
 ```
 
