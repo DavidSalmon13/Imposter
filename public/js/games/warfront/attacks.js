@@ -57,7 +57,7 @@ function dir(map, fromId, toId) {
 
 /** Plays (or resumes) `a` on one figure, offset so a resumed strike stays in step. */
 function playOn(fig, a, now) {
-  fig.classList.remove(fig.dataset.atk || '_');
+  if (fig.dataset.atk) fig.classList.remove(...fig.dataset.atk.split(' '));
   fig.style.setProperty('--ax', a.ax.toFixed(3));
   fig.style.setProperty('--ay', a.ay.toFixed(3));
   // Facing: which way a swing tips (towards the target, or the team's side when straight up/down).
@@ -65,7 +65,7 @@ function playOn(fig, a, now) {
   fig.style.animationDuration = `${a.ms}ms`;
   fig.style.animationDelay = `${Math.round(a.start - now)}ms`;
   void fig.offsetWidth; // restart the animation when the same class plays again
-  fig.classList.add(a.cls);
+  fig.classList.add(...a.cls.split(' '));
   fig.dataset.atk = a.cls;
 }
 

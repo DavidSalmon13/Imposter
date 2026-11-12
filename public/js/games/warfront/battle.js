@@ -72,7 +72,12 @@ export function applyLive(view) {
   renderHp('blue', view.bases.blue);
   renderCastles(view.bases);
   if (view.events && view.events.length) {
-    playAttacks(view.events);
+    // Cosmetic only: a bug in the strike animations must never stop the rest of the update.
+    try {
+      playAttacks(view.events);
+    } catch (err) {
+      console.error('Warfront attack animation failed:', err);
+    }
     playEffects(view.events);
   }
   marchDust();
