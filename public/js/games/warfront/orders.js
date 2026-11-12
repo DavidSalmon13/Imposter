@@ -9,20 +9,6 @@ import { tileCentre, elevationAt } from './world/geometry.js';
 
 // ---------- Orders: dashed march lines + the destination marker ----------
 
-/** A path's corners: the start, every turn, the end. */
-function corners(map, from, path) {
-  const pts = [from, ...path].map((id) => ({ x: id % map.width, y: Math.floor(id / map.width), id }));
-  const out = [pts[0]];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const a = pts[i - 1];
-    const b = pts[i];
-    const c = pts[i + 1];
-    if (b.x - a.x !== c.x - b.x || b.y - a.y !== c.y - b.y) out.push(b);
-  }
-  if (pts.length > 1) out.push(pts[pts.length - 1]);
-  return out;
-}
-
 export function renderOrders() {
   if (!S.orderLayer || !S.live || !S.state) return;
   const { map } = S.state;
@@ -35,7 +21,8 @@ export function renderOrders() {
     const key = `${mine ? 1 : 0}|${u.tileId}|${u.path.join(',')}`;
     if (seen.has(key)) return;
     seen.add(key);
-    lines.push({ mine, pts: corners(map, u.tileId, u.path) });
+    // StarCraft-style: one straight line from the unit to where it was sent, not the grid route.
+    lines.push({ mine, pts: [{ id: u.tileId }, { id: u.path[u.path.length - 1] }] });
     if (mine) dests.add(u.path[u.path.length - 1]);
   });
   // Enemies in sight: only the step they're taking (the mockup's short .foe arrow).
