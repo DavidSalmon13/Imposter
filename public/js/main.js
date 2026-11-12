@@ -10,7 +10,7 @@ import { MusicTimeline } from './games/musicTimeline.js';
 import { AllInOrFold } from './games/allInOrFold.js';
 import { MindMeld } from './games/mindMeld.js';
 import { Bluff } from './games/bluff.js';
-import { Warfront } from './games/warfront.js';
+import { Warfront } from './games/warfront/index.js';
 import { sfx, haptics, isMuted, toggleMuted } from './fx.js';
 import { screens, showScreen, showGenerating, selectChip } from './shared/dom.js';
 import { renderScoreboard } from './shared/scoreboard.js';

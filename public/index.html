@@ -14,7 +14,15 @@
   <meta name="apple-mobile-web-app-title" content="Shorot" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="theme-afterglow.css" />
-  <link rel="stylesheet" href="warfront.css" />
+  <!-- Warfront styles, split by screen; keep this order (it is the cascade). -->
+  <link rel="stylesheet" href="warfront/shell.css" />
+  <link rel="stylesheet" href="warfront/team-select.css" />
+  <link rel="stylesheet" href="warfront/battlefield.css" />
+  <link rel="stylesheet" href="warfront/fx.css" />
+  <link rel="stylesheet" href="warfront/console.css" />
+  <link rel="stylesheet" href="warfront/lighthouses.css" />
+  <link rel="stylesheet" href="warfront/game-over.css" />
+  <link rel="stylesheet" href="warfront/facilities.css" />
 </head>
 <body>
   <div id="conn-status" class="conn-status hidden" role="status" aria-live="polite"></div>
@@ -771,7 +779,7 @@
     <!-- Shared -->
 
     <!-- WARFRONT team select: ported from docs/design/warfront/1-team-select.html.
-         public/js/games/warfront.js fills the vista, rosters and race cards. -->
+         public/js/games/warfront/teamSelect.js fills the vista, rosters and race cards. -->
     <section id="wf-team-screen" class="screen hidden">
       <div class="wf">
         <div class="wf-vista">
@@ -832,7 +840,7 @@
     </section>
 
     <!-- WARFRONT battlefield: ported from docs/design/warfront/2-battlefield.html (source/Main.dc.html).
-         public/js/games/warfront.js builds the world from the server's map. -->
+         public/js/games/warfront/world/build.js builds the world from the server's map. -->
     <section id="wf-screen" class="screen hidden">
       <div class="wf">
         <!-- HUD: base HP + match clock (the mockup's round timer) -->

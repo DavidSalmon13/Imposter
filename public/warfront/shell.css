@@ -1,0 +1,62 @@
+/* Warfront styles, part 1 of 8: the full-screen shell every Warfront screen shares, and how
+   every rule is scoped (through the screen ids). Must NOT contain: per-screen styles.
+   Files load in public/index.html in this order; the cascade is that order. */
+
+/* Warfront styles. Ported from docs/design/warfront/ (the design is binding - see
+   docs/specs/warfront-specs.md "Look & feel"). Rules copied from a mockup keep its
+   exact values; the mockup's `.sc` wrapper is `.wf` here. Loaded after
+   theme-afterglow.css. */
+
+/* ---------- Full-screen shell (Warfront screens take over the viewport, like Menifot) ---------- */
+
+#wf-team-screen,
+#wf-screen,
+#wf-gameover-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #020306;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: none;
+}
+
+#wf-team-screen:not(.hidden),
+#wf-screen:not(.hidden),
+#wf-gameover-screen:not(.hidden) {
+  display: block;
+}
+
+:is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  background: #020306;
+  color: #d6e2ec;
+  font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Room under the last row for the floating reaction row (style.css .reaction-row). */
+  padding: 0 0 calc(76px + env(safe-area-inset-bottom));
+  text-align: left;
+}
+
+/* Every rule is scoped through an id (`:is(#wf-team-screen)`, `:is(#wf-screen, #wf-gameover-screen)`, or
+   both for shared rules) so it beats style.css's global `button` /
+   `button:hover:not(:disabled)` rules (otherwise a tapped button keeps the app's
+   hover shadow on phones). Each mockup gets its own screen id because the two
+   reuse class names (.cam, .world, .ptop ...) with different values. The game-over
+   screen shares the battlefield's rules (its scene is the final map, built by the
+   same code) and adds its own overrides from 4-game-over.html at the end. */

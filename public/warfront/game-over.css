@@ -1,0 +1,61 @@
+/* Warfront styles, part 7 of 8: the game-over screen (4-game-over.html) and its extra parts
+   (other winners, Play Again, the shared scoreboard). */
+
+/* ---------- Ported from 4-game-over.html (source/GameOver.dc.html) ---------- */
+
+/* The victory scene: the final map (battlefield rules above) seen through the mockup's
+   390x330 camera window, centred on the fallen base. No panning, no taps. */
+#wf-gameover-screen .wf .wf-go-vp{width:100%;height:330px;overflow:hidden;pointer-events:none}
+#wf-gameover-screen .wf .cam{background:radial-gradient(ellipse 90% 60% at 50% 0%,#2a0d10,#000 75%)}
+#wf-gameover-screen .wf.wf-go-blue-won .cam{background:radial-gradient(ellipse 90% 60% at 50% 0%,#0d1a2e,#000 75%)}
+#wf-gameover-screen .wf.wf-go-draw .cam{background:radial-gradient(ellipse 90% 60% at 50% 0%,#0b1220,#000 75%)}
+#wf-gameover-screen .wf .tiles{pointer-events:none}
+#wf-gameover-screen .wf .fireglow{width:260px;height:220px;background:radial-gradient(ellipse,rgba(255,120,30,.45),rgba(255,80,20,.12) 45%,transparent 70%);animation:wfOrb 1.2s ease-in-out infinite}
+#wf-gameover-screen .wf .wf-ruin .smoke span{animation-name:wfSmokeGo}
+#wf-gameover-screen .wf .confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3}
+#wf-gameover-screen .wf .confetti i{position:absolute;top:-10px;width:5px;height:9px;animation:wfFall 3.2s linear infinite}
+/* The winners cheer (the mockup's victorious army). */
+#wf-gameover-screen .wf.wf-go-red-won .sqbb.tm-red .sp,
+#wf-gameover-screen .wf.wf-go-blue-won .sqbb.tm-blue .sp{animation:wfCheer .9s ease-in-out infinite}
+#wf-gameover-screen .wf.wf-go-red-won .sqbb.tm-red .d1 .sp,#wf-gameover-screen .wf.wf-go-blue-won .sqbb.tm-blue .d1 .sp{animation-delay:-.25s}
+#wf-gameover-screen .wf.wf-go-red-won .sqbb.tm-red .d2 .sp,#wf-gameover-screen .wf.wf-go-blue-won .sqbb.tm-blue .d2 .sp{animation-delay:-.5s}
+#wf-gameover-screen .wf.wf-go-red-won .sqbb.tm-red .d3 .sp,#wf-gameover-screen .wf.wf-go-blue-won .sqbb.tm-blue .d3 .sp{animation-delay:-.7s}
+#wf-gameover-screen .wf .wf-go-title{animation:goPulse 2s ease-in-out infinite}
+#wf-gameover-screen .wf.wf-go-blue-won .wf-go-title{animation-name:goPulseBlue}
+#wf-gameover-screen .wf.wf-go-draw .wf-go-title{animation-name:goPulseDraw}
+/* Final base HP */
+#wf-gameover-screen .wf .wf-go-bar{height:100%;background:repeating-linear-gradient(90deg,#4dff7a 0 6px,#0a2a12 6px 7px);box-shadow:0 0 8px #4dff7a}
+/* Stats table */
+#wf-gameover-screen .wf .row{display:grid;grid-template-columns:42px minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:4px;align-items:center;min-height:50px;padding:0 10px 0 4px;font-size:13px}
+#wf-gameover-screen .wf .row > span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
+#wf-gameover-screen .wf .por{width:38px;height:44px;display:grid;place-items:center;background:#0b0f14;box-shadow:inset 0 0 0 1px #2c3640}
+#wf-gameover-screen .wf .por svg{width:32px;height:40px;overflow:visible}
+#wf-gameover-screen .wf .mbtn{min-height:56px;padding:0 12px;font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#cfe0ee;background:linear-gradient(180deg,#2b333d,#141920);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px rgba(255,255,255,.08);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+#wf-gameover-screen .wf .mbtn.wf-go-red{color:#fff;background:linear-gradient(180deg,#ff5a5f 0%,#c4262c 55%,#7c1418 100%);box-shadow:inset 0 0 0 1px #ffb3b6,inset 0 2px 0 1px rgba(255,255,255,.3)}
+#wf-gameover-screen .wf .mbtn.wf-go-blue{color:#fff;background:linear-gradient(180deg,#4f93ff 0%,#2563d8 55%,#123a8c 100%);box-shadow:inset 0 0 0 1px #b3d0ff,inset 0 2px 0 1px rgba(255,255,255,.3)}
+@keyframes wfCheer{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes wfSmokeGo{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-110px) translateX(18px) scale(3);opacity:0}}
+@keyframes wfFall{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(280px) rotate(540deg);opacity:.2}}
+@keyframes goPulse{0%,100%{text-shadow:0 0 18px rgba(255,90,95,.9),0 0 40px rgba(229,72,77,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(255,150,150,1),0 0 70px rgba(229,72,77,.9),0 3px 0 #000}}
+
+/* ---------- Game over: parts the mockup doesn't draw, in its style ---------- */
+
+/* Blue's and a draw's title glow (the mockup only draws Red winning). */
+@keyframes goPulseBlue{0%,100%{text-shadow:0 0 18px rgba(79,147,255,.9),0 0 40px rgba(59,130,246,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(160,200,255,1),0 0 70px rgba(59,130,246,.9),0 3px 0 #000}}
+@keyframes goPulseDraw{0%,100%{text-shadow:0 0 18px rgba(255,204,51,.7),0 0 40px rgba(255,204,51,.35),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(255,224,140,.9),0 0 70px rgba(255,204,51,.6),0 3px 0 #000}}
+/* Play Again for someone who can't start it: dimmed like the console's unaffordable cards. */
+#wf-gameover-screen .wf .mbtn:disabled{opacity:.45;filter:grayscale(.7);cursor:default}
+#wf-gameover-screen .wf .wf-error{min-height:1em;text-align:center;font-size:11px;letter-spacing:.1em;color:#ff8a8d;padding:0 14px}
+#wf-gameover-screen .wf .wf-error.wf-notice{color:#8fa3b5;text-shadow:none}
+/* The room's shared scoreboard (renderScoreboard's <li><span>name</span><span.sb-points>) as wells. */
+#wf-gameover-screen .wf .wf-go-scores{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+#wf-gameover-screen .wf .wf-go-scores li{display:flex;justify-content:space-between;align-items:center;min-height:36px;padding:0 12px;font-size:13px;font-weight:700;letter-spacing:.06em;background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+#wf-gameover-screen .wf .wf-go-scores .sb-points{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55);font-variant-numeric:tabular-nums}
+#wf-gameover-screen .wf .wf-go-scores .sb-points.negative{color:#ff5a5f;text-shadow:0 0 6px rgba(255,90,95,.5)}
+#wf-gameover-screen .wf .wf-go-scores:empty::after{content:'No points yet';display:block;padding:0 10px;font-size:11px;color:#4c5b69;font-style:italic}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf *,
+  :is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf *::before,
+  :is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf *::after { animation: none !important; }
+}
