@@ -166,7 +166,7 @@
 :is(#wf-screen) .wf .wf-pj-bolt::before, :is(#wf-screen) .wf .wf-pj-javelin::before, :is(#wf-screen) .wf .wf-pj-spear::before, :is(#wf-screen) .wf .wf-pj-arrow::before { content: ''; position: absolute; right: 70%; top: 50%; width: 26px; height: 2px; margin-top: -1px; border-radius: 1px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,250,230,.55)); }
 :is(#wf-screen) .wf .wf-pj-arrow::before { background: linear-gradient(90deg, rgba(192,132,252,0), rgba(216,180,254,.8)); }
 /* Apprentice orb: a pulsing violet ball. */
-:is(#wf-screen) .wf .wf-pj-orb { display: block; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff 0 22%, #e9d5ff 38%, #a855f7 62%, rgba(168,85,247,0) 74%); box-shadow: 0 0 14px 4px rgba(168,85,247,.85); animation: wfPulse .16s ease-in-out infinite alternate; }
+:is(#wf-screen) .wf .wf-pj-orb { display: block; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff 0 22%, #e9d5ff 38%, #a855f7 62%, rgba(168,85,247,0) 74%); box-shadow: 0 0 14px 4px rgba(168,85,247,.85); animation: wfOrbPulse .16s ease-in-out infinite alternate; }
 /* Summoner wisp: a green spirit with a long tail. */
 :is(#wf-screen) .wf .wf-pj-wisp { display: block; width: 30px; height: 13px; border-radius: 40% 60% 60% 40% / 50%; background: radial-gradient(ellipse at 78% 50%, #f0fdf4 0 14%, #86efac 32%, #22c55e 55%, rgba(34,197,94,0) 76%); box-shadow: 0 0 14px 3px rgba(34,197,94,.7); }
 /* Archmage star: a big spinning golden star in a violet halo. */
@@ -175,7 +175,7 @@
 /* fx.css plays everything in .wf-fx once; these two loop while the shot is in the air. */
 :is(#wf-screen) .wf .wf-pj-orb, :is(#wf-screen) .wf .wf-pj-star::before { animation-iteration-count: infinite !important; }
 @keyframes wfSpin { to { transform: rotate(360deg); } }
-@keyframes wfPulse { to { transform: scale(1.18); } }
+@keyframes wfOrbPulse { to { transform: scale(1.18); } }
 /* A spell's trail: glowing motes that drift and fade. */
 :is(#wf-screen) .wf .wf-mote { position: absolute; left: calc(50% - 3px); top: calc(100% - var(--lift) - 3px); width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle, #fff 0 25%, var(--c) 55%, transparent 75%); box-shadow: 0 0 6px var(--c); animation: wfMote .42s ease-out 1 forwards; }
 @keyframes wfMote { from { transform: none; opacity: .95; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }

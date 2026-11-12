@@ -75,6 +75,57 @@ Facilities, towers, veins, hauling Workers, mineral drops, weapon tokens and the
 aren't drawn in the mockups yet: design them in the same visual language (panel chamfers, glow,
 team colours, the SVG sprite conventions) and add them to the mockups (see the plan's Step 14).
 
+## Game feel (sound, haptics, impact, zoom, readability)
+
+Agreed 2026-11-12 (plan Steps 16–20). All of it is client-only and runs off what `wfLive`/`wfAlert`
+already send: each event's `owner`/`team`, `unitId`, `unitType`, and the per-socket alert. No engine
+or sim-loop change.
+
+- **Own things only.** Players sit in one room, so a phone makes sounds and vibrations only for its
+  owner's units, structures and production, its team's base, its own "Under attack" alert, and the
+  end of the match. Enemy hits, deaths and spawns, and a teammate's units, stay silent and still.
+- **Sound** is synthesized with the Web Audio API (no audio files) through the app's one shared
+  `AudioContext`, which is unlocked on the first tap (iOS requirement). The cues are: own unit hit,
+  own unit death, own unit produced, own building finished, own base hit, Under attack, victory,
+  defeat. Volume defaults to quiet: one Warfront master gain well below the app's other cues. Repeats
+  are throttled per cue (at most one hit sound per 120 ms; the other cues have their own gaps, listed
+  in `audio.js`), and a burst of events in one snapshot plays each cue at most once.
+- **Haptics** (`navigator.vibrate`, feature-detected, so iOS Safari silently does nothing): own base
+  hit, own unit produced, the Under attack alert, the end of the match, plus the existing tap/error
+  ticks. Repeats are throttled like sound.
+- **Toggles.** The ☰ battle menu gets **Sound** and **Vibration** on/off rows. Sound is the app-wide
+  mute (the lobby's speaker button, `shorot-muted`), so muting in one place mutes the other.
+  Vibration is Warfront's own (`wf-vibrate`, default on). Both are remembered in `localStorage`,
+  every read and write wrapped in `try/catch` (a blocked store just means the default).
+- **Impact feedback.** A stack that takes damage flashes white briefly; a stack that gains a newly
+  produced unit pops (a short scale-up); your own base being hit gives the camera a small shake (the
+  camera container, never the tilted world, so the 3D tilt is unchanged). With
+  `prefers-reduced-motion: reduce`, shake and pop are off (the flash stays, it doesn't move). Effects
+  animate only `transform` and `opacity`.
+- **Stacks update in place.** A stack is rebuilt only when its unit make-up (types and counts),
+  selection, load or shared-tile placement changes. HP changes and hits update the existing node:
+  the HP bar's fill is a `scaleX` transform, recoloured green/amber/red at the same 75%/35% thresholds.
+- **Zoom.** Two-finger pinch on the battlefield, and ctrl+wheel (trackpad pinch) on desktop, zoom
+  between `WF_ZOOM_MIN` 0.6 and `WF_ZOOM_MAX` 1.6 (1 = the mockup's scale), anchored on the point
+  between the fingers (or under the cursor). One-finger panning and tap-to-select/move are unchanged,
+  a tap lands on the tile under the finger at every zoom, and the minimap's view box shows exactly
+  what's on screen. The zoom resets to 1 for each new battle and isn't persisted.
+- **Readability.** On a 360px-wide phone in a 4v4 fight, unit types and teams must be told apart at a
+  glance. The exact treatment is designed in the mockups first (`2b-unit-roster.html`,
+  `2-battlefield.html`) and recorded here once approved.
+- **Selection.** Your selected stacks stand out at phone scale (treatment set in the mockups, Step 21),
+  without an animation that runs while they stand still.
+- **Soldier HP and army size.** Each soldier's HP is visible (on the map per figure, and per unit in
+  the console for the selection), and the HUD shows your army size against the cap (`⚔ 14/30`).
+- **Bulk actions.** The console has **Select all** (all your combat units; a second tap adds Workers)
+  and a **×1 / ×5** Produce switch. ×5 queues up to five, stopping at the first refusal (Supply,
+  Minerals, unit cap), and says how many it queued.
+- **Building info.** Long-pressing any building in sight (yours or an enemy's) shows its name, what it
+  does and its HP in the info well for 4 s without changing the selection. A tap on your own building
+  with nothing selected still picks it, as before.
+- **Idle cost.** None of the above runs a per-frame loop: sounds, haptics and effects fire from
+  snapshot events, and zoom only does work during a gesture.
+
 ## Configurable constants
 
 Tuning lives in the engine's `TUNING` block in `server/games/warfront/engine/constants.js` (gameplay

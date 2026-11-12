@@ -581,6 +581,213 @@ screen. Systems may import an earlier system (movement → facilities → econom
 - Balance: play several matches; tune `TUNING` and unit tables; write the changes back into the
   spec's tables.
 
+### Game-feel polish (Steps 16–20)
+Added 2026-11-12 with David. Client only: every cue below comes from data `wfLive`/`wfAlert` already
+send (`underAttack`/`death`/`spawn` carry `owner` and `unitId`, `built` carries `owner`, `baseHit`
+carries `team`, `wfAlert` is already per-socket), so no engine or sim-loop change. Shared rules for all
+five: each new concern gets its own module with the standard header comment and a line in the code
+map; every Warfront file stays ≤ 400 lines; no build step or npm package; effects animate only
+`transform`/`opacity` (no new `filter`/blur/drop-shadow animation); nothing runs per frame while the
+battlefield is idle; any visual change goes into `docs/design/warfront/source/*.dc.html` **and** its
+generated static page first (the repo has no generator, so both are edited by hand), then gets ported.
+Done in the order 21 → 24, then 16 → 20 (David, 2026-11-12), one commit each, `npm test` after each.
+Decided with David the same day: Step 16 **replaces** the per-figure `wfHit`/`wfBrace` `filter`
+flashes in `attacks.css` with the opacity-only overlay (no filter animation left); Warfront's Sound
+toggle **is** the app-wide mute; the ☰ battle menu is **drawn into the mockups** (Step 18) before its
+Sound/Vibration rows are ported.
+Client tests: pure, DOM-free helpers (throttles, stack signatures, zoom maths) live in their own
+modules so `tests/games/warfront/client/*.test.mjs` can import them under `node --test` (Node 22
+loads the ES-module `.js` files by syntax detection). Everything with DOM is checked in a headless
+Chrome harness at 360px and 390px, and the "on a real phone" list is reported per step.
+
+### Step 16: Impact feedback (hit flash, base-hit shake, spawn pop, in-place stacks)
+- **Goal:** hits read instantly and cheaply: a white flash on the stack that took damage, a small
+  camera shake when your base is hit, a scale pop on a stack that gains a new unit. Hits stop
+  rebuilding stacks: the HP bar updates in place, and a stack is rebuilt only when its make-up changes.
+- **Mockup first:** add a "hit flash", "spawn pop" and "base hit shake" frame to `3-resolution.html`
+  (`source/Resolution.dc.html`) in the existing frame style.
+- **Files touched:** `units.js` (split `stackSig` into a make-up sig and an HP sig; `fillStack` only on
+  make-up change; `updateStackHp` sets the bar's `scaleX` + colour class in place), new `stackSig.js`
+  (pure: `makeupSig`, `hpPct`, `hpClass`), new `impact.js` (`flashStacks(events)`, `popStacks(events)`,
+  `shakeCamera()`: toggles a class on the stack's `.bb` / on `#wf-cam`, removed on `animationend`),
+  `battle.js` (call `playImpact(view.events)` after `renderUnits`), new `public/warfront/impact.css`
+  linked after `attacks.css` (keyframes: white overlay opacity flash, `scale` pop, `translate` shake;
+  all off under `prefers-reduced-motion` except the flash), `battlefield.css` (`.hpb span`
+  `transform-origin: left`), `public/index.html` (css link), code map, README table.
+- **Flash without a filter:** a white overlay span over the stack's figures (`.wf-flash`, a
+  pre-built child of `.sqbb` at opacity 0) whose opacity animates 0 → 0.7 → 0 in ~160 ms.
+  Note: the per-figure hit flinch in `attacks.css` (`wfHit`) already animates `filter: brightness()`;
+  see the question in the review note on whether to keep or replace it.
+- **Shake:** `#wf-cam` only, via the individual `translate` property (so it composes with Step 19's
+  zoom `scale` on a wrapper and never touches `#wf-world`'s `rotateX`). ~250 ms, ±3 px, own base only,
+  at most once per 600 ms.
+- **Acceptance:** a hit on a stack (own or enemy in sight) flashes it once per snapshot; `fillStack`
+  is not called when only HP changed (checked with a counter in the harness over 30 s of a fight);
+  the HP bar width and colour track HP; a spawned unit pops the stack it appears in; own base hit
+  shakes the camera, the enemy base doesn't; reduced motion: no shake, no pop; the Performance panel
+  shows no new filter/layout work during a fight and no frames scheduled when idle.
+- **Tests:** `client/stackSig.test.mjs`: make-up sig unchanged when only HP changes, changes on
+  type/count/selection/load; `hpPct` clamps and `hpClass` thresholds (75/35).
+
+### Step 17: Sound
+- **Goal:** short synthesized cues for your own unit hit, unit death, unit produced, building
+  finished, your base hit, Under attack, victory and defeat; quiet by default, throttled, own things
+  only, with a Sound toggle in the ☰ menu.
+- **Mockup first:** none for the cues; the Sound/Vibration toggle rows in the ☰ menu are drawn with
+  Step 18 (see the review note on the menu not being in the mockups).
+- **Files touched:** new `audio.js` (`wfSound.hit()`, `.death()`, `.produced()`, `.built()`,
+  `.baseHit()`, `.alert()`, `.victory()`, `.defeat()`, `playSounds(events, you, myTeam)`: filters to own
+  owner/team, one cue per kind per snapshot, per-cue throttle; a Warfront master `GainNode` at ~0.35
+  into the shared context), new `throttle.js` (pure `makeGate(minGapMs)` taking `now`, shared with
+  Step 18), `public/js/fx.js` (export the existing `getAudioCtx` so Warfront reuses the one
+  already-unlocked context instead of opening a second; the one non-Warfront change), `battle.js`
+  (call `playSounds`), `fx.js` (the alert plays `wfSound.alert()` instead of `sfx.error()`),
+  `gameOver.js` (victory/defeat once per `goBuiltFor`), `menu.js` (Sound row bound to the shared
+  `isMuted`/`toggleMuted`), code map.
+- **Acceptance:** each cue plays for own events and not for an enemy's or a teammate's; 10 hits in
+  100 ms give one hit sound; muting from the menu silences Warfront and the lobby's speaker button
+  shows muted (and vice versa); the setting survives a reload; first tap unlocks audio on iOS; no
+  sound object is created per frame or while idle.
+- **Tests:** `client/throttle.test.mjs` (gate opens once per gap); `client/soundFilter.test.mjs`
+  (the pure event → cue list: own unit hit → `hit`; enemy hit → nothing; teammate's death → nothing;
+  own team's `baseHit` → `baseHit`; duplicate events in one snapshot → one cue).
+
+### Step 18: Haptics
+- **Goal:** Android buzzes for your base hit, your unit produced, the Under attack alert and the end
+  of the match, with a separate Vibration toggle next to Sound.
+- **Mockup first:** add the Sound and Vibration rows to the ☰ battle menu, drawn into
+  `2-battlefield.html` (`source/Main.dc.html`) in the menu's existing `wf-menu-item` style (two-line
+  label + state on the right).
+- **Files touched:** new `haptics.js` (`wfBuzz.baseHit()`, `.produced()`, `.alert()`, `.matchEnd()`,
+  `.tap()`, `.warn()`, `.success()`: feature-detects `navigator.vibrate`, checks the `wf-vibrate`
+  pref (try/catch), throttles with `throttle.js`), every Warfront call to the shared
+  `haptics`/`haptic` (`input.js`, `util.js`, `fx.js`, `console/*.js`) switched to `wfBuzz` so the
+  Vibration toggle governs them all; `battle.js`/`gameOver.js` call sites; `menu.js` (Vibration
+  row; hidden when `navigator.vibrate` is missing, e.g. iOS); `shell.css` or `console.css` for the
+  row's on/off state; code map.
+- **Acceptance:** each buzz fires for own events only; Vibration off stops all Warfront buzzes but
+  not sound; Sound off doesn't stop vibration; the row is absent on iOS; setting survives a reload;
+  a blocked `localStorage` (private mode) falls back to on without throwing.
+- **Tests:** `client/hapticFilter.test.mjs` (event → buzz list, own only; base hit throttled).
+
+### Step 19: Pinch-to-zoom
+- **Goal:** two-finger pinch (and ctrl+wheel) zooms the battlefield 0.6×–1.6× anchored between the
+  fingers, without breaking one-finger pan, tap select/move, the minimap view box or `lookAt`.
+- **Mockup first:** none (no new visuals).
+- **How:** a new `#wf-zoom` sizer between `#wf-vp` and `#wf-cam` in `public/index.html`, sized to
+  cam × zoom so native scrolling covers the zoomed world; `#wf-cam` gets `transform: scale(z)` with
+  origin top-left (transform only). Touch: non-passive `touchstart`/`touchmove` on `#wf-vp` that act
+  only with two touches (one finger stays native scrolling), plus `gesturestart` `preventDefault` on
+  iOS. While pinching only the transform changes; on release the sizer and scroll offsets are
+  committed so the anchor stays under the fingers, and `S.suppressClickUntil` swallows the stray tap.
+- **Hit-testing:** taps already resolve through the DOM (`.tiles` cells with `data-tile`, picked by
+  `closest()` in `index.js`), and the browser hit-tests through the 3D/scale transforms, so
+  `input.js`/`geometry.js` need no maths change; verified per zoom level in the harness.
+- **Files touched:** new `zoom.js` (gesture wiring, `setZoom(z, anchorX, anchorY)`), new
+  `zoomMath.js` (pure: `clampZoom`, `anchoredScroll`), `camera.js` (`syncView` and `lookAt` divide by
+  `S.zoom`; mouse pan unchanged), `store.js` (`zoom: 1`, written by `zoom.js`, `battle.js` reset per
+  battle), `battlefield.css` (`#wf-zoom`, `#wf-cam` transform-origin, `touch-action: pan-x pan-y` on the
+  viewport), `public/index.html` (sizer), `index.js` (wire `enableZoom()`), code map.
+- **Acceptance:** at 0.6, 1, 1.6: tapping each corner tile and a plateau tile selects/moves to that
+  exact tile; the minimap box matches the visible area; `lookAt` centres the castle; one-finger pan and
+  desktop drag still pan; pinch never zooms the page itself; ctrl+wheel zooms on desktop; zoom resets
+  on a new battle; nothing runs when not gesturing.
+- **Tests:** `client/zoomMath.test.mjs` (clamping; the anchor point maps to the same world point
+  before and after; round trip at both limits).
+
+### Step 20: Unit readability on small phones
+- **Goal:** on a 360px-wide phone in a 4v4 fight, unit types and teams are told apart at a glance.
+- **Mockup first, then stop for approval:** propose the change in `source/Units.dc.html` /
+  `2b-unit-roster.html` and `source/Main.dc.html` / `2-battlefield.html` (candidates: a stronger,
+  thicker team ring; a thin dark outline on figures as a static SVG stroke, not a `drop-shadow`; a
+  bigger type chip with the type icon), and show before/after screenshots of both pages at 360px.
+  Implementation waits for David's OK; the approved treatment is then written into the spec's "Game
+  feel" section.
+- **Files touched (after approval):** `units.js` (chip markup), `sprites.js` (outline stroke if
+  chosen), `battlefield.css` (ring, chip sizing), the two mockups, README if the roster page changes.
+- **Acceptance:** side-by-side screenshots of the live game and the updated mockups at 360px match;
+  a 4v4 harness fight at 360px is legible (types and teams named correctly from a screenshot by
+  someone who hasn't seen the code); no new filter/shadow animation.
+- **Tests:** none new beyond Step 16's sig tests (chip text comes from `makeupSig`'s counts).
+
+### Step 20a: Vein glow bug fix ✅
+Done 2026-11-12. David saw the minerals' "background moving". Cause: `attacks.css` (commit e83a430)
+declared a second `@keyframes wfPulse` (`scale(1.18)`, for the Arcane orb), and being later in the
+cascade it replaced `battlefield.css`'s opacity pulse everywhere. So every vein glow and contested
+ring, lighthouse glow and dropped-load glow grew 18% and snapped back every 2.2 s. Fix: the orb's
+keyframes are now `wfOrbPulse`. No new rule: keyframe names are global, so check for an existing name
+before adding one.
+
+### Step 21: Clear selection
+- **Goal:** tapping your stack makes it obvious which units you're commanding, on the map and in the
+  console. Today the team ring is swapped for a small 30px green ring under each figure, which is easy
+  to miss at phone scale.
+- **Mockup first, then show David:** in `source/Main.dc.html` / `2-battlefield.html`, draw the
+  selected state. Candidates: a full-tile green ground ring (static, brighter than the team ring), a
+  green ▼ marker floating above the stack, the count chip turning green. Also show other selected
+  stacks in a multi-select (Step 23).
+- **Files touched:** `units.js` (selected markup in `fillStack`), `battlefield.css` (`.selr` /
+  marker), the mockups.
+- **Acceptance:** at 360px, with two of your stacks and an enemy stack on neighbouring tiles, a
+  screenshot shows which one is selected; the marker moves with a walking stack; nothing animates
+  while it stands still (no infinite pulse).
+- **Tests:** covered by `makeupSig` (selection already rebuilds the stack).
+
+### Step 22: Soldier HP and army size
+- **Goal:** you can see how much life each soldier has, and how many soldiers you have in total.
+- **Mockup first, then show David:** (a) on the map, one thin HP bar per figure under its feet
+  (up to the 4 figures a stack draws) instead of the single stack bar, or the stack bar split into one
+  segment per unit; (b) in the console info well, the selected units as a row of mini portraits each
+  with its own HP bar (the current pips are capped at 10 and unlabelled), and "8 selected"; (c) in
+  the HUD next to 🔩/💎, an army count `⚔ 14/30` (units/cap).
+- **Data:** none new. Each unit's `hp` is in `wfLive`, max HP is `UNIT_MAX_HP`, and `me.units`
+  already counts slots used toward the cap (`WF_MAX_UNITS_PER_PLAYER`).
+- **Files touched:** `units.js` (per-figure bars, updated in place, see Step 16), `console/selection.js`
+  (selected list), `hud.js` + `public/index.html` (army count), `battlefield.css`/`console.css`,
+  the mockups. If `console/selection.js` passes 400 lines, the selected list moves to
+  `console/selectedList.js`.
+- **Acceptance:** wounding one soldier of four shows only that soldier's bar drop; the info well
+  matches; the army count changes on spawn and death; HP changes update in place (no stack rebuild).
+- **Tests:** `client/stackSig.test.mjs` adds per-unit HP fractions (sorted, lowest first).
+
+### Step 23: Bulk actions in the console
+- **Goal:** from the console, select every soldier you have in one tap, and buy several units at once.
+- **Mockup first, then show David:** in the console (`2-battlefield.html` /
+  `2c-command-cards.html`), (a) a **Select all** button next to Move/Haul/Hold that selects all your
+  combat units (not Workers or garrisons; a second tap adds Workers); (b) a **×1 / ×5** switch on the
+  Produce tab in the `.seg` style: at ×5 a card tap queues five of that unit (or as many as Supply,
+  Minerals and the unit cap allow, with a notice saying how many).
+- **Data:** no engine change. ×5 sends up to five `produce` commands, one at a time, each waiting for
+  the previous answer, and stops at the first refusal so the notice reports the real count. If that
+  proves too slow on a phone, propose a `count` field on `produce` instead.
+- **Files touched:** `console/selection.js` (Select all), `console/cards.js` (×1/×5 and batched
+  produce), `store.js` (`produceBatch: 1`), `public/index.html`, `console.css`, the mockups.
+- **Acceptance:** Select all picks every combat unit across the map, the selection shows on every
+  stack (Step 21), and a map tap moves them all; ×5 with enough Supply queues five; with Supply for
+  three it queues three and says so; ×5 never goes over the unit cap.
+- **Tests:** `client/batch.test.mjs` (pure: how many fit given supply, minerals, cost, cap).
+
+### Step 24: Building info on tap
+- **Goal:** tap a building you built and see what it's for and its HP. Today this works only with
+  nothing selected (`input.js` picks it and `renderInfo` shows its name, `HP x/max`, the `UNIT_INFO`
+  description and one HP pip). With units selected, the same tap moves them to the building, which is
+  needed for sending units onto a Tower or haulers to a Refinery, so the info seems missing.
+- **Change:** a **long-press** (~400 ms, the same gesture as the Produce card's lore) on any building
+  you can see (yours or an enemy's in sight) shows its info for 4 s, whatever is selected and without
+  changing the selection. A plain tap keeps today's behaviour. The info well also gets a proper HP bar
+  (`hp/max` with a filled bar, like the stack bar) and the description on its own line, plus a
+  one-time hint "Long-press a building for its info" the first time you build.
+- **Mockup first, then show David:** the info well with a building shown (`2-battlefield.html` /
+  `2c-command-cards.html`), for your own building, an enemy building and one under construction.
+- **Files touched:** `input.js` (long-press on the tile layer, with `S.suppressClickUntil` so the
+  release isn't also a tap), `store.js` (`inspect: { id, until }`), `console/selection.js` (render the
+  inspected building; enemy ones show name, HP and description only), `console.css`, the mockups.
+- **Data:** none new. Enemy buildings in sight are already in `wfLive` with `hp` and `type`.
+- **Acceptance:** with units selected, long-pressing your Tower shows its info and the units stay
+  selected; a short tap still sends them onto the roof; an enemy Refinery in sight can be inspected;
+  HP in the well updates live as it takes damage.
+- **Tests:** none for the DOM gesture; harness check at 360px.
+
 ## Testing notes
 
 - **The engine is where the suite earns its keep.** Every rule in the spec should have an engine
