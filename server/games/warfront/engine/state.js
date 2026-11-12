@@ -28,6 +28,7 @@ function makeUnit(id, type, owner, tileId) {
     atkReadyAt: 0,
     haul: null,
     holding: false,
+    garrison: null, // id of the friendly Tower this unit stands on top of
     revealedUntil: { red: 0, blue: 0 },
   };
 }
@@ -142,6 +143,22 @@ function builtFacilities(army, type) {
   return army.units.filter((u) => u.type === type && !u.buildDoneAt && u.hp > 0);
 }
 
+// ---------------------------------------------------------------------------
+// Tower garrisons (spec "Towers")
+// ---------------------------------------------------------------------------
+/** The finished, standing Tower of `team` on `tileId`, or null. */
+function towerAt(state, team, tileId) {
+  for (const { unit, team: t } of allUnits(state)) {
+    if (t === team && unit.type === 'tower' && unit.tileId === tileId && !unit.buildDoneAt && unit.hp > 0) return unit;
+  }
+  return null;
+}
+
+/** The units standing on top of the Tower `towerId`. */
+function garrisonOf(state, towerId) {
+  return allUnits(state).filter(({ unit }) => unit.garrison === towerId).map(({ unit }) => unit);
+}
+
 const round3 = (n) => Math.round(n * 1000) / 1000;
 
 /** An army's battle stats, created if an older saved match lacks them. */
@@ -163,4 +180,6 @@ module.exports = {
   builtFacilities,
   round3,
   statsOf,
+  towerAt,
+  garrisonOf,
 };

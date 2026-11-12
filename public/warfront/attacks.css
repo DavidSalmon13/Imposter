@@ -1,5 +1,5 @@
 /* Warfront styles: per-unit attack animations (attacks.js). Each unit type's strike on its
-   figures, the projectiles ranged types fire, ground rings, and the hit flinch.
+   figures, the projectiles ranged types fire and their impacts (projectiles.js), ground rings, and the hit flinch.
    --ax/--ay: unit vector toward the target; --as: which way a swing tips (1 right, -1 left).
    Must NOT contain: damage numbers, booms, beams (fx.css). */
 
@@ -155,29 +155,62 @@
   100% { transform: none; filter: none; }
 }
 
-/* ---------- Projectiles: a lane rotated toward the target, the shot flies along it ---------- */
-:is(#wf-screen) .wf .wf-shot { position: absolute; width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
-:is(#wf-screen) .wf .wf-proj { position: absolute; left: 0; top: 0; animation: wfFly linear 1 forwards !important; }
-@keyframes wfFly { from { transform: translate(0, -50%); } to { transform: translate(var(--len), -50%); } }
-/* Crossbow bolt: short, dark, fast. */
-:is(#wf-screen) .wf .wf-proj-bolt { width: 14px; height: 3px; margin-left: -14px; border-radius: 1px; background: linear-gradient(90deg, #6b4a2a 0 70%, #d9dde3 70%); box-shadow: -10px 0 6px -2px rgba(255,241,184,.6); }
-/* Ballista spear: long and thick, with a streak behind it. */
-:is(#wf-screen) .wf .wf-proj-spear { width: 26px; height: 5px; margin-left: -26px; border-radius: 2px; background: linear-gradient(90deg, rgba(200,175,120,0), #8b6b3a 30%, #8b6b3a 80%, #e5e7eb 80%); box-shadow: 0 0 6px rgba(255,200,120,.5); }
-/* Skirmisher javelin: a slim shaft that wobbles in flight. */
-:is(#wf-screen) .wf .wf-proj-javelin { width: 20px; height: 2px; margin-left: -20px; background: linear-gradient(90deg, #7a5a3a 0 80%, #cbd5e1 80%); }
-:is(#wf-screen) .wf .wf-proj-javelin::after { content: ''; position: absolute; inset: 0; background: inherit; animation: wfWobble .12s linear infinite; }
-@keyframes wfWobble { 50% { transform: rotate(4deg); } }
-/* Mystic Archer: a glowing violet arrow with a trail. */
-:is(#wf-screen) .wf .wf-proj-arrow { width: 22px; height: 3px; margin-left: -22px; border-radius: 2px; background: linear-gradient(90deg, rgba(192,132,252,0), #c084fc 60%, #f5e9ff); box-shadow: 0 0 10px #a855f7; }
-/* Apprentice: a small violet orb. */
-:is(#wf-screen) .wf .wf-proj-orb { width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, #d8b4fe 45%, rgba(168,85,247,0) 72%); box-shadow: 0 0 12px #a855f7; }
-/* Summoner: a green spirit wisp with a tail. */
-:is(#wf-screen) .wf .wf-proj-wisp { width: 22px; height: 9px; margin-left: -18px; border-radius: 50% 60% 60% 50%; background: radial-gradient(ellipse at 80% 50%, #f0fdf4 0 15%, #4ade80 40%, rgba(34,197,94,0) 75%); box-shadow: 0 0 12px #22c55e; }
-/* Archmage: a big spinning golden star. */
-:is(#wf-screen) .wf .wf-proj-star { width: 16px; height: 16px; margin-left: -8px; }
-:is(#wf-screen) .wf .wf-proj-star::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, #fff 0 18%, #fde68a 40%, rgba(251,191,36,0) 70%); clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); filter: drop-shadow(0 0 6px #fbbf24); animation: wfSpin .3s linear infinite; }
-:is(#wf-screen) .wf .wf-proj-star::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; box-shadow: 0 0 16px #a855f7; }
+/* ---------- Projectiles (projectiles.js): a camera-facing sprite moved along a 3D arc ---------- */
+:is(#wf-screen) .wf .wf-pj { left: 0; top: 0; pointer-events: none; }
+:is(#wf-screen) .wf .wf-pj-face { --lift: 34px; position: absolute; left: -100px; top: -160px; width: 200px; height: 160px; transform-origin: 50% 100%; transform: rotateX(-40deg); transform-style: flat; }
+:is(#wf-screen) .wf .wf-pj-s { position: absolute; left: 50%; top: calc(100% - var(--lift)); line-height: 0; transform: translate(-50%, -50%); }
+:is(#wf-screen) .wf .wf-pj-s svg { display: block; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0,0,0,.7)); }
+:is(#wf-screen) .wf .wf-pj-arrow svg { filter: drop-shadow(0 0 4px #a855f7) drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+:is(#wf-screen) .wf .wf-pj-spear svg { filter: drop-shadow(0 0 3px rgba(255,200,120,.7)) drop-shadow(0 1px 1px rgba(0,0,0,.7)); }
+/* A streak of air behind physical shots. */
+:is(#wf-screen) .wf .wf-pj-bolt::before, :is(#wf-screen) .wf .wf-pj-javelin::before, :is(#wf-screen) .wf .wf-pj-spear::before, :is(#wf-screen) .wf .wf-pj-arrow::before { content: ''; position: absolute; right: 70%; top: 50%; width: 26px; height: 2px; margin-top: -1px; border-radius: 1px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,250,230,.55)); }
+:is(#wf-screen) .wf .wf-pj-arrow::before { background: linear-gradient(90deg, rgba(192,132,252,0), rgba(216,180,254,.8)); }
+/* Apprentice orb: a pulsing violet ball. */
+:is(#wf-screen) .wf .wf-pj-orb { display: block; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff 0 22%, #e9d5ff 38%, #a855f7 62%, rgba(168,85,247,0) 74%); box-shadow: 0 0 14px 4px rgba(168,85,247,.85); animation: wfPulse .16s ease-in-out infinite alternate; }
+/* Summoner wisp: a green spirit with a long tail. */
+:is(#wf-screen) .wf .wf-pj-wisp { display: block; width: 30px; height: 13px; border-radius: 40% 60% 60% 40% / 50%; background: radial-gradient(ellipse at 78% 50%, #f0fdf4 0 14%, #86efac 32%, #22c55e 55%, rgba(34,197,94,0) 76%); box-shadow: 0 0 14px 3px rgba(34,197,94,.7); }
+/* Archmage star: a big spinning golden star in a violet halo. */
+:is(#wf-screen) .wf .wf-pj-star { display: block; position: relative; width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 0 20px 6px rgba(168,85,247,.7), 0 0 10px 2px rgba(251,191,36,.8); }
+:is(#wf-screen) .wf .wf-pj-star::before { content: ''; position: absolute; inset: -4px; background: radial-gradient(circle, #fff 0 16%, #fde68a 36%, #f59e0b 60%, rgba(251,191,36,0) 72%); clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); animation: wfSpin .35s linear infinite; }
+/* fx.css plays everything in .wf-fx once; these two loop while the shot is in the air. */
+:is(#wf-screen) .wf .wf-pj-orb, :is(#wf-screen) .wf .wf-pj-star::before { animation-iteration-count: infinite !important; }
 @keyframes wfSpin { to { transform: rotate(360deg); } }
+@keyframes wfPulse { to { transform: scale(1.18); } }
+/* A spell's trail: glowing motes that drift and fade. */
+:is(#wf-screen) .wf .wf-mote { position: absolute; left: calc(50% - 3px); top: calc(100% - var(--lift) - 3px); width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle, #fff 0 25%, var(--c) 55%, transparent 75%); box-shadow: 0 0 6px var(--c); animation: wfMote .42s ease-out 1 forwards; }
+@keyframes wfMote { from { transform: none; opacity: .95; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+
+/* ---------- Impacts: a burst on the target when a shot lands (and a flare as a spell leaves) ---------- */
+:is(#wf-screen) .wf .wf-imp { position: absolute; inset: 0; --c: #fff1b8; --g: #ffb347; --k: 1.25; }
+:is(#wf-screen) .wf .wf-imp-arcane, :is(#wf-screen) .wf .wf-imp-spirit { --k: 1.6; }
+:is(#wf-screen) .wf .wf-imp-astral { --k: 1.8; }
+/* Sized through --k (not `scale`, which hides the burst inside the tilted 3D world in Chromium). */
+:is(#wf-screen) .wf .wf-imp > * { position: absolute; left: 50%; top: calc(100% - var(--lift)); }
+:is(#wf-screen) .wf .wf-imp-arcane { --c: #f3e8ff; --g: #a855f7; }
+:is(#wf-screen) .wf .wf-imp-spirit { --c: #dcfce7; --g: #22c55e; }
+:is(#wf-screen) .wf .wf-imp-astral { --c: #fffbeb; --g: #f59e0b; }
+:is(#wf-screen) .wf .wf-imp-heavy { --c: #fff7ed; --g: #fb923c; }
+:is(#wf-screen) .wf .wf-imp .core { --s: calc(36px * var(--k)); width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); border-radius: 50%; background: radial-gradient(circle, #fff 0 14%, var(--c) 30%, var(--g) 52%, transparent 72%); animation: wfImpCore .6s ease-out 1 forwards; }
+:is(#wf-screen) .wf .wf-imp .ring { --s: calc(32px * var(--k)); width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); border-radius: 50%; border: 2px solid var(--c); box-shadow: 0 0 10px var(--g), inset 0 0 8px var(--g); animation: wfImpRing .65s ease-out 1 forwards; }
+:is(#wf-screen) .wf .wf-imp b { margin-left: -1.5px; width: 3px; height: calc(9px * var(--k)); border-radius: 2px; background: var(--c); box-shadow: 0 0 6px var(--g); transform-origin: 50% 0; rotate: var(--r); opacity: 0; animation: wfImpRay .55s ease-out var(--d) 1 forwards; }
+:is(#wf-screen) .wf .wf-imp-thunk .core { --s: calc(22px * var(--k)); }
+:is(#wf-screen) .wf .wf-imp-thunk .ring { display: none; }
+:is(#wf-screen) .wf .wf-imp-astral .core { --s: calc(30px * var(--k)); }
+:is(#wf-screen) .wf .wf-imp-heavy .core { --s: calc(40px * var(--k)); }
+/* Keep every burst's radius under --lift: one that reaches below the ground line is culled. */
+:is(#wf-screen) .wf .wf-imp-astral .ring { --s: calc(28px * var(--k)); border-width: 3px; }
+:is(#wf-screen) .wf .wf-imp-astral b, :is(#wf-screen) .wf .wf-imp-heavy b { height: calc(13px * var(--k)); }
+/* The flare at a caster's hands: just a quick glow. */
+:is(#wf-screen) .wf .wf-flare .core { --s: calc(24px * var(--k)); animation-duration: .26s; }
+@keyframes wfImpCore { 0% { transform: scale(.2); opacity: 1; } 35% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+@keyframes wfImpRing { 0% { transform: scale(.2); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+@keyframes wfImpRay { 0% { opacity: 1; transform: translateY(4px); } 100% { opacity: 0; transform: translateY(calc(22px * var(--k))) scaleY(.4); } }
+/* Dust kicked up at the feet when an arrow, bolt or spear lands. */
+:is(#wf-screen) .wf .wf-imp-dust span { top: calc(100% - 8px); margin-top: -6px; width: 14px; height: 10px; border-radius: 50%; background: radial-gradient(circle, rgba(210,185,135,.8), rgba(210,185,135,0) 70%); animation: wfDustPuff .6s ease-out 1 forwards; }
+:is(#wf-screen) .wf .wf-imp-dust span:nth-child(1) { margin-left: -16px; --dx: -8px; }
+:is(#wf-screen) .wf .wf-imp-dust span:nth-child(2) { margin-left: -7px; --dx: 0px; }
+:is(#wf-screen) .wf .wf-imp-dust span:nth-child(3) { margin-left: 2px; --dx: 8px; }
+@keyframes wfDustPuff { from { transform: scale(.4); opacity: 1; } to { transform: translate(var(--dx), -8px) scale(1.5); opacity: 0; } }
 
 /* ---------- Ground rings ---------- */
 :is(#wf-screen) .wf .wf-ring { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; pointer-events: none; opacity: 0; animation: wfRingOut .55s ease-out 1 forwards; }
@@ -187,4 +220,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   :is(#wf-screen) .wf .fig.wf-atk, :is(#wf-screen) .wf .fig.wf-hit { animation: none; }
+  :is(#wf-screen) .wf .wf-pj-orb, :is(#wf-screen) .wf .wf-pj-star::before { animation: none; }
 }

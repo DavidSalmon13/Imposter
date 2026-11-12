@@ -10,13 +10,36 @@ import { UNIT_SPRITES } from '../sprites.js';
 import { el, feed } from '../util.js';
 import { armyLabel, cardsEl, tabsEl } from '../dom.js';
 import { serverNow } from '../clock.js';
-import { HOTKEYS, CARD_NAMES, RACE_CARD_CLASS } from '../constants.js';
+import { HOTKEYS, CARD_NAMES, RACE_CARD_CLASS, UNIT_STATS, UNIT_MAX_HP, UNIT_INFO } from '../constants.js';
 import { buildBuildCards, setTab } from './build.js';
+import { renderInfo } from './selection.js';
+
+const LORE_MS = 5000; // how long a long-pressed card's description stays in the info well
+const PRESS_MS = 420; // a press this long shows the description instead of producing
 
 /** A unit sprite with the `sp` class the console's sizing rules expect. */
 function cardSprite(unitType) {
   const svg = UNIT_SPRITES[unitType] || '';
   return svg.includes('<svg class="') ? svg.replace('<svg class="', '<svg class="sp ') : svg.replace('<svg ', '<svg class="sp" ');
+}
+
+/** A card's compact stats: ⚔ power, ❤ HP, ◎ range (fighters only) and » per speed step. */
+function cardStats(unitType) {
+  const st = UNIT_STATS[unitType];
+  if (!st) return `❤${UNIT_MAX_HP[unitType] || '?'}`;
+  const bits = [];
+  if (st.atk) bits.push(`<b class="a">⚔${st.atk}</b>`);
+  bits.push(`<b class="h">❤${st.hp}</b>`);
+  if (st.atk && st.range >= 2) bits.push(`<b class="r">◎${st.range}</b>`);
+  if (st.move > 0) bits.push(`<b class="s">${'»'.repeat(st.move)}</b>`);
+  return bits.join('');
+}
+
+/** Long-press a card: its description and full stats show in the info well for a few seconds. */
+function showLore(unitType) {
+  S.lore = { type: unitType, until: Date.now() + LORE_MS };
+  haptics.tap();
+  if (S.live && S.state) renderInfo();
 }
 
 function myBaseTile() {
@@ -52,7 +75,28 @@ export function buildCards(data) {
     btn.appendChild(el('span', 'cn')).textContent = CARD_NAMES[c.unitType] || c.name;
     const bar = el('span', 'wf-qbar hidden', '<span style="width: 0%"></span>');
     btn.appendChild(bar);
-    btn.addEventListener('click', () => produceUnit(c.unitType));
+    btn.appendChild(el('span', 'wf-cstat', cardStats(c.unitType)));
+    btn.title = UNIT_INFO[c.unitType] || '';
+    // A long press reads the unit's description; a tap produces it.
+    let pressTimer = 0;
+    let pressed = false;
+    btn.addEventListener('pointerdown', () => {
+      pressed = false;
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        pressed = true;
+        showLore(c.unitType);
+      }, PRESS_MS);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, () => clearTimeout(pressTimer)));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    btn.addEventListener('click', () => {
+      if (pressed) {
+        pressed = false;
+        return;
+      }
+      produceUnit(c.unitType);
+    });
     cardsEl.appendChild(btn);
     S.cardNodes.set(c.unitType, { btn, q, bar, info: c, sig: '' });
   });

@@ -8,7 +8,7 @@
 const { WF_REVEAL_MS, TUNING } = require('../constants');
 const { RPS_CLASSES, RPS_BEATS, TERRAIN_TYPES, FACILITIES, unitStats, rpsMultiplier } = require('../data');
 const { tileId, manhattan, neighbors, terrainAt, isPassable, isHigh } = require('../grid');
-const { allUnits, statsOf } = require('../state');
+const { allUnits, statsOf, garrisonOf } = require('../state');
 const { orderMove } = require('./movement');
 const { loseFacility } = require('./facilities');
 const { rngFor } = require('../../../../lib/rng');
@@ -21,6 +21,8 @@ const { rngFor } = require('../../../../lib/rng');
 function effectiveRange(map, attacker, targetTileId) {
   const r = attacker.range;
   if (r < 2) return r;
+  // On a Tower's roof: the tower's height instead of the ground's.
+  if (attacker.onTower) return r + TUNING.towerRangeBonus;
   const high = isHigh(map, attacker.tileId);
   const targetHigh = isHigh(map, targetTileId);
   if (high && !targetHigh) return r + TUNING.hillRangeBonus;
@@ -38,12 +40,16 @@ function canReach(map, attacker, targetTileId) {
 /** Every fighter on the field this step: units (by id) and then both bases. */
 function combatants(state) {
   const out = [];
+  const towers = new Set(allUnits(state).filter(({ unit }) => unit.type === 'tower' && unit.hp > 0).map(({ unit }) => unit.id));
   for (const { unit, owner, team } of allUnits(state)) {
     if (unit.hp <= 0) continue;
+    if (unit.garrison && !towers.has(unit.garrison)) unit.garrison = null; // its tower is gone
     const t = unitStats(unit.type);
+    // A garrison stands on the Tower's roof: ranged units and casters shoot from it, melee hide.
+    const onTower = Boolean(unit.garrison);
     out.push({
       kind: 'unit', id: unit.id, unit, owner, team, race: t.race, cls: t.class, flags: t.flags,
-      tileId: unit.tileId, range: t.range, atk: t.atk, attackMs: t.attackMs,
+      tileId: unit.tileId, range: t.range, atk: onTower && t.range < 2 ? 0 : t.atk, attackMs: t.attackMs, onTower,
     });
   }
   out.sort((a, b) => a.id - b.id);
@@ -68,6 +74,8 @@ function baseDamageable(state, team, fighters, now) {
 function isValidTarget(state, attacker, target, fighters, now) {
   if (target.team === attacker.team) return false;
   if (target.kind === 'unit' && target.unit.hp <= 0) return false;
+  // Nobody can hit a Tower's garrison: knock the tower down first.
+  if (target.kind === 'unit' && target.onTower) return false;
   if (target.kind === 'base' && (attacker.kind === 'base' || !baseDamageable(state, target.team, fighters, now))) return false;
   return canReach(state.map, attacker, target.tileId);
 }
@@ -180,7 +188,7 @@ function stepCombat(state, now, events) {
     if (!target) continue;
     holder.atkReadyAt = now + attacker.attackMs;
     const victims = attacker.flags.includes('aoe') && target.kind === 'unit'
-      ? fighters.filter((f) => f.kind === 'unit' && f.team !== attacker.team && f.tileId === target.tileId)
+      ? fighters.filter((f) => f.kind === 'unit' && f.team !== attacker.team && f.tileId === target.tileId && !f.onTower)
       : [target];
     for (const victim of victims) hits.push({ attacker, victim, dmg: hitDamage(state, attacker, victim, fighters, rng, now) });
   }
@@ -190,6 +198,7 @@ function stepCombat(state, now, events) {
     const base = {
       tileId: victim.tileId, fromTileId: attacker.tileId, dmg,
       by: attacker.kind === 'unit' ? attacker.unit.type : 'base', ranged: attacker.range >= 2,
+      ...(attacker.onTower ? { fromTower: true } : {}), // shot from a Tower's roof
     };
     // Battle stats (display only): the hit that drops a unit gets the kill, and
     // base damage counts what the base actually lost.
@@ -214,6 +223,16 @@ function stepCombat(state, now, events) {
     }
   }
 
+  // A fallen Tower drops its garrison to the ground, hurt by the fall (never killed by it).
+  for (const f of fighters) {
+    if (f.kind !== 'unit' || f.unit.type !== 'tower' || f.unit.hp > 0) continue;
+    for (const g of garrisonOf(state, f.id)) {
+      g.garrison = null;
+      g.hp = Math.max(1, Math.round((g.hp - unitStats(g.type).hp * TUNING.towerFallDmg) * 100) / 100);
+      events.push({ type: 'towerFall', tileId: g.tileId, owner: g.owner, team: f.team, unitId: g.id });
+    }
+  }
+
   // Deaths: a loaded Worker leaves its cargo on the tile.
   for (const [owner, army] of Object.entries(state.armies)) {
     army.units = army.units.filter((u) => {
@@ -233,7 +252,7 @@ function stepCombat(state, now, events) {
     const attackers = f.kind === 'unit' && hitBy.get(f.id);
     if (!attackers) continue;
     const u = f.unit;
-    if (u.hp <= 0 || u.path.length || u.haul || u.holding || unitStats(u.type).move <= 0) continue;
+    if (u.hp <= 0 || u.path.length || u.haul || u.holding || u.garrison || unitStats(u.type).move <= 0) continue;
     const live = attackers.filter((a) => a.kind === 'base' || a.unit.hp > 0);
     if (!live.length) continue;
     const me = { ...f, tileId: u.tileId };

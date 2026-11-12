@@ -8,7 +8,7 @@ import { S } from './store.js';
 import { UNIT_SPRITES, UNIT_ICONS, LOAD_SPRITE } from './sprites.js';
 import { el } from './util.js';
 import { FORMATIONS, FACILITY_TYPES, UNIT_MAX_HP } from './constants.js';
-import { tileCentre, ent, standPoint, stepPoint } from './world/geometry.js';
+import { tileCentre, ent, standPoint, stepPoint, roofPoint } from './world/geometry.js';
 import { serverNow } from './clock.js';
 import { renderStructures } from './structures.js';
 import { renderMiniUnits } from './minimap.js';
@@ -38,11 +38,12 @@ function groupUnits(units) {
   const byKey = new Map();
   units.forEach((u) => {
     const next = nextTileOf(u);
-    const k = next == null ? `${u.team}|${u.tileId}` : `${u.team}|${u.tileId}>${next}@${u.stepEndsAt}`;
+    // A Tower's garrison is its own stack, up on the roof.
+    const k = next == null ? `${u.team}|${u.tileId}${u.garrison ? '^' : ''}` : `${u.team}|${u.tileId}>${next}@${u.stepEndsAt}`;
     if (!byKey.has(k)) {
       const after = next == null ? null : afterTileOf(u);
       byKey.set(k, {
-        team: u.team, tileId: u.tileId, next, stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt,
+        team: u.team, tileId: u.tileId, next, garrison: next == null && Boolean(u.garrison), stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt,
         after, afterStepMs: after == null ? 0 : u.afterStepMs, units: [],
       });
     }
@@ -123,6 +124,8 @@ function placeStack(map, entry, now) {
       const t = Math.max(0, Math.min(1, (now - g.stepStartedAt) / (g.stepEndsAt - g.stepStartedAt)));
       p = stepPoint(map, g.team, g.tileId, g.next, t);
     }
+  } else if (g.garrison) {
+    p = roofPoint(map, g.tileId);
   } else {
     p = standPoint(map, g.tileId, g.team, entry.shared);
   }
@@ -144,7 +147,7 @@ export function renderUnits() {
   const groups = groupUnits(S.live.units.filter((u) => !FACILITY_TYPES.has(u.type)));
   const still = new Set();
   groups.forEach((g) => {
-    if (g.next == null) still.add(`${g.team}|${g.tileId}`);
+    if (g.next == null && !g.garrison) still.add(`${g.team}|${g.tileId}`);
   });
   S.stackNodes.forEach((entry, key) => {
     if (!groups.has(key)) {
@@ -161,7 +164,7 @@ export function renderUnits() {
       fresh.push({ y: tileCentre(map, g.tileId).y, node: entry.node });
     }
     entry.group = g;
-    entry.shared = g.next == null && still.has(`${g.team === 'red' ? 'blue' : 'red'}|${g.tileId}`);
+    entry.shared = g.next == null && !g.garrison && still.has(`${g.team === 'red' ? 'blue' : 'red'}|${g.tileId}`);
     const sig = `${stackSig(g, you)}|${entry.shared ? 1 : 0}`;
     if (sig !== entry.sig) {
       fillStack(entry.node, g, you);

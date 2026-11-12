@@ -8,11 +8,12 @@
 
 import { S } from './store.js';
 import { el } from './util.js';
-import { tileCentre, standPoint } from './world/geometry.js';
+import { tileCentre } from './world/geometry.js';
+import { launch } from './projectiles.js';
 
 /**
  * Each type's strike: the CSS animation (attacks.css `wf-atk-<anim>`), its length, and
- * for ranged types the projectile it fires (`wf-proj-<proj>`) and how long it flies.
+ * for ranged types the projectile it fires (projectiles.js) and how long it flies.
  */
 const STYLES = {
   // Workers: a pickaxe swing.
@@ -21,22 +22,22 @@ const STYLES = {
   acolyte: { anim: 'pick', ms: 380 },
   // Forge
   militiaman: { anim: 'thrust', ms: 420 },
-  crossbow: { anim: 'recoil', ms: 300, proj: 'bolt', fly: 200 },
+  crossbow: { anim: 'recoil', ms: 300, proj: 'bolt', fly: 380 },
   outrider: { anim: 'charge', ms: 520 },
   bastion: { anim: 'brace', ms: 380 },
-  ballista: { anim: 'heavy', ms: 480, proj: 'spear', fly: 260 },
+  ballista: { anim: 'heavy', ms: 480, proj: 'spear', fly: 440 },
   // Horde
   warrior: { anim: 'chop', ms: 480 },
-  skirmisher: { anim: 'throw', ms: 420, proj: 'javelin', fly: 320 },
+  skirmisher: { anim: 'throw', ms: 420, proj: 'javelin', fly: 520 },
   raider: { anim: 'hitrun', ms: 540 },
   berserker: { anim: 'frenzy', ms: 540 },
   warchief: { anim: 'slam', ms: 620, ring: 'shock' },
   // Arcane
-  apprentice: { anim: 'cast', ms: 440, proj: 'orb', fly: 320 },
-  mysticArcher: { anim: 'draw', ms: 460, proj: 'arrow', fly: 240 },
+  apprentice: { anim: 'cast', ms: 440, proj: 'orb', fly: 480 },
+  mysticArcher: { anim: 'draw', ms: 460, proj: 'arrow', fly: 480 },
   battlemage: { anim: 'nova', ms: 580, ring: 'nova' },
-  summoner: { anim: 'summon', ms: 520, proj: 'wisp', fly: 380 },
-  archmage: { anim: 'arcana', ms: 640, proj: 'star', fly: 300 },
+  summoner: { anim: 'summon', ms: 520, proj: 'wisp', fly: 600 },
+  archmage: { anim: 'arcana', ms: 640, proj: 'star', fly: 540 },
   golem: { anim: 'stomp', ms: 480 },
 };
 const HIT_MS = 300;
@@ -82,28 +83,6 @@ function figsAt(team, tileId, type) {
   return out;
 }
 
-/** A projectile that flies from one tile to the other, then is removed. */
-function shoot(map, fromId, toId, kind, fly, team) {
-  if (!S.fxLayer) return;
-  const a = standPoint(map, fromId, team, false);
-  const b = standPoint(map, toId, other(team), false);
-  const len = Math.hypot(b.x - a.x, b.y - a.y);
-  if (len < 1) return;
-  const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-  const lane = el('div', 'wf-shot');
-  Object.assign(lane.style, {
-    left: `${Math.round(a.x)}px`,
-    top: `${Math.round(a.y)}px`,
-    transform: `translateZ(${Math.round(Math.max(a.z, b.z) + 22)}px) rotate(${ang}deg)`,
-  });
-  const p = el('div', `wf-proj wf-proj-${kind}`);
-  p.style.setProperty('--len', `${Math.round(len)}px`);
-  p.style.animationDuration = `${fly}ms`;
-  lane.appendChild(p);
-  S.fxLayer.appendChild(lane);
-  setTimeout(() => lane.remove(), fly + 60);
-}
-
 /** A ground ring at a tile (Warchief's slam shockwave, Battlemage's nova). */
 function ring(map, tileId, kind, team, delay) {
   if (!S.fxLayer) return;
@@ -140,7 +119,7 @@ export function playAttacks(events) {
         figsAt(team, e.fromTileId, e.by).forEach((f) => playOn(f, a, now));
         if (style.proj) {
           const release = Math.round(style.ms * 0.4);
-          setTimeout(() => S.state && shoot(map, e.fromTileId, e.tileId, style.proj, style.fly, team), release);
+          setTimeout(() => S.state && launch(map, e.fromTileId, e.tileId, style.proj, style.fly, team, e.fromTower), release);
         }
         if (style.ring) ring(map, style.ring === 'shock' ? e.fromTileId : e.tileId, style.ring, team, impact);
       }

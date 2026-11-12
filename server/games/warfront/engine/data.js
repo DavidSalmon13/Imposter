@@ -49,7 +49,7 @@ function unit(id, name, race, cls, hp, atk, supply, minerals, move, range, flags
     name,
     race,
     class: cls,
-    hp,
+    hp: Math.round(hp * TUNING.unitHpScale),
     atk,
     supply,
     minerals,
@@ -114,7 +114,7 @@ const FACILITIES = Object.freeze({
   barracks: Object.freeze({ id: 'barracks', name: 'Forward Barracks', minerals: 7, hp: 20, buildMs: 10000, spawnPoint: true }),
   workshop: Object.freeze({ id: 'workshop', name: 'Workshop', minerals: 7, hp: 15, buildMs: 10000, buildsWeapons: true }),
   tower: Object.freeze({
-    id: 'tower', name: 'Tower', minerals: 4, hp: 18, buildMs: 6000, atk: 3, range: 1, attackMs: TUNING.attackMs,
+    id: 'tower', name: 'Tower', minerals: 4, hp: 40, buildMs: 6000, atk: 3, range: 1, attackMs: TUNING.attackMs,
   }),
 });
 

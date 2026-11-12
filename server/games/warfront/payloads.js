@@ -104,6 +104,7 @@ function battlePayload(ctx, room, viewerName) {
     myRace: army ? army.race : null,
     catalog: army ? produceCatalog(army.race) : [],
     buildCatalog: army ? buildCatalog(army.race) : [],
+    unitStats: unitStatsTable(),
     weaponCost: engine.TUNING.workshopWeaponCost,
     weaponMs: engine.TUNING.workshopWeaponMs,
     carryCap: engine.TUNING.carryCap,
@@ -122,6 +123,20 @@ function produceCatalog(race) {
       structure: t.class === 'structure', worker: t.class === 'worker', buildMs: engine.buildMs(id),
     };
   });
+}
+
+/**
+ * Every unit type's and facility's numbers, for stat lines, unit descriptions and HP bars:
+ * power (atk), max HP, speed (move 0–3) and range, plus class and the Tower's garrison room.
+ */
+function unitStatsTable() {
+  const out = {};
+  for (const t of [...Object.values(engine.UNIT_TYPES), ...Object.values(engine.FACILITY_UNITS)]) {
+    out[t.id] = { hp: t.hp, atk: t.atk, move: t.move, range: t.range, cls: t.class };
+  }
+  out.tower.garrison = engine.TUNING.towerGarrison;
+  out.tower.garrisonRange = engine.TUNING.towerRangeBonus;
+  return out;
 }
 
 /** The Build tab's cards: each facility and the Tower at this race's 💎 price. */

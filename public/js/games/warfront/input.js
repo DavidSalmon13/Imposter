@@ -48,7 +48,10 @@ export function onTileTap(tileId) {
   const mineHere = S.live.units.filter((u) => u.owner === S.state.you && u.tileId === tileId && !FACILITY_TYPES.has(u.type)).map((u) => u.id);
   const selHere = mineHere.filter((id) => S.selected.has(id));
   const myStruct = S.live.units.find((u) => u.owner === S.state.you && u.tileId === tileId && FACILITY_TYPES.has(u.type));
-  if (mineHere.length && (!S.selected.size || selHere.length < mineHere.length)) {
+  // Units picked elsewhere and sent to your Tower climb onto it, even with a garrison already up there.
+  const toTower = Boolean(myStruct && myStruct.type === 'tower' && !myStruct.buildDoneAt && S.selected.size
+    && [...S.selected].some((id) => !mineHere.includes(id)));
+  if (!toTower && mineHere.length && (!S.selected.size || selHere.length < mineHere.length)) {
     // Select (or switch to) the stack on this tile.
     S.selStructure = null;
     S.selected.clear();

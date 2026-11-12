@@ -15,6 +15,9 @@ import {
   UNIT_MAX_HP,
   UNIT_NAMES,
   WORKER_TYPES,
+  UNIT_INFO,
+  UNIT_STATS,
+  statLine,
 } from '../constants.js';
 import { infoPortrait, infoTitle, infoSub, infoHp, infoOrder, cmdBtn } from '../dom.js';
 import { serverNow } from '../clock.js';
@@ -38,6 +41,18 @@ export function renderInfo() {
     return true;
   };
   const struct = !sel.length && S.selStructure != null ? S.live.units.find((u) => u.id === S.selStructure) : null;
+  // A long-pressed Produce card: that unit's description and stats, for a few seconds.
+  const lore = S.lore && S.lore.until > Date.now() ? S.lore.type : null;
+  if (!lore) S.lore = null;
+  if (lore) {
+    if (changed('portrait', `l:${lore}`)) infoPortrait.innerHTML = (UNIT_SPRITES[lore] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
+    if (changed('hp', `l:${lore}`)) infoHp.innerHTML = '';
+    infoTitle.textContent = UNIT_NAMES[lore] || lore;
+    setSub(lore, UNIT_INFO[lore] || '', statLine(lore));
+    infoOrder.textContent = '▸ TAP THE CARD TO PRODUCE';
+    renderSys();
+    return;
+  }
   const portraitChanged = changed('portrait', struct ? `s:${struct.type}` : lead0);
   const hpChanged = changed('hp', struct ? `s:${struct.hp}` : hpSig);
   if (hpChanged) infoHp.innerHTML = '';
@@ -46,9 +61,13 @@ export function renderInfo() {
     if (portraitChanged) infoPortrait.innerHTML = art.svg.replace('<svg ', '<svg style="width: 46px; height: 46px; overflow: visible" ');
     infoTitle.textContent = FACILITY_NAMES[struct.type];
     const max = UNIT_MAX_HP[struct.type];
-    infoSub.textContent = struct.buildDoneAt
+    const roof = struct.type === 'tower'
+      ? ` · roof ${S.live.units.filter((u) => u.garrison === struct.id).length}/${(UNIT_STATS.tower && UNIT_STATS.tower.garrison) || 3}`
+      : '';
+    setSub(`s:${struct.id}`, struct.buildDoneAt
       ? `Under construction · ${Math.max(0, Math.ceil((struct.buildDoneAt - serverNow()) / 1000))}s`
-      : `${RACE_NAMES[S.state.myRace]} · HP ${Math.ceil(struct.hp)}/${max}${struct.type === 'workshop' && S.live.me ? ` · arsenal ${(S.live.me.arsenal || []).length}` : ''}`;
+      : `${RACE_NAMES[S.state.myRace]} · HP ${Math.ceil(struct.hp)}/${max}${roof}${struct.type === 'workshop' && S.live.me ? ` · arsenal ${(S.live.me.arsenal || []).length}` : ''}`,
+    UNIT_INFO[struct.type] || '');
     if (hpChanged) {
       const c = struct.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
       const pip = el('span');
@@ -62,7 +81,7 @@ export function renderInfo() {
   if (!sel.length) {
     if (portraitChanged) infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
     infoTitle.textContent = map.theme;
-    infoSub.textContent = map.lore || '';
+    setSub('map', map.lore || '');
     infoOrder.textContent = S.buildMode ? buildOrderText() : S.state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
     renderSys();
     return;
@@ -72,8 +91,7 @@ export function renderInfo() {
   const [lead] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
   if (portraitChanged) infoPortrait.innerHTML = (UNIT_SPRITES[lead] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
   infoTitle.textContent = counts.size === 1 ? `${plural(UNIT_NAMES[lead], sel.length)} ×${sel.length}` : `Squad ×${sel.length}`;
-  const here = sel[0].tileId;
-  infoSub.textContent = `${RACE_NAMES[S.state.myRace]} · ${map.tiles[here]}`;
+  setSub(`u:${lead}`, UNIT_INFO[lead] || `${RACE_NAMES[S.state.myRace]} · ${map.tiles[sel[0].tileId]}`, statLine(lead));
   if (hpChanged) sel.slice(0, 10).forEach((u) => {
     const max = UNIT_MAX_HP[u.type] || u.hp;
     const c = u.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
@@ -91,9 +109,26 @@ export function renderInfo() {
   else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ HAULING · 💎 ${Math.round(hauler.carrying)} → ${S.structureTiles.has(hauler.path && hauler.path.length ? hauler.path[hauler.path.length - 1] : -1) ? 'REFINERY' : 'BASE'}`;
   else if (hauler) order = '▸ HAULING · TO THE VEIN';
   else if (dest) order = `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}`;
+  else if (sel.every((u) => u.garrison)) {
+    order = sel.some((u) => UNIT_STATS[u.type] && UNIT_STATS[u.type].range >= 2)
+      ? '▸ ON THE TOWER ROOF · SHOOTING · SAFE TILL IT FALLS'
+      : '▸ ON THE TOWER ROOF · SAFE TILL IT FALLS';
+  }
   else if (sel.every((u) => u.holding)) order = '▸ HOLDING · TAP A TILE TO MOVE';
   else order = '▸ TAP A TILE TO MOVE';
   infoOrder.textContent = order;
+}
+
+/** The info well's sub line: a description, then (optionally) a stat line under it. */
+function setSub(key, text, stats = '') {
+  if (S.infoSig.sub === `${key}|${text}|${stats}`) return;
+  S.infoSig.sub = `${key}|${text}|${stats}`;
+  infoSub.textContent = text;
+  if (stats) {
+    const line = el('span', 'wf-stl');
+    line.textContent = stats;
+    infoSub.appendChild(line);
+  }
 }
 
 function buildOrderText() {

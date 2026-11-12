@@ -4,7 +4,7 @@
 // Here, not in view.js, because systems (facilities' build rule D4) need it too.
 // Must NOT contain: payload shaping (view.js). Spec: "Fog of war", "Lighthouses".
 
-const { WF_VISION, WF_LIGHTHOUSE_VISION } = require('./constants');
+const { WF_VISION, WF_LIGHTHOUSE_VISION, TUNING } = require('./constants');
 const { tileId, tileXY } = require('./grid');
 const { allUnits } = require('./state');
 
@@ -33,6 +33,10 @@ function visionFor(state, team) {
   const sources = new Set([state.bases[team].tileId]);
   for (const { unit, team: t } of allUnits(state)) if (t === team) sources.add(unit.tileId);
   for (const src of sources) diamond(src, WF_VISION);
+  // A finished Tower sees further from its height.
+  for (const { unit, team: t } of allUnits(state)) {
+    if (t === team && unit.type === 'tower' && !unit.buildDoneAt) diamond(unit.tileId, WF_VISION + TUNING.towerVisionBonus);
+  }
   for (const l of state.lighthouses || []) if (l.team === team) diamond(l.tileId, WF_LIGHTHOUSE_VISION);
   return seen;
 }

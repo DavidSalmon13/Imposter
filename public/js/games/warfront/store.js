@@ -54,6 +54,7 @@ export const S = {
   craftCardNodes: new Map(), // written by console/build.js; weaponId -> { btn, q, bar, sig }
   skewSamples: [], // written by clock.js
   skewReady: false, // written by clock.js
+  lore: null, // written by console/cards.js; { type, until }: a Produce card long-pressed, its description shown in the info well
   infoSig: {}, // written by world/build.js, console/selection.js; what renderInfo last drew, so unchanged parts aren't rebuilt
   suppressClickUntil: 0, // written by camera.js
   goBuiltFor: null, // written by gameOver.js, index.js; clock.startedAt of the battle the scene was built for

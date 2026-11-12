@@ -7,7 +7,7 @@
 
 import { S } from '../store.js';
 import { el } from '../util.js';
-import { TILE, ELEVATION, BASE_PAD_Z } from '../constants.js';
+import { TILE, ELEVATION, BASE_PAD_Z, TOWER_ROOF_PX } from '../constants.js';
 
 export function tileCentre(map, id) {
   const x = id % map.width;
@@ -78,6 +78,26 @@ export function standPoint(map, tileId, team, shared) {
     x: c.x + (shared ? (team === 'red' ? -16 : 16) : 0),
     y: c.y + (onBase ? 44 : onLight ? 30 : 14),
     z: elevationAt(map, tileId),
+  };
+}
+
+// Billboards stand at rotateX(-40deg) (battlefield.css .bb): `d` px up one is d·cos40 back in y and
+// d·sin40 up in z; its face normal (toward the camera) is (sin40, cos40) in (y, z).
+const BB_COS = Math.cos((40 * Math.PI) / 180);
+const BB_SIN = Math.sin((40 * Math.PI) / 180);
+
+/**
+ * Where a Tower's garrison stands: on the roof deck of the Tower drawn on `tileId`
+ * (structures.js puts it at the tile centre, 4px forward), nudged a little toward the
+ * camera so the figures stand in front of the deck rather than inside the wall.
+ */
+export function roofPoint(map, tileId) {
+  const c = tileCentre(map, tileId);
+  const nudge = 8;
+  return {
+    x: c.x,
+    y: c.y + 4 - TOWER_ROOF_PX * BB_COS + nudge * BB_SIN,
+    z: elevationAt(map, tileId) + TOWER_ROOF_PX * BB_SIN + nudge * BB_COS,
   };
 }
 

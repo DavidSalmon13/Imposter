@@ -41,6 +41,14 @@ const TUNING = Object.freeze({
   attackMs: 1500, // slowed from 1000 with unit HP ×2 (2026-11-12): fights last ~3× longer
   luckMagnitude: 0.35,
   structureDefense: 1.5,
+  unitHpScale: 1.5, // every unit type's HP × this (2026-11-12: on top of the earlier ×2)
+  // Towers: a garrison of up to towerGarrison units stands on the roof. Ranged/casters shoot from
+  // it with +towerRangeBonus range; nobody inside can be targeted until the tower falls, and then
+  // they drop to the ground losing towerFallDmg of their max HP. The tower sees +towerVisionBonus.
+  towerGarrison: 3,
+  towerRangeBonus: 1,
+  towerVisionBonus: 1,
+  towerFallDmg: 0.25,
   veinLuckMagnitude: 0.4,
   artilleryDmg: 8,
   bombardDmg: 15,

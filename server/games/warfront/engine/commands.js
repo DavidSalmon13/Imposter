@@ -7,7 +7,7 @@
 const { unitStats } = require('./data');
 const { isPassable } = require('./grid');
 const { MAX_UNITS_PER_COMMAND } = require('./state');
-const { orderMove } = require('./systems/movement');
+const { orderMove, climbTower } = require('./systems/movement');
 const { orderProduce } = require('./systems/production');
 const { orderHaul } = require('./systems/economy');
 const { orderBuild, orderCraft } = require('./systems/facilities');
@@ -31,7 +31,17 @@ function applyCommand(state, name, cmd, now) {
     const units = army.units.filter((u) => wanted.has(u.id) && unitStats(u.type).move > 0);
     if (!units.length) return { ok: false, error: 'Those units are not yours to move' };
     let moved = 0;
-    for (const u of units) if (orderMove(state, u, toTileId, now)) moved++;
+    for (const u of units) {
+      // Sent to the Tower it already stands beside: climb straight up.
+      if (u.tileId === toTileId && !u.path.length && !u.garrison) {
+        u.haul = null;
+        u.holding = false;
+        climbTower(state, army, u, []);
+        if (u.garrison) moved++;
+        continue;
+      }
+      if (orderMove(state, u, toTileId, now)) moved++;
+    }
     if (!moved) return { ok: false, error: 'Already there' };
     return { ok: true, moved };
   }

@@ -8,7 +8,7 @@
 import { S } from './store.js';
 import { sfx } from '../../fx.js';
 import { openMenu, closeMenu } from './menu.js';
-import { MATCH_LENGTHS, MAP_SIZES, HOTKEYS, BUILD_HOTKEYS } from './constants.js';
+import { MATCH_LENGTHS, MAP_SIZES, HOTKEYS, BUILD_HOTKEYS, syncUnitStats } from './constants.js';
 import {
   joinBtn,
   captainBtn,
@@ -46,6 +46,7 @@ import { renderGameOver } from './gameOver.js';
 function applyState(data) {
   if (!data || data.game !== 'warfront') return;
   S.state = data;
+  syncUnitStats(data.unitStats);
   if (data.phase !== 'playing') {
     closeMenu();
     clearInterval(S.clockTimer);

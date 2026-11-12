@@ -37,25 +37,80 @@ export const FORMATIONS = {
 };
 
 // Facilities and towers (Step 9): drawn as buildings, never as unit stacks.
+// How far up its billboard the Tower's roof deck is (sprites.js tower), where its garrison stands.
+export const TOWER_ROOF_PX = 100;
 export const FACILITY_TYPES = new Set(['refinery', 'barracks', 'workshop', 'tower']);
 export const FACILITY_NAMES = { refinery: 'Refinery', barracks: 'Forward Barracks', workshop: 'Workshop', tower: 'Tower' };
 export const FACILITY_ORDERS = {
   refinery: '▸ YOUR HAULERS UNLOAD HERE · +1💎/S ON ITS VEIN',
   barracks: '▸ RECRUIT: NEW UNITS STEP OUT HERE',
   workshop: '▸ CRAFT A WEAPON BELOW · ONE AT A TIME',
-  tower: '▸ GUARDS ITS OWN TILE AND THE NEXT',
+  tower: '▸ SEND UP TO 3 UNITS ONTO ITS ROOF · ARCHERS SHOOT FROM THE TOP',
 };
 export const WEAPON_NAMES = { artillery: 'Artillery', emp: 'EMP', airdrop: 'Airdrop', bombard: 'Bombard', aegis: 'Aegis' };
 export const WEAPON_IDS = Object.keys(WEAPON_NAMES);
 
-// Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES and FACILITIES).
+// Per-type numbers (power, max HP, speed, range, class), synced from the server's wfState
+// `unitStats` by syncUnitStats; the values below are only the fallback until it arrives.
 export const UNIT_MAX_HP = {
-  refinery: 15, barracks: 20, workshop: 15, tower: 18,
-  laborer: 10, peon: 10, acolyte: 10,
-  militiaman: 22, crossbow: 14, outrider: 16, bastion: 40, ballista: 16,
-  warrior: 22, skirmisher: 14, raider: 18, berserker: 12, warchief: 32,
-  apprentice: 12, mysticArcher: 12, battlemage: 16, summoner: 14, archmage: 20, golem: 36,
+  refinery: 15, barracks: 20, workshop: 15, tower: 40,
+  laborer: 15, peon: 15, acolyte: 15,
+  militiaman: 33, crossbow: 21, outrider: 24, bastion: 60, ballista: 24,
+  warrior: 33, skirmisher: 21, raider: 27, berserker: 18, warchief: 48,
+  apprentice: 18, mysticArcher: 18, battlemage: 24, summoner: 21, archmage: 30, golem: 54,
 };
+export const UNIT_STATS = {};
+
+/** Takes the server's per-type numbers (wfState.unitStats) as the truth for HP bars and stat lines. */
+export function syncUnitStats(stats) {
+  if (!stats) return;
+  Object.entries(stats).forEach(([type, st]) => {
+    UNIT_STATS[type] = st;
+    UNIT_MAX_HP[type] = st.hp;
+  });
+}
+
+// Speed words for the stat line (the engine's move 0–3).
+export const SPEED_NAMES = ['Static', 'Normal', 'Fast', 'Very fast'];
+
+// One line on what each unit is for, shown in the info well and on a card's long press.
+export const UNIT_INFO = {
+  laborer: 'Hauls 💎 from veins and builds. Forge Workers add extra 🔩 Supply.',
+  peon: 'Hauls 💎 from veins and builds. Cheap and tireless.',
+  acolyte: 'Hauls 💎 from veins and builds. Serves the Arcane circle.',
+  militiaman: 'Spear infantry. Holds the line and beats cavalry.',
+  crossbow: 'Shoots two tiles. Shreds infantry, but riders run it down.',
+  outrider: 'Fast cavalry. Rides down archers and casters.',
+  bastion: 'A walking fortress that never moves. Very tough; guards its tile.',
+  ballista: 'Siege engine. Hits buildings and bases far harder.',
+  warrior: 'Axe infantry. Hits hard and beats cavalry.',
+  skirmisher: 'Throws javelins two tiles. Strong against infantry.',
+  raider: 'The fastest unit. Hit-and-run cavalry that hunts archers.',
+  berserker: 'Glass cannon. Huge damage, little HP.',
+  warchief: 'Horde champion. Big HP and a slam that shakes the ground.',
+  apprentice: 'Young mage. Casts violet orbs two tiles away.',
+  mysticArcher: 'Glowing arrows from two tiles. Strong against infantry.',
+  battlemage: 'Blasts everyone on the target tile at once.',
+  summoner: 'Brings a Golem with it and sends spirit wisps two tiles.',
+  archmage: 'Master caster. Steadies your luck nearby and curses the enemy\'s.',
+  golem: 'A summoned stone guardian. Slow to kill, never moves.',
+  tower: 'Up to 3 of your units can stand on its roof. Archers and mages shoot from it with +1 range, and nobody can hit them until the tower falls.',
+  refinery: 'Your haulers unload here. +1💎 per second on its vein.',
+  barracks: 'A forward spawn point: new units can step out here.',
+  workshop: 'Crafts special weapons for your arsenal.',
+};
+
+/** "⚔ 5 · ❤ 21 · » Normal · ◎ 2" for a type (falls back to just HP before stats arrive). */
+export function statLine(type) {
+  const st = UNIT_STATS[type];
+  if (!st) return `❤ ${UNIT_MAX_HP[type] || '?'}`;
+  const parts = [];
+  if (st.atk) parts.push(`⚔ ${st.atk}`);
+  parts.push(`❤ ${st.hp}`);
+  parts.push(`» ${SPEED_NAMES[st.move] || st.move}`);
+  if (st.atk) parts.push(`◎ ${st.range}`);
+  return parts.join(' · ');
+}
 
 export const UNIT_NAMES = {
   laborer: 'Laborer', peon: 'Peon', acolyte: 'Acolyte',

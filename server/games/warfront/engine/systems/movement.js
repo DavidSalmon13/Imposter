@@ -5,7 +5,9 @@
 // Must NOT contain: combat, hauling rules. Spec: "Movement".
 
 const { findPath, pathCost } = require('../pathing');
-const { allUnits, stepMs } = require('../state');
+const { TUNING } = require('../constants');
+const { unitStats } = require('../data');
+const { allUnits, stepMs, towerAt, garrisonOf } = require('../state');
 
 /**
  * Sends one unit toward `to`. A unit already mid-step finishes that step first
@@ -29,6 +31,7 @@ function orderMove(state, unit, to, now) {
   }
   unit.haul = null;
   unit.holding = false;
+  unit.garrison = null; // any move climbs down off a Tower
   return true;
 }
 
@@ -55,9 +58,22 @@ function nearestTile(state, u, tiles) {
   return best;
 }
 
+/**
+ * A unit that ends its walk on a friendly Tower climbs onto its roof when there's room
+ * (TUNING.towerGarrison). Haulers pass through: they're busy.
+ */
+function climbTower(state, army, unit, events) {
+  if (unit.path.length || unit.haul || unitStats(unit.type).move <= 0) return;
+  const tower = towerAt(state, army.team, unit.tileId);
+  if (!tower || garrisonOf(state, tower.id).length >= TUNING.towerGarrison) return;
+  unit.garrison = tower.id;
+  events.push({ type: 'garrison', tileId: unit.tileId, owner: unit.owner, team: army.team, unitId: unit.id, towerId: tower.id });
+}
+
 /** Collects whatever lies on the tile a unit just walked onto. */
 function arriveAt(state, owner, unit, events) {
   const army = state.armies[owner];
+  climbTower(state, army, unit, events);
   const { pickups } = state;
   const wi = pickups.weapons.findIndex((w) => w.tileId === unit.tileId);
   if (wi >= 0) {
@@ -97,6 +113,7 @@ function stepMovement(state, dtMs, now, events) {
 }
 
 module.exports = {
+  climbTower,
   orderMove,
   headFor,
   nearestTile,

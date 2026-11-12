@@ -117,6 +117,8 @@ balance) and the shell's `server/games/warfront/constants.js` (timing/roster). A
 | `TUNING.luckMagnitude` | 0.35 | ± per-hit damage swing at zero strategy edge |
 | `TUNING.hillRangeBonus` | 1 | Extra range for a **ranged** unit (base `Rng` ≥ 2) standing on hills (see "High ground") |
 | `TUNING.uphillRangePenalty` | 1 | Range lost by a ranged unit **off** the hills shooting at a target **on** hills |
+| `TUNING.unitHpScale` | 1.5 | Every unit type's HP in the race tables below is multiplied by this (2026-11-12; e.g. Militiaman 22 → 33) |
+| `TUNING.towerGarrison` / `towerRangeBonus` / `towerVisionBonus` / `towerFallDmg` | 3 / 1 / 1 / 0.25 | Tower roof garrison size, its ranged bonus, the Tower's extra sight, and the max-HP share a garrison loses when its Tower falls (see "Towers") |
 | `TUNING.structureDefense` | 1.5 | Extra defense × for every `structure` (bases, towers, facilities, Bastion, Golem); stacks with terrain |
 | `TUNING.veinLuckMagnitude` | 0.4 | ± swing on a *contested* (central) vein's load rate |
 | `TUNING.artilleryDmg` | 8 | `artillery` damage to each enemy unit on the target tile (through terrain/structure defense) |
@@ -154,6 +156,10 @@ at home and hauls Minerals from veins — barely fights, `atk 1`; the economic e
 juiciest soft target), **siege** (devastating vs structures/bases, fragile vs mobile units),
 **caster** (fragile; some have `aoe`), and **structure** (can't move, high defense — bases, towers,
 Forge's Bastion, a summoned Golem). Each race also has a **signature** modifier.
+
+HP below is the base value; the game uses `HP × unitHpScale` (1.5), and each unit's real numbers
+(power, HP, speed, range) and a one-line description show on its Produce card (long-press it) and
+in the info well when it's selected.
 
 **Every race fields a Worker** (same stats, race flavor name). Workers are how both resources
 flow, so losing them starves you — defend yours, hunt theirs.
@@ -482,7 +488,7 @@ only one that can fortify.
 
 ## Towers (hold a place so your army can leave)
 
-A **Tower** (`{ kind:'build', facility:'tower', tileId }`, **💎4**, HP 18, atk 3, builds in 6s) is
+A **Tower** (`{ kind:'build', facility:'tower', tileId }`, **💎4**, HP 40, atk 3, builds in 6s) is
 a `structure` that can't move, has high defense, and **auto-attacks enemy units within range `1`** (its own + adjacent
 tiles) on its `attackMs` cooldown like any unit. Its whole purpose is the answer to *"if I push, my
 base/vein is open"*:
@@ -490,6 +496,19 @@ a single Worker + a Tower can **hold a vein or a chokepoint** while your army op
 The AI map emits `chokepoints`, so a tower on a one-tile pass is geometry-strong and forces the
 enemy to commit real force (or a weapon) to break through. Because towers cost Minerals, security
 is always paid for out of your tech budget — never free.
+
+
+**Garrison (agreed with David 2026-11-12).** A finished Tower is tall, with a flat roof that up to
+`towerGarrison` (3) friendly units stand on, drawn on top of it. A unit climbs up when its move
+ends on the Tower's tile (or it is sent there while standing beside it) and there's room; haulers
+pass through. Any move order climbs it down.
+- **Untargetable.** Nobody can hit a unit on the roof (AoE skips it too): the enemy has to knock
+  the Tower down first.
+- **Shooting from the top.** Ranged units and casters on the roof attack with
+  `range + towerRangeBonus` (instead of the hill rule); melee and Workers on the roof just hide.
+- **When it falls**, the garrison drops to the Tower's tile and loses `towerFallDmg` of its max HP
+  (never killed by the fall).
+- **Height.** A finished Tower sees `WF_VISION + towerVisionBonus` tiles.
 
 ## Lighthouses (capture the high watch)
 

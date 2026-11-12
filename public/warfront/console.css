@@ -35,3 +35,14 @@
 :is(#wf-screen, #wf-gameover-screen) .wf .dmg.wf-gain { font-size: 20px; color: #5ad8ff; text-shadow: 0 0 12px rgba(90,216,255,.95), 0 2px 0 #000; }
 /* Notice lines over the map, in the mockup's "[Team] …" overlay style. */
 :is(#wf-screen, #wf-gameover-screen) .wf #wf-feed > span { animation: wfFxOut 3.5s linear forwards; }
+
+/* Unit stats: a compact line on each Produce card (⚔ power, ❤ HP, ◎ range, » speed) and the
+   stat line under a unit's description in the info well. */
+:is(#wf-screen) .wf .cmd .wf-cstat { display: flex; gap: 3px; justify-content: center; font-size: 7.5px; font-weight: 800; line-height: 1; white-space: nowrap; letter-spacing: 0; }
+:is(#wf-screen) .wf .cmd .wf-cstat b { font-weight: 800; }
+:is(#wf-screen) .wf .cmd .wf-cstat .a { color: #ff8a8e; }
+:is(#wf-screen) .wf .cmd .wf-cstat .h { color: #4dff7a; }
+:is(#wf-screen) .wf .cmd .wf-cstat .r { color: #8cc8ff; }
+:is(#wf-screen) .wf .cmd .wf-cstat .s { color: #ffcc33; letter-spacing: -1px; }
+:is(#wf-screen) .wf .cmd { -webkit-touch-callout: none; user-select: none; }
+:is(#wf-screen) .wf #wf-info-sub .wf-stl { display: block; margin-top: 2px; color: #ffcc33; font-weight: 700; letter-spacing: .02em; }
