@@ -1,13 +1,13 @@
 'use strict';
 
 // Warfront game module (docs/specs/warfront-specs.md, docs/implementation/warfront-plan.md).
-// The shell around the pure engine (warfrontEngine.js): socket handlers, payloads,
+// The shell around the pure engine (warfront/engine/): socket handlers, payloads,
 // persistence hooks. Rules belong in the engine, not here.
 //
 const { shuffle } = require('../lib/shuffle');
 const { chatCompletionJson } = require('../lib/openai');
 const { rngFor, randomSeed } = require('../lib/rng');
-const engine = require('./warfrontEngine');
+const engine = require('./warfront/engine');
 
 const WF_MIN_PLAYERS = 2;
 const WF_MAX_PLAYERS = 8;

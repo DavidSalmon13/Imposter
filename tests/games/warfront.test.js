@@ -17,7 +17,7 @@ const {
   mockOpenAiFailure,
   flush,
 } = require('../helpers/harness');
-const engine = require('../../server/games/warfrontEngine');
+const engine = require('../../server/games/warfront/engine');
 const { rngFor } = require('../../server/lib/rng');
 
 const NAMES = ['Host', 'Ann', 'Bob', 'Cat'];
