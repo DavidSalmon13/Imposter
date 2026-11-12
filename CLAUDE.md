@@ -36,7 +36,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
   production (e.g. Railway) so state survives redeploys.
 - `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
   visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
-  Unset = falls back to a temporary hardcoded password in `server/stats.js`.
+  Also the owner password for `/admin`. Unset = owner login is disabled (no fallback).
 - `DATABASE_URL` — Postgres for accounts and lifetime game history
   (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
   Optional: unset or unreachable = no accounts, games still run.
