@@ -21,6 +21,7 @@ import { renderHp, tickClock, renderStrip } from './hud.js';
 import { renderInfo, renderSys } from './console/selection.js';
 import { buildCards, renderCards } from './console/cards.js';
 import { renderBuildCards } from './console/build.js';
+import { renderBatch } from './console/bulk.js';
 
 export function renderBattle(data) {
   const fresh = S.builtFor !== data.clock.startedAt;
@@ -30,6 +31,8 @@ export function renderBattle(data) {
     S.buildMode = null;
     S.selStructure = null;
     S.tab = 'produce';
+    S.produceBatch = 1;
+    renderBatch();
     buildWorld(data);
     S.builtFor = data.clock.startedAt;
   }

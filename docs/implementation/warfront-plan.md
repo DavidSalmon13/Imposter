@@ -766,7 +766,15 @@ console.
   matches; the army count changes on spawn and death; HP changes update in place (no stack rebuild).
 - **Tests:** `client/stackSig.test.mjs` adds per-unit HP fractions (sorted, lowest first).
 
-### Step 23: Bulk actions in the console
+### Step 23: Bulk actions in the console ✅
+Done 2026-11-12. **Deviation (agreed with David):** the ×1/×5 switch isn't beside the tabs (only
+~35px free there at 360px); it's a fifth button in the command row, Move · Haul · Hold · ⊕ All ·
+×1/×5 Recruit, and the mockup was changed to match. Select all picks every fighter (not buildings
+or a Tower's garrison); tapping it again adds the Workers; it's lit while every fighter is selected.
+×5 sends up to five `produce` commands one after another (no engine change), stopping at the
+first refusal, and says "Recruited 2 of 5 · not enough 🔩". The switch resets to ×1 each battle.
+Checked in headless Chrome at 360px: ×5 with 7 🔩 queued 2 Militiamen with that notice; ⊕ selected
+both Militiamen, ⊕ again added the two Laborers; one map tap set all four walking.
 - **Goal:** from the console, select every soldier you have in one tap, and buy several units at once.
 - **Mockup first, then show David:** in the console (`2-battlefield.html` /
   `2c-command-cards.html`), (a) a **Select all** button next to Move/Haul/Hold that selects all your

@@ -41,6 +41,7 @@ import { setTab, armBuild } from './console/build.js';
 import { produceUnit } from './console/cards.js';
 import { onSysButton } from './console/selection.js';
 import { onTileTap } from './input.js';
+import { selectAll, toggleBatch } from './console/bulk.js';
 import { renderGameOver } from './gameOver.js';
 
 function applyState(data) {
@@ -121,6 +122,8 @@ export const Warfront = {
       alertEl.classList.add('hidden');
     });
     ['move', 'haul', 'hold'].forEach((kind) => cmdBtn[kind].addEventListener('click', () => onSysButton(kind)));
+    cmdBtn.all.addEventListener('click', selectAll);
+    cmdBtn.batch.addEventListener('click', toggleBatch);
     ['produce', 'build'].forEach((t) => tabBtn[t].addEventListener('click', () => {
       sfx.click();
       setTab(t);

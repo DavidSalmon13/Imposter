@@ -12,6 +12,7 @@ import {
   RACE_NAMES,
   FACILITY_NAMES,
   FACILITY_ORDERS,
+  FACILITY_TYPES,
   UNIT_MAX_HP,
   UNIT_NAMES,
   WORKER_TYPES,
@@ -168,6 +169,10 @@ export function renderSys() {
   cmdBtn.haul.classList.toggle('on', workers && S.mode === 'haul');
   cmdBtn.hold.classList.toggle('dim', !sel.length);
   cmdBtn.hold.classList.toggle('on', Boolean(sel.length) && sel.every((u) => u.holding));
+  const mine = S.live.units.filter((u) => u.owner === S.state.you && !FACILITY_TYPES.has(u.type) && !u.garrison);
+  const fighters = mine.filter((u) => !WORKER_TYPES.has(u.type));
+  cmdBtn.all.classList.toggle('dim', !mine.length);
+  cmdBtn.all.classList.toggle('on', fighters.length > 0 && fighters.every((u) => S.selected.has(u.id)));
 }
 
 export function sendOrder(cmd) {

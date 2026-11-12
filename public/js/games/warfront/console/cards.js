@@ -13,6 +13,7 @@ import { serverNow } from '../clock.js';
 import { HOTKEYS, CARD_NAMES, RACE_CARD_CLASS, UNIT_STATS, UNIT_MAX_HP, UNIT_INFO } from '../constants.js';
 import { buildBuildCards, setTab } from './build.js';
 import { renderInfo } from './selection.js';
+import { batchFit, batchNotice } from '../batch.js';
 
 const LORE_MS = 5000; // how long a long-pressed card's description stays in the info well
 const PRESS_MS = 420; // a press this long shows the description instead of producing
@@ -150,13 +151,26 @@ export function produceUnit(unitType) {
     setTimeout(() => card.btn.classList.remove('on'), 220);
   }
   haptics.tap();
-  S.ctx.socket.emit('wfCommand', { kind: 'produce', unitType, atTileId: spawnTile() }, (res) => {
-    if (res && !res.ok) {
-      feed(res.error, 'amb');
-      sfx.error();
-      haptics.warn();
-    } else {
+  const want = S.produceBatch || 1;
+  // ×5: as many as Supply, Minerals and the cap allow (at least one try, so a refusal still
+  // shows the server's reason), sent one after another and stopping at the first refusal.
+  const fit = want > 1 && card ? batchFit(S.live.me, { supply: card.info.supply, minerals: card.info.minerals, slots: unitType === 'summoner' ? 2 : 1 }, want) : null;
+  const total = fit ? Math.max(1, fit.n) : 1;
+  const at = spawnTile();
+  let sent = 0;
+  const next = () => {
+    S.ctx.socket.emit('wfCommand', { kind: 'produce', unitType, atTileId: at }, (res) => {
+      if (res && !res.ok) {
+        feed(sent ? `${batchNotice(sent, want, null)} · ${res.error}` : res.error, 'amb');
+        sfx.error();
+        haptics.warn();
+        return;
+      }
+      sent++;
+      if (sent < total) return next();
       sfx.click();
-    }
-  });
+      if (want > 1) feed(batchNotice(sent, want, sent < want ? fit.short : null), sent < want ? 'amb' : undefined);
+    });
+  };
+  next();
 }
