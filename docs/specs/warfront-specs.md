@@ -87,7 +87,7 @@ balance) and the shell's `server/games/warfront/constants.js` (timing/roster). A
 | `WF_MIN_TEAM_SIZE` | 1 | Players a team needs to start |
 | `WF_TICK_MS` | 200 | Simulation step interval (server advances the world ~5×/s) |
 | `WF_BROADCAST_MS` | 200 | How often a fogged snapshot is pushed to each socket |
-| `WF_STEP_MS_BASE` | 2867 | Time to walk one plains tile at `Move 1` (÷ the Move speed factor, × terrain move-cost). A Warrior crosses a medium map (14 tiles) in ~40 s, a Raider in ~20 s (×1.5 faster than the earlier 4300, 2026-11-11) |
+| `WF_STEP_MS_BASE` | 1911 | Time to walk one plains tile at `Move 1` (÷ the Move speed factor, × terrain move-cost). A Warrior crosses a medium map (14 tiles) in ~27 s, a Raider in ~13 s (×1.5 faster than 2867 on 2026-11-12, which was ×1.5 faster than 4300 on 2026-11-11) |
 | `WF_MATCH_CAP_MS` | 720000 | Hard match length (12 min); at the cap, higher base HP wins |
 | `WF_EVENT_MS` | 60000 | Interval between battlefield events |
 | `WF_VISION` | 2 | Fog-of-war vision radius (Manhattan) around friendly units/base |
@@ -144,7 +144,7 @@ Every unit has a **combat class** that plugs into a universal rock-paper-scissor
 **Real-time reading of the stat columns.** Because the match is a live sim: a unit's **`Move` is
 its walking speed**, not a per-round step budget: Move 1 / 2 / 3 walk at ×1 / ×1.5 / ×2 the base
 speed (a speed factor of `(1 + Move) ÷ 2`), slowed by terrain move-cost. On open plains a Warrior
-crosses a medium map in about a minute and a Raider in about 30 s, so a raid is seen coming. Each combat unit also has an **attack range** (the `Rng` column, Manhattan
+crosses a medium map in about 27 s and a Raider in about 13 s, so a raid is seen coming. Each combat unit also has an **attack range** (the `Rng` column, Manhattan
 distance; `0` = its own tile only) and an **attack cooldown** (`attackMs`); it auto-attacks the
 nearest enemy in range each cooldown. The 🔩 Supply cost also sets build time
 (`buildMsPerCost × 🔩`). See "Combat" under the simulation section.

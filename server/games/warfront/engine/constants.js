@@ -4,8 +4,9 @@
 // Socket/loop timing (WF_TICK_MS, WF_BROADCAST_MS, roster limits) lives in the shell, ../constants.js.
 // Must NOT contain: logic, data tables, requires of other engine files.
 
-// One plains tile at Move 1 (D16, sped up ×1.5 on 2026-11-11): a Warrior crosses a medium map in ~40 s.
-const WF_STEP_MS_BASE = 2867;
+// One plains tile at Move 1 (D16, sped up ×1.5 on 2026-11-11 and again on 2026-11-12): a Warrior
+// crosses a medium map in ~27 s.
+const WF_STEP_MS_BASE = 1911;
 const WF_MATCH_CAP_MS = 720000;
 const WF_EVENT_MS = 60000;
 const WF_VISION = 2;

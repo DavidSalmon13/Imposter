@@ -66,8 +66,8 @@ test('move: a Raider (Move 3) walks twice as fast as a Warrior; an Outrider (Mov
   run(b.st, 0, 8 * Math.round(E.WF_STEP_MS_BASE / 2) + 200);
   assert.equal(E.tileXY(raider.tileId, 10).x, 8, 'raider: half a Warrior step a tile');
   assert.equal(E.tileXY(warrior.tileId, 10).x, 4, 'warrior: one full step a tile');
-  // A Warrior crosses a medium map (14 tiles of plains) in about 40 s (×1.5 speed-up, 2026-11-11).
-  assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 40000) < 1000);
+  // A Warrior crosses a medium map (14 tiles of plains) in about 27 s (×1.5 speed-ups, 2026-11-11 and 2026-11-12).
+  assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 26750) < 1000);
 });
 
 test('move: re-issuing an order repaths; the step in progress finishes first', () => {
