@@ -68,6 +68,8 @@ docs/                   Per-game specs, implementation plans and design mockups
 Requires Node.js 18+.
 
 ```bash
+git clone https://github.com/DavidSalmon13/shorot.git
+cd shorot
 npm install
 cp .env.example .env   # add OPENAI_API_KEY; the other variables are optional and documented in the file
 npm start              # http://localhost:3000

@@ -4,7 +4,7 @@ A same-room party word game. Players join a shared room on their phones via one 
 
 ## Deployment
 
-- **Repo**: https://github.com/DavidSalmon13/Imposter.git (currently empty)
+- **Repo**: https://github.com/DavidSalmon13/shorot
 - **Host**: Railway, connected to the GitHub repo — push to `main` triggers auto-deploy
 - **Flow**: build & test locally first, get explicit go-ahead, then commit + push
 - **Env**: server must bind to `process.env.PORT` (Railway assigns it). Also requires `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`, default `gpt-4o-mini`) — set locally via `.env` (see `.env.example`, loaded with `dotenv`) and in Railway's dashboard for production.
