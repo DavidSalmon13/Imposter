@@ -76,7 +76,7 @@ awarded retroactively on your next game or sign-in.
 | On Fire | Win 3 games in a row (any games) | `1a2e4a90…` open shirt, bucket hat |
 | All-Rounder | Win 5 different games | `b4c9322a…` bow tie and antlers |
 | Regular | Play 50 games | `8529cc18…` sitting on a stool |
-| Undetected | Survive a round as the imposter | `05ed7c84…` back turned |
+| Undetected | Survive a round as the imposter | 🕵️ (emoji only) |
 | Ghost | Survive 3 of your imposter rounds in a row (crew rounds in between don't break the streak) | `a549c348…` fake-mustache disguise |
 | Human Lie Detector | Survive 10 Imposter rounds as crew | `5a2df0c7…` suspicious sunglasses |
 | Spymaster Supreme | Win 3 Codenames games as spymaster | `d3b78bcb…` mirrored sunglasses |

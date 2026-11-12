@@ -7,7 +7,7 @@
  * rename an id once shipped. Evaluation lives in server/accounts.js.
  *
  * `sticker` is the badge's picture: a filename from the built-in sticker bank
- * (public/images/stickers). `emoji` is the fallback if that file is ever removed.
+ * (public/images/stickers). `emoji` is used when there's no sticker or its file is removed.
  */
 const { isValidSticker } = require('./stickers');
 
@@ -66,7 +66,6 @@ const BADGES = [
   // Imposter
   {
     id: 'imposter.undetected',
-    sticker: '05ed7c84-84d7-49a4-89ae-45af48996059.webp',
     emoji: '🕵️',
     name: 'Undetected',
     description: 'Survive a round as the imposter',
@@ -133,7 +132,7 @@ function publicBadge(b) {
 }
 
 for (const b of BADGES) {
-  if (!isValidSticker(b.sticker)) console.warn(`Badge ${b.id}: sticker ${b.sticker} not found, using its emoji`);
+  if (b.sticker && !isValidSticker(b.sticker)) console.warn(`Badge ${b.id}: sticker ${b.sticker} not found, using its emoji`);
 }
 
 module.exports = { BADGES, publicBadge };
