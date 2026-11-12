@@ -45,7 +45,7 @@ function createRoomState() {
     backgroundImage: null,
     // Per-game namespaced state. As each game migrates off its flat prefix, its fields
     // move under state[gameId] (populated by gameRegistry.initGameState); see
-    // plans/yes-sketch-a-low-risk-quiet-chipmunk.md.
+    // docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md.
     state: {},
   };
 }

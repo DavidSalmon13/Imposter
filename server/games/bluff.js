@@ -17,7 +17,7 @@ const BF_LOSER_HIGHLIGHT_MS = 1500;
 const BF_DEAL_ANIMATION_MS = 2200;
 const BF_CHECK_COUNTDOWN_MS = 3000;
 
-// Keys within room.state.bluff to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.bluff to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 // hands/lastResult/check/editing/editCounts are intentionally ephemeral - a mid-round restart
 // re-deals off the persisted counts (see repairOnLoad).
 const SAVED_FIELDS = ['players', 'counts', 'roundNumber', 'eliminationOrder'];
@@ -644,7 +644,7 @@ function registerHandlers(ctx, io, socket) {
 
   // Host-only correction tool: opens a draft of every player's card count (starting
   // from their current counts) that only takes effect on bfConfirmEdit - see
-  // specs/bluff-specs.md "Editing card counts mid-match".
+  // docs/specs/bluff-specs.md "Editing card counts mid-match".
   socket.on('bfStartEdit', (callback) => {
     callback = callback || (() => {});
     const roomCode = socket.data.roomCode;

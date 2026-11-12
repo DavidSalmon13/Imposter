@@ -5,7 +5,7 @@ game does); this doc is the source of truth for *how it gets built*: file names,
 event names, the decisions the spec leaves open, and a step order where every step ends in
 something you can run (`npm test`) and play in a browser.
 
-**The game must look exactly like `design/warfront/`** (spec section "Look & feel — the design is
+**The game must look exactly like `docs/design/warfront/`** (spec section "Look & feel — the design is
 binding"). Every client step below ports the matching mockup's markup, CSS and SVG directly, from
 the first screen onward; there is no placeholder-art phase. A client step isn't done until its
 screen matches its mockup side by side (open the mockup and the game on the same phone width and
@@ -113,7 +113,7 @@ setInterval(WF_TICK_MS) ─► warfront.js tickRoom ──► engine.stepSim(sta
   `codenames.js`).
 - `public/js/games/warfront.js`: client module (`init` / `applyState` / `applyJoin` / `stop`).
 - `public/js/games/warfrontSprites.js`: the unit/building/terrain SVG strings, lifted from
-  `design/warfront/source/Units.dc.html` and `Main.dc.html`. Created in Step 3 and used by every
+  `docs/design/warfront/source/Units.dc.html` and `Main.dc.html`. Created in Step 3 and used by every
   client step; never emoji placeholders.
 - `public/warfront.css`: `wf-*` styles. A separate file because it'll be large (terrain textures,
   sprites, keyframes); loaded after `theme-afterglow.css`.
@@ -135,7 +135,7 @@ setInterval(WF_TICK_MS) ─► warfront.js tickRoom ──► engine.stepSim(sta
   `#choose-warfront-btn` once the tile is live.
 - `CLAUDE.md`: "Four games today" is already stale; update the game count/list and mention
   Warfront's sim loop under Architecture.
-- `design/warfront/`: add the screens/elements the mockups don't have yet and replace the
+- `docs/design/warfront/`: add the screens/elements the mockups don't have yet and replace the
   round-based ones (Step 14).
 
 ## Event & function naming reference
@@ -202,7 +202,7 @@ per-socket rate-limit timestamps (`socket.data.wfLastPing`).
 Each step ends with `npm test` green and a browser check. Steps 1–2 are pure and need no browser.
 
 ### Step 0: Fold the decisions into the spec ✅
-Done 2026-11-11: `specs/warfront-specs.md` now carries D1–D12, the unit prices and the numbers
+Done 2026-11-11: `docs/specs/warfront-specs.md` now carries D1–D12, the unit prices and the numbers
 table. The spec remains the rules source of truth; change a rule there first, then here.
 
 ### Step 1: RNG + data tables ✅
@@ -246,7 +246,7 @@ clears the floating reaction row. Workers have no art yet (needed from Step 4).
 - `warfront.js` with `createState`/`clearState`/`onChoose` (→ `teamSelect`, reset `p.team`/
   `p.leader`), team-select handlers, `broadcastWfState`, `reconnectPayload` for `teamSelect`.
   Register in `gameRegistry.js`.
-- Client: enable the tile, `#wf-team-screen` ported from `design/warfront/1-team-select.html`
+- Client: enable the tile, `#wf-team-screen` ported from `docs/design/warfront/1-team-select.html`
   (Red/Blue columns, race picker, captain button, host options, Randomize, Start), with the mockup's
   "Planning time" control turned into **Match length** (8 / 12 / 16 min). Create `warfront.css` and
   `warfrontSprites.js` here, porting the shared panel/typography styles and the race art the screen
@@ -276,7 +276,7 @@ machine can't judge phone smoothness.
 - `createBattleState(map, roster, opts)` in the engine: armies, starting Workers, bases at
   `baseHp`, pickups, `seed`, `tick = 0`, clock. `generateBattle` stores it, sets `playing`,
   broadcasts `wfState`. **No loop yet.**
-- Client: `#wf-screen` ported from `design/warfront/2-battlefield.html`: the **2.5D tilted world**
+- Client: `#wf-screen` ported from `docs/design/warfront/2-battlefield.html`: the **2.5D tilted world**
   (`perspective` camera, `rotateX(40deg)` plane, raised ground, cliff walls), terrain textures,
   billboarded SVG castles/trees/crystals and unit stacks with count badges, the `.tiles` tap layer,
   drag-to-pan, and the HUD (base HP bars, match clock in place of `RND · PLAN`, 🔩 Supply + 💎
@@ -364,7 +364,7 @@ not yet played on two real phones, and no live disconnect/reconnect check.
   holding one doesn't; a Warrior that can hit back stays and fights; a fogged shooter appears in
   the victim team's view for 3 s then disappears; alerts reach only the owner, at most one per
   10 s in one area, a far-away hit alerts at once, a base hit alerts the whole team.
-- Client: live combat effects ported from `design/warfront/3-resolution.html` (clash damage
+- Client: live combat effects ported from `docs/design/warfront/3-resolution.html` (clash damage
   numbers, march trails, base-hit flash and HP drop), driven by `death`/`baseHit` events. The
   `wfAlert` banner reuses the mockup's amber `.ping` marker on the tile and minimap, plus a banner in
   the HUD's panel style and a haptic buzz.
@@ -432,7 +432,7 @@ win, Back to Lobby. Not yet on two real phones.
   (+2 per winning-team player, 0 on draw), `ctx.recordGameResult(room, 'warfront', participants)`,
   broadcasts. `playAgainWarfront` regenerates; back-to-lobby clears.
 - Engine: track `armies[name].stats` (`kills`, `lost`, `baseDmg`) during combat.
-- Client: `#wf-gameover-screen` ported from `design/warfront/4-game-over.html` (winner banner,
+- Client: `#wf-gameover-screen` ported from `docs/design/warfront/4-game-over.html` (winner banner,
   final base HP, final map unfogged, Kills / Lost / Dmg table with ★ MVP for most base damage,
   Play Again / Back to Lobby, shared scoreboard); "round N" becomes the match time.
 - Tests: base kill ends immediately and awards points; timeout winner by HP; equal HP → draw, 0
@@ -522,7 +522,7 @@ phone's lamp turns red with no fog change, and a reload keeps it.
 - Side-by-side check of every screen against its mockup at phone width (team select, battlefield,
   command console for all three races, combat effects, game over); fix every difference that isn't
   in the spec's swap table.
-- Update `design/warfront/` so the mockups match the real-time game: the HUD clock, event banner,
+- Update `docs/design/warfront/` so the mockups match the real-time game: the HUD clock, event banner,
   🔩/💎 costs, Move/Haul/Hold, Produce/Build/Weapons tabs, facilities, towers, veins, hauling
   Workers, drops and weapon tokens; turn `3-resolution.html` into live-effect frames; rewrite the
   README's round-based description.

@@ -72,7 +72,7 @@ const bfRevealStrongest = document.getElementById('bf-reveal-strongest');
 const bfRevealClose = document.getElementById('bf-reveal-close');
 const bfRevealConfetti = document.getElementById('bf-reveal-confetti');
 
-// Tokens & betting (plans/betting-implementation-plan.md) - Bluff only, inert whenever
+// Tokens & betting (docs/plans/betting-implementation-plan.md) - Bluff only, inert whenever
 // data.betting is null (BETTING_ENABLED off, or this viewer is a guest).
 const bfOfferToasts = document.getElementById('bet-offer-toasts');
 const bfOddsBoard = document.getElementById('bf-odds-board');
@@ -768,7 +768,7 @@ function renderEditPanel(data) {
   });
 }
 
-// --- Tokens & betting (plans/betting-implementation-plan.md section 5) ---
+// --- Tokens & betting (docs/plans/betting-implementation-plan.md section 5) ---
 
 let lastBettingData = null;
 

@@ -1,5 +1,5 @@
--- Tokens & betting. Play money only; see specs/betting-specs.md and
--- plans/betting-implementation-plan.md. New tables only - nothing here changes any
+-- Tokens & betting. Play money only; see docs/specs/betting-specs.md and
+-- docs/plans/betting-implementation-plan.md. New tables only - nothing here changes any
 -- existing table.
 
 CREATE TABLE wallets (

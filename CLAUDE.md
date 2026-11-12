@@ -9,10 +9,10 @@ code from their own phones; one game runs at a time per room, with a shared
 scoreboard that persists across games. Games today: Imposter, Codenames,
 10 Seconds, Menifot, Music Timeline, All-In or Fold, Mind Meld, Bluff, and
 Warfront (a real-time strategy game still being built step by step from
-`implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`, driven by
+`docs/implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`, driven by
 a per-room `setInterval` sim loop in `server/games/warfront.js` that pushes each player a fogged
 `wfLive` snapshot 5×/s).
-Game rules/UX for each live in `specs/*.md` — read the
+Game rules/UX for each live in `docs/specs/*.md` — read the
 relevant one before changing that game's logic.
 
 ## Commands
@@ -41,7 +41,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
   (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
   Optional: unset or unreachable = no accounts, games still run.
 - `GOOGLE_CLIENT_ID` — enables Google sign-in and the lobby's 👤 Player Card.
-  Design and setup: `plans/accounts-plan.md`.
+  Design and setup: `docs/plans/accounts-plan.md`.
 - `ADMIN_EMAILS` — comma-separated Google account emails allowed into the admin
   page at `/admin` (`server/admin.js`, `public/admin.html`); unset = no admin.
   Needs `DATABASE_URL` + `GOOGLE_CLIENT_ID` (the admin signs in like any player).
@@ -58,7 +58,7 @@ Requires Node >=18. Environment variables (see `.env.example`):
 `Map` (`rooms`, in `server/roomStore.js`), keyed by room code. Every 5s it's
 snapshotted to `data/rooms.json` (`server/persistence.js`) and reloaded on
 boot — this is a single-process design, not built for multiple server
-instances (see `implementation/refactor_plan.md` §9 if that ever becomes necessary).
+instances (see `docs/implementation/refactor_plan.md` §9 if that ever becomes necessary).
 
 Each game is a self-contained module under `server/games/` implementing a
 common contract (`id`, `minPlayers`/`maxPlayers`, `onChoose`,
@@ -68,7 +68,7 @@ wires all four into shared dispatch points (choosing a game, disconnect,
 reconnect, persisted-fields list), so **adding a game is one new file
 implementing the contract plus one line in `gameRegistry.js`'s `GAMES` map —
 no existing game file needs to change.** The full contract shape and rationale
-are documented in `implementation/refactor_plan.md` §4; read that before adding or
+are documented in `docs/implementation/refactor_plan.md` §4; read that before adding or
 restructuring a game module.
 
 Room state (`createRoomState()` in `roomStore.js`) is one flat object with
@@ -114,7 +114,7 @@ change, still manually run the affected game's full happy path in a browser:
 create room → choose game → play a full round → confirm scoreboard updates →
 back to lobby — plus one disconnect/reconnect mid-round, since
 reconnect/persistence logic is the most likely thing to silently regress.
-`implementation/refactor_plan.md` §8 has more detail on what's cheapest to
+`docs/implementation/refactor_plan.md` §8 has more detail on what's cheapest to
 unit-test if the suite grows.
 
 `npm test` runs automatically on every push to `main` and on every PR via

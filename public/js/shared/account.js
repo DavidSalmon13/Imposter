@@ -1,7 +1,7 @@
 /**
  * Lobby-side slice of accounts: shows/hides the 👤 button (which opens the full
  * account page, public/account.html, in a new tab - see
- * specs/account-page-specs.md), keeps the sticker pickers' lock data fresh, and pops
+ * docs/specs/account-page-specs.md), keeps the sticker pickers' lock data fresh, and pops
  * up badge/rivalry toasts as they happen live over the socket. Everything else
  * (profile, card, sign-in/out, badges/rivals/history rendering) lives in
  * public/js/account-page.js now; this file has no DOM of its own beyond the toasts.
@@ -117,9 +117,9 @@ function showRivalryToast({ text, beat }) {
 
 /**
  * A global or side bet resolving (or, for a side bet, being voided by a host edit) -
- * see plans/betting-implementation-plan.md S8 for the betResolved payload shape.
+ * see docs/plans/betting-implementation-plan.md S8 for the betResolved payload shape.
  * Reuses this same toast queue rather than a second notification system, per
- * specs/betting-specs.md "Cross-cutting UX".
+ * docs/specs/betting-specs.md "Cross-cutting UX".
  */
 function showBetResolvedToast({ kind, won, stake, payout, pick, opponentName, voided }) {
   let title;

@@ -2,8 +2,8 @@
 
 // Warfront engine: pure, deterministic game logic. No sockets, timers, OpenAI,
 // Date.now() or Math.random() — time arrives as `now`, randomness from
-// rngFor(seed, tick) in server/lib/rng.js. Rules: specs/warfront-specs.md.
-// Build order: implementation/warfront-plan.md (Step 1 = the data tables below).
+// rngFor(seed, tick) in server/lib/rng.js. Rules: docs/specs/warfront-specs.md.
+// Build order: docs/implementation/warfront-plan.md (Step 1 = the data tables below).
 
 const { rngFor } = require('../lib/rng');
 

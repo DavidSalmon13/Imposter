@@ -2,7 +2,7 @@
 
 Status: **shipped to `main`** (merge commit `3269e8d`). Dormant in production until
 `DATABASE_URL` and `GOOGLE_CLIENT_ID` are set on Railway (see [Rollout](#8-rollout)).
-Player-facing rules live in [`specs/accounts-specs.md`](../specs/accounts-specs.md); this
+Player-facing rules live in [`docs/specs/accounts-specs.md`](../specs/accounts-specs.md); this
 document covers the why, the design, and how to operate and extend it.
 
 ---
@@ -25,7 +25,7 @@ Give players a reason to open an account, without making the game any harder to 
   but only Google sign-in is built.
 - Moving room state into Postgres. Rooms stay in memory plus `rooms.json`.
 - Multiple server instances. Postgres would allow it later, but rooms still pin the app
-  to one process (`implementation/refactor_plan.md` §9).
+  to one process (`docs/implementation/refactor_plan.md` §9).
 - Leaderboards beyond your own rivals, and friend lists.
 
 ---

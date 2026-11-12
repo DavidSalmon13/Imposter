@@ -1,5 +1,5 @@
 -- Accounts + lifetime game history. Room state stays in rooms.json; this database
--- only holds data that must outlive a room. See plans/accounts-plan.md.
+-- only holds data that must outlive a room. See docs/plans/accounts-plan.md.
 
 CREATE EXTENSION IF NOT EXISTS citext;
 

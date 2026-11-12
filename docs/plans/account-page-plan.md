@@ -1,6 +1,6 @@
 # Account Page & Rating Card — Implementation Plan
 
-Spec: [`specs/account-page-specs.md`](../specs/account-page-specs.md). Build order
+Spec: [`docs/specs/account-page-specs.md`](../specs/account-page-specs.md). Build order
 goes backend data/logic first (independently testable via curl/console), then the
 new page, then the lobby-side wiring and cleanup last (since it deletes code the
 page needs to already have replaced).

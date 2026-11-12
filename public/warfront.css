@@ -1,5 +1,5 @@
-/* Warfront styles. Ported from design/warfront/ (the design is binding - see
-   specs/warfront-specs.md "Look & feel"). Rules copied from a mockup keep its
+/* Warfront styles. Ported from docs/design/warfront/ (the design is binding - see
+   docs/specs/warfront-specs.md "Look & feel"). Rules copied from a mockup keep its
    exact values; the mockup's `.sc` wrapper is `.wf` here. Loaded after
    theme-afterglow.css. */
 

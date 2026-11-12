@@ -594,7 +594,7 @@ function routeFromJoin(res) {
 
   // AIOF's reconnectPayload deliberately reports `game: 'allinorfold'` (so the dual-entry
   // tile shows "Rejoin") but still wants the shared lobby screen, not the table — see its
-  // architecture note in implementation/all-in-or-fold-plan.md.
+  // architecture note in docs/implementation/all-in-or-fold-plan.md.
   const game = GAMES[res.game];
   if (game && game.applyJoin && !res.atLobby) {
     game.applyJoin(res);

@@ -590,7 +590,7 @@ function onChoose(ctx, roomCode, room) {
 function reconnectPayload(ctx, room, existingPlayer) {
   // Deliberate exception to every other game's reconnectPayload: a reconnecting player
   // always lands at the shared lobby (tile in "Rejoin" mode), never back at a seat — see
-  // implementation/all-in-or-fold-plan.md's architecture note. Still reports `game` (so the
+  // docs/implementation/all-in-or-fold-plan.md's architecture note. Still reports `game` (so the
   // client's dual-entry tile knows to say "Rejoin" instead of "All-In or Fold") plus the
   // generic lobby fields main.js's shared lobby-render path needs — main.js's `atLobby`
   // check is what keeps this from being routed into the table-entry path instead.

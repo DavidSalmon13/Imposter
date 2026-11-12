@@ -16,7 +16,7 @@ const CN_NAME_BANK_LIMIT = 200;
 const CN_BANK_PICK_COUNT = 2; // default count of bank words mixed into a board
 const CN_BANK_PICK_MAX = 10; // host-adjustable upper bound
 
-// Keys within room.state.codenames to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.codenames to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
   'usedWords',
   'board',

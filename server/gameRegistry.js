@@ -24,7 +24,7 @@ const GAMES = {
 
 /**
  * A game is "migrated" once it owns its state under room.state[id] via a createState() factory
- * (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md). Un-migrated games still keep their flat
+ * (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md). Un-migrated games still keep their flat
  * room.<prefix>* fields. Both styles coexist during the rollout, so these lists are derived
  * rather than hardcoded.
  *

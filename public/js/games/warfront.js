@@ -1,9 +1,9 @@
 /**
- * Warfront client module (specs/warfront-specs.md). A dumb renderer of the server's
- * wfState payloads: the team-select screen (design/warfront/1-team-select.html) and the
- * battlefield (design/warfront/2-battlefield.html) with the live combat effects of
- * design/warfront/3-resolution.html, and the game-over screen
- * (design/warfront/4-game-over.html). It never simulates anything.
+ * Warfront client module (docs/specs/warfront-specs.md). A dumb renderer of the server's
+ * wfState payloads: the team-select screen (docs/design/warfront/1-team-select.html) and the
+ * battlefield (docs/design/warfront/2-battlefield.html) with the live combat effects of
+ * docs/design/warfront/3-resolution.html, and the game-over screen
+ * (docs/design/warfront/4-game-over.html). It never simulates anything.
  */
 
 import { sfx, haptics, haptic } from '../fx.js';

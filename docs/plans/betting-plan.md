@@ -71,7 +71,7 @@ Two distinct moments trigger an offer to place one:
    winner at the end (see the win-condition table in `accounts-specs.md`).
 2. **On elimination, in games with a live spectator moment** — today, that's
    **Bluff** only: the instant a player's card count hits zero they already flip
-   into spectator mode (`specs/bluff-specs.md` "Elimination / spectating"). That
+   into spectator mode (`docs/specs/bluff-specs.md` "Elimination / spectating"). That
    same moment offers them a *second* global bet — now predicting the winner out
    of whoever is still active, since they can't do anything else productive with
    their phone until the match ends.

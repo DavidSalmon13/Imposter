@@ -1,6 +1,6 @@
 'use strict';
 
-// Warfront game module (specs/warfront-specs.md, implementation/warfront-plan.md).
+// Warfront game module (docs/specs/warfront-specs.md, docs/implementation/warfront-plan.md).
 // The shell around the pure engine (warfrontEngine.js): socket handlers, payloads,
 // persistence hooks. Rules belong in the engine, not here.
 //

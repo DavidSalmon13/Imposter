@@ -2,7 +2,7 @@
  * All-In or Fold client module.
  *
  * `aiofAtTable` is local-only state, independent of `currentGame` in main.js — see
- * implementation/all-in-or-fold-plan.md's architecture note. The `aiofState` broadcast is
+ * docs/implementation/all-in-or-fold-plan.md's architecture note. The `aiofState` broadcast is
  * sent to every connected player regardless of whether they're "at the table"; this module
  * only navigates to the table screen when `aiofAtTable` is true, so a player who has left
  * stays on the shared lobby screen even while state keeps arriving in the background.

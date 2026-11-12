@@ -1,4 +1,4 @@
-// Warfront SVG sprites, lifted verbatim from design/warfront/source/*.dc.html
+// Warfront SVG sprites, lifted verbatim from docs/design/warfront/source/*.dc.html
 // (Units.dc.html for units, TeamSelect.dc.html for the castle and trees).
 // Team colour comes from a .tm-red / .tm-blue wrapper filling the .tc / .tcd parts.
 // The lifted art below is verbatim; the "Drawn for the game" section at the end is new art
@@ -101,7 +101,7 @@ export const LOAD_SPRITE = '<svg viewBox="0 0 14 16" aria-hidden="true"><path fi
 export const DROP_SPRITE = '<svg class="glowc" viewBox="0 0 40 26" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="20" cy="24" rx="17" ry="2.4"></ellipse><path fill="#2a8fc0" d="M9 12 L13 16 L12 24 L6 24 L5 16 Z"></path><path fill="#bdefff" opacity=".6" d="M9 12 L9 24 L6 24 L5 16 Z"></path><path fill="#38b6e8" d="M21 3 L26 10 L24 24 L17 24 L16 10 Z"></path><path fill="#d6f8ff" opacity=".75" d="M21 3 L21 24 L17 24 L16 10 Z"></path><path class="twk" fill="#4cc8f0" d="M32 13 L35 17 L34 24 L29 24 L29 17 Z"></path><path class="twk" fill="#ffffff" opacity=".8" d="M20.4 6 L21 4 L21.6 6 L21 8 Z"></path></svg>';
 
 // ---------------------------------------------------------------------------
-// From design/warfront/4-game-over.html (source/GameOver.dc.html)
+// From docs/design/warfront/4-game-over.html (source/GameOver.dc.html)
 // ---------------------------------------------------------------------------
 
 // The losing castle, in ruins (team colour on the torn banner).

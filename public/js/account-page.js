@@ -2,7 +2,7 @@
  * Standalone account page (public/account.html) - opened in the same window from the
  * lobby's 👤 button (so an installed app keeps its sign-in), no socket/room involved. Shows match history, badges, rivals and, for
  * signed-in players, the FIFA Ultimate Team-style rating card. See
- * specs/account-page-specs.md for the full design; server side is server/accounts.js
+ * docs/specs/account-page-specs.md for the full design; server side is server/accounts.js
  * (+ server/ratings.js for the card's stats).
  *
  * Identity: the device's clientId from localStorage (same value main.js uses, read
@@ -108,7 +108,7 @@ function renderRatingCard(user, card) {
 
   const ratings = (card && card.ratings) || { ovr: 60, tier: 'bronze', stats: {} };
   // "Strong gold" (OVR 85+) is a brighter variant of the same gold tier, not a separate
-  // one - see specs/account-page-specs.md.
+  // one - see docs/specs/account-page-specs.md.
   const strongGold = ratings.tier === 'gold' && ratings.ovr >= 85;
   ratingCardEl.className = `rating-card rating-card-${ratings.tier}${strongGold ? ' rating-card-gold-strong' : ''}`;
   ovrEl.textContent = ratings.ovr;

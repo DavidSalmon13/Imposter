@@ -4509,7 +4509,7 @@ button.confirm-danger {
   }
 }
 
-/* ---------- Bluff: tokens & betting (plans/betting-implementation-plan.md) ---------- */
+/* ---------- Bluff: tokens & betting (docs/plans/betting-implementation-plan.md) ---------- */
 .bf-bet-balance {
   display: inline-block;
   margin: 0 auto;
@@ -5268,7 +5268,7 @@ button.confirm-danger {
 
 /* FIFA Ultimate Team-style rating card. Tier (bronze/silver/gold) and the brighter
    "strong gold" variant at OVR 85+ are purely visual - see
-   specs/account-page-specs.md. */
+   docs/specs/account-page-specs.md. */
 .rating-card {
   display: flex;
   flex-direction: column;

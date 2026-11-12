@@ -9,8 +9,8 @@ every change).
 
 **Read `../specs/bluff-specs.md` in full before starting Step 1.** This doc assumes its
 content and doesn't re-derive rules, only where in the code they land. Also skim
-`implementation/refactor_plan.md` §4 (the game module contract) and
-`implementation/all-in-or-fold-plan.md` (closest sibling plan — same card-game shape, though
+`docs/implementation/refactor_plan.md` §4 (the game module contract) and
+`docs/implementation/all-in-or-fold-plan.md` (closest sibling plan — same card-game shape, though
 Bluff is architecturally much closer to Menifot: frozen roster, host-driven phases, no open
 seating).
 

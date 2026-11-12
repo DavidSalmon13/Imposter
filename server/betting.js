@@ -1,6 +1,6 @@
 /**
  * Tokens & betting: wallets and bets for signed-in players, Bluff only in v1. See
- * specs/betting-specs.md for the player-facing rules and plans/betting-implementation-plan.md
+ * docs/specs/betting-specs.md for the player-facing rules and docs/plans/betting-implementation-plan.md
  * for the design this mirrors (data model, flows, visibility rules).
  *
  * Shape mirrors server/accounts.js deliberately: every function here is a no-op (or

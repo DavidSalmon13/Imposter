@@ -7,7 +7,7 @@ Postgres and running the signed-in manual pass both need a real `DATABASE_URL` +
 one thing left before this can ship; see §16's "Rollout" for exactly what's left. Builds
 on the shipped accounts feature
 ([`accounts-plan.md`](accounts-plan.md), [`accounts-specs.md`](../specs/accounts-specs.md)).
-Player-facing rules: [`specs/betting-specs.md`](../specs/betting-specs.md) — read that
+Player-facing rules: [`docs/specs/betting-specs.md`](../specs/betting-specs.md) — read that
 first for *what* this does; this document is the *how*.
 
 Supersedes the original scoping draft, [`betting-plan.md`](betting-plan.md) (kept for
@@ -117,7 +117,7 @@ games ──< bets                (nullable game_id FK — set once the match is
 
 ```sql
 -- migrations/004_betting.sql
--- Tokens & betting. Play money only; see specs/betting-specs.md. New tables only —
+-- Tokens & betting. Play money only; see docs/specs/betting-specs.md. New tables only —
 -- nothing here changes any existing table.
 
 CREATE TABLE wallets (

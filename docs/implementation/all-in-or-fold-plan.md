@@ -9,8 +9,8 @@ a browser after every change).
 
 **Read `../specs/all-in-or-fold-specs.md` in full before starting Step 1.** This doc assumes
 its content and doesn't re-derive rules (side-pot math, rebuy semantics, etc.), only where in
-the code they land. Also skim `implementation/refactor_plan.md` §4 (the game module contract)
-and `implementation/music-timeline-plan.md` (closest sibling plan in this repo, same format).
+the code they land. Also skim `docs/implementation/refactor_plan.md` §4 (the game module contract)
+and `docs/implementation/music-timeline-plan.md` (closest sibling plan in this repo, same format).
 
 ## Why this game is architecturally different from the other six
 

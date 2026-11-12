@@ -465,7 +465,7 @@ function registerLobbyHandlers(socket) {
     const user = await userFromSocket(socket);
     const userId = user ? String(user.id) : null;
     // A signed-in account's sticker wins over whatever this device last had locally -
-    // see "Sticker unification" in specs/account-page-specs.md.
+    // see "Sticker unification" in docs/specs/account-page-specs.md.
     const rawSticker = (user && user.sticker) || (data && data.sticker);
     // A badge sticker this player hasn't unlocked is dropped (joining still succeeds).
     const sticker =

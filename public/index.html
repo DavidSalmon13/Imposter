@@ -151,7 +151,7 @@
       </div>
       <!-- All-In or Fold's lobby tile lives outside #game-choice on purpose: once the host
            has started the table, any player can tap it to join themselves (the "dual-entry"
-           flow — see implementation/all-in-or-fold-plan.md). -->
+           flow — see docs/implementation/all-in-or-fold-plan.md). -->
       <div id="aiof-tile-wrap" class="game-choice">
         <button id="choose-allinorfold-btn" class="game-tile" type="button">
           <span class="game-tile-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
@@ -770,7 +770,7 @@
 
     <!-- Shared -->
 
-    <!-- WARFRONT team select: ported from design/warfront/1-team-select.html.
+    <!-- WARFRONT team select: ported from docs/design/warfront/1-team-select.html.
          public/js/games/warfront.js fills the vista, rosters and race cards. -->
     <section id="wf-team-screen" class="screen hidden">
       <div class="wf">
@@ -831,7 +831,7 @@
       </div>
     </section>
 
-    <!-- WARFRONT battlefield: ported from design/warfront/2-battlefield.html (source/Main.dc.html).
+    <!-- WARFRONT battlefield: ported from docs/design/warfront/2-battlefield.html (source/Main.dc.html).
          public/js/games/warfront.js builds the world from the server's map. -->
     <section id="wf-screen" class="screen hidden">
       <div class="wf">
@@ -901,7 +901,7 @@
       </div>
     </section>
 
-    <!-- WARFRONT game over: ported from design/warfront/4-game-over.html (source/GameOver.dc.html).
+    <!-- WARFRONT game over: ported from docs/design/warfront/4-game-over.html (source/GameOver.dc.html).
          The scene is the final map with the fog lifted, built by the battlefield's own code;
          "round N" is the match time (spec swap table). -->
     <section id="wf-gameover-screen" class="screen hidden">

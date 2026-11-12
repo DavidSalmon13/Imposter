@@ -5,7 +5,7 @@
  * reconnects, and only today's ids are kept (to dedupe); past days keep just counts.
  *
  * Persisted to DATA_DIR/stats.json, separate from rooms.json, and viewed at /stats
- * behind a password: the STATS_PASSWORD env var, or the hardcoded fallback below.
+ * behind a password: the STATS_PASSWORD env var (owner login is disabled when it is unset).
  */
 const fs = require('fs');
 const fsp = fs.promises;
@@ -19,8 +19,8 @@ const TIME_ZONE = 'Asia/Jerusalem';
 const SAVE_DELAY_MS = 5000;
 const MAX_FAILED_LOGINS = 10;
 const LOCKOUT_MS = 15 * 60 * 1000;
-// Temporary hardcoded password until STATS_PASSWORD is set on the host; the env var wins.
-const STATS_PASSWORD = process.env.STATS_PASSWORD || 'MaCaBiTA';
+// Owner password for /stats and /admin. No fallback: if STATS_PASSWORD is unset, owner login is disabled.
+const STATS_PASSWORD = process.env.STATS_PASSWORD || '';
 
 const dayFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE,

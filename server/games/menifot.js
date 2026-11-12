@@ -8,7 +8,7 @@ const MF_MAX_PLAYERS = 8;
 const MF_THREE_BOARD_MAX_PLAYERS = 3;
 const MF_TARGET_SCORE = 10;
 
-// Keys within room.state.menifot to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.menifot to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
   'players',
   'boardCount',

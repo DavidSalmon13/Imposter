@@ -5,7 +5,7 @@ a guest exactly as before; every finished game is recorded; signing in with Goog
 keeps that history forever. On top of the history: a Player Card, badges that unlock
 stickers, and head-to-head rivalries.
 
-Design, rollout and rollback: [`plans/accounts-plan.md`](../plans/accounts-plan.md).
+Design, rollout and rollback: [`docs/plans/accounts-plan.md`](../plans/accounts-plan.md).
 
 ## Relationship to the rest of the app
 

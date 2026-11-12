@@ -37,12 +37,12 @@ the opponents sit right next to you).
 
 ## Look & feel — the design is binding
 
-**The game must look exactly like the design mockups in `design/warfront/`.** They are the visual
+**The game must look exactly like the design mockups in `docs/design/warfront/`.** They are the visual
 source of truth the same way this spec is the rules source of truth: layout, colours, typography,
 panels, the 2.5D tilted battlefield, the SVG unit/building/terrain art, team colouring and
 animations all come from there. Build every screen by porting the mockup's markup, CSS and SVG
-(editable originals in `design/warfront/source/*.dc.html`; how they're built is in
-`design/warfront/README.md`) — not by re-creating a look-alike, and never with placeholder emoji
+(editable originals in `docs/design/warfront/source/*.dc.html`; how they're built is in
+`docs/design/warfront/README.md`) — not by re-creating a look-alike, and never with placeholder emoji
 art. If something here can't be matched (for example the 2.5D camera is too slow on a phone), stop
 and ask; don't silently ship a different look.
 

@@ -22,7 +22,7 @@ const MM_ANSWER_MAX_LENGTH = 60;
 const MM_MAGNITUDE_WORDS = { thousand: 1e3, million: 1e6, billion: 1e9 };
 const MM_MAGNITUDE_SUFFIXES = { k: 1e3, m: 1e6, b: 1e9 };
 
-// Keys within room.state.mindmeld to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.mindmeld to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
   'rotationOrder',
   'rotationIndex',

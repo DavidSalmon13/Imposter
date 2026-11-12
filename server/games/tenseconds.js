@@ -5,7 +5,7 @@ const TS_TARGET_MS = 10000;
 const TS_COUNTDOWN_MS = 3000;
 const TS_FORCE_STOP_MS = 30000; // 3x target — distracted players get a real (non-DNF) result
 
-// Keys within room.state.tenseconds to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.tenseconds to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
   'activePlayers',
   'contenders',

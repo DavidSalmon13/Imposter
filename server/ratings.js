@@ -1,7 +1,7 @@
 /**
  * The six-stat rating card (FIFA Ultimate Team-style). Pure function of the `byGame`
  * shape `playerCard()` in server/accounts.js computes ({ [gameType]: { played, won,
- * points, placement, recent } }) - no DB, no HTTP. See specs/account-page-specs.md
+ * points, placement, recent } }) - no DB, no HTTP. See docs/specs/account-page-specs.md
  * ("Rating formula") for the design and the reasoning behind each constant.
  *
  * Music Timeline and Mind Meld deliberately contribute to nothing here, per the

@@ -18,7 +18,7 @@ const MT_DIFFICULTY_GUIDANCE = {
   expert: 'Pick a song that can be a deeper cut - well-regarded but less mainstream is fine.',
 };
 
-// Keys within room.state.musictimeline to persist (see plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
+// Keys within room.state.musictimeline to persist (see docs/plans/yes-sketch-a-low-risk-quiet-chipmunk.md).
 const SAVED_FIELDS = [
   'mode',
   'difficulty',

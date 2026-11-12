@@ -8,7 +8,7 @@ Builds on [`accounts-specs.md`](accounts-specs.md) (Google sign-in, Player Card)
 only exist for signed-in players, so this feature is invisible wherever accounts are
 invisible (guests, or no database/sign-in configured).
 
-Design, data model and rollout: [`plans/betting-implementation-plan.md`](../plans/betting-implementation-plan.md).
+Design, data model and rollout: [`docs/plans/betting-implementation-plan.md`](../plans/betting-implementation-plan.md).
 
 ## Relationship to existing games / shared app changes
 
@@ -19,12 +19,12 @@ Design, data model and rollout: [`plans/betting-implementation-plan.md`](../plan
 - **v1 ships for Bluff only.** It's the one game with a live mid-match elimination/
   spectator moment and a discrete per-round result, which both betting mechanics below
   need. Other games get the game-start global bet only, in a later phase; see
-  `plans/betting-implementation-plan.md` "Phased rollout."
+  `docs/plans/betting-implementation-plan.md` "Phased rollout."
 - **Guests see nothing.** No token balance, no bet offers, no indication that betting is
   happening at their table. A guest can still be the *subject* of someone else's bet
   (picked as the predicted winner/loser) without knowing it.
 - Doesn't change how Bluff is played. No rule, timer, or decision described in
-  `specs/bluff-specs.md` is altered; betting only observes the same events (round start,
+  `docs/specs/bluff-specs.md` is altered; betting only observes the same events (round start,
   a player hitting 0 cards, the host's loser pick, match end) that already happen.
 
 ## Configurable constants

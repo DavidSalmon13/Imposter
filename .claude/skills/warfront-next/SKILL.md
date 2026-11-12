@@ -1,25 +1,25 @@
 ---
 name: warfront-next
-description: Implement the next unfinished Warfront step from implementation/warfront-plan.md, then send the user three phone-width screenshots of the UI it touched. Use when the user says "next Warfront step", "continue Warfront", "/warfront-next" or similar.
+description: Implement the next unfinished Warfront step from docs/implementation/warfront-plan.md, then send the user three phone-width screenshots of the UI it touched. Use when the user says "next Warfront step", "continue Warfront", "/warfront-next" or similar.
 ---
 
 # Warfront: do the next step, show three screenshots
 
 ## 1. Pick the step
 
-Open `implementation/warfront-plan.md` and take the **first** `### Step N` heading without ✅.
+Open `docs/implementation/warfront-plan.md` and take the **first** `### Step N` heading without ✅.
 Do only that step. Say which one you're doing in one line, then start (no need to ask).
 
 ## 2. Build it
 
 If the `warfront-step` skill is available, follow it for this step. Otherwise, the short version:
 
-- **Read first:** `specs/warfront-specs.md` (rules + the binding "Look & feel" section and swap
+- **Read first:** `docs/specs/warfront-specs.md` (rules + the binding "Look & feel" section and swap
   table), the step in the plan (and decisions D1–D12), `CLAUDE.md`, and the code earlier steps
   produced (`server/games/warfrontEngine.js`, `server/games/warfront.js`,
   `public/js/games/warfront.js`, `public/js/games/warfrontSprites.js`, `public/warfront.css`,
-  `tests/games/warfront*.test.js`). For UI work also the matching mockup in `design/warfront/`
-  and its source in `design/warfront/source/`.
+  `tests/games/warfront*.test.js`). For UI work also the matching mockup in `docs/design/warfront/`
+  and its source in `docs/design/warfront/source/`.
 - **Rules:** the engine stays pure (no sockets/timers/`Date.now()`/`Math.random()`); hidden info
   goes per-socket, never `roomEmit`; every handler checks game, phase and who's asking, and
   answers `callback({ ok, error })`; port the mockup's markup/CSS/SVG (no emoji art, no
