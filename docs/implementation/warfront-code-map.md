@@ -74,6 +74,7 @@ warfront/
   map-objects.js        weapon tokens, dropped loads, lighthouses, castles (burning)
   structures.js         facilities/towers on the field (Step 9) + build-mode hint tiles
   fx.js                 one-shot combat effects from events, march dust, Under attack alert
+  attacks.js            per-unit attack animations: each type's strike, its projectile, hit flinch
   hud.js                base HP bars, match clock, enemies-in-sight strip
   console/cards.js      Produce cards (per race), produceUnit
   console/build.js      Produce/Build tabs, Build cards (arm a facility), Workshop weapon cards (craft)
@@ -89,6 +90,7 @@ shell.css          full-screen shell + scoping rules shared by every Warfront sc
 team-select.css    team select (1-team-select.html)
 battlefield.css    battlefield: camera, plateaus, billboards, orders, squads, overlays, console frame, fog
 fx.css             live combat effects, burning castle, HP blink, Under attack banner (3-resolution.html)
+attacks.css        per-unit attack keyframes, projectiles, ground rings, hit flinch (attacks.js)
 console.css        command cards (2c-command-cards.html) + console real-time parts
 lighthouses.css    lighthouses on map + minimap
 game-over.css      game over (4-game-over.html)
@@ -136,7 +138,7 @@ shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, pla
 | Terrain look | `world/build.js` + `world/geometry.js` (plateaus) + `battlefield.css`; art in `sprites.js` |
 | Unit stacks and animation | `units.js` (+ `standPoint`/`stepPoint` in `world/geometry.js`, `clock.js` for timing); styles in `battlefield.css` (squads) |
 | Minimap | `minimap.js` (+ `camera.js` for the view box, `map-objects.js` for lighthouse markers) |
-| Combat effects | `fx.js` + `fx.css` |
+| Combat effects | `fx.js` + `fx.css`; per-unit strikes/projectiles: `attacks.js` + `attacks.css` |
 | HUD (base HP, clock, strip) | `hud.js` + `battlefield.css`/`fx.css` |
 | The info well / Move-Haul-Hold | `console/selection.js` + `console.css` |
 | Command cards | Produce: `console/cards.js`; Build/Workshop: `console/build.js`; styles `console.css`, `facilities.css` |

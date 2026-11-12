@@ -15,6 +15,7 @@ import { renderPickups, renderLighthouses, renderCastles } from './map-objects.j
 import { renderBuildHints } from './structures.js';
 import { lookAt } from './camera.js';
 import { playEffects, marchDust } from './fx.js';
+import { playAttacks } from './attacks.js';
 import { renderHp, tickClock, renderStrip } from './hud.js';
 import { renderInfo, renderSys } from './console/selection.js';
 import { buildCards, renderCards } from './console/cards.js';
@@ -70,7 +71,10 @@ export function applyLive(view) {
   renderHp('red', view.bases.red);
   renderHp('blue', view.bases.blue);
   renderCastles(view.bases);
-  if (view.events && view.events.length) playEffects(view.events);
+  if (view.events && view.events.length) {
+    playAttacks(view.events);
+    playEffects(view.events);
+  }
   marchDust();
   tickClock();
   renderInfo();

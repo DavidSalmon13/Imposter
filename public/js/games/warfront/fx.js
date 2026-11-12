@@ -14,6 +14,8 @@ import { FACILITY_NAMES, WEAPON_NAMES, UNIT_NAMES } from './constants.js';
 // ---------- Live combat effects (3-resolution.html, played once on the map) ----------
 
 const FX_LIFE = { dmg: 1400, loss: 1600, boom: 1100, spark: 800, bolt: 450, dust: 1600 };
+// Types whose own projectile attacks.js flies; anything else ranged gets the plain beam.
+const OWN_SHOTS = new Set(['crossbow', 'ballista', 'skirmisher', 'apprentice', 'mysticArcher', 'summoner', 'archmage']);
 const ARCANE_TYPES = new Set(['acolyte', 'apprentice', 'mysticArcher', 'battlemage', 'summoner', 'archmage', 'golem']);
 
 /** A one-shot billboard on the fx layer at a tile's stand point, removed after `life` ms. */
@@ -70,7 +72,7 @@ export function playEffects(events) {
       h.dmg += e.dmg;
       hits.set(k, h);
       if (e.fromTileId != null) {
-        shots.set(`${e.fromTileId}>${e.tileId}`, { from: e.fromTileId, to: e.tileId, ranged: e.ranged, arcane: ARCANE_TYPES.has(e.by) });
+        shots.set(`${e.fromTileId}>${e.tileId}`, { from: e.fromTileId, to: e.tileId, ranged: e.ranged, arcane: ARCANE_TYPES.has(e.by), by: e.by });
       }
     } else if (e.type === 'deposit' && e.owner === S.state.you) {
       gains.set(e.tileId, (gains.get(e.tileId) || 0) + e.minerals);
@@ -96,7 +98,9 @@ export function playEffects(events) {
     }
   });
   shots.forEach((s) => {
-    if (s.ranged) fxBolt(s.from, s.to, s.arcane);
+    if (s.ranged) {
+      if (!OWN_SHOTS.has(s.by)) fxBolt(s.from, s.to, s.arcane);
+    }
     else fxBoard(s.to, SPARKS, { w: 60, h: 100, life: FX_LIFE.spark });
   });
   hits.forEach((h) => {

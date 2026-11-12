@@ -12,6 +12,7 @@ import { tileCentre, ent, standPoint, stepPoint } from './world/geometry.js';
 import { serverNow } from './clock.js';
 import { renderStructures } from './structures.js';
 import { renderMiniUnits } from './minimap.js';
+import { resumeAttacks } from './attacks.js';
 
 // ---------- Units: one stack per tile and team, tweened between ticks ----------
 
@@ -94,6 +95,7 @@ function fillStack(node, g, you) {
   bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
   form.forEach(([fx, fy], i) => {
     const fig = el('span', `fig d${i}${g.team !== 'red' ? ' flip' : ''}`);
+    fig.dataset.type = figTypes[i];
     fig.style.left = `${fx}px`;
     fig.style.top = `${fy}px`;
     fig.appendChild(el('span', 'spw', (UNIT_SPRITES[figTypes[i]] || '').replace('<svg ', '<svg class="sp" ')));
@@ -102,6 +104,7 @@ function fillStack(node, g, you) {
   // A hauler with a load (yours, or an enemy's in sight) carries a crystal over the squad.
   if (g.units.some((u) => u.carrying > 0)) bb.appendChild(el('span', 'wf-load', LOAD_SPRITE));
   node.appendChild(bb);
+  resumeAttacks(node, g);
 }
 
 /**

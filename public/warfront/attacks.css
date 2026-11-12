@@ -1,0 +1,190 @@
+/* Warfront styles: per-unit attack animations (attacks.js). Each unit type's strike on its
+   figures, the projectiles ranged types fire, ground rings, and the hit flinch.
+   --ax/--ay: unit vector toward the target; --as: which way a swing tips (1 right, -1 left).
+   Must NOT contain: damage numbers, booms, beams (fx.css). */
+
+:is(#wf-screen) .wf .fig { --ax: 0; --ay: 0; --as: 1; transform-origin: 50% 90%; }
+:is(#wf-screen) .wf .fig.wf-atk,
+:is(#wf-screen) .wf .fig.wf-hit { animation-timing-function: ease-out; animation-fill-mode: both; animation-iteration-count: 1; }
+
+:is(#wf-screen) .wf .fig.wf-atk-thrust { animation-name: wfThrust; }
+:is(#wf-screen) .wf .fig.wf-atk-chop { animation-name: wfChop; }
+:is(#wf-screen) .wf .fig.wf-atk-frenzy { animation-name: wfFrenzy; }
+:is(#wf-screen) .wf .fig.wf-atk-slam { animation-name: wfSlam; }
+:is(#wf-screen) .wf .fig.wf-atk-charge { animation-name: wfCharge; }
+:is(#wf-screen) .wf .fig.wf-atk-hitrun { animation-name: wfHitRun; }
+:is(#wf-screen) .wf .fig.wf-atk-recoil { animation-name: wfRecoil; }
+:is(#wf-screen) .wf .fig.wf-atk-heavy { animation-name: wfHeavy; }
+:is(#wf-screen) .wf .fig.wf-atk-throw { animation-name: wfThrow; }
+:is(#wf-screen) .wf .fig.wf-atk-draw { animation-name: wfDraw; }
+:is(#wf-screen) .wf .fig.wf-atk-cast { animation-name: wfCast; }
+:is(#wf-screen) .wf .fig.wf-atk-nova { animation-name: wfNova; }
+:is(#wf-screen) .wf .fig.wf-atk-summon { animation-name: wfSummon; }
+:is(#wf-screen) .wf .fig.wf-atk-arcana { animation-name: wfArcana; }
+:is(#wf-screen) .wf .fig.wf-atk-pick { animation-name: wfPick; }
+:is(#wf-screen) .wf .fig.wf-atk-stomp { animation-name: wfStomp; }
+:is(#wf-screen) .wf .fig.wf-atk-brace { animation-name: wfBrace; }
+:is(#wf-screen) .wf .fig.wf-hit { animation-name: wfHit; }
+
+/* Militiaman: a short wind-up, then a straight spear thrust. */
+@keyframes wfThrust {
+  0% { transform: none; }
+  30% { transform: translate(calc(var(--ax) * -3px), calc(var(--ay) * -2px)); }
+  50% { transform: translate(calc(var(--ax) * 13px), calc(var(--ay) * 8px)); }
+  100% { transform: none; }
+}
+/* Warrior: axe raised back, then chopped down onto the target. */
+@keyframes wfChop {
+  0% { transform: none; }
+  35% { transform: translate(calc(var(--ax) * -2px), -3px) rotate(calc(var(--as) * -22deg)); }
+  55% { transform: translate(calc(var(--ax) * 9px), calc(var(--ay) * 6px + 1px)) rotate(calc(var(--as) * 20deg)); }
+  100% { transform: none; }
+}
+/* Berserker: two wild lunges and a shake. */
+@keyframes wfFrenzy {
+  0% { transform: none; }
+  18% { transform: translate(calc(var(--ax) * 10px), calc(var(--ay) * 6px)) rotate(calc(var(--as) * 12deg)); }
+  30% { transform: translate(calc(var(--ax) * 2px), calc(var(--ay) * 1px)) rotate(calc(var(--as) * -8deg)); }
+  48% { transform: translate(calc(var(--ax) * 12px), calc(var(--ay) * 7px)) rotate(calc(var(--as) * 16deg)); }
+  62% { transform: translate(2px, 0) rotate(-4deg); }
+  74% { transform: translate(-2px, 0) rotate(4deg); }
+  100% { transform: none; }
+}
+/* Warchief: leaps up, crashes down (a shockwave ring plays at his feet). */
+@keyframes wfSlam {
+  0% { transform: none; }
+  40% { transform: translate(calc(var(--ax) * 3px), -11px) scale(1.12); }
+  58% { transform: translate(calc(var(--ax) * 7px), calc(var(--ay) * 4px + 1px)) scale(1.15, .82); }
+  75% { transform: scale(.96, 1.04); }
+  100% { transform: none; }
+}
+/* Outrider: a long cavalry charge into the target and back. */
+@keyframes wfCharge {
+  0% { transform: none; }
+  15% { transform: translate(calc(var(--ax) * -4px), calc(var(--ay) * -2px)); }
+  45% { transform: translate(calc(var(--ax) * 20px), calc(var(--ay) * 12px)) rotate(calc(var(--as) * 6deg)); }
+  100% { transform: none; }
+}
+/* Raider: dash in, strike, and hop back past where it started. */
+@keyframes wfHitRun {
+  0% { transform: none; }
+  32% { transform: translate(calc(var(--ax) * 17px), calc(var(--ay) * 10px)); }
+  45% { transform: translate(calc(var(--ax) * 14px), calc(var(--ay) * 8px - 4px)); }
+  72% { transform: translate(calc(var(--ax) * -7px), calc(var(--ay) * -4px - 3px)); }
+  100% { transform: none; }
+}
+/* Crossbow: a sharp kick back on release. */
+@keyframes wfRecoil {
+  0%, 35% { transform: none; }
+  48% { transform: translate(calc(var(--ax) * -5px), calc(var(--ay) * -3px)); }
+  100% { transform: none; }
+}
+/* Ballista: the whole frame jolts and squashes on the shot. */
+@keyframes wfHeavy {
+  0%, 30% { transform: none; }
+  42% { transform: translate(calc(var(--ax) * -8px), calc(var(--ay) * -4px)) scale(1.08, .88); }
+  60% { transform: translate(calc(var(--ax) * -2px), 0) scale(.97, 1.04); }
+  100% { transform: none; }
+}
+/* Skirmisher: leans back with the javelin, then flings it. */
+@keyframes wfThrow {
+  0% { transform: none; }
+  30% { transform: translate(calc(var(--ax) * -3px), 0) rotate(calc(var(--as) * -16deg)); }
+  45% { transform: translate(calc(var(--ax) * 6px), calc(var(--ay) * 3px)) rotate(calc(var(--as) * 14deg)); }
+  100% { transform: none; }
+}
+/* Mystic Archer: draws back glowing violet, then looses. */
+@keyframes wfDraw {
+  0% { transform: none; filter: none; }
+  35% { transform: translate(calc(var(--ax) * -4px), calc(var(--ay) * -2px)); filter: drop-shadow(0 0 5px #c084fc) brightness(1.25); }
+  45% { transform: translate(calc(var(--ax) * 3px), calc(var(--ay) * 2px)); filter: drop-shadow(0 0 2px #c084fc); }
+  100% { transform: none; filter: none; }
+}
+/* Apprentice: a little hop with a violet flare. */
+@keyframes wfCast {
+  0% { transform: none; filter: none; }
+  38% { transform: translateY(-7px); filter: drop-shadow(0 0 6px #a855f7) brightness(1.3); }
+  100% { transform: none; filter: none; }
+}
+/* Battlemage: rises in a blaze and drops (a nova ring bursts on the target). */
+@keyframes wfNova {
+  0% { transform: none; filter: none; }
+  40% { transform: translateY(-9px) scale(1.14); filter: drop-shadow(0 0 9px #e879f9) brightness(1.6); }
+  55% { transform: translate(calc(var(--ax) * 4px), 1px) scale(1.06, .92); filter: drop-shadow(0 0 4px #e879f9); }
+  100% { transform: none; filter: none; }
+}
+/* Summoner: sways while green runes flare. */
+@keyframes wfSummon {
+  0% { transform: none; filter: none; }
+  25% { transform: rotate(calc(var(--as) * -8deg)); filter: drop-shadow(0 0 6px #4ade80); }
+  50% { transform: rotate(calc(var(--as) * 8deg)) translateY(-3px); filter: drop-shadow(0 0 8px #4ade80) brightness(1.3); }
+  100% { transform: none; filter: none; }
+}
+/* Archmage: levitates in a golden-violet light. */
+@keyframes wfArcana {
+  0% { transform: none; filter: none; }
+  40% { transform: translateY(-12px) scale(1.1); filter: drop-shadow(0 0 10px #fbbf24) drop-shadow(0 0 4px #a855f7) brightness(1.5); }
+  70% { transform: translateY(-6px); filter: drop-shadow(0 0 5px #fbbf24); }
+  100% { transform: none; filter: none; }
+}
+/* Workers: a pickaxe swing. */
+@keyframes wfPick {
+  0% { transform: none; }
+  35% { transform: rotate(calc(var(--as) * -14deg)); }
+  55% { transform: translate(calc(var(--ax) * 5px), calc(var(--ay) * 3px)) rotate(calc(var(--as) * 14deg)); }
+  100% { transform: none; }
+}
+/* Golem: a heavy squash-and-stretch stomp. */
+@keyframes wfStomp {
+  0% { transform: none; }
+  35% { transform: translateY(-5px) scale(.94, 1.1); }
+  55% { transform: translate(calc(var(--ax) * 4px), 1px) scale(1.18, .8); }
+  100% { transform: none; }
+}
+/* Bastion: braces and its arrow slits flare. */
+@keyframes wfBrace {
+  0% { transform: none; filter: none; }
+  40% { transform: scale(1.05, .95); filter: drop-shadow(0 0 6px #ff9a3c) brightness(1.3); }
+  100% { transform: none; filter: none; }
+}
+/* Hit: knocked back away from the blow with a white flash. */
+@keyframes wfHit {
+  0% { transform: none; filter: none; }
+  20% { transform: translate(calc(var(--ax) * 4px), calc(var(--ay) * 3px)) rotate(calc(var(--as) * 6deg)); filter: brightness(2.4) saturate(.3); }
+  55% { transform: translate(calc(var(--ax) * 2px), 0); filter: brightness(1.3); }
+  100% { transform: none; filter: none; }
+}
+
+/* ---------- Projectiles: a lane rotated toward the target, the shot flies along it ---------- */
+:is(#wf-screen) .wf .wf-shot { position: absolute; width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
+:is(#wf-screen) .wf .wf-proj { position: absolute; left: 0; top: 0; animation: wfFly linear 1 forwards !important; }
+@keyframes wfFly { from { transform: translate(0, -50%); } to { transform: translate(var(--len), -50%); } }
+/* Crossbow bolt: short, dark, fast. */
+:is(#wf-screen) .wf .wf-proj-bolt { width: 14px; height: 3px; margin-left: -14px; border-radius: 1px; background: linear-gradient(90deg, #6b4a2a 0 70%, #d9dde3 70%); box-shadow: -10px 0 6px -2px rgba(255,241,184,.6); }
+/* Ballista spear: long and thick, with a streak behind it. */
+:is(#wf-screen) .wf .wf-proj-spear { width: 26px; height: 5px; margin-left: -26px; border-radius: 2px; background: linear-gradient(90deg, rgba(200,175,120,0), #8b6b3a 30%, #8b6b3a 80%, #e5e7eb 80%); box-shadow: 0 0 6px rgba(255,200,120,.5); }
+/* Skirmisher javelin: a slim shaft that wobbles in flight. */
+:is(#wf-screen) .wf .wf-proj-javelin { width: 20px; height: 2px; margin-left: -20px; background: linear-gradient(90deg, #7a5a3a 0 80%, #cbd5e1 80%); }
+:is(#wf-screen) .wf .wf-proj-javelin::after { content: ''; position: absolute; inset: 0; background: inherit; animation: wfWobble .12s linear infinite; }
+@keyframes wfWobble { 50% { transform: rotate(4deg); } }
+/* Mystic Archer: a glowing violet arrow with a trail. */
+:is(#wf-screen) .wf .wf-proj-arrow { width: 22px; height: 3px; margin-left: -22px; border-radius: 2px; background: linear-gradient(90deg, rgba(192,132,252,0), #c084fc 60%, #f5e9ff); box-shadow: 0 0 10px #a855f7; }
+/* Apprentice: a small violet orb. */
+:is(#wf-screen) .wf .wf-proj-orb { width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, #d8b4fe 45%, rgba(168,85,247,0) 72%); box-shadow: 0 0 12px #a855f7; }
+/* Summoner: a green spirit wisp with a tail. */
+:is(#wf-screen) .wf .wf-proj-wisp { width: 22px; height: 9px; margin-left: -18px; border-radius: 50% 60% 60% 50%; background: radial-gradient(ellipse at 80% 50%, #f0fdf4 0 15%, #4ade80 40%, rgba(34,197,94,0) 75%); box-shadow: 0 0 12px #22c55e; }
+/* Archmage: a big spinning golden star. */
+:is(#wf-screen) .wf .wf-proj-star { width: 16px; height: 16px; margin-left: -8px; }
+:is(#wf-screen) .wf .wf-proj-star::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, #fff 0 18%, #fde68a 40%, rgba(251,191,36,0) 70%); clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); filter: drop-shadow(0 0 6px #fbbf24); animation: wfSpin .3s linear infinite; }
+:is(#wf-screen) .wf .wf-proj-star::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; box-shadow: 0 0 16px #a855f7; }
+@keyframes wfSpin { to { transform: rotate(360deg); } }
+
+/* ---------- Ground rings ---------- */
+:is(#wf-screen) .wf .wf-ring { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; pointer-events: none; opacity: 0; animation: wfRingOut .55s ease-out 1 forwards; }
+:is(#wf-screen) .wf .wf-ring-shock { border: 3px solid #ffe58a; box-shadow: 0 0 12px #ff9a3c, inset 0 0 10px rgba(255,154,60,.6); }
+:is(#wf-screen) .wf .wf-ring-nova { border: 3px solid #f0abfc; box-shadow: 0 0 16px #e879f9, inset 0 0 14px rgba(232,121,249,.7); background: radial-gradient(circle, rgba(240,171,252,.35), rgba(240,171,252,0) 70%); }
+@keyframes wfRingOut { 0% { transform: translateZ(3px) scale(.25); opacity: 1; } 100% { transform: translateZ(3px) scale(1.4); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(#wf-screen) .wf .fig.wf-atk, :is(#wf-screen) .wf .fig.wf-hit { animation: none; }
+}
