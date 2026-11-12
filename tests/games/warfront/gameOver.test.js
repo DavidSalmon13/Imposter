@@ -186,3 +186,36 @@ test('game over: reconnect lands on the final screen; back to lobby clears the b
   assert.equal(s.room.state.warfront.winner, null);
   assert.equal(s.room.state.warfront.map, null);
 });
+
+test('restartWarfront: host or captain only, playing only; fresh battle, no points', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  assert.equal(lastWfState(s.io, s.room, 'Host').canCommand, true);
+  assert.equal(lastWfState(s.io, s.room, 'Bob').canCommand, false);
+  const refused = await call(s.sockets.Bob, 'restartWarfront');
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /host or a captain/);
+  assert.equal(s.room.phase, 'playing');
+
+  const oldStart = wf.clock.startedAt;
+  wf.bases.blue.hp = 10;
+  t.mock.timers.tick(1000);
+  const restore = mockOpenAiFailure();
+  try {
+    assert.equal((await call(s.sockets.Host, 'restartWarfront')).ok, true);
+    await flush();
+    await flush();
+  } finally {
+    restore();
+  }
+  assert.equal(s.room.phase, 'playing');
+  assert.ok(wf.clock.startedAt > oldStart);
+  assert.equal(wf.bases.blue.hp, engine.TUNING.baseHp);
+  assert.deepEqual(Object.keys(wf.armies).sort(), ['Ann', 'Bob', 'Cat', 'Host'], 'same teams');
+  assert.ok(warfront.wfLoops.has('WFWF'), 'the new battle runs');
+  assert.deepEqual(s.room.scoreboard, {}, 'an abandoned battle pays nothing');
+
+  // Not outside a running battle.
+  s.room.phase = 'gameover';
+  assert.equal((await call(s.sockets.Host, 'restartWarfront')).ok, false);
+});

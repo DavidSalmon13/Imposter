@@ -600,6 +600,10 @@ Menifot/Codenames — never via CSS.
   scoreboard (`renderScoreboard`). Stats are tracked live in `armies[name].stats` and are
   display-only (they don't change points). A **Play Again** (captain or host) regenerates a **fresh
   map** and starts a new battle with the same teams; **Back to Lobby** clears state.
+- **In-battle menu (☰ Menu, top-left of the battlefield):** **Restart battle** (captain or host,
+  `restartWarfront`, `playing` only) abandons the running battle with no winner and **no points**, then
+  regenerates a fresh map with the same teams and races, exactly like Play Again. **Back to lobby**
+  (anyone, with a confirm) ends the battle for everyone. Both ask for confirmation first.
 
 ## Disconnects & reconnect
 

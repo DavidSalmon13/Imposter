@@ -8,6 +8,7 @@ const { WF_MAX_TEAM_SIZE, TEAMS } = require('./constants');
 const { teamMembers, startBlocker, canCommandMatch } = require('./roster');
 const { broadcastWfState } = require('./payloads');
 const { generateBattle } = require('./battlefield');
+const { stopLoop } = require('./loop');
 const { shuffle } = require('../../lib/shuffle');
 const engine = require('./engine');
 
@@ -125,6 +126,27 @@ function registerHandlers(ctx, io, socket) {
     const blocker = startBlocker(ctx, room);
     if (blocker) return callback({ ok: false, error: blocker });
 
+    callback({ ok: true });
+    generateBattle(ctx, roomCode, room);
+  });
+
+  // Restart mid-battle (in-game menu): abandon the running battle, no points awarded, and
+  // regenerate a fresh map with the same teams and races. Host or either captain, like Play Again.
+  socket.on('restartWarfront', (callback) => {
+    callback = typeof callback === 'function' ? callback : () => {};
+    const roomCode = socket.data.roomCode;
+    const room = ctx.getRoom(socket);
+    if (!room) return callback({ ok: false, error: 'Not in a room' });
+    if (room.game !== 'warfront' || room.phase !== 'playing') {
+      return callback({ ok: false, error: 'No battle running' });
+    }
+    if (!canCommandMatch(room, socket.data.name)) {
+      return callback({ ok: false, error: 'Only the host or a captain can restart the battle' });
+    }
+    const blocker = startBlocker(ctx, room);
+    if (blocker) return callback({ ok: false, error: blocker });
+
+    stopLoop(roomCode);
     callback({ ok: true });
     generateBattle(ctx, roomCode, room);
   });

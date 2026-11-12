@@ -108,6 +108,7 @@ function battlePayload(ctx, room, viewerName) {
     weaponMs: engine.TUNING.workshopWeaponMs,
     carryCap: engine.TUNING.carryCap,
     roster,
+    canCommand: canCommandMatch(room, viewerName),
     ...engine.viewForPlayer(wf, viewerName),
   };
 }

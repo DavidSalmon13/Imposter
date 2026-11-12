@@ -7,7 +7,7 @@
 
 import { S } from './store.js';
 import { sfx } from '../../fx.js';
-import { confirmDialog } from '../../shared/confirmDialog.js';
+import { openMenu, closeMenu } from './menu.js';
 import { MATCH_LENGTHS, MAP_SIZES, HOTKEYS, BUILD_HOTKEYS } from './constants.js';
 import {
   joinBtn,
@@ -47,6 +47,7 @@ function applyState(data) {
   if (!data || data.game !== 'warfront') return;
   S.state = data;
   if (data.phase !== 'playing') {
+    closeMenu();
     clearInterval(S.clockTimer);
     S.clockTimer = null;
     S.live = null;
@@ -100,14 +101,7 @@ export const Warfront = {
       const ty = Math.floor(((e.clientY - r.top) / r.height) * S.state.map.height);
       lookAt(S.state.map, Math.max(0, Math.min(S.state.map.height - 1, ty)) * S.state.map.width + Math.max(0, Math.min(S.state.map.width - 1, tx)));
     });
-    menuBtn.addEventListener('click', async () => {
-      const ok = await confirmDialog('Everyone goes back to the lobby and this battle ends.', {
-        title: 'Leave the battle?',
-        confirmLabel: 'Leave',
-        danger: true,
-      });
-      if (ok) socket.emit('backToLobby', () => {});
-    });
+    menuBtn.addEventListener('click', () => openMenu(socket));
 
     goAgain.addEventListener('click', () => {
       socket.emit('playAgainWarfront', (res) => {
@@ -174,6 +168,7 @@ export const Warfront = {
   },
 
   stop() {
+    closeMenu();
     S.state = null;
     S.live = null;
     S.builtFor = null;

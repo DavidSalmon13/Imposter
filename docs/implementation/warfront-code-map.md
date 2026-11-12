@@ -75,6 +75,7 @@ warfront/
   structures.js         facilities/towers on the field (Step 9) + build-mode hint tiles
   fx.js                 one-shot combat effects from events, march dust, Under attack alert
   attacks.js            per-unit attack animations: each type's strike, its projectile, hit flinch
+  menu.js               in-battle ☰ menu: Restart battle (host/captain), Back to lobby
   hud.js                base HP bars, match clock, enemies-in-sight strip
   console/cards.js      Produce cards (per race), produceUnit
   console/build.js      Produce/Build tabs, Build cards (arm a facility), Workshop weapon cards (craft)
