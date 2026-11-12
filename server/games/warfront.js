@@ -514,6 +514,15 @@ function onReconnectBroadcast(ctx, roomCode, room) {
 function repairOnLoad(ctx, room) {
   // An in-flight map generation can't resume.
   if (room.phase === 'generating') room.phase = 'teamSelect';
+  // A live match resumes where it left off: units, HP, queues and the clock were all in
+  // the snapshot, but the sim loop is a module-local interval that died with the old
+  // process. Reset lastTickAt so the first step uses a normal dt, not the downtime.
+  const wf = room.state && room.state.warfront;
+  if (room.phase === 'playing' && wf && wf.clock && !wf.winner) {
+    wf.clock.lastTickAt = Date.now();
+    const roomCode = roomCodeOf(ctx, room);
+    if (roomCode) startLoop(ctx, roomCode);
+  }
 }
 
 // ---------------------------------------------------------------------------

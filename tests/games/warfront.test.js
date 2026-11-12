@@ -435,6 +435,33 @@ test('loop: starts on battle start, ticks every WF_TICK_MS, stops on back to lob
   assert.equal(wfLives(s.io, s.room, 'Bob').length, 3);
 });
 
+test('loop: a match that was playing at a restart resumes after repairOnLoad', async (t) => {
+  const s = await playingRoom(t);
+  t.mock.timers.tick(warfront.WF_TICK_MS * 2);
+  const wf = s.room.state.warfront;
+  assert.equal(wf.tick, 2);
+
+  // Simulate the process dying: the interval is gone, then 30s of downtime.
+  warfront.stopLoop('WFWF');
+  t.mock.timers.tick(30000);
+  assert.equal(wf.tick, 2);
+
+  warfront.repairOnLoad(s.ctx, s.room);
+  assert.equal(s.room.phase, 'playing');
+  assert.ok(warfront.wfLoops.has('WFWF'));
+  assert.equal(wf.clock.lastTickAt, Date.now(), 'downtime is not replayed as one giant step');
+  t.mock.timers.tick(warfront.WF_TICK_MS);
+  assert.equal(wf.tick, 3);
+});
+
+test('loop: repairOnLoad does not restart a finished match', async (t) => {
+  const s = await playingRoom(t);
+  warfront.stopLoop('WFWF');
+  s.room.state.warfront.winner = 'red';
+  warfront.repairOnLoad(s.ctx, s.room);
+  assert.ok(!warfront.wfLoops.has('WFWF'));
+});
+
 test('loop: stops itself once the room is gone or no longer playing', async (t) => {
   const s = await playingRoom(t);
   s.ctx.rooms.delete('WFWF');
