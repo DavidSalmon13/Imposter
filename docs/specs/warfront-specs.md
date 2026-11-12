@@ -337,6 +337,9 @@ commit, no debit-at-reveal. The single `wfCommand` event carries one of:
 - **Hold** `{ kind:'hold', unitIds }` — the units stop where they are (path and haul loop cleared)
   and **stand their ground**: a holding unit never falls back on its own (see "Under attack"). A
   later move or haul order clears `holding`.
+- **Craft** `{ kind:'craft', weaponId }` — with a finished **Workshop**, debits
+  `workshopWeaponCost` 💎 now and makes that weapon in `workshopWeaponMs` (one at a time per player;
+  see "Facilities").
 - **Fire weapon** `{ kind:'weapon', weaponId, targetTileId }` — spends a weapon from the player's
   **arsenal**; the effect applies live (see "Special weapons").
 
@@ -456,6 +459,21 @@ outpace the army you didn't build.
 | Refinery | 🏗️ | 💎5 | 15 | 8s | Built on/adjacent a **vein**: loaded Workers may deposit here (short-haul, no trip home) **and** the vein's load rate `+1`. The premier raid target — taking it kills an enemy's whole mineral tempo. |
 | Forward Barracks | 🏭 | 💎7 | 20 | 10s | A second spawn point: that player may produce units **here** instead of their home base, shortening the reinforcement line into the contested middle. |
 | Workshop | 🔧 | 💎7 | 15 | 10s | Lets the player **construct** a special weapon of their choice (`workshopWeaponCost` 💎6, `workshopWeaponMs` 10s, one at a time) — an alternative to finding one on the ground, and a reliable Mineral sink when the map's weapon tokens are already taken. |
+
+Agreed with David 2026-11-12 (Step 9):
+- **Construction.** A build places a **construction site** at once: the structure unit, at full
+  HP, owned by the builder, seen and attackable like any unit. It has no effect and doesn't attack
+  until its build time is up. Destroying a site loses the Minerals. Facilities and towers count
+  toward `WF_MAX_UNITS_PER_PLAYER`, so a build at the cap is refused.
+- **Refinery bonus.** The owner's Workers load **+1 Mineral/sec** on that vein (on top of
+  `mineLoadSec × richness`); enemies mining it get nothing, and several Refineries on one vein don't
+  stack. Only a finished Refinery counts, as a bonus or as a deposit point.
+- **Workshop.** `{ kind:'craft', weaponId }` (any `WEAPON_EFFECTS` id) needs at least one finished
+  Workshop. Weapons are made **one at a time per player** in `armies[name].workshop` (a sequential
+  queue, like a spawn point's); each finished weapon joins the arsenal.
+- **Lost work.** When a facility is destroyed, its paid-for work in progress is **lost, no refund**:
+  a Forward Barracks' unit queue goes with it, and the player's Workshop queue is lost when their
+  last Workshop falls.
 
 **Structures are no longer Forge-exclusive** — all races may build facilities and towers. Forge's
 edge is the **Bastion** (Forge-only), the `forgeWorkerBonusSec` Supply bonus, and

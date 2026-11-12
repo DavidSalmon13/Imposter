@@ -46,6 +46,7 @@ spec**; change anything there first.
 | D14 | Under attack (added 2026-11-11 with David) | Hit → private "Under attack!" alert (banner + buzz + tile/minimap ping) for the owner, throttled per player (10 s, or at once if ≥4 tiles from the last alert); base hits alert the whole team. The attacker is revealed to the victim's team for 3 s. An idle unit hit by an enemy it can't hit back falls back ≤3 tiles out of that attacker's reach; units on **Hold** (new `hold` command) never do. |
 | D15 | Lighthouses (added 2026-11-11 with David) | 2–4 per map: one near each base (starts owned by that team) + up to 2 contested (start neutral). Stand on it with only your team's units to capture it instantly; both teams or nobody = no change; can't be destroyed. Owner sees Manhattan `WF_LIGHTHOUSE_VISION = 5` around it. Built in **Step 8b**. |
 | D16 | Walking speed (changed 2026-11-11 with David) | Much slower than first specced: `WF_STEP_MS_BASE` 900 → **4300** ms, and Move 1/2/3 = speed ×1/×1.5/×2 (`(1 + Move) ÷ 2`) instead of ×1/×2/×3. Medium-map crossing on plains: Warrior ~60 s, Outrider ~40 s, Raider ~30 s. **Then ×1.5 faster (2026-11-11, David): 4300 → 2867 ms** — Warrior ~40 s, Outrider ~27 s, Raider ~20 s. Movement orders path with A* weighted by terrain move cost (`findPath`), not unweighted BFS. |
+| D17 | Facilities (agreed 2026-11-12 with David) | A build places a **construction site** at once (full HP, attackable, no effect or attack until done; destroyed = Minerals lost; counts toward the unit cap). Refinery = owner's Workers load **+1 💎/sec** on that vein (no stacking, enemies get nothing). Workshop command `{ kind:'craft', weaponId }`, **one at a time per player** (sequential `armies[].workshop`). A destroyed facility's work in progress is **lost, no refund** (Barracks queue; Workshop queue when the last Workshop falls). |
 | D12 | Unit cap (not in spec) | **New: `WF_MAX_UNITS_PER_PLAYER = 30`** (structures included, Golems included). Produce is a no-op at the cap. Needed to bound payload size and DOM count on phones. |
 
 **Numbers the spec references but doesn't give** (all live in `TUNING` and get revisited in the balance pass, Step 15)
@@ -476,7 +477,22 @@ phone's lamp turns red with no fog change, and a reload keeps it.
 - **Browser:** walk a unit onto a contested lighthouse; your fog opens up to 5 tiles around it and the
   enemy's view shows the lamp turn your colour.
 
-### Step 9: Facilities + towers
+### Step 9: Facilities + towers ✅
+Done 2026-11-12, rules per D17 (agreed with David the same day). Facilities are units with a
+`buildDoneAt` (0 once standing) and stats from `FACILITY_UNITS` (`unitStats(type)` covers both
+tables); `armies[].facilities` mirrors them and drops one when it dies. Construction runs first in
+each step (so a Tower that finishes can fire the same step), the Workshop last; new events `built`
+and `crafted`. `wfState` carries `buildCatalog` (race prices), `weaponCost`/`weaponMs`; `me.workshop`
+holds the craft queue. Client: Produce / Build tabs in team-select's `.seg` style (Weapons waits for
+Step 10); Build cards in 2c's square structure frame; arming one shows dashed green squares on
+buildable tiles; the mockup's Tower, tent (Forward Barracks) and smithy (Workshop) are lifted from
+`Main.dc.html`, the Refinery is new art; a site is pale behind scaffolding with a build bar. Tapping
+your facility with nothing selected picks it: a picked Barracks is where Produce spawns, a picked
+Workshop swaps the card well for its five weapon cards (a separate craft row didn't fit a 390×844
+phone). Units selected + tap on your facility still moves them there. **Checked on the real server**
+(headless Chrome, two players, 390px): haul, Tower, Refinery with a deposit at it, a server restart
+mid-match with both phones reconnecting, Workshop + craft, Barracks + a Militiaman spawned there, a
+page reload. A hauler already walking home when its Refinery finishes keeps going home that trip.
 - Engine: `build` command (Mineral cost with Forge discount, visible-tile rule D4, one structure per tile,
   Refinery adjacency), structures as `structure` units with build-complete time; Refinery deposit
   point + vein rate +1; Forward Barracks as a spawn point; Workshop weapon queue; Tower auto-attack.

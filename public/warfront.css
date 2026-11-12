@@ -520,3 +520,29 @@
   :is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf *::before,
   :is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf *::after { animation: none !important; }
 }
+
+/* ---------- Step 9: Produce / Build tabs, Build + Workshop cards, structures on the map ---------- */
+/* Tabs: the team-select screen's segmented control (.seg), sized for the console row. */
+:is(#wf-screen) .wf .seg{display:grid;gap:3px;padding:3px;background:#05080b;box-shadow:inset 0 0 0 1px #2c3640}
+:is(#wf-screen) .wf .seg button{min-height:26px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8fa3b5;background:linear-gradient(180deg,#1b2128,#0d1115);box-shadow:inset 0 0 0 1px #2c3640;padding:0 10px}
+:is(#wf-screen) .wf .seg button.on{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.6);box-shadow:inset 0 0 0 1px #4dff7a,inset 0 0 12px rgba(77,255,122,.25)}
+:is(#wf-screen) .wf .wf-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Build cards: 2c's square iron structure frame; the building sits wider than a unit. */
+:is(#wf-screen) .wf .cmd.wf-bcard .cs { width: 46px; height: 40px; display: grid; place-items: end center; }
+:is(#wf-screen) .wf .cmd.wf-bcard .cs svg { width: 46px; height: 40px; display: block; overflow: visible; }
+:is(#wf-screen) .wf .cmd.wf-bcard .cc { color: #5ad8ff; text-shadow: 0 0 5px rgba(90,216,255,.6); }
+/* Workshop weapon cards: the token's glyph on its pedestal, same card. */
+:is(#wf-screen) .wf .cmd.wf-wcard .cs { width: 34px; height: 32px; margin-bottom: 4px; }
+:is(#wf-screen) .wf .cmd.wf-wcard .cs svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+/* Structures on the field: the mockup's building billboards over a .tshadow. */
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-structs { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-structs .bb { transform-style: preserve-3d; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-structs .bb > .hpb { left: 50%; right: auto; width: 40px; margin-left: -20px; top: -8px; transform: translateZ(40px); }
+/* A construction site: the building half-risen and pale behind scaffolding, with a build bar. */
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-site > svg { opacity: .5; filter: grayscale(.6) brightness(.9); }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-site::before { content: ''; position: absolute; inset: 18% 8% 0; background: repeating-linear-gradient(90deg, transparent 0 9px, rgba(139,107,58,.95) 9px 12px), repeating-linear-gradient(0deg, transparent 0 11px, rgba(139,107,58,.85) 11px 13px); pointer-events: none; }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-sbar { position: absolute; left: 50%; width: 40px; margin-left: -20px; bottom: -7px; height: 4px; background: #050505; box-shadow: 0 0 0 1px #000; transform: translateZ(40px); }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-sbar span { display: block; height: 100%; background: repeating-linear-gradient(90deg,#4dff7a 0 5px,#0a2a12 5px 6px); }
+/* Build mode: tiles you may build on glow faintly green (the selection ring's colour). */
+:is(#wf-screen) .wf .wf-bhint { position: absolute; width: 62px; height: 62px; margin: -31px 0 0 -31px; border: 2px dashed rgba(77,255,122,.75); background: rgba(77,255,122,.12); box-shadow: inset 0 0 10px rgba(77,255,122,.3); border-radius: 4px; pointer-events: none; }

@@ -971,3 +971,47 @@ test('lighthouses: persisted through the snapshot round-trip, capture survives',
   assert.ok(bobLive.events.some((e) => e.type === 'lighthouse' && e.tileId === target.tileId && e.team === 'red'));
   assert.equal(bobLive.lighthouses.find((l) => l.tileId === target.tileId).team, 'red');
 });
+
+// ---------------------------------------------------------------------------
+// Step 9: facilities + towers
+// ---------------------------------------------------------------------------
+
+test('wfState carries the Build catalog at the viewer\'s race price, and the Workshop price', async (t) => {
+  const s = await playingRoom(t);
+  const cat = lastWfState(s.io, s.room, 'Cat'); // Forge
+  const ann = lastWfState(s.io, s.room, 'Ann'); // Horde
+  assert.deepEqual(cat.buildCatalog.map((c) => c.facility), ['refinery', 'barracks', 'workshop', 'tower']);
+  for (const f of Object.values(engine.FACILITIES)) {
+    assert.equal(ann.buildCatalog.find((c) => c.facility === f.id).minerals, f.minerals);
+    assert.equal(cat.buildCatalog.find((c) => c.facility === f.id).minerals, f.minerals - engine.TUNING.forgeStructureDiscount);
+  }
+  assert.equal(cat.buildCatalog.find((c) => c.facility === 'refinery').needsVein, true);
+  assert.equal(cat.weaponCost, engine.TUNING.workshopWeaponCost);
+});
+
+test('wfCommand build + craft: pays at once, the site rises on a later tick, a weapon reaches the arsenal', async (t) => {
+  const s = await playingRoom(t);
+  const wf = s.room.state.warfront;
+  const army = wf.armies.Ann;
+  army.minerals = 20;
+  const spot = besideBase(wf, 'red');
+  const before = s.io.emissions.length;
+  assert.deepEqual(await call(s.sockets.Ann, 'wfCommand', { kind: 'build', facility: 'workshop', tileId: spot }), { ok: true });
+  assert.equal(s.io.emissions.length, before, 'no broadcast: the next tick shows it');
+  assert.equal(army.minerals, 20 - engine.FACILITIES.workshop.minerals);
+  // Blue can't build out of its own team's sight.
+  assert.equal((await call(s.sockets.Bob, 'wfCommand', { kind: 'build', facility: 'tower', tileId: spot })).ok, false);
+  const site = army.units.find((u) => u.type === 'workshop');
+  assert.ok(site.buildDoneAt > 0);
+  assert.equal((await call(s.sockets.Ann, 'wfCommand', { kind: 'craft', weaponId: 'emp' })).ok, false, 'still a site');
+  t.mock.timers.tick(engine.FACILITIES.workshop.buildMs + warfront.WF_TICK_MS);
+  assert.equal(site.buildDoneAt, 0);
+  const view = wfLives(s.io, s.room, 'Ann').at(-1).payload;
+  assert.ok(view.units.some((u) => u.id === site.id && u.type === 'workshop' && !u.buildDoneAt));
+  assert.deepEqual(await call(s.sockets.Ann, 'wfCommand', { kind: 'craft', weaponId: 'emp' }), { ok: true });
+  t.mock.timers.tick(engine.TUNING.workshopWeaponMs + warfront.WF_TICK_MS);
+  assert.deepEqual(army.arsenal, ['emp']);
+  // Only Ann hears about her own weapon.
+  assert.ok(wfLives(s.io, s.room, 'Ann').some((e) => e.payload.events.some((ev) => ev.type === 'crafted')));
+  assert.ok(!wfLives(s.io, s.room, 'Bob').some((e) => e.payload.events.some((ev) => ev.type === 'crafted')));
+});

@@ -884,7 +884,12 @@
             </div>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center">
-            <span class="lbl" id="wf-army-label">Recruit</span>
+            <span class="lbl hidden" id="wf-army-label">Recruit</span>
+            <!-- Produce / Build tabs (spec swap table: the console's tabs, in the team-select segmented-control style; Weapons comes with Step 10) -->
+            <div class="seg wf-tabs" id="wf-tabs">
+              <button type="button" class="on" id="wf-tab-produce">Produce</button>
+              <button type="button" id="wf-tab-build">Build</button>
+            </div>
             <span style="display: flex; align-items: baseline; gap: 5px">
               <span class="amb" style="font-size: 17px; font-weight: 700">🔩 <span id="wf-supply">0</span></span>
               <span id="wf-supply-rate" style="font-size: 10px; color: #8fa3b5; margin-right: 5px">+0/s</span>
@@ -892,6 +897,9 @@
             </span>
           </div>
           <div class="well tm-red" id="wf-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px"></div>
+          <div class="well tm-red hidden" id="wf-build-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px"></div>
+          <!-- A picked Workshop's command card: its five weapons, in place of the tab's cards -->
+          <div class="well hidden" id="wf-craft-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px"></div>
           <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
             <button type="button" class="cmd sys" id="wf-cmd-move"><span class="ci">➤</span><span class="cn">Move</span></button>
             <button type="button" class="cmd sys" id="wf-cmd-haul"><span class="ci">⛏️</span><span class="cn">Haul</span></button>

@@ -25,6 +25,7 @@ import {
   RUINED_CASTLE_SPRITE,
   BANNER_SPRITE,
   LIGHTHOUSE_SPRITE,
+  FACILITY_SPRITES,
 } from './warfrontSprites.js';
 import { renderScoreboard } from '../shared/scoreboard.js';
 
@@ -338,6 +339,10 @@ const supplyRateEl = $('wf-supply-rate');
 const mineralsEl = $('wf-minerals');
 const cardsEl = $('wf-cards');
 const cmdBtn = { move: $('wf-cmd-move'), haul: $('wf-cmd-haul'), hold: $('wf-cmd-hold') };
+const tabsEl = $('wf-tabs');
+const tabBtn = { produce: $('wf-tab-produce'), build: $('wf-tab-build') };
+const buildCardsEl = $('wf-build-cards');
+const craftCardsEl = $('wf-craft-cards');
 const feedEl = $('wf-feed');
 const menuBtn = $('wf-menu-btn');
 const alertEl = $('wf-alert');
@@ -374,6 +379,15 @@ const cardNodes = new Map(); // unitType -> { btn, q, bar, sig }
 let dropNodes = new Map(); // tileId -> dropped-load billboard
 const gainNodes = new Map(); // tileId -> { node, total }: the "+N💎" floating over a deposit
 let lighthouseNodes = new Map(); // tileId -> { node, mini, team }: lighthouse billboard + minimap marker
+let structLayer = null; // facilities and towers (Step 9), under the unit stacks
+let hintLayer = null; // build mode: the tiles you may build on
+let structNodes = new Map(); // unit id -> { node, bb, sig }: a facility/tower billboard
+let structureTiles = new Set(); // tiles a facility or tower stands on (stacks stand at its foot)
+let tab = 'produce'; // the console's tab: 'produce' | 'build'
+let buildMode = null; // the facility armed for placement (next map tap builds it), or null
+let selStructure = null; // id of my facility/tower picked on the map (a Barracks is where units spawn)
+const buildCardNodes = new Map(); // facility -> { btn, q, bar, info, sig }
+const craftCardNodes = new Map(); // weaponId -> { btn, q, bar, sig }
 
 /** Deterministic 0..1 noise per tile, so every phone decorates the map the same way. */
 function noise(tileId, k) {
@@ -504,6 +518,8 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
   pickupNodes = new Map();
   dropNodes = new Map();
   lighthouseNodes = new Map();
+  structNodes = new Map();
+  structureTiles = new Set();
   stackNodes.clear();
   Object.keys(infoSig).forEach((k) => delete infoSig[k]);
   clickNodes = new Map();
@@ -639,6 +655,10 @@ function buildWorld(data, target = { cam, world, minimap: true }) {
 
   orderLayer = el('div', 'wf-orders');
   worldEl.appendChild(orderLayer);
+  hintLayer = el('div', 'wf-orders');
+  worldEl.appendChild(hintLayer);
+  structLayer = el('div', 'wf-structs');
+  worldEl.appendChild(structLayer);
   unitLayer = el('div', 'wf-units');
   worldEl.appendChild(unitLayer);
   fxLayer = el('div', 'wf-fx');
@@ -775,7 +795,7 @@ function standPoint(map, tileId, team, shared) {
   const c = tileCentre(map, tileId);
   const onBase = map.bases.some((b) => b.tileId === tileId);
   // On a lighthouse the stack stands at its foot, in front, so the lamp stays in view.
-  const onLight = !onBase && (map.lighthouses || []).some((l) => l.tileId === tileId);
+  const onLight = !onBase && ((map.lighthouses || []).some((l) => l.tileId === tileId) || structureTiles.has(tileId));
   return {
     x: c.x + (shared ? (team === 'red' ? -16 : 16) : 0),
     y: c.y + (onBase ? 44 : onLight ? 30 : 14),
@@ -850,7 +870,8 @@ function renderUnits() {
   if (!unitLayer || !live || !state) return;
   const { map } = state;
   const you = state.you;
-  const groups = groupUnits(live.units);
+  renderStructures();
+  const groups = groupUnits(live.units.filter((u) => !FACILITY_TYPES.has(u.type)));
   const still = new Set();
   groups.forEach((g) => {
     if (g.next == null) still.add(`${g.team}|${g.tileId}`);
@@ -1046,13 +1067,138 @@ function compass(map, tileId) {
   return ns && we ? `${ns}-${we}` : ns || we || 'central';
 }
 
-// Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES).
+// Facilities and towers (Step 9): drawn as buildings, never as unit stacks.
+const FACILITY_TYPES = new Set(['refinery', 'barracks', 'workshop', 'tower']);
+const FACILITY_NAMES = { refinery: 'Refinery', barracks: 'Forward Barracks', workshop: 'Workshop', tower: 'Tower' };
+const FACILITY_ORDERS = {
+  refinery: '▸ YOUR HAULERS UNLOAD HERE · +1💎/S ON ITS VEIN',
+  barracks: '▸ RECRUIT: NEW UNITS STEP OUT HERE',
+  workshop: '▸ CRAFT A WEAPON BELOW · ONE AT A TIME',
+  tower: '▸ GUARDS ITS OWN TILE AND THE NEXT',
+};
+const WEAPON_NAMES = { artillery: 'Artillery', emp: 'EMP', airdrop: 'Airdrop', bombard: 'Bombard', aegis: 'Aegis' };
+const WEAPON_IDS = Object.keys(WEAPON_NAMES);
+
+// Max HP per unit type, for the stack HP bar (mirrors the server's UNIT_TYPES and FACILITIES).
 const UNIT_MAX_HP = {
+  refinery: 15, barracks: 20, workshop: 15, tower: 18,
   laborer: 5, peon: 5, acolyte: 5,
   militiaman: 11, crossbow: 7, outrider: 8, bastion: 20, ballista: 8,
   warrior: 11, skirmisher: 7, raider: 9, berserker: 6, warchief: 16,
   apprentice: 6, mysticArcher: 6, battlemage: 8, summoner: 7, archmage: 10, golem: 18,
 };
+
+// ---------- Facilities and towers on the field (Step 9) ----------
+
+/** How long a facility takes to build (from the Build catalog), for a site's progress bar. */
+function facilityBuildMs(type) {
+  const c = ((state && state.buildCatalog) || []).find((f) => f.facility === type);
+  return c ? c.buildMs : 0;
+}
+
+/**
+ * One billboard per facility or tower in view: the mockup's building (or the new
+ * Refinery) in its owner's colour, pale behind scaffolding with a build bar while it is a
+ * construction site, an HP bar once it's been hit, and a green ring when you've picked it.
+ */
+function renderStructures() {
+  if (!structLayer || !live || !state) return;
+  const { map } = state;
+  const now = serverNow();
+  const seen = new Set();
+  structureTiles = new Set();
+  live.units.forEach((u) => {
+    if (!FACILITY_TYPES.has(u.type)) return;
+    seen.add(u.id);
+    structureTiles.add(u.tileId);
+    const art = FACILITY_SPRITES[u.type];
+    let entry = structNodes.get(u.id);
+    if (!entry) {
+      const c = tileCentre(map, u.tileId);
+      const node = ent(c.x, c.y + 4, elevationAt(map, u.tileId), `tm-${u.team}`);
+      const shadow = el('span', 'dec tshadow');
+      Object.assign(shadow.style, { width: `${Math.round(art.w * 1.05)}px`, height: `${Math.round(art.w * 0.45)}px` });
+      node.appendChild(shadow);
+      const bb = billboard(art.svg, art.w, art.h);
+      if (art.extra) bb.insertAdjacentHTML('afterbegin', art.extra);
+      node.appendChild(bb);
+      structLayer.appendChild(node);
+      entry = { node, bb, sig: '' };
+      structNodes.set(u.id, entry);
+    }
+    const site = Boolean(u.buildDoneAt);
+    const pct = Math.max(0, Math.min(100, Math.round((u.hp / (UNIT_MAX_HP[u.type] || u.hp)) * 100)));
+    const picked = selStructure === u.id;
+    const sig = `${site ? 1 : 0}|${pct}|${picked ? 1 : 0}`;
+    if (sig !== entry.sig) {
+      entry.sig = sig;
+      const { node, bb } = entry;
+      bb.classList.toggle('wf-site', site);
+      // Smoke only rises from a working smithy.
+      bb.querySelectorAll(':scope > .smoke').forEach((sm) => sm.classList.toggle('hidden', site));
+      let hpb = bb.querySelector(':scope > .hpb');
+      if (pct < 100) {
+        if (!hpb) {
+          hpb = el('span', 'hpb', '<span></span>');
+          bb.appendChild(hpb);
+        }
+        hpb.firstChild.className = pct >= 75 ? 'hp-g' : pct >= 35 ? 'hp-y' : 'hp-r';
+        hpb.firstChild.style.width = `${pct}%`;
+      } else if (hpb) hpb.remove();
+      let bar = bb.querySelector(':scope > .wf-sbar');
+      if (site && !bar) bb.appendChild(el('span', 'wf-sbar', '<span style="width: 0%"></span>'));
+      if (!site && bar) bar.remove();
+      let ring = node.querySelector(':scope > .selr');
+      if (picked && !ring) {
+        ring = el('span', 'dec selr');
+        const rh = Math.round(art.w * 0.5);
+        Object.assign(ring.style, { width: `${art.w}px`, height: `${rh}px`, margin: `${-Math.round(rh / 2)}px 0 0 ${-Math.round(art.w / 2)}px` });
+        node.insertBefore(ring, bb);
+      }
+      if (!picked && ring) ring.remove();
+    }
+    if (site) {
+      const total = facilityBuildMs(u.type);
+      const p = total ? Math.max(0, Math.min(1, 1 - (u.buildDoneAt - now) / total)) : 0;
+      const fill = entry.bb.querySelector(':scope > .wf-sbar > span');
+      if (fill) fill.style.width = `${Math.round(p * 100)}%`;
+    }
+  });
+  structNodes.forEach((entry, id) => {
+    if (!seen.has(id)) {
+      entry.node.remove();
+      structNodes.delete(id);
+    }
+  });
+  if (selStructure != null && !seen.has(selStructure)) selStructure = null;
+}
+
+/**
+ * Build mode: a dashed green square on every tile you may build the armed facility on
+ * (the server's rule, D4: in your team's sight, passable, not a base, no enemy and no
+ * structure there; a Refinery on or beside a vein). The server has the last word.
+ */
+function renderBuildHints() {
+  if (!hintLayer) return;
+  hintLayer.innerHTML = '';
+  if (!buildMode || !live || !state || !state.map) return;
+  const { map } = state;
+  const vis = live.visible || '';
+  const blocked = new Set(map.bases.map((b) => b.tileId));
+  live.units.forEach((u) => {
+    if (u.team !== state.myTeam || FACILITY_TYPES.has(u.type) || u.type === 'bastion' || u.type === 'golem') blocked.add(u.tileId);
+  });
+  const nearVein = (id) => map.veins.some((v) => Math.abs((v.tileId % map.width) - (id % map.width))
+    + Math.abs(Math.floor(v.tileId / map.width) - Math.floor(id / map.width)) <= 1);
+  map.tiles.forEach((t, id) => {
+    if (vis[id] !== '1' || t === 'water' || t === 'rock' || blocked.has(id)) return;
+    if (buildMode === 'refinery' && !nearVein(id)) return;
+    const c = tileCentre(map, id);
+    const hint = el('span', 'wf-bhint');
+    Object.assign(hint.style, { left: `${c.x}px`, top: `${c.y}px`, transform: `translateZ(${elevationAt(map, id) + 2}px)` });
+    hintLayer.appendChild(hint);
+  });
+}
 
 // ---------- Minimap (1:10, like the mockup) ----------
 
@@ -1230,6 +1376,12 @@ function playEffects(events) {
       gains.set(e.tileId, (gains.get(e.tileId) || 0) + e.minerals);
     } else if (e.type === 'spawn' && e.owner === state.you) {
       feed(`${UNIT_NAMES[e.unitType] || 'Unit'} ready`);
+    } else if (e.type === 'built' && e.owner === state.you) {
+      feed(`${FACILITY_NAMES[e.unitType] || 'Building'} ready`);
+      haptics.success();
+    } else if (e.type === 'crafted' && e.owner === state.you) {
+      feed(`${WEAPON_NAMES[e.weaponId] || 'Weapon'} ready · in your arsenal`);
+      haptics.success();
     } else if (e.type === 'lighthouse') {
       // A flip: a flash of the new colour round the lamp, and a notice line.
       fxBoard(e.tileId, `<span class="wf-lflash wf-lf-${e.team}"></span>`, { w: 140, h: 140, dy: -10, z: 30, life: FX_LIFE.boom, team: e.team });
@@ -1397,6 +1549,9 @@ function renderBattle(data) {
   if (fresh) {
     selected.clear();
     mode = 'move';
+    buildMode = null;
+    selStructure = null;
+    tab = 'produce';
     buildWorld(data);
     builtFor = data.clock.startedAt;
   }
@@ -1454,6 +1609,8 @@ function applyLive(view) {
     mineralsEl.textContent = '–';
   }
   renderCards();
+  renderBuildCards();
+  if (buildMode) renderBuildHints();
 }
 
 const UNIT_NAMES = {
@@ -1482,14 +1639,33 @@ function renderInfo() {
     infoSig[key] = value;
     return true;
   };
-  const portraitChanged = changed('portrait', lead0);
-  const hpChanged = changed('hp', hpSig);
+  const struct = !sel.length && selStructure != null ? live.units.find((u) => u.id === selStructure) : null;
+  const portraitChanged = changed('portrait', struct ? `s:${struct.type}` : lead0);
+  const hpChanged = changed('hp', struct ? `s:${struct.hp}` : hpSig);
   if (hpChanged) infoHp.innerHTML = '';
+  if (struct) {
+    const art = FACILITY_SPRITES[struct.type];
+    if (portraitChanged) infoPortrait.innerHTML = art.svg.replace('<svg ', '<svg style="width: 46px; height: 46px; overflow: visible" ');
+    infoTitle.textContent = FACILITY_NAMES[struct.type];
+    const max = UNIT_MAX_HP[struct.type];
+    infoSub.textContent = struct.buildDoneAt
+      ? `Under construction · ${Math.max(0, Math.ceil((struct.buildDoneAt - serverNow()) / 1000))}s`
+      : `${RACE_NAMES[state.myRace]} · HP ${Math.ceil(struct.hp)}/${max}${struct.type === 'workshop' && live.me ? ` · arsenal ${(live.me.arsenal || []).length}` : ''}`;
+    if (hpChanged) {
+      const c = struct.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
+      const pip = el('span');
+      Object.assign(pip.style, { width: `${Math.max(4, Math.round((struct.hp / max) * 60))}px`, height: '5px', background: c, boxShadow: `0 0 4px ${c}` });
+      infoHp.appendChild(pip);
+    }
+    infoOrder.textContent = buildMode ? buildOrderText() : struct.buildDoneAt ? '▸ BEING BUILT · IT WORKS ONCE IT STANDS' : FACILITY_ORDERS[struct.type];
+    renderSys();
+    return;
+  }
   if (!sel.length) {
     if (portraitChanged) infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
     infoTitle.textContent = map.theme;
     infoSub.textContent = map.lore || '';
-    infoOrder.textContent = state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
+    infoOrder.textContent = buildMode ? buildOrderText() : state.myTeam ? '▸ TAP YOUR UNITS TO COMMAND THEM' : '';
     renderSys();
     return;
   }
@@ -1511,9 +1687,10 @@ function renderInfo() {
   const hauler = sel.find((u) => u.haul);
   const cap = state.carryCap || 4;
   let order;
-  if (mode === 'haul') order = '▸ TAP A MINERAL VEIN TO HAUL';
+  if (buildMode) order = buildOrderText();
+  else if (mode === 'haul') order = '▸ TAP A MINERAL VEIN TO HAUL';
   else if (hauler && hauler.haul.stage === 'loading') order = `▸ HAULING · LOADING 💎 ${Math.floor(hauler.carrying * 10) / 10}/${cap}`;
-  else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ HAULING · 💎 ${Math.round(hauler.carrying)} → BASE`;
+  else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ HAULING · 💎 ${Math.round(hauler.carrying)} → ${structureTiles.has(hauler.path && hauler.path.length ? hauler.path[hauler.path.length - 1] : -1) ? 'REFINERY' : 'BASE'}`;
   else if (hauler) order = '▸ HAULING · TO THE VEIN';
   else if (dest) order = `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}`;
   else if (sel.every((u) => u.holding)) order = '▸ HOLDING · TAP A TILE TO MOVE';
@@ -1568,8 +1745,12 @@ function buildCards(data) {
   cardNodes.clear();
   cardsEl.innerHTML = '';
   cardsEl.className = `well tm-${data.myTeam || 'red'} ${RACE_CARD_CLASS[data.myRace] || ''}`;
-  armyLabel.textContent = data.myRace ? `Recruit · ${RACE_NAMES[data.myRace]}` : 'Watching · no army this match';
-  cardsEl.classList.toggle('hidden', !data.catalog || !data.catalog.length);
+  armyLabel.textContent = 'Watching · no army this match';
+  const hasArmy = Boolean(data.catalog && data.catalog.length);
+  armyLabel.classList.toggle('hidden', hasArmy);
+  tabsEl.classList.toggle('hidden', !hasArmy);
+  buildBuildCards(data);
+  setTab(tab);
   (data.catalog || []).forEach((c) => {
     const btn = el('button', `cmd${c.structure ? ' struct' : ''}`);
     btn.type = 'button';
@@ -1588,6 +1769,170 @@ function buildCards(data) {
     cardsEl.appendChild(btn);
     cardNodes.set(c.unitType, { btn, q, bar, info: c, sig: '' });
   });
+}
+
+const BUILD_HOTKEYS = { refinery: 'R', barracks: 'B', workshop: 'W', tower: 'T' };
+const BUILD_CARD_NAMES = { refinery: 'Refin-ery', barracks: 'Forward Barracks', workshop: 'Work-shop', tower: 'Tower' };
+
+/** The Build tab's facility cards (2c's square structure frames) and the Workshop's weapon cards. */
+function buildBuildCards(data) {
+  buildCardNodes.clear();
+  craftCardNodes.clear();
+  buildCardsEl.innerHTML = '';
+  craftCardsEl.innerHTML = '';
+  buildCardsEl.className = `well tm-${data.myTeam || 'red'} ${RACE_CARD_CLASS[data.myRace] || ''}`;
+  craftCardsEl.className = `well tm-${data.myTeam || 'red'} ${RACE_CARD_CLASS[data.myRace] || ''}`;
+  (data.buildCatalog || []).forEach((c) => {
+    const btn = el('button', 'cmd struct wf-bcard');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', `Build a ${c.name}, costs ${c.minerals} Minerals`);
+    btn.appendChild(el('span', 'hk')).textContent = BUILD_HOTKEYS[c.facility] || '';
+    btn.appendChild(el('span', 'cc')).textContent = `💎${c.minerals}`;
+    const q = btn.appendChild(el('span', 'wf-q'));
+    btn.appendChild(el('span', 'cs', FACILITY_SPRITES[c.facility].svg));
+    btn.appendChild(el('span', 'cn')).textContent = BUILD_CARD_NAMES[c.facility] || c.name;
+    const bar = el('span', 'wf-qbar hidden', '<span style="width: 0%"></span>');
+    btn.appendChild(bar);
+    btn.addEventListener('click', () => armBuild(c.facility));
+    buildCardsEl.appendChild(btn);
+    buildCardNodes.set(c.facility, { btn, q, bar, info: c, sig: '' });
+  });
+  WEAPON_IDS.forEach((weaponId) => {
+    const btn = el('button', 'cmd wf-wcard');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', `Craft ${WEAPON_NAMES[weaponId]}, costs ${data.weaponCost} Minerals`);
+    btn.appendChild(el('span', 'cc')).textContent = `💎${data.weaponCost}`;
+    const q = btn.appendChild(el('span', 'wf-q'));
+    btn.appendChild(el('span', 'cs', weaponSprite(weaponId)));
+    btn.appendChild(el('span', 'cn')).textContent = WEAPON_NAMES[weaponId];
+    const bar = el('span', 'wf-qbar hidden', '<span style="width: 0%"></span>');
+    btn.appendChild(bar);
+    btn.addEventListener('click', () => craftWeapon(weaponId));
+    craftCardsEl.appendChild(btn);
+    craftCardNodes.set(weaponId, { btn, q, bar, sig: '' });
+  });
+}
+
+/** Your picked, finished Workshop (its weapon cards replace the tab's cards), or null. */
+function pickedWorkshop() {
+  const u = selStructure != null && live ? live.units.find((x) => x.id === selStructure) : null;
+  return u && u.type === 'workshop' && !u.buildDoneAt && u.owner === state.you ? u : null;
+}
+
+/** Shows one card well under the resources row: a picked Workshop's weapons, else the tab's cards. */
+function syncWells() {
+  const hasArmy = Boolean(state && state.catalog && state.catalog.length);
+  const shop = hasArmy && Boolean(pickedWorkshop());
+  tabBtn.produce.classList.toggle('on', !shop && tab === 'produce');
+  tabBtn.build.classList.toggle('on', !shop && tab === 'build');
+  cardsEl.classList.toggle('hidden', !hasArmy || shop || tab !== 'produce');
+  buildCardsEl.classList.toggle('hidden', !hasArmy || shop || tab !== 'build');
+  craftCardsEl.classList.toggle('hidden', !shop);
+}
+
+/** Produce or Build. Picking a tab also lets go of a picked Workshop. */
+function setTab(next) {
+  tab = next;
+  if (tab !== 'build') buildMode = null;
+  if (pickedWorkshop()) selStructure = null;
+  syncWells();
+  renderBuildCards();
+  renderBuildHints();
+  if (live) {
+    renderUnits();
+    renderInfo();
+  }
+}
+
+function buildOrderText() {
+  return buildMode === 'refinery'
+    ? '▸ TAP A GREEN TILE BY A VEIN FOR THE REFINERY'
+    : `▸ TAP A GREEN TILE TO BUILD THE ${(FACILITY_NAMES[buildMode] || '').toUpperCase()}`;
+}
+
+/** A Build card arms placement (the next map tap builds it); tapping it again disarms. */
+function armBuild(facility) {
+  if (!state || state.phase !== 'playing' || !state.myTeam) return;
+  if (tab !== 'build') setTab('build');
+  buildMode = buildMode === facility ? null : facility;
+  mode = 'move';
+  sfx.click();
+  haptics.tap();
+  renderBuildCards();
+  renderBuildHints();
+  renderInfo();
+}
+
+function craftWeapon(weaponId) {
+  if (!state || state.phase !== 'playing' || !state.myTeam) return;
+  const card = craftCardNodes.get(weaponId);
+  if (card) {
+    card.btn.classList.add('on');
+    setTimeout(() => card.btn.classList.remove('on'), 220);
+  }
+  haptics.tap();
+  ctx.socket.emit('wfCommand', { kind: 'craft', weaponId }, (res) => {
+    if (res && !res.ok) {
+      feed(res.error, 'amb');
+      sfx.error();
+      haptics.warn();
+    } else {
+      sfx.click();
+    }
+  });
+}
+
+/** Build cards: greyed when short of 💎 or at the cap, lit while armed, a bar for sites going up; a picked Workshop's weapons. */
+function renderBuildCards() {
+  if (!live || !state) return;
+  syncWells();
+  const me = live.me;
+  const now = serverNow();
+  const mine = live.units.filter((u) => u.owner === state.you && FACILITY_TYPES.has(u.type));
+  buildCardNodes.forEach((card, facility) => {
+    const afford = Boolean(me) && me.minerals >= card.info.minerals && me.units < me.unitCap;
+    const sites = mine.filter((u) => u.type === facility && u.buildDoneAt);
+    const sig = `${afford ? 1 : 0}|${sites.length}|${buildMode === facility ? 1 : 0}`;
+    if (sig !== card.sig) {
+      card.sig = sig;
+      card.btn.classList.toggle('dim', !afford);
+      card.btn.classList.toggle('on', buildMode === facility);
+      card.btn.classList.toggle('wf-busy', sites.length > 0);
+      card.q.textContent = sites.length ? `×${sites.length}` : '';
+      card.bar.classList.toggle('hidden', !sites.length);
+    }
+    if (sites.length) {
+      const total = card.info.buildMs || 1;
+      const p = Math.max(...sites.map((u) => 1 - (u.buildDoneAt - now) / total));
+      card.bar.firstChild.style.width = `${Math.round(Math.max(0, Math.min(1, p)) * 100)}%`;
+    }
+  });
+  if (!pickedWorkshop() || !me) return;
+  const queue = me.workshop || [];
+  craftCardNodes.forEach((card, weaponId) => {
+    const afford = me.minerals >= (state.weaponCost || 6);
+    const n = queue.filter((w) => w.weaponId === weaponId).length;
+    const front = queue[0] && queue[0].weaponId === weaponId ? queue[0] : null;
+    const sig = `${afford ? 1 : 0}|${n}|${front ? 1 : 0}`;
+    if (sig !== card.sig) {
+      card.sig = sig;
+      card.btn.classList.toggle('dim', !afford);
+      card.btn.classList.toggle('wf-busy', n > 0);
+      card.q.textContent = n ? `×${n}` : '';
+      card.bar.classList.toggle('hidden', !front);
+    }
+    if (front) {
+      const p = Math.max(0, Math.min(1, (now - front.startedAt) / Math.max(1, front.doneAt - front.startedAt)));
+      card.bar.firstChild.style.width = `${Math.round(p * 100)}%`;
+    }
+  });
+}
+
+/** Where a new unit appears: your picked, finished Forward Barracks, else your base. */
+function spawnTile() {
+  const s2 = selStructure != null && live ? live.units.find((u) => u.id === selStructure) : null;
+  if (s2 && s2.type === 'barracks' && !s2.buildDoneAt && s2.owner === state.you) return s2.tileId;
+  return myBaseTile();
 }
 
 /** Greys out what you can't afford (or have no room for) and shows each type's queue. */
@@ -1631,7 +1976,7 @@ function produceUnit(unitType) {
     setTimeout(() => card.btn.classList.remove('on'), 220);
   }
   haptics.tap();
-  ctx.socket.emit('wfCommand', { kind: 'produce', unitType, atTileId: myBaseTile() }, (res) => {
+  ctx.socket.emit('wfCommand', { kind: 'produce', unitType, atTileId: spawnTile() }, (res) => {
     if (res && !res.ok) {
       feed(res.error, 'amb');
       sfx.error();
@@ -1696,6 +2041,24 @@ function onSysButton(kind) {
 /** Tap on the battlefield: pick up your stack on that tile, or send the selection there. */
 function onTileTap(tileId) {
   if (!state || state.phase !== 'playing' || !live || !state.myTeam) return;
+  if (buildMode) {
+    const facility = buildMode;
+    ctx.socket.emit('wfCommand', { kind: 'build', facility, tileId }, (res) => {
+      if (res && !res.ok) {
+        feed(res.error, 'amb');
+        sfx.error();
+        haptics.warn();
+        return;
+      }
+      sfx.click();
+      if (buildMode === facility) buildMode = null;
+      renderBuildCards();
+      renderBuildHints();
+      if (live) renderInfo();
+    });
+    haptics.tap();
+    return;
+  }
   const vein = state.map.veins.some((v) => v.tileId === tileId);
   const workerIds = selectedUnits().filter((u) => WORKER_TYPES.has(u.type)).map((u) => u.id);
   if (mode === 'haul') {
@@ -1706,16 +2069,25 @@ function onTileTap(tileId) {
     renderInfo();
     return;
   }
-  const mineHere = live.units.filter((u) => u.owner === state.you && u.tileId === tileId).map((u) => u.id);
+  const mineHere = live.units.filter((u) => u.owner === state.you && u.tileId === tileId && !FACILITY_TYPES.has(u.type)).map((u) => u.id);
   const selHere = mineHere.filter((id) => selected.has(id));
+  const myStruct = live.units.find((u) => u.owner === state.you && u.tileId === tileId && FACILITY_TYPES.has(u.type));
   if (mineHere.length && (!selected.size || selHere.length < mineHere.length)) {
     // Select (or switch to) the stack on this tile.
+    selStructure = null;
     selected.clear();
     mineHere.forEach((id) => selected.add(id));
     sfx.click();
     haptics.tap();
   } else if (mineHere.length && selHere.length === mineHere.length && selected.size === selHere.length) {
     selected.clear(); // tapping your selected stack again lets go of it
+  } else if (!selected.size && myStruct) {
+    // Pick your facility or tower (a picked Forward Barracks is where new units appear); again lets go.
+    selStructure = selStructure === myStruct.id ? null : myStruct.id;
+    sfx.click();
+    haptics.tap();
+  } else if (!selected.size && selStructure != null) {
+    selStructure = null;
   } else if (selected.size && vein && workerIds.length === selected.size) {
     // Workers sent onto a vein start hauling from it.
     sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
@@ -1734,6 +2106,8 @@ function onTileTap(tileId) {
   renderUnits();
   renderSys();
   renderInfo();
+  renderCards();
+  renderBuildCards();
 }
 
 /** Mouse drag-to-pan (touch already pans the scrolling viewport natively). */
@@ -2034,10 +2408,26 @@ export const Warfront = {
       alertEl.classList.add('hidden');
     });
     ['move', 'haul', 'hold'].forEach((kind) => cmdBtn[kind].addEventListener('click', () => onSysButton(kind)));
+    ['produce', 'build'].forEach((t) => tabBtn[t].addEventListener('click', () => {
+      sfx.click();
+      setTab(t);
+    }));
     document.addEventListener('keydown', (e) => {
       if (!state || state.phase !== 'playing' || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
       if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
       const key = e.key.toUpperCase();
+      if (e.key === 'Escape' && buildMode) {
+        armBuild(buildMode);
+        return;
+      }
+      if (tab === 'build') {
+        const f = Object.keys(BUILD_HOTKEYS).find((k) => BUILD_HOTKEYS[k] === key);
+        if (f && (state.buildCatalog || []).length) {
+          e.preventDefault();
+          armBuild(f);
+        }
+        return;
+      }
       const hit = (state.catalog || []).find((c) => HOTKEYS[c.unitType] === key);
       if (hit) {
         e.preventDefault();

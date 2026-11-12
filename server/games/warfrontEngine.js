@@ -194,6 +194,38 @@ const FACILITIES = Object.freeze({
   }),
 });
 
+// Facilities and towers stand on the field as `structure` units (spec "Server state":
+// facilities are mirrored as structure units for combat). Their unit-like stats:
+// no race, can't move, and only the Tower attacks.
+const FACILITY_UNITS = Object.freeze(Object.fromEntries(Object.values(FACILITIES).map((f) => [f.id, Object.freeze({
+  id: f.id,
+  name: f.name,
+  race: null,
+  class: 'structure',
+  hp: f.hp,
+  atk: f.atk || 0,
+  supply: 0,
+  minerals: f.minerals,
+  move: 0,
+  range: f.range || 0,
+  attackMs: f.attackMs || TUNING.attackMs,
+  basic: false,
+  producible: false,
+  flags: Object.freeze(['facility']),
+})])));
+
+/** Stats of anything that stands on the field: a unit type or a facility/tower. */
+function unitStats(type) {
+  return UNIT_TYPES[type] || FACILITY_UNITS[type];
+}
+
+/** 💎 a player of `race` pays for a facility or tower (Forge pays forgeStructureDiscount less). */
+function facilityCost(race, facility) {
+  const f = FACILITIES[facility];
+  const discount = race === 'forge' ? TUNING.forgeStructureDiscount : 0;
+  return Math.max(0, f.minerals - discount);
+}
+
 // ---------------------------------------------------------------------------
 // Special weapons, battlefield events, team phrases (closed menus)
 // ---------------------------------------------------------------------------
@@ -786,7 +818,7 @@ function buildFallbackMap(size, rng) {
 
 /** A fresh unit of `type` owned by `owner`, standing on `tileId`. */
 function makeUnit(id, type, owner, tileId) {
-  const t = UNIT_TYPES[type];
+  const t = unitStats(type);
   return {
     id,
     type,
@@ -888,7 +920,7 @@ function speedFactor(move) {
 
 /** Time to walk onto `toTileId`: WF_STEP_MS_BASE ÷ the speed factor × the entered tile's move cost. */
 function stepMs(map, unitType, toTileId) {
-  const move = UNIT_TYPES[unitType].move;
+  const move = unitStats(unitType).move;
   const cost = TERRAIN_TYPES[terrainAt(map, toTileId)].moveCost;
   return Math.round((WF_STEP_MS_BASE / speedFactor(move)) * cost);
 }
@@ -936,7 +968,7 @@ function applyCommand(state, name, cmd, now) {
     }
     if (!isPassable(state.map, toTileId)) return { ok: false, error: "Units can't go there" };
     const wanted = new Set(unitIds);
-    const units = army.units.filter((u) => wanted.has(u.id) && UNIT_TYPES[u.type].move > 0);
+    const units = army.units.filter((u) => wanted.has(u.id) && unitStats(u.type).move > 0);
     if (!units.length) return { ok: false, error: 'Those units are not yours to move' };
     let moved = 0;
     for (const u of units) if (orderMove(state, u, toTileId, now)) moved++;
@@ -945,13 +977,15 @@ function applyCommand(state, name, cmd, now) {
   }
   if (cmd.kind === 'produce') return orderProduce(state, name, army, cmd, now);
   if (cmd.kind === 'haul') return orderHaul(state, army, cmd, now);
+  if (cmd.kind === 'build') return orderBuild(state, name, army, cmd, now);
+  if (cmd.kind === 'craft') return orderCraft(state, army, cmd, now);
   if (cmd.kind === 'hold') {
     const { unitIds } = cmd;
     if (!Array.isArray(unitIds) || !unitIds.length || unitIds.length > MAX_UNITS_PER_COMMAND) {
       return { ok: false, error: 'Pick some units first' };
     }
     const wanted = new Set(unitIds);
-    const units = army.units.filter((u) => wanted.has(u.id) && UNIT_TYPES[u.type].move > 0);
+    const units = army.units.filter((u) => wanted.has(u.id) && unitStats(u.type).move > 0);
     if (!units.length) return { ok: false, error: 'Those units are not yours to command' };
     for (const u of units) {
       // Stop where it stands: a step in progress finishes (no snapping back), then nothing.
@@ -985,14 +1019,19 @@ function unitSlotsUsed(army) {
   return n;
 }
 
-/** Tiles where `army` may produce: its base (Forward Barracks join in Step 9). */
-function spawnPoints(state, army) {
-  return [state.bases[army.team].tileId];
+/** `army`'s finished facilities of `type` (construction sites don't count). */
+function builtFacilities(army, type) {
+  return army.units.filter((u) => u.type === type && !u.buildDoneAt && u.hp > 0);
 }
 
-/** Tiles where `army`'s haulers may unload: its base (Refineries join in Step 9). */
+/** Tiles where `army` may produce: its base, then every finished Forward Barracks. */
+function spawnPoints(state, army) {
+  return [state.bases[army.team].tileId, ...builtFacilities(army, 'barracks').map((u) => u.tileId)];
+}
+
+/** Tiles where `army`'s haulers may unload: its base, then every finished Refinery. */
 function depositTiles(state, army) {
-  return [state.bases[army.team].tileId];
+  return [state.bases[army.team].tileId, ...builtFacilities(army, 'refinery').map((u) => u.tileId)];
 }
 
 /**
@@ -1006,7 +1045,7 @@ function orderProduce(state, name, army, cmd, now) {
   if (t.race !== army.race) return { ok: false, error: `Only ${RACES[t.race].name} can produce that` };
   const points = spawnPoints(state, army);
   const at = cmd.atTileId == null ? points[0] : cmd.atTileId;
-  if (!points.includes(at)) return { ok: false, error: 'Units can only be produced at your base' };
+  if (!points.includes(at)) return { ok: false, error: 'Units can only be produced at your base or a Forward Barracks' };
   if (unitSlotsUsed(army) + slotsFor(t.id) > WF_MAX_UNITS_PER_PLAYER) {
     return { ok: false, error: `Army is at the ${WF_MAX_UNITS_PER_PLAYER}-unit cap` };
   }
@@ -1045,6 +1084,104 @@ function orderHaul(state, army, cmd, now) {
   return { ok: true, hauling: workers.length };
 }
 
+// ---------------------------------------------------------------------------
+// Facilities and towers (spec "Facilities", "Towers"; D4, D17)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why `army` can't build `facility` on `tileId` right now, or null when it can (D4):
+ * a passable tile in the team's vision, not a base, with no enemy unit and no
+ * structure on it; a Refinery also needs a vein on or beside the tile.
+ */
+function buildBlocker(state, army, facility, tileId) {
+  const { map } = state;
+  if (!isPassable(map, tileId)) return "Can't build there";
+  if (!visionFor(state, army.team).has(tileId)) return 'Build only where your team can see';
+  if (tileId === state.bases.red.tileId || tileId === state.bases.blue.tileId) return "Can't build on a base";
+  for (const { unit, team } of allUnits(state)) {
+    if (unit.tileId !== tileId || unit.hp <= 0) continue;
+    if (unit.class === 'structure') return 'There is already a structure there';
+    if (team !== army.team) return 'An enemy is standing there';
+  }
+  if (FACILITIES[facility].needsVein && !map.veins.some((v) => manhattan(v.tileId, tileId, map.width) <= 1)) {
+    return 'A Refinery goes on or next to a mineral vein';
+  }
+  return null;
+}
+
+/**
+ * Build (D17): pays the 💎 now and places a construction site, a structure unit
+ * that is attackable at once but does nothing until buildDoneAt. Counts toward the
+ * unit cap like everything else on the field.
+ */
+function orderBuild(state, name, army, cmd, now) {
+  const f = FACILITIES[cmd.facility];
+  if (!f) return { ok: false, error: 'Unknown building' };
+  const blocker = buildBlocker(state, army, f.id, cmd.tileId);
+  if (blocker) return { ok: false, error: blocker };
+  if (unitSlotsUsed(army) + 1 > WF_MAX_UNITS_PER_PLAYER) {
+    return { ok: false, error: `Army is at the ${WF_MAX_UNITS_PER_PLAYER}-unit cap` };
+  }
+  const cost = facilityCost(army.race, f.id);
+  if (army.minerals < cost) return { ok: false, error: 'Not enough Minerals' };
+  army.minerals = round3(army.minerals - cost);
+  const u = makeUnit(state.nextUnitId++, f.id, name, cmd.tileId);
+  u.buildDoneAt = now + f.buildMs;
+  army.units.push(u);
+  army.facilities.push({ id: u.id, type: f.id, tileId: u.tileId });
+  return { ok: true, unitId: u.id };
+}
+
+/**
+ * Craft (D17): with a finished Workshop, pays workshopWeaponCost 💎 now and adds the
+ * weapon to the player's sequential Workshop queue (one at a time per player).
+ */
+function orderCraft(state, army, cmd, now) {
+  if (!WEAPON_EFFECTS[cmd.weaponId]) return { ok: false, error: 'Unknown weapon' };
+  if (!builtFacilities(army, 'workshop').length) return { ok: false, error: 'Build a Workshop first' };
+  if (army.minerals < TUNING.workshopWeaponCost) return { ok: false, error: 'Not enough Minerals' };
+  army.minerals = round3(army.minerals - TUNING.workshopWeaponCost);
+  const queue = army.workshop;
+  const startsAt = queue.length ? Math.max(queue[queue.length - 1].doneAt, now) : now;
+  queue.push({ weaponId: cmd.weaponId, doneAt: startsAt + TUNING.workshopWeaponMs });
+  return { ok: true };
+}
+
+/** Construction sites whose time is up become working structures. */
+function stepConstruction(state, now, events) {
+  for (const [owner, army] of Object.entries(state.armies)) {
+    for (const u of army.units) {
+      if (!u.buildDoneAt || u.buildDoneAt > now || u.hp <= 0) continue;
+      u.buildDoneAt = 0;
+      events.push({ type: 'built', tileId: u.tileId, owner, team: army.team, unitId: u.id, unitType: u.type });
+    }
+  }
+}
+
+/** Finished Workshop weapons join the arsenal, one at a time. */
+function stepWorkshop(state, now, events) {
+  for (const [owner, army] of Object.entries(state.armies)) {
+    const queue = army.workshop;
+    if (!queue || !queue.length) continue;
+    const shop = builtFacilities(army, 'workshop')[0];
+    while (queue.length && queue[0].doneAt <= now) {
+      const { weaponId } = queue.shift();
+      army.arsenal.push(weaponId);
+      events.push({ type: 'crafted', tileId: shop ? shop.tileId : state.bases[army.team].tileId, owner, team: army.team, weaponId });
+    }
+  }
+}
+
+/**
+ * A facility just fell (D17): its work in progress is lost, no refund. A Forward
+ * Barracks takes its spawn queue with it; the Workshop queue goes with the last Workshop.
+ */
+function loseFacility(army, u) {
+  army.facilities = army.facilities.filter((f) => f.id !== u.id);
+  if (u.type === 'barracks') delete army.queues[u.tileId];
+  if (u.type === 'workshop' && !builtFacilities(army, 'workshop').some((w) => w.id !== u.id)) army.workshop = [];
+}
+
 /** Points a hauler at `to` without dropping its haul loop (orderMove clears it). */
 function headFor(state, army, u, to, now) {
   const haul = u.haul;
@@ -1081,6 +1218,16 @@ function supplyRate(state, army) {
     if (u.class === 'worker' && sources.some((s) => manhattan(s, u.tileId, width) <= 1)) rate += perWorker;
   }
   return rate;
+}
+
+/**
+ * Extra 💎/sec `army`'s Workers load on a vein (D17): refineryVeinBonus when the
+ * army has a finished Refinery on or beside it. Several Refineries don't stack,
+ * and an enemy's Refinery gives nothing.
+ */
+function refineryBonus(state, army, veinTileId) {
+  const { width } = state.map;
+  return builtFacilities(army, 'refinery').some((r) => manhattan(r.tileId, veinTileId, width) <= 1) ? TUNING.refineryVeinBonus : 0;
 }
 
 /** Finished queue items step onto their spawn tile; a Summoner brings a Golem to the base. */
@@ -1131,7 +1278,7 @@ function stepEconomy(state, dtMs, now, events) {
         h.luck = vein.contested ? (rng() * 2 - 1) * TUNING.veinLuckMagnitude : 0;
       }
       if (h.stage === 'loading') {
-        const rate = TUNING.mineLoadSec * vein.richness * (1 + (h.luck || 0));
+        const rate = TUNING.mineLoadSec * vein.richness * (1 + (h.luck || 0)) + refineryBonus(state, army, vein.tileId);
         u.carrying = Math.min(TUNING.carryCap, round3(u.carrying + rate * secs));
         if (u.carrying < TUNING.carryCap) continue;
         h.stage = 'toDeposit';
@@ -1233,7 +1380,7 @@ function combatants(state) {
   const out = [];
   for (const { unit, owner, team } of allUnits(state)) {
     if (unit.hp <= 0) continue;
-    const t = UNIT_TYPES[unit.type];
+    const t = unitStats(unit.type);
     out.push({
       kind: 'unit', id: unit.id, unit, owner, team, race: t.race, cls: t.class, flags: t.flags,
       tileId: unit.tileId, range: t.range, atk: t.atk, attackMs: t.attackMs,
@@ -1366,6 +1513,8 @@ function stepCombat(state, now, events) {
   for (const attacker of fighters) {
     const holder = attacker.kind === 'unit' ? attacker.unit : attacker.base;
     if (holder.atkReadyAt > now) continue;
+    // Facilities other than the Tower never attack, and a construction site waits until it's done.
+    if (attacker.atk <= 0 || (attacker.kind === 'unit' && attacker.unit.buildDoneAt)) continue;
     if (attacker.kind === 'base' && attacker.base.hp <= 0) continue;
     const target = pickTarget(state, attacker, fighters, now);
     if (!target) continue;
@@ -1413,6 +1562,7 @@ function stepCombat(state, now, events) {
         state.pickups.mineralDrops[u.tileId] = (state.pickups.mineralDrops[u.tileId] || 0) + u.carrying;
       }
       statsOf(army).lost += 1;
+      if (FACILITIES[u.type]) loseFacility(army, u);
       events.push({ type: 'death', tileId: u.tileId, owner, team: army.team, unitId: u.id, unitType: u.type });
       return false;
     });
@@ -1423,7 +1573,7 @@ function stepCombat(state, now, events) {
     const attackers = f.kind === 'unit' && hitBy.get(f.id);
     if (!attackers) continue;
     const u = f.unit;
-    if (u.hp <= 0 || u.path.length || u.haul || u.holding || UNIT_TYPES[u.type].move <= 0) continue;
+    if (u.hp <= 0 || u.path.length || u.haul || u.holding || unitStats(u.type).move <= 0) continue;
     const live = attackers.filter((a) => a.kind === 'base' || a.unit.hp > 0);
     if (!live.length) continue;
     const me = { ...f, tileId: u.tileId };
@@ -1493,7 +1643,8 @@ function checkWinner(state, now) {
  * Advances the world by one sim step ending at `now` (`dtMs` long, already
  * clamped by the caller). Mutates and returns `state` with this step's events.
  * Systems arrive step by step: movement (Step 5), combat (Step 6), economy and
- * production (Step 7), the win check (Step 8); battlefield events come later.
+ * production (Step 7), the win check (Step 8), construction and the Workshop
+ * (Step 9); battlefield events come later.
  * Once a winner is set the match is over and further steps do nothing.
  */
 function stepSim(state, dtMs, { now }) {
@@ -1501,10 +1652,12 @@ function stepSim(state, dtMs, { now }) {
   if (state.winner) return { state, events };
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
   stepMovement(state, dt, now, events);
+  stepConstruction(state, now, events);
   stepCombat(state, now, events);
   stepLighthouses(state, events);
   stepEconomy(state, dt, now, events);
   stepProduction(state, now, events);
+  stepWorkshop(state, now, events);
   state.tick += 1;
   state.clock.lastTickAt = now;
   const result = checkWinner(state, now);
@@ -1568,6 +1721,7 @@ function viewForPlayer(state, name) {
   for (const { unit: u, owner, team: t } of allUnits(state)) {
     if (!team) break;
     const v = { id: u.id, type: u.type, tileId: u.tileId, hp: u.hp, owner, team: t };
+    if (u.buildDoneAt) v.buildDoneAt = u.buildDoneAt;
     if (t === team) {
       v.path = u.path.slice();
       v.stepStartedAt = u.stepStartedAt;
@@ -1634,6 +1788,7 @@ function ownEconomy(state, army) {
     units: unitSlotsUsed(army),
     unitCap: WF_MAX_UNITS_PER_PLAYER,
     queues,
+    workshop: (army.workshop || []).map((w) => ({ weaponId: w.weaponId, startedAt: w.doneAt - TUNING.workshopWeaponMs, doneAt: w.doneAt })),
   };
 }
 
@@ -1692,6 +1847,7 @@ module.exports = {
   UNIT_TYPES,
   TERRAIN_TYPES,
   FACILITIES,
+  FACILITY_UNITS,
   WEAPON_EFFECTS,
   EVENT_EFFECTS,
   TEAM_PHRASES,
@@ -1700,6 +1856,9 @@ module.exports = {
   MATCH_LENGTHS,
   DEFAULT_MATCH_LENGTH,
   producibleTypes,
+  unitStats,
+  facilityCost,
+  buildBlocker,
   rpsMultiplier,
   tileId,
   tileXY,
@@ -1723,6 +1882,8 @@ module.exports = {
   canReach,
   fallBackTile,
   stepSim,
+  spawnPoints,
+  depositTiles,
   winnerByBaseHp,
   checkWinner,
   visionFor,
