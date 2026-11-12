@@ -67,7 +67,6 @@ warfront/
   world/geometry.js     tileCentre, elevationAt, ent, billboard, plateaus, standPoint, stepPoint, compass
   world/build.js        buildWorld: the static battlefield (terrain, plateaus, decor, bases, layers)
   units.js              unit stacks: grouping, sprite/labels, placement, tweening (startTween), HP bar painted in place
-  batch.js              pure: how many of a unit a ×5 recruit tap can queue, and why it stops short (tested)
   stackSig.js           pure: make-up sig (when a stack rebuilds), per-soldier HP segments + colour class (tested)
   orders.js             own march lines + destination marker
   fog.js                fog sheet + lifting it where the team sees
@@ -83,7 +82,7 @@ warfront/
   console/cards.js      Produce cards (per race), produceUnit
   console/build.js      Produce/Build tabs, Build cards (arm a facility), Workshop weapon cards (craft)
   console/selection.js  info well (stack/structure/lore), Move/Haul/Hold/All button state, sendOrder
-  console/bulk.js       Select all (fighters, again: + Workers) and the ×1/×5 recruit switch
+  console/bulk.js       Select all (fighters, again: + Workers)
   console/buildingInfo.js  a building in the info well (picked or long-pressed, Step 24) + the long-press gesture
   input.js              onTileTap: select, pick a facility, move, haul, place an armed build
   gameOver.js           the game-over screen

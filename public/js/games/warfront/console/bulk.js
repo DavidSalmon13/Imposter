@@ -1,16 +1,13 @@
 /**
- * Warfront client: the console's bulk actions. Select all (every fighter you have; tap again to
- * add your Workers) and the ×1 / ×5 recruit switch. Must NOT contain: producing a unit
- * (console/cards.js reads S.produceBatch), map taps (input.js).
+ * Warfront client: the console's Select all (every fighter you have; tap again to add your
+ * Workers). Must NOT contain: producing a unit (console/cards.js), map taps (input.js).
  * Mockup: 2-battlefield.html command row. Spec: "Game feel" (bulk actions). Plan Step 23.
  */
 
 import { S } from '../store.js';
 import { sfx, haptics } from '../../../fx.js';
-import { cmdBtn } from '../dom.js';
 import { feed } from '../util.js';
 import { FACILITY_TYPES, WORKER_TYPES } from '../constants.js';
-import { BATCH_SIZE } from '../batch.js';
 import { renderUnits } from '../units.js';
 import { renderInfo, renderSys } from './selection.js';
 import { renderCards } from './cards.js';
@@ -48,20 +45,4 @@ export function selectAll() {
   renderInfo();
   renderCards();
   renderBuildCards();
-}
-
-/** Shows the switch's state: "×1" normally, a lit "×5" while a card tap recruits a batch. */
-export function renderBatch() {
-  const on = S.produceBatch > 1;
-  cmdBtn.batch.classList.toggle('on', on);
-  cmdBtn.batch.firstChild.textContent = on ? `×${S.produceBatch}` : '×1';
-  cmdBtn.batch.setAttribute('aria-pressed', on ? 'true' : 'false');
-}
-
-/** ×1 ↔ ×5. */
-export function toggleBatch() {
-  S.produceBatch = S.produceBatch > 1 ? 1 : BATCH_SIZE;
-  sfx.click();
-  haptics.tap();
-  renderBatch();
 }

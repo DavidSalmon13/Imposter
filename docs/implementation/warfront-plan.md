@@ -767,6 +767,10 @@ console.
 - **Tests:** `client/stackSig.test.mjs` adds per-unit HP fractions (sorted, lowest first).
 
 ### Step 23: Bulk actions in the console ✅
+**×1/×5 removed 2026-11-12 (David):** a Produce card tap always queues one unit. Five queued units kept
+walking out one by one long after the taps, which read as the base producing on its own. Gone: the
+switch, `batch.js` and its test, `S.produceBatch`; the command row is back to four buttons (Move ·
+Haul · Hold · ⊕ All), in the mockups too. Select all stays.
 Done 2026-11-12. **Deviation (agreed with David):** the ×1/×5 switch isn't beside the tabs (only
 ~35px free there at 360px); it's a fifth button in the command row, Move · Haul · Hold · ⊕ All ·
 ×1/×5 Recruit, and the mockup was changed to match. Select all picks every fighter (not buildings

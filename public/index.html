@@ -912,13 +912,12 @@
           <div class="well tm-red hidden" id="wf-build-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px"></div>
           <!-- A picked Workshop's command card: its five weapons, in place of the tab's cards -->
           <div class="well hidden" id="wf-craft-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px"></div>
-          <!-- Move / Haul / Hold, plus Select all and the ×1/×5 recruit switch (plan Step 23: no room beside the tabs at 360px) -->
-          <div class="wf-cmdrow" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
+          <!-- Move / Haul / Hold, plus Select all (plan Step 23) -->
+          <div class="wf-cmdrow" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
             <button type="button" class="cmd sys" id="wf-cmd-move"><span class="ci">➤</span><span class="cn">Move</span></button>
             <button type="button" class="cmd sys" id="wf-cmd-haul"><span class="ci">⛏️</span><span class="cn">Haul</span></button>
             <button type="button" class="cmd sys" id="wf-cmd-hold"><span class="ci">🛡️</span><span class="cn">Hold</span></button>
             <button type="button" class="cmd sys" id="wf-cmd-all" title="Select all your fighters (tap again to add Workers)"><span class="ci">⊕</span><span class="cn">All</span></button>
-            <button type="button" class="cmd sys wf-batch" id="wf-cmd-batch" title="Recruit 1 or 5 per card tap" aria-pressed="false"><span class="ci">×1</span><span class="cn">Recruit</span></button>
           </div>
         </div>
       </div>

@@ -117,9 +117,9 @@ or sim-loop change.
   without an animation that runs while they stand still.
 - **Soldier HP and army size.** Each soldier's HP is visible (on the map per figure, and per unit in
   the console for the selection), and the HUD shows your army size against the cap (`⚔ 14/30`).
-- **Bulk actions.** The console has **Select all** (all your combat units; a second tap adds Workers)
-  and a **×1 / ×5** Produce switch. ×5 queues up to five, stopping at the first refusal (Supply,
-  Minerals, unit cap), and says how many it queued.
+- **Bulk actions.** The console has **Select all** (all your combat units; a second tap adds Workers).
+  A Produce card tap always queues exactly **one** unit (the ×1 / ×5 switch was removed 2026-11-12 with
+  David: units queued five at a time kept walking out long after the taps and read as a production bug).
 - **Building info.** Long-pressing any building in sight (yours or an enemy's) shows its name, what it
   does and its HP in the info well for 4 s without changing the selection. A tap on your own building
   with nothing selected still picks it, as before.
