@@ -39,6 +39,7 @@ function cardStats(unitType) {
 /** Long-press a card: its description and full stats show in the info well for a few seconds. */
 function showLore(unitType) {
   S.lore = { type: unitType, until: Date.now() + LORE_MS };
+  S.inspect = null;
   haptics.tap();
   if (S.live && S.state) renderInfo();
 }

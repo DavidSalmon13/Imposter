@@ -45,7 +45,7 @@ export const FACILITY_ORDERS = {
   refinery: '▸ YOUR HAULERS UNLOAD HERE · +1💎/S ON ITS VEIN',
   barracks: '▸ RECRUIT: NEW UNITS STEP OUT HERE',
   workshop: '▸ CRAFT A WEAPON BELOW · ONE AT A TIME',
-  tower: '▸ SEND UP TO 3 UNITS ONTO ITS ROOF · ARCHERS SHOOT FROM THE TOP',
+  tower: '▸ SEND UP TO 3 UNITS ONTO ITS ROOF',
 };
 export const WEAPON_NAMES = { artillery: 'Artillery', emp: 'EMP', airdrop: 'Airdrop', bombard: 'Bombard', aegis: 'Aegis' };
 export const WEAPON_IDS = Object.keys(WEAPON_NAMES);

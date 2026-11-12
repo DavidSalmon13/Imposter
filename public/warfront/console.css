@@ -59,3 +59,21 @@
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-army { margin-left: 6px; font-size: 13px; font-weight: 700; color: #cfe0ee; font-variant-numeric: tabular-nums; white-space: nowrap; }
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-army-cap { font-size: 10px; color: #8fa3b5; }
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-army.wf-army-full { color: #ffcc33; text-shadow: 0 0 6px rgba(255,204,51,.5); }
+
+/* Plan Step 24 (2c-command-cards.html "Building info"): a building in the info well, picked or
+   long-pressed. Owner tag, a filled HP bar (striped while it's being built) and its HP as text. */
+:is(#wf-screen) .wf .btag { flex: none; font-size: 8px; font-weight: 800; letter-spacing: .14em; padding: 1px 5px; clip-path: polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%); }
+:is(#wf-screen) .wf .btag.mine { color: #06120a; background: #4dff7a; }
+:is(#wf-screen) .wf .btag.foe { color: #fff; background: linear-gradient(180deg,#4f93ff,#1d4fb0); }
+:is(#wf-screen) .wf .btag.foe.foe-red { background: linear-gradient(180deg,#ff7a7e,#b02a2e); }
+:is(#wf-screen) .wf .btag.wip { color: #0b0e12; background: #9fb0c0; }
+:is(#wf-screen) .wf #wf-info-desc:empty { display: none; }
+:is(#wf-screen) .wf .bhp { position: relative; display: block; flex: none; width: 84px; height: 7px; overflow: hidden; background: #3a1012; box-shadow: inset 0 0 0 1px #000; }
+:is(#wf-screen) .wf .bhp b { position: absolute; inset: 0; display: block; transform-origin: 0 50%; background: #4dff7a; box-shadow: 0 0 4px #4dff7a; }
+:is(#wf-screen) .wf .bhp b.hp-y { background: #ffcc33; box-shadow: 0 0 4px #ffcc33; }
+:is(#wf-screen) .wf .bhp b.hp-r { background: #ff5a5f; box-shadow: 0 0 4px #ff5a5f; }
+:is(#wf-screen) .wf .bhp.build b { background: repeating-linear-gradient(90deg,#9fb0c0 0 4px,#5c6b78 4px 6px); box-shadow: none; }
+:is(#wf-screen) .wf .bhp-txt { margin-left: 3px; font-size: 10px; font-weight: 700; color: #cfe0ee; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:is(#wf-screen) .wf .bhp.build + .bhp-txt { color: #9fb0c0; }
+/* A long-press on the map reads a building: no text selection or iOS callout under the finger. */
+:is(#wf-screen) .wf .tiles { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }

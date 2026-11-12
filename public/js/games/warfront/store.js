@@ -57,6 +57,8 @@ export const S = {
   lore: null, // written by console/cards.js; { type, until }: a Produce card long-pressed, its description shown in the info well
   infoSig: {}, // written by world/build.js, console/selection.js; what renderInfo last drew, so unchanged parts aren't rebuilt
   suppressClickUntil: 0, // written by camera.js
+  inspect: null, // written by console/buildingInfo.js, console/cards.js, battle.js; { id, until }: a building long-pressed on the map, shown in the info well for 4 s
+  inspectHinted: false, // written by console/buildingInfo.js; the long-press hint was shown (fallback when localStorage is blocked)
   produceBatch: 1, // written by console/bulk.js, battle.js; units a Produce card tap queues (1, or 5 with the ×5 switch)
   goBuiltFor: null, // written by gameOver.js, index.js; clock.startedAt of the battle the scene was built for
 };

@@ -791,7 +791,18 @@ both Militiamen, ⊕ again added the two Laborers; one map tap set all four walk
   three it queues three and says so; ×5 never goes over the unit cap.
 - **Tests:** `client/batch.test.mjs` (pure: how many fit given supply, minerals, cost, cap).
 
-### Step 24: Building info on tap
+### Step 24: Building info on tap ✅
+Done 2026-11-12. New `console/buildingInfo.js` draws a building in the info well (picked or
+long-pressed) as in `2c-command-cards.html`: owner-coloured portrait (pale while being built), a
+YOURS / ENEMY / BUILDING tag, a filled HP bar (`scaleX`, striped build bar with "% BUILT" on a site),
+the description on its own line, and an order line (amber "destroy it" lines for enemy buildings).
+It also owns the long-press (400 ms on the tile layer; a finger that moves > 8 px is a pan and cancels
+it). The Tower's order line is now the mockup's "▸ SEND UP TO 3 UNITS ONTO ITS ROOF".
+**Not in the mockups:** a teammate's building gets an ALLY tag (the YOURS style), its owner's name and no
+order line. Checked in headless Chrome at 360px and 390px with your Tower, an enemy Refinery and your
+construction site: selection kept, no command sent by a long-press, HP 32 → 9 repaints the bar red
+live, the stack comes back after 4 s, a short tap still sends the units, the map viewport doesn't
+change height, and the hint shows once. Also checked: a reload mid-match comes back to the battle.
 - **Goal:** tap a building you built and see what it's for and its HP. Today this works only with
   nothing selected (`input.js` picks it and `renderInfo` shows its name, `HP x/max`, the `UNIT_INFO`
   description and one HP pip). With units selected, the same tap moves them to the building, which is

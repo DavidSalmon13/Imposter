@@ -39,7 +39,8 @@ import { onAlert } from './fx.js';
 import { renderBattle, applyLive } from './battle.js';
 import { setTab, armBuild } from './console/build.js';
 import { produceUnit } from './console/cards.js';
-import { onSysButton } from './console/selection.js';
+import { onSysButton, renderInfo } from './console/selection.js';
+import { enableLongPress } from './console/buildingInfo.js';
 import { onTileTap } from './input.js';
 import { selectAll, toggleBatch } from './console/bulk.js';
 import { renderGameOver } from './gameOver.js';
@@ -150,6 +151,9 @@ export const Warfront = {
         produceUnit(hit.unitType);
       }
     });
+    enableLongPress(() => {
+      if (S.live && S.state) renderInfo();
+    });
     world.addEventListener('click', (e) => {
       if (Date.now() < S.suppressClickUntil) return;
       const tile = e.target.closest('.tile');
@@ -177,6 +181,7 @@ export const Warfront = {
     S.live = null;
     S.builtFor = null;
     S.selected.clear();
+    S.inspect = null;
     if (S.rafId) cancelAnimationFrame(S.rafId);
     S.rafId = null;
     clearInterval(S.clockTimer);

@@ -6,12 +6,11 @@
 
 import { S } from '../store.js';
 import { sfx, haptics } from '../../../fx.js';
-import { UNIT_SPRITES, CASTLE_SPRITE, FACILITY_SPRITES } from '../sprites.js';
+import { UNIT_SPRITES, CASTLE_SPRITE } from '../sprites.js';
 import { el, feed } from '../util.js';
 import {
   RACE_NAMES,
   FACILITY_NAMES,
-  FACILITY_ORDERS,
   FACILITY_TYPES,
   UNIT_MAX_HP,
   UNIT_NAMES,
@@ -21,13 +20,16 @@ import {
   statLine,
 } from '../constants.js';
 import { infoPortrait, infoTitle, infoSub, infoHp, infoOrder, cmdBtn } from '../dom.js';
-import { serverNow } from '../clock.js';
 import { hpFraction, hpClass } from '../stackSig.js';
+import { inspectedBuilding, renderBuildingInfo, clearBuildingInfo } from './buildingInfo.js';
 
 const plural = (name, n) => (n === 1 ? name : name.endsWith('man') ? `${name.slice(0, -3)}men` : `${name}s`);
 const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1}-${(id % map.width) + 1}`;
 
-/** The console's info well: the selected stack (mockup), or the battlefield's name and lore. */
+/**
+ * The console's info well: a long-pressed building (Step 24, 4 s), a long-pressed Produce card's
+ * lore, your picked building, the selected stack (mockup), or the battlefield's name and lore.
+ */
 export function renderInfo() {
   const { map } = S.state;
   const team = S.state.myTeam || 'red';
@@ -42,10 +44,22 @@ export function renderInfo() {
     S.infoSig[key] = value;
     return true;
   };
-  const struct = !sel.length && S.selStructure != null ? S.live.units.find((u) => u.id === S.selStructure) : null;
+  const inspected = inspectedBuilding();
+  const struct = inspected || (!sel.length && S.selStructure != null ? S.live.units.find((u) => u.id === S.selStructure) : null);
   // A long-pressed Produce card: that unit's description and stats, for a few seconds.
-  const lore = S.lore && S.lore.until > Date.now() ? S.lore.type : null;
+  const lore = !inspected && S.lore && S.lore.until > Date.now() ? S.lore.type : null;
   if (!lore) S.lore = null;
+  if (struct) {
+    renderBuildingInfo(struct, changed);
+    // Arming a build while your own building is picked: the well says where to place it.
+    if (S.buildMode && !inspected) {
+      infoOrder.textContent = buildOrderText();
+      infoOrder.classList.remove('amb');
+    }
+    renderSys();
+    return;
+  }
+  clearBuildingInfo();
   if (lore) {
     if (changed('portrait', `l:${lore}`)) infoPortrait.innerHTML = (UNIT_SPRITES[lore] || '').replace('<svg ', '<svg style="width: 40px; height: 50px; overflow: visible" ');
     if (changed('hp', `l:${lore}`)) infoHp.innerHTML = '';
@@ -55,31 +69,9 @@ export function renderInfo() {
     renderSys();
     return;
   }
-  const portraitChanged = changed('portrait', struct ? `s:${struct.type}` : lead0);
-  const hpChanged = changed('hp', struct ? `s:${struct.hp}` : hpSig);
+  const portraitChanged = changed('portrait', lead0);
+  const hpChanged = changed('hp', hpSig);
   if (hpChanged) infoHp.innerHTML = '';
-  if (struct) {
-    const art = FACILITY_SPRITES[struct.type];
-    if (portraitChanged) infoPortrait.innerHTML = art.svg.replace('<svg ', '<svg style="width: 46px; height: 46px; overflow: visible" ');
-    infoTitle.textContent = FACILITY_NAMES[struct.type];
-    const max = UNIT_MAX_HP[struct.type];
-    const roof = struct.type === 'tower'
-      ? ` · roof ${S.live.units.filter((u) => u.garrison === struct.id).length}/${(UNIT_STATS.tower && UNIT_STATS.tower.garrison) || 3}`
-      : '';
-    setSub(`s:${struct.id}`, struct.buildDoneAt
-      ? `Under construction · ${Math.max(0, Math.ceil((struct.buildDoneAt - serverNow()) / 1000))}s`
-      : `${RACE_NAMES[S.state.myRace]} · HP ${Math.ceil(struct.hp)}/${max}${roof}${struct.type === 'workshop' && S.live.me ? ` · arsenal ${(S.live.me.arsenal || []).length}` : ''}`,
-    UNIT_INFO[struct.type] || '');
-    if (hpChanged) {
-      const c = struct.hp / max >= 0.75 ? '#4dff7a' : '#ffcc33';
-      const pip = el('span');
-      Object.assign(pip.style, { width: `${Math.max(4, Math.round((struct.hp / max) * 60))}px`, height: '5px', background: c, boxShadow: `0 0 4px ${c}` });
-      infoHp.appendChild(pip);
-    }
-    infoOrder.textContent = S.buildMode ? buildOrderText() : struct.buildDoneAt ? '▸ BEING BUILT · IT WORKS ONCE IT STANDS' : FACILITY_ORDERS[struct.type];
-    renderSys();
-    return;
-  }
   if (!sel.length) {
     if (portraitChanged) infoPortrait.innerHTML = CASTLE_SPRITE.replace('<svg ', '<svg style="width: 44px; height: 44px; overflow: visible" ');
     infoTitle.textContent = map.theme;

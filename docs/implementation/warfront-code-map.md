@@ -84,6 +84,7 @@ warfront/
   console/build.js      Produce/Build tabs, Build cards (arm a facility), Workshop weapon cards (craft)
   console/selection.js  info well (stack/structure/lore), Move/Haul/Hold/All button state, sendOrder
   console/bulk.js       Select all (fighters, again: + Workers) and the ×1/×5 recruit switch
+  console/buildingInfo.js  a building in the info well (picked or long-pressed, Step 24) + the long-press gesture
   input.js              onTileTap: select, pick a facility, move, haul, place an armed build
   gameOver.js           the game-over screen
 ```
@@ -146,7 +147,7 @@ shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, pla
 | Minimap | `minimap.js` (+ `camera.js` for the view box, `map-objects.js` for lighthouse markers) |
 | Combat effects | `fx.js` + `fx.css`; per-unit strikes: `attacks.js`, projectiles + impacts: `projectiles.js`, both styled in `attacks.css` |
 | HUD (base HP, clock, strip) | `hud.js` + `battlefield.css`/`fx.css` |
-| The info well / Move-Haul-Hold | `console/selection.js` + `console.css` |
+| The info well / Move-Haul-Hold | `console/selection.js` (+ `console/buildingInfo.js` for buildings) + `console.css` |
 | Command cards | Produce: `console/cards.js`; Build/Workshop: `console/build.js`; styles `console.css`, `facilities.css` |
 | Tap behaviour on the map | `input.js` |
 | Game over | client `gameOver.js` + `game-over.css`; server `payloads.js` (`gameOverPayload`), `loop.js` (`finishBattle`, points) |

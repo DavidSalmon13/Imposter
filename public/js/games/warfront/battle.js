@@ -32,6 +32,7 @@ export function renderBattle(data) {
     S.selStructure = null;
     S.tab = 'produce';
     S.produceBatch = 1;
+    S.inspect = null;
     renderBatch();
     buildWorld(data);
     S.builtFor = data.clock.startedAt;

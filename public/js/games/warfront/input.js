@@ -13,6 +13,7 @@ import { renderInfo, selectedUnits, renderSys, sendOrder } from './console/selec
 import { feed } from './util.js';
 import { renderBuildCards } from './console/build.js';
 import { renderCards } from './console/cards.js';
+import { hintInspectOnce } from './console/buildingInfo.js';
 
 /** Tap on the battlefield: pick up your stack on that tile, or send the selection there. */
 export function onTileTap(tileId) {
@@ -27,6 +28,7 @@ export function onTileTap(tileId) {
         return;
       }
       sfx.click();
+      hintInspectOnce();
       if (S.buildMode === facility) S.buildMode = null;
       renderBuildCards();
       renderBuildHints();
