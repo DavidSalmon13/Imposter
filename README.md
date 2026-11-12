@@ -61,7 +61,6 @@ docs/                   Per-game specs, implementation plans and design mockups
 - **Server-authoritative.** All game logic runs on the server. Clients only render state and send intents, so players can't see each other's private data.
 - **Warfront** runs a fixed-tick simulation loop per room and sends each player a fog-of-war-filtered snapshot 5 times per second. The engine is a pure module, so it's tested in isolation.
 - **Optional services.** The app runs without a database (results just aren't recorded) and without Google sign-in configured.
-- **Private sticker photos.** The built-in stickers are photos of the original friend group. They're served only to devices unlocked with a crew code; everyone else gets neutral generated avatars from the same URLs (`server/crew.js`).
 
 ## Running locally
 

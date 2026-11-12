@@ -37,10 +37,6 @@ Requires Node >=18. Environment variables (see `.env.example`):
 - `STATS_PASSWORD` — enables the owner-only stats page at `/stats` (daily
   visitors/players/games, `server/stats.js`, persisted to `DATA_DIR/stats.json`).
   Also the owner password for `/admin`. Unset = owner login is disabled (no fallback).
-- `CREW_CODE` — the built-in sticker photos are crew-only (`server/crew.js`): a device
-  unlocks them once via `/crew?code=<CREW_CODE>` (httpOnly cookie); everyone else gets a
-  neutral generated avatar from the same `/images/stickers/<file>` URL, so no client code
-  knows about the gate. Uploading stickers also needs the crew cookie. Unset = nobody unlocks.
 - `DATABASE_URL` — Postgres for accounts and lifetime game history
   (`server/db.js`, `server/accounts.js`, schema in `migrations/`, applied on boot).
   Optional: unset or unreachable = no accounts, games still run.

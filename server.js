@@ -30,8 +30,7 @@ const {
   SHARED_ROOM_CODE,
 } = require('./server/lobby');
 const { registerAllHandlers } = require('./server/gameRegistry');
-const { CUSTOM_STICKERS_DIR, stickerFiles, isValidSticker, addCustomSticker } = require('./server/stickers');
-const crew = require('./server/crew');
+const { CUSTOM_STICKERS_DIR, stickerFiles, addCustomSticker } = require('./server/stickers');
 const stats = require('./server/stats');
 const db = require('./server/db');
 const accounts = require('./server/accounts');
@@ -67,10 +66,6 @@ app.get(['/', '/index.html'], (req, res) => {
 // makes it check with the server (a cheap 304 when unchanged) before each use, instead of
 // guessing they're still fresh. Images and fonts keep the default heuristic caching.
 const REVALIDATE_RE = /\.(html|js|css|webmanifest)$/;
-// Sticker photos are crew-only: everyone else gets a neutral avatar (server/crew.js).
-// Mounted before public/ so it sees /images/stickers requests first.
-app.use('/images/stickers', crew.stickerGate({ isValidSticker }));
-crew.registerCrewRoutes(app);
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {
     if (REVALIDATE_RE.test(filePath)) res.set('Cache-Control', 'no-cache');
@@ -87,11 +82,8 @@ app.get('/api/stickers', (req, res) => {
   res.json({ stickers: stickerFiles() });
 });
 
-// Any crew player in the room can add a sticker to the shared bank.
+// Any player in the room can add a sticker to the shared bank.
 app.post('/api/stickers', express.raw({ type: 'image/*', limit: '2mb' }), (req, res) => {
-  if (!crew.isCrew(req)) {
-    return res.status(403).json({ ok: false, error: 'Only the crew can add stickers' });
-  }
   const room = rooms.get(SHARED_ROOM_CODE);
   const name = String(req.query.name || '').trim();
   if (!room || !room.players.has(name)) {
