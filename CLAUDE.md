@@ -9,9 +9,11 @@ code from their own phones; one game runs at a time per room, with a shared
 scoreboard that persists across games. Games today: Imposter, Codenames,
 10 Seconds, Menifot, Music Timeline, All-In or Fold, Mind Meld, Bluff, and
 Warfront (a real-time strategy game still being built step by step from
-`docs/implementation/warfront-plan.md`; its pure engine is `server/games/warfrontEngine.js`, driven by
-a per-room `setInterval` sim loop in `server/games/warfront.js` that pushes each player a fogged
-`wfLive` snapshot 5×/s).
+`docs/implementation/warfront-plan.md`; its pure engine is `server/games/warfront/engine/`, driven by
+a per-room `setInterval` sim loop in `server/games/warfront/loop.js` that pushes each player a fogged
+`wfLive` snapshot 5×/s). Warfront is split into small single-purpose modules (server engine, server
+shell, client, CSS, tests); **before touching it, open `docs/implementation/warfront-code-map.md`** to
+find the 1–3 files a change needs, and keep every Warfront file at 400 lines or fewer.
 Game rules/UX for each live in `docs/specs/*.md` — read the
 relevant one before changing that game's logic.
 
@@ -19,7 +21,7 @@ relevant one before changing that game's logic.
 
 ```
 npm start          # node server.js — no build step, serves public/ statically
-npm test           # node --test — runs the server/games/*.js unit suite in tests/
+npm test           # node --test — runs the server-side unit suite in tests/ (recursively)
 ```
 
 No lint command exists yet. `tests/` holds Node's built-in test runner suite
@@ -91,6 +93,15 @@ disconnect/reconnect socket handlers that delegate into the active game via
 `<script type="module" src="js/main.js">`. Each game module exports
 `init` / `applyState` (or `applyJoin`) / `stop`, matching the Menifot client pattern.
 
+**Warfront is the exception to "one file per game"** because of its size. The server side is a folder
+`server/games/warfront/` (an `index.js` implementing the contract, so `gameRegistry.js` still has
+one `require`), with a pure layered engine in `engine/` (data → grid → pathing → mapgen → state →
+`systems/*` → commands → sim → view) and a thin shell (handlers, loop, payloads, alerts,
+battlefield/OpenAI, lifecycle). The client is `public/js/games/warfront/` (`index.js` exports
+`Warfront`; shared mutable state lives in one `S` object in `store.js`), and its styles are
+`public/warfront/*.css`, linked in cascade order from `index.html`. Layer rules and a "to change X,
+edit Y" table: `docs/implementation/warfront-code-map.md`.
+
 The look is the "Afterglow" theme (dark ground, glass panels, lime accent): `public/theme-afterglow.css`,
 loaded after `style.css` and switched on by `<html data-theme="afterglow">` in `index.html` and
 `account.html`. It overrides `style.css`'s colour tokens and restyles components with
@@ -100,7 +111,8 @@ attribute brings back the original wooden theme. Restyle a component there, not 
 ## Testing
 
 `npm test` runs the server-side unit suite (`tests/games/*.test.js`, one file
-per game, plus pure-logic tests for `pokerEval.js`/`bluffHands.js`). It drives
+per game, plus pure-logic tests for `pokerEval.js`/`bluffHands.js`; Warfront's tests are a folder,
+`tests/games/warfront/`, with one engine test file per engine module). It drives
 each game module's real `registerHandlers`/`onChoose`/etc. against a fake
 `ctx`/`io`/socket (see `tests/helpers/harness.js`) — no real socket.io server,
 no real OpenAI calls (mocked via `global.fetch`), no real multi-second

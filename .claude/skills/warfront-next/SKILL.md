@@ -15,15 +15,19 @@ Do only that step. Say which one you're doing in one line, then start (no need t
 If the `warfront-step` skill is available, follow it for this step. Otherwise, the short version:
 
 - **Read first:** `docs/specs/warfront-specs.md` (rules + the binding "Look & feel" section and swap
-  table), the step in the plan (and decisions D1–D12), `CLAUDE.md`, and the code earlier steps
-  produced (`server/games/warfrontEngine.js`, `server/games/warfront.js`,
-  `public/js/games/warfront.js`, `public/js/games/warfrontSprites.js`, `public/warfront.css`,
-  `tests/games/warfront*.test.js`). For UI work also the matching mockup in `docs/design/warfront/`
-  and its source in `docs/design/warfront/source/`.
+  table), the step in the plan (and decisions D1–D12), `CLAUDE.md`, and
+  `docs/implementation/warfront-code-map.md`, which tells you which 1–3 files of the earlier steps' code
+  (`server/games/warfront/engine/`, `server/games/warfront/`, `public/js/games/warfront/`,
+  `public/warfront/`, `tests/games/warfront/`) to open and where new code goes. For UI work also
+  the matching mockup in `docs/design/warfront/` and its source in `docs/design/warfront/source/`.
 - **Rules:** the engine stays pure (no sockets/timers/`Date.now()`/`Math.random()`); hidden info
   goes per-socket, never `roomEmit`; every handler checks game, phase and who's asking, and
   answers `callback({ ok, error })`; port the mockup's markup/CSS/SVG (no emoji art, no
   look-alikes). If the spec and plan disagree or something is undefined, stop and ask.
+- **Small modules:** new code goes where the code map says, in files of **≤400 lines** (hard cap
+  500). Split along the seams before a file grows past that, keep the code map's layer rules (no
+  circular imports), start each new file with a 3–6 line header, and update the code map when you
+  add or move a file.
 - **Tests:** write every test the step lists; `npm test` must be fully green (run `npm install`
   first if `node_modules` is missing).
 - **Finish:** mark the step ✅ in the plan with a one-line note of anything that changed, commit

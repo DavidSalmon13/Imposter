@@ -49,7 +49,7 @@ server/
   persistence.js        Saves and restores room state across restarts
   db.js, accounts.js    PostgreSQL access, Google sign-in, game history
   ratings.js, badges.js, betting.js, stats.js, admin.js
-  games/                One module per game (+ warfrontEngine.js, a pure simulation engine)
+  games/                One module per game (warfront/ is a folder: a pure engine/ plus its shell)
   lib/                  OpenAI client, seeded RNG, shuffling, input validation
 public/                 Static client: index.html, js/games/*, js/shared/*
 migrations/             SQL migrations for PostgreSQL

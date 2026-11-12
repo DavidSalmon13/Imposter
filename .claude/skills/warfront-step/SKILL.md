@@ -21,9 +21,11 @@ Read these in full, every run (a fresh session has no memory of earlier steps):
 4. `CLAUDE.md` — repo conventions and testing rules.
 5. For any client step: the matching mockup(s) in `docs/design/warfront/` and their editable source in
    `docs/design/warfront/source/*.dc.html`, plus `docs/design/warfront/README.md`.
-6. The code the earlier steps produced (`server/games/warfrontEngine.js`, `server/games/warfront.js`,
-   `public/js/games/warfront.js`, `public/warfront.css`, `public/js/games/warfrontSprites.js`,
-   tests under `tests/games/warfront*.test.js`) — extend it, don't rewrite it.
+6. `docs/implementation/warfront-code-map.md`: where every part of Warfront lives, the "to change X,
+   edit Y" table, the dependency-layer rules and where this step's new code goes. Then open **only**
+   the files it points you to (usually 1–3 per feature) in `server/games/warfront/engine/`,
+   `server/games/warfront/`, `public/js/games/warfront/`, `public/warfront/` and
+   `tests/games/warfront/`. Extend that code, don't rewrite it.
 
 Then check `git log --oneline -10` and `git status` so you start from the current `main`.
 
@@ -34,8 +36,17 @@ Then check `git log --oneline -10` and `git status` so you start from the curren
 - **Spec and plan win.** If they disagree with each other, or something the step needs isn't
   defined, **stop and ask the user** — don't guess. If the user changes a rule, update the spec
   first, then the plan.
-- **Engine purity:** `warfrontEngine.js` has no sockets, timers, OpenAI, `Date.now()` or
-  `Math.random()`. Time comes in as `now`; randomness from `rngFor(seed, tick)`.
+- **Engine purity:** nothing under `server/games/warfront/engine/` uses sockets, timers, OpenAI,
+  `Date.now()` or `Math.random()` (`tests/games/warfront/engine/purity.test.js` checks). Time comes
+  in as `now`; randomness from `rngFor(seed, tick)`.
+- **Small modules (≤400 lines):** put new code where the code map says. A new system gets its own
+  `engine/systems/<name>.js`, wired through `commands.js`/`sim.js`. A new client part gets its own
+  module and is called from `battle.js`. New styles get a new `public/warfront/<part>.css` linked
+  last in `index.html`. No file may exceed 400 lines (hard cap 500): split along the seams first.
+  Keep the layer rules (no circular imports, no lower layer importing a higher one, no client module
+  importing `index.js`/`battle.js`, shared client state only in `store.js`'s `S`). Start every new
+  file with the 3–6 line header (what it owns, what it must not contain, which spec/mockup section).
+  Update the code map when you add or move a file.
 - **Use the plan's names** for files, events, functions and state fields (`wf` prefix).
 - **Design is binding:** the game must look exactly like `docs/design/warfront/`. Port the mockup's
   markup, CSS and SVG — don't recreate a look-alike and never use emoji placeholder art. Apply

@@ -29,7 +29,7 @@ the opponents sit right next to you).
 - **Namespaced room state** (the migrated pattern, like Bluff): all state lives under
   `room.state.warfront`, declared via the module's `namespaces` descriptor — no new flat
   `createRoomState()` fields. See "Server state."
-- New pure-logic module `server/games/warfrontEngine.js` (map gen/validation, unit/terrain tables,
+- New pure-logic engine `server/games/warfront/engine/` (map gen/validation, unit/terrain tables,
   and the **pure seeded simulation step** `stepSim` that advances movement, combat, economy,
   production, events and the win check) plus `server/lib/rng.js` (a seeded PRNG), both unit-tested
   the way `pokerEval.js`/`bluffHands.js` are. The module owns the per-room `setInterval` sim loop
@@ -77,8 +77,8 @@ team colours, the SVG sprite conventions) and add them to the mockups (see the p
 
 ## Configurable constants
 
-Tuning lives in `warfrontEngine.js`'s `TUNING` block (gameplay balance) and the module
-(timing/roster). All are expected to be iterated on during a balance pass.
+Tuning lives in the engine's `TUNING` block in `server/games/warfront/engine/constants.js` (gameplay
+balance) and the shell's `server/games/warfront/constants.js` (timing/roster). All are expected to be iterated on during a balance pass.
 
 | Constant | Value | Meaning |
 |---|---|---|
@@ -307,7 +307,7 @@ snapshot** to each socket, which the phone renders and tweens. No rounds, no com
 commands apply the instant they arrive and the sim plays them out.
 
 The core is a **pure, seeded** engine function `stepSim(state, dtMs, { seed, tick })` in
-`warfrontEngine.js` that advances every system by `dtMs` and returns `{ state, events }`. `events`
+the engine (`engine/sim.js`) that advances every system by `dtMs` and returns `{ state, events }`. `events`
 is a list of discrete things that happened this step (`spawn` / `death` / `deposit` / `baseHit` /
 `weapon` / `pickup` / `battlefieldEvent`) for client sound/FX **only** — the client renders the
 authoritative `state` and never recomputes anything. Because `stepSim` is pure and seeded, the full

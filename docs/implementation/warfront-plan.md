@@ -80,54 +80,75 @@ spec**; change anything there first.
 ## Architecture
 
 ```
-socket (wfCommand) ──► warfront.js handler ──► engine.applyCommand(state, name, cmd, now)
-                                                      │  (validates, mutates, returns ok/no-op)
-setInterval(WF_TICK_MS) ─► warfront.js tickRoom ──► engine.stepSim(state, dt, { now })
-                                                      │  returns { events }
-                                                      ▼
-                           broadcastLive: for each connected player
-                             io.to(socketId).emit('wfLive', engine.viewForPlayer(state, name))
+socket (wfCommand) ──► handlers.js ──► engine.applyCommand(state, name, cmd, now)   (engine/commands.js)
+                                              │  (validates, routes to systems/*.order*, returns ok/no-op)
+setInterval(WF_TICK_MS) ─► loop.js tickRoom ──► engine.stepSim(state, dt, { now })    (engine/sim.js)
+                                              │  calls systems/*.step* in order; returns { events }
+                                              ▼
+                     payloads.js broadcastLive: for each connected player
+                       io.to(socketId).emit('wfLive', engine.viewForPlayer(state, name))   (engine/view.js)
 ```
 
-- **`server/games/warfrontEngine.js` is pure.** No sockets, no OpenAI, no timers, no `Date.now()`.
-  Time comes in as `now`, randomness as `rngFor(seed, tick)`. It exports the data tables, map
-  helpers, `applyCommand`, `stepSim`, `viewForPlayer` and `winnerByBaseHp`. Everything in
-  "Combat/Economy/Movement" in the spec is implemented here and unit-tested here.
+**Where everything lives: `docs/implementation/warfront-code-map.md`** (file tree, "to change X, edit
+Y" table, layer rules, where Steps 10–15 put new code). Since Step 8c the code is small
+single-purpose modules. Keep every file at 400 lines or fewer (hard cap 500), and split along the
+seams the code map describes.
+
+- **`server/games/warfront/engine/` is pure.** No sockets, no OpenAI, no timers, no `Date.now()`.
+  Time comes in as `now`, randomness as `rngFor(seed, tick)`. It is layered: `constants` → `data` →
+  `grid` → `pathing` → `mapgen` → `state` (+ `vision`) → `systems/*` (movement, facilities, economy,
+  production, combat, lighthouses, victory) → `commands` → `sim` → `view`, and `index.js` exports
+  the data tables, map helpers, `applyCommand`, `stepSim`, `viewForPlayer` and `winnerByBaseHp`.
+  Everything in "Combat/Economy/Movement" in the spec is implemented here and unit-tested here
+  (`tests/games/warfront/engine/<module>.test.js`).
 - **`stepSim` mutates `state` in place** and returns `{ state, events }` (same object). Cloning a
   few hundred units 5×/s per room is wasted work; tests treat the input as owned by the call.
-- **`server/games/warfront.js` is the shell:** handlers, OpenAI calls, the interval map, persistence
-  hooks, payload fan-out. It should stay thin. If a rule shows up here, it belongs in the engine.
+- **The rest of `server/games/warfront/` is the shell:** `handlers.js`, `battlefield.js` (OpenAI),
+  `loop.js` (the interval map), `lifecycle.js` (state, persistence hooks), `payloads.js` +
+  `alerts.js` (fan-out), `roster.js` and an `index.js` with the module contract. It should stay thin.
+  If a rule shows up here, it belongs in the engine.
 - **Static vs live payloads.** The map (tiles, veins, supply sources, bases, theme, lore) never
   changes during a match, so it's sent **once** as `wfState` (on battle start, reconnect and phase
   changes). The 5×/s `wfLive` carries only the dynamic part. This is the main lever on bandwidth
   (see Step 15).
 - **The client is a dumb renderer.** It never simulates. Between snapshots it tweens unit stacks
-  using each unit's `stepEndsAt`, so movement looks smooth at 5 Hz.
+  using each unit's `stepEndsAt`, so movement looks smooth at 5 Hz. `public/js/games/warfront/battle.js`
+  calls the renderers (one module each: units, orders, fog, minimap, map objects, structures, fx,
+  HUD, console) in a fixed order. Shared mutable state is one `S` object in `store.js`.
 
 ## Target files
+
+The layout after Step 8c. Each file's one-line job is in the code map.
 
 **New:**
 - `server/lib/rng.js`: `mulberry32(seed)`, `hashSeed(seed, tick)`, `rngFor(seed, tick)`,
   `randomSeed()`. Tiny and dependency-free.
-- `server/games/warfrontEngine.js`: pure engine (see above).
-- `server/games/warfront.js`: the game module (contract per `refactor_plan.md` §4, namespaced like
-  `codenames.js`).
-- `public/js/games/warfront.js`: client module (`init` / `applyState` / `applyJoin` / `stop`).
-- `public/js/games/warfrontSprites.js`: the unit/building/terrain SVG strings, lifted from
+- `server/games/warfront/engine/`: the pure engine (see above). New systems go in
+  `engine/systems/<name>.js` (Step 10 `weapons.js`, Step 11 `events.js`) and are wired through
+  `commands.js` (orders) and `sim.js` (steps).
+- `server/games/warfront/`: the game module (contract per `refactor_plan.md` §4, namespaced like
+  `codenames.js`): `index.js`, `constants.js`, `roster.js`, `payloads.js`, `alerts.js`, `loop.js`,
+  `battlefield.js`, `lifecycle.js`, `handlers.js`.
+- `public/js/games/warfront/`: the client. `index.js` exports `Warfront` (`init` / `applyState` /
+  `applyJoin` / `stop`). There is one module per screen part (see the code map), with shared state in
+  `store.js` and element lookups in `dom.js`.
+- `public/js/games/warfront/sprites.js`: the unit/building/terrain SVG strings, lifted from
   `docs/design/warfront/source/Units.dc.html` and `Main.dc.html`. Created in Step 3 and used by every
   client step; never emoji placeholders.
-- `public/warfront.css`: `wf-*` styles. A separate file because it'll be large (terrain textures,
-  sprites, keyframes); loaded after `theme-afterglow.css`.
-- `tests/helpers/` stays as is; new `tests/games/warfrontEngine.test.js` (pure engine) and
-  `tests/games/warfront.test.js` (handlers/loop through the harness), plus `tests/lib/rng.test.js`
-  if a `tests/lib/` folder is preferred (otherwise put it in `tests/games/`).
+- `public/warfront/*.css`: `wf-*` styles, one file per screen/part (shell, team-select, battlefield,
+  fx, console, lighthouses, game-over, facilities), linked from `index.html` after
+  `theme-afterglow.css` in that order (the order is the cascade). A new part gets a new file linked
+  last.
+- `tests/helpers/` stays as is. Warfront's tests are `tests/games/warfront/`: `engine/<module>.test.js`
+  (pure engine, shared helpers in `fixtures.js`) and `handlers`/`battlefield`/`loop`/`gameOver.test.js`
+  (the shell through the harness, helpers in `shellFixtures.js`), plus `tests/games/rng.test.js`.
 
 **Touched:**
 - `server/gameRegistry.js`: `require('./games/warfront')`, add `warfront` to `GAMES`.
 - `server/roomStore.js`: one comment line: `// Warfront phases: 'teamSelect' | 'generating' |
   'playing' | 'gameover'` and `// Warfront fields live in state.warfront`.
 - `public/index.html`: `#wf-team-screen`, `#wf-screen` (battlefield), `#wf-gameover-screen`;
-  the WARFRONT tile drops `tile-wip` and the "Under construction" sub-label; link `warfront.css`.
+  the WARFRONT tile drops `tile-wip` and the "Under construction" sub-label; link `public/warfront/*.css`.
 - `public/js/main.js`: import the module, add `warfront` to `GAMES`, replace the "Coming soon"
   poke handler (lines ~690–702) with `socket.emit('chooseGame', 'warfront', ...)`, add
   `WF_MIN_PLAYERS = 2` to `renderLobby`'s underfilled logic, add a "Building the battlefield…"
@@ -170,14 +191,14 @@ events** (it can't reuse Codenames' `joinTeam`/`claimLeader`, which guard on
 - `wfPing`, `wfTeamMessage`: relayed, same-team only.
 - `generating`: reused shared event.
 
-**Engine exports** (`warfrontEngine.js`): `RACES`, `UNIT_TYPES`, `TERRAIN_TYPES`, `TUNING`,
+**Engine exports** (`engine/index.js`): `RACES`, `UNIT_TYPES`, `TERRAIN_TYPES`, `TUNING`,
 `WEAPON_EFFECTS`, `EVENT_EFFECTS`, `FACILITIES`, `MAP_SIZES`, `MATCH_LENGTHS`, `TEAM_PHRASES`;
 `tileId(x,y,w)`, `tileXY(id,w)`, `manhattan`, `neighbors`, `bfsPath(map, from, to)`;
 `validateMap(raw, size)`, `buildFallbackMap(size, rng)`; `createBattleState(map, roster, opts)`;
 `applyCommand(state, name, cmd, now)`; `stepSim(state, dtMs, { now })`;
 `viewForPlayer(state, name)`; `winnerByBaseHp(state)`; `rollEvent(state, rng)`.
 
-**Module-local functions** (`warfront.js`): `createState`, `clearState`, `stopLoop(roomCode)`,
+**Module-local functions** (`server/games/warfront/*.js`): `createState`, `clearState`, `stopLoop(roomCode)`,
 `startLoop(ctx, roomCode)`, `tickRoom(ctx, roomCode)`, `broadcastLive(ctx, roomCode, room, events)`,
 `broadcastWfState(ctx, roomCode, room)`, `wfStatePayload(room, name)`,
 `generateBattlefield(room, size)` (OpenAI), `generateBattle(ctx, roomCode, room)`,
@@ -214,7 +235,7 @@ match cap, event interval) are exported from the engine, loop/roster ones are le
 `tests/games/rng.test.js`.
 - `server/lib/rng.js`. Tests: same seed+tick → same sequence; different tick → different sequence;
   output in `[0,1)`.
-- `warfrontEngine.js` data tables only: `RACES`, `UNIT_TYPES` (hp, atk, cost, move, class, range,
+- `engine/data.js` data tables only: `RACES`, `UNIT_TYPES` (hp, atk, cost, move, class, range,
   race, flags), `TERRAIN_TYPES`, `TUNING`, `FACILITIES`, `WEAPON_EFFECTS`, `EVENT_EFFECTS`,
   `MAP_SIZES`, `MATCH_LENGTHS`, `TEAM_PHRASES`, `rpsMultiplier(a, b)`.
 - Tests: every race has exactly one worker; every unit's race is real; RPS triangle is
@@ -239,18 +260,18 @@ differs by ≤ 2; ≤ 8 weapon tokens; features may not share a tile. Also expor
 Done 2026-11-11. `startWarfront` validates (host/captain, both teams 1–4, every team member has a
 race; unassigned players don't block) then stays in `teamSelect` and sends everyone a `wfNotice`
 ("the battlefield is still being built") until Step 4. Teams are capped at 4 (`WF_MAX_TEAM_SIZE`).
-`clearState` keeps `phaseConfig`, `lobbyRaces` and the avoid-lists. `warfront.css` scopes every
+`clearState` keeps `phaseConfig`, `lobbyRaces` and the avoid-lists. `public/warfront/*.css` scopes every
 rule through `:is(#wf-team-screen) .wf` so the mockup's buttons beat style.css's global `button`
 hover/active rules; add later screen ids to that `:is()`. Additions the mockup doesn't draw, in its
 style: a "Not on a team" line, a Back to Lobby button, an error/notice line, and bottom padding that
 clears the floating reaction row. Workers have no art yet (needed from Step 4).
-- `warfront.js` with `createState`/`clearState`/`onChoose` (→ `teamSelect`, reset `p.team`/
+- `server/games/warfront/` with `createState`/`clearState`/`onChoose` (→ `teamSelect`, reset `p.team`/
   `p.leader`), team-select handlers, `broadcastWfState`, `reconnectPayload` for `teamSelect`.
   Register in `gameRegistry.js`.
 - Client: enable the tile, `#wf-team-screen` ported from `docs/design/warfront/1-team-select.html`
   (Red/Blue columns, race picker, captain button, host options, Randomize, Start), with the mockup's
-  "Planning time" control turned into **Match length** (8 / 12 / 16 min). Create `warfront.css` and
-  `warfrontSprites.js` here, porting the shared panel/typography styles and the race art the screen
+  "Planning time" control turned into **Match length** (8 / 12 / 16 min). Create `public/warfront/*.css` and
+  `sprites.js` here, porting the shared panel/typography styles and the race art the screen
   uses.
 - `startWarfront` at this step just validates and moves to `generating` → immediately back with a
   "next step" toast (or stub straight to Step 4).
@@ -501,6 +522,14 @@ page reload. A hauler already walking home when its Refinery finishes keeps goin
   `2c-command-cards` gives structures).
 - Tests: each placement rule; destroying a Refinery stops its effect immediately; Barracks spawn.
 
+### Step 8c: Split into small modules ✅
+Done 2026-11-12, after Step 9. A pure move refactor with no behaviour or visual change: the engine,
+shell, client, CSS and tests went from a few huge files to the layout in "Target files" and
+`warfront-code-map.md`. The same 321 tests pass, and a seeded browser run matches main screen for
+screen. Systems may import an earlier system (movement → facilities → economy → production → combat
+→ lighthouses → victory) because some order/step functions are shared. `visionFor` sits in
+`engine/vision.js` below the systems because the build rule (D4) needs it.
+
 ### Step 10: Special weapons
 - Engine: `weapon` command for each id per the spec + numbers table; aegis via
   `bases[team].shieldUntil`; emp via a `disabledUntil` on the structure unit.
@@ -556,8 +585,9 @@ page reload. A hauler already walking home when its Refinery finishes keeps goin
 
 - **The engine is where the suite earns its keep.** Every rule in the spec should have an engine
   test that builds a tiny hand-made map (e.g. a 5×3 strip), places units, calls `stepSim` N times
-  with a fixed seed, and asserts the result. Add a small `makeBattle({ units, terrain })` builder
-  inside `warfrontEngine.test.js` so tests stay short.
+  with a fixed seed, and asserts the result. Use the `makeBattle({ rows, units, … })` builder (and
+  the other helpers) in `tests/games/warfront/fixtures.js` so tests stay short, and put each test in
+  the `engine/<module>.test.js` of the module it exercises.
 - **Determinism test:** run the same 2-minute scripted match twice with the same seed and assert
   identical final state. Catches any accidental `Math.random()`/`Date.now()` in the engine.
 - Module tests use the harness (`createTestCtx`, `makeHandlerSocket`, `mockOpenAi`,

@@ -24,6 +24,22 @@ also a standalone, self-contained HTML file with no external assets:
 The battlefield is a 1120×770 world inside a 390px-wide phone viewport. Drag or scroll
 to pan it.
 
+## Where each screen lives in the game
+
+The real game ports these screens into small modules. Full map: `docs/implementation/warfront-code-map.md`.
+
+| Mockup | Client module(s) in `public/js/games/warfront/` | Styles in `public/warfront/` |
+| --- | --- | --- |
+| `1-team-select.html` | `teamSelect.js` | `team-select.css` |
+| `2-battlefield.html` | `world/build.js`, `world/geometry.js`, `units.js`, `orders.js`, `fog.js`, `minimap.js`, `camera.js`, `map-objects.js`, `hud.js`, `console/selection.js` | `battlefield.css`, `lighthouses.css` |
+| `2b-unit-roster.html` | `units.js`, art in `sprites.js` | `battlefield.css` (squads) |
+| `2c-command-cards.html` | `console/cards.js`, `console/build.js`, `structures.js` | `console.css`, `facilities.css` |
+| `3-resolution.html` | `fx.js` (played once per event, live) | `fx.css` |
+| `4-game-over.html` | `gameOver.js` | `game-over.css` |
+
+The page shell and how every rule is scoped live in `shell.css`. The markup (screen ids) is in
+`public/index.html`.
+
 ## How it's built
 
 - **2.5D with plain HTML + CSS.** Each map is a flat `.world` plane tilted with
