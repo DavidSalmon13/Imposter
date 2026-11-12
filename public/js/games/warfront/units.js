@@ -81,8 +81,9 @@ function fillStack(node, g, you) {
   const form = FORMATIONS[figTypes.length];
 
   node.appendChild(el('span', 'dec sqsh'));
-  // Selected: the team ring gives way to a green ring under each figure (mockup).
-  node.appendChild(el('span', `dec ${isSel ? 'rg-unk' : `rg-${g.team}`}`));
+  // Selected: the team ring gives way to a bright full-tile green ring, a green ring under
+  // each figure and a ▼ over the stack (2-battlefield.html, plan Step 21).
+  node.appendChild(el('span', `dec ${isSel ? 'selg' : `rg-${g.team}`}`));
   if (isSel) {
     form.forEach(([fx, fy]) => {
       const r = el('span', 'selr');
@@ -92,6 +93,7 @@ function fillStack(node, g, you) {
     });
   }
   const bb = el('div', `bb sqbb tm-${g.team}`);
+  if (isSel) bb.appendChild(el('span', 'selm'));
   bb.appendChild(el('span', 'hpb', `<span class="${pct >= 75 ? 'hp-g' : pct >= 35 ? 'hp-y' : 'hp-r'}" style="width: ${pct}%"></span>`));
   bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
   form.forEach(([fx, fy], i) => {

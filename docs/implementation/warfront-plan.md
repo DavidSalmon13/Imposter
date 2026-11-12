@@ -718,7 +718,12 @@ ring, lighthouse glow and dropped-load glow grew 18% and snapped back every 2.2 
 keyframes are now `wfOrbPulse`. No new rule: keyframe names are global, so check for an existing name
 before adding one.
 
-### Step 21: Clear selection
+### Step 21: Clear selection ✅
+Done 2026-11-12. Mockups for Steps 21–24 drawn first in `2-battlefield.html` / `source/Main.dc.html`
+and `2c-command-cards.html` / `source/Rosters.dc.html`. Ported: a selected stack swaps its team ring
+for `.selg` (76px green tile ring, static glow) and gets a `.selm` ▼ over its HP bar, lifted with the
+labels (`translateZ(40px)`) so the 3D sort never hides it. Checked in headless Chrome (two players,
+390px and 360px): tap selects (ring + marker), tap again lets go, both ride along a walking stack.
 - **Goal:** tapping your stack makes it obvious which units you're commanding, on the map and in the
   console. Today the team ring is swapped for a small 30px green ring under each figure, which is easy
   to miss at phone scale.

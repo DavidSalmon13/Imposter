@@ -109,6 +109,9 @@
 :is(#wf-screen, #wf-gameover-screen) .wf .rg-blue{width:70px;height:70px;border:1.5px solid rgba(79,147,255,.75);background:radial-gradient(circle,rgba(79,147,255,.14),transparent 70%)}
 :is(#wf-screen, #wf-gameover-screen) .wf .rg-unk{display:none}
 :is(#wf-screen, #wf-gameover-screen) .wf .selr{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2.5px solid #4dff7a;box-shadow:0 0 8px #4dff7a;transform:translateZ(2px)}
+/* Selected (plan Step 21, 2-battlefield.html): a bright full-tile ring and a ▼ over the stack. Static, no animation. */
+:is(#wf-screen, #wf-gameover-screen) .wf .selg{width:76px;height:76px;border:2.5px solid #4dff7a;box-shadow:0 0 10px rgba(77,255,122,.8),inset 0 0 12px rgba(77,255,122,.45);background:radial-gradient(circle,rgba(77,255,122,.2),transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .selm{position:absolute;left:50%;top:-21px;margin-left:-9px;width:18px;height:12px;background:#4dff7a;clip-path:polygon(0 0,100% 0,50% 100%);box-shadow:0 0 6px #4dff7a}
 /* overlays + console */
 :is(#wf-screen, #wf-gameover-screen) .wf .vign{position:absolute;inset:0;pointer-events:none;z-index:8;background:radial-gradient(ellipse 75% 70% at 50% 50%,transparent 60%,rgba(0,0,0,.55) 100%)}
 :is(#wf-screen, #wf-gameover-screen) .wf .edge{position:absolute;z-index:9;display:grid;place-items:center;color:#cfe0ee;font-size:12px;pointer-events:none;text-shadow:0 0 6px #000}
@@ -166,7 +169,8 @@
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb { transform-style: preserve-3d; }
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb > .hpb,
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb > .chip,
-:is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb > .wf-load { transform: translateZ(40px); }
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb > .wf-load,
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-units .sqbb > .selm { transform: translateZ(40px); }
 /* Fog of war: a haze plane over unseen ground (fills set per tile). */
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-fog { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 :is(#wf-screen, #wf-gameover-screen) .wf .wf-fog rect { fill: rgba(3,5,10,0); transition: fill .4s; }
