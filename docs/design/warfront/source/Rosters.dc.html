@@ -39,6 +39,19 @@ a{color:#4dff7a}a:hover{color:#b6ffc9}
 @keyframes wfBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 @keyframes wfSway{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
 @keyframes wfFlag{0%,100%{transform:scaleX(1) skewY(0)}50%{transform:scaleX(.8) skewY(8deg)}}
+
+/* ===== Proposal, plan Step 24 (2026-11-12): building info on long-press ===== */
+.sc .scan{background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px)}
+.sc .grn{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55)}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.tm-blue .tc{fill:#3b82f6}.tm-blue .tcd{fill:#1d4fb0}
+.sc .glowc{filter:drop-shadow(0 0 6px rgba(90,216,255,.9))}
+.sc .bhp{position:relative;display:block;width:84px;height:7px;background:#3a1012;box-shadow:inset 0 0 0 1px #000}
+.sc .bhp b{position:absolute;left:0;top:0;bottom:0;display:block;background:#4dff7a;box-shadow:0 0 4px #4dff7a}
+.sc .bhp b.y{background:#ffcc33;box-shadow:0 0 4px #ffcc33}.sc .bhp b.r{background:#ff5a5f;box-shadow:0 0 4px #ff5a5f}
+.sc .bhp.build b{background:repeating-linear-gradient(90deg,#9fb0c0 0 4px,#5c6b78 4px 6px);box-shadow:none}
+.sc .btag{font-size:8px;font-weight:800;letter-spacing:.14em;padding:1px 5px;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}
+.sc .btag.mine{color:#06120a;background:#4dff7a}.sc .btag.foe{color:#fff;background:linear-gradient(180deg,#4f93ff,#1d4fb0)}.sc .btag.wip{color:#0b0e12;background:#9fb0c0}
 </style>
 </helmet>
 <div class="sc tm-red" style="width: 390px; min-height: 480px; box-sizing: border-box; background: #020306; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 12px; padding: 10px">
@@ -72,6 +85,46 @@ a{color:#4dff7a}a:hover{color:#b6ffc9}
       <span class="lbl" style="color: {{c.noteColor}}">{{c.note}}</span>
     </div>
   </sc-for>
+
+
+  <!-- Proposal, plan Step 24: long-press a building in sight; its info shows here for 4 s, selection unchanged -->
+  <div class="well" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px">
+    <span class="lbl">Building info · long-press any building in sight</span>
+
+      <div class="well" style="padding: 8px; display: flex; gap: 8px">
+        <div class="scan tm-red" style="width: 50px; height: 66px; flex: none; display: grid; place-items: center; background-color: #1a0c0e; box-shadow: inset 0 0 0 1px #8a2a2e, inset 0 0 16px rgba(255,90,95,.35)"><svg style="width: 44px; height: 58px; overflow: visible; opacity: 1" viewBox="0 0 48 104" aria-hidden="true"><path fill="#5d636d" d="M8 103 L40 103 L38 96 L10 96 Z"></path><path fill="#8b93a1" d="M11 96 L14 34 L34 34 L37 96 Z"></path><path fill="#000" opacity=".24" d="M24 34 L34 34 L37 96 L24 96 Z"></path><path fill="none" stroke="#6b717b" stroke-width="1" d="M12.6 62 H35.4 M12 80 H36"></path><rect fill="#ffcc66" x="22" y="44" width="4" height="8" rx="2" style="filter: drop-shadow(0 0 2px #ffb347)"></rect><rect fill="#14171c" x="22.4" y="66" width="3.2" height="6" rx="1.6"></rect><path fill="#14171c" d="M20 103 V94 Q24 89 28 94 V103 Z"></path><path class="tc" d="M15 38 L20 38 L20 55 L17.5 52 L15 55 Z"></path><path fill="#9aa2ae" d="M14 34 L34 34 L42 26 L6 26 Z"></path><path fill="#000" opacity=".22" d="M24 34 L34 34 L42 26 L24 26 Z"></path><path fill="none" stroke="#3a3e46" stroke-width=".8" d="M10 30 L14 30 M34 30 L38 30"></path><path class="ln" stroke="#2a2f36" d="M40 14 V-4"></path><path class="tc flag" d="M40 -4 L50 -1 L40 2 Z"></path><path fill="#a7afbb" d="M8 14 V8 H13 V11 H17 V8 H22 V11 H26 V8 H31 V11 H35 V8 H40 V14 Z"></path><path fill="#000" opacity=".2" d="M24 14 V11 H26 V8 H31 V11 H35 V8 H40 V14 Z"></path><path fill="#cfd4db" d="M5 21 L43 21 L40 14 L8 14 Z"></path><path fill="none" stroke="#aeb4bd" stroke-width=".6" d="M7 17.5 H41 M15 14 L13.6 21 M24 14 V21 M33 14 L34.4 21"></path><path fill="#a7afbb" d="M4 21 H44 V27 H4 Z"></path><path fill="#000" opacity=".22" d="M24 21 H44 V27 H24 Z"></path><path fill="none" stroke="#6b717b" stroke-width=".8" d="M4 21 H44"></path></svg></div>
+        <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12.5px; font-weight: 700; letter-spacing: .08em; color: #fff; text-transform: uppercase">Tower</span><span class="btag mine">YOURS</span></span>
+          <span style="font-size: 10px; color: #cdb8ff">Forge · roof 2/3</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span class="bhp"><b class="" style="width: 80%"></b></span><span style="font-size: 10px; font-weight: 700; color: #cfe0ee; font-variant-numeric: tabular-nums">HP 32/40</span></span>
+          <span style="font-size: 10px; color: #a8b6c3; line-height: 1.3">Up to 3 of your units can stand on its roof. Archers and mages shoot from it with +1 range, and nobody can hit them until the tower falls.</span>
+          <span class="grn" style="font-size: 9.5px; letter-spacing: .06em">▸ SEND UP TO 3 UNITS ONTO ITS ROOF</span>
+        </div>
+      </div>
+
+      <div class="well" style="padding: 8px; display: flex; gap: 8px">
+        <div class="scan tm-blue" style="width: 50px; height: 66px; flex: none; display: grid; place-items: center; background-color: #0b1222; box-shadow: inset 0 0 0 1px #2a4f9a, inset 0 0 16px rgba(79,147,255,.35)"><svg style="width: 44px; height: 58px; overflow: visible; opacity: 1" viewBox="0 0 76 66" aria-hidden="true"><ellipse fill="rgba(0,0,0,.4)" cx="38" cy="62" rx="34" ry="4"></ellipse><rect fill="#7d8592" x="6" y="34" width="40" height="28"></rect><rect fill="#000" opacity=".22" x="26" y="34" width="20" height="28"></rect><path class="tc" d="M2 36 L26 18 L50 36 Z"></path><path class="tcd" d="M26 18 L50 36 L26 36 Z"></path><path fill="#14171c" d="M12 62 V50 Q17 44 22 50 V62 Z"></path><rect fill="#ffcc66" x="31" y="42" width="7" height="8" rx="3.5" style="filter: drop-shadow(0 0 3px #ffb347)"></rect><rect fill="#5a5f69" x="44" y="40" width="10" height="5"></rect><rect fill="#4c535d" x="52" y="16" width="20" height="46" rx="3"></rect><rect fill="#000" opacity=".22" x="62" y="16" width="10" height="46" rx="3"></rect><rect fill="#0b1a26" x="55" y="24" width="14" height="30" rx="2"></rect><g class="glowc"><path fill="#38b6e8" d="M62 28 L67 35 L65.6 52 L58.4 52 L57 35 Z"></path><path fill="#d6f8ff" opacity=".75" d="M62 28 L62 52 L58.4 52 L57 35 Z"></path><path class="twk" fill="#ffffff" opacity=".8" d="M60 33 L61 31 L61.6 34 Z"></path></g><path fill="#9aa2ae" d="M50 16 H74 V12 H50 Z"></path><path fill="#2a8fc0" d="M58 12 L61 5 L63 12 Z"></path><path fill="#4cc8f0" d="M63 12 L66 7 L67.6 12 Z"></path><path class="ln" stroke="#2a2f36" d="M26 18 V6"></path><path class="tc flag" d="M26 6 L36 9 L26 12 Z"></path></svg></div>
+        <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12.5px; font-weight: 700; letter-spacing: .08em; color: #fff; text-transform: uppercase">Refinery</span><span class="btag foe">ENEMY</span></span>
+          <span style="font-size: 10px; color: #cdb8ff">Blue · in sight</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span class="bhp"><b class="r" style="width: 33%"></b></span><span style="font-size: 10px; font-weight: 700; color: #cfe0ee; font-variant-numeric: tabular-nums">HP 5/15</span></span>
+          <span style="font-size: 10px; color: #a8b6c3; line-height: 1.3">Their haulers unload here. +1💎 per second on its vein.</span>
+          <span class="amb" style="font-size: 9.5px; letter-spacing: .06em">▸ DESTROY IT TO STOP THEIR BONUS</span>
+        </div>
+      </div>
+
+      <div class="well" style="padding: 8px; display: flex; gap: 8px">
+        <div class="scan tm-red" style="width: 50px; height: 66px; flex: none; display: grid; place-items: center; background-color: #1a0c0e; box-shadow: inset 0 0 0 1px #8a2a2e, inset 0 0 16px rgba(255,90,95,.35)"><svg style="width: 44px; height: 58px; overflow: visible; opacity: 0.45" viewBox="0 0 72 62" aria-hidden="true"><path fill="#6b4a2a" d="M5 60 L36 10 L67 60 Z"></path><path fill="#4a321c" d="M36 10 L67 60 L36 60 Z"></path><path class="tc" d="M20 36 L52 36 L56 43 L16 43 Z"></path><path fill="#1a0f08" d="M30 60 L36 42 L42 60 Z"></path><path class="ln" stroke="#3b2a1e" d="M36 10 L36 1"></path><circle fill="#e8dcc4" cx="36" cy="2" r="2.8"></circle><path class="ln" stroke="#3b2a1e" d="M64 60 L62 20"></path><path class="tc flag" d="M62 20 L71 23 L62.4 27 Z"></path><path fill="#e8dcc4" d="M58 22 L60 18 L61 22 Z M64 22 L66 18 L66.6 22 Z"></path></svg></div>
+        <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12.5px; font-weight: 700; letter-spacing: .08em; color: #fff; text-transform: uppercase">Forward Barracks</span><span class="btag wip">BUILDING</span></span>
+          <span style="font-size: 10px; color: #cdb8ff">Under construction · 8s</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span class="bhp build"><b style="width: 60%"></b></span><span style="font-size: 10px; font-weight: 700; color: #9fb0c0">60% BUILT · HP 12/20</span></span>
+          <span style="font-size: 10px; color: #a8b6c3; line-height: 1.3">A forward spawn point: new units can step out here.</span>
+          <span class="grn" style="font-size: 9.5px; letter-spacing: .06em">▸ BEING BUILT · IT WORKS ONCE IT STANDS</span>
+        </div>
+      </div>
+    <span style="font-size: 10.5px; color: #8fa3b5; line-height: 1.35">Shows for 4 s and keeps your selection. A plain tap is unchanged: with nothing selected it picks your building, with units selected it sends them there.</span>
+  </div>
 
   <div class="well" style="display: flex; gap: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.4; color: #a8b6c3">
     <span style="font-size: 16px">🔮</span>

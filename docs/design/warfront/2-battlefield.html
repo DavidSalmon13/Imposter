@@ -114,6 +114,23 @@ a{color:#4dff7a}a:hover{color:#b6ffc9}
 .sc .rg-blue{width:70px;height:70px;border:1.5px solid rgba(79,147,255,.75);background:radial-gradient(circle,rgba(79,147,255,.14),transparent 70%)}
 .sc .rg-unk{display:none}
 .sc .selr{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2.5px solid #4dff7a;box-shadow:0 0 8px #4dff7a;transform:translateZ(2px)}
+
+/* ===== Proposal, plan Steps 21-23 (2026-11-12): selection, per-soldier HP, army size, bulk ===== */
+.sc .selg{width:76px;height:76px;border:2.5px solid #4dff7a;box-shadow:0 0 10px rgba(77,255,122,.8),inset 0 0 12px rgba(77,255,122,.45);background:radial-gradient(circle,rgba(77,255,122,.2),transparent 70%)}
+.sc .selm{position:absolute;left:50%;top:-21px;margin-left:-9px;width:18px;height:12px;background:#4dff7a;clip-path:polygon(0 0,100% 0,50% 100%);box-shadow:0 0 6px #4dff7a}
+.sc .hpb.seg{display:flex;gap:1px;padding:0}
+.sc .hpb.seg i{flex:1;position:relative;display:block;background:#3a1012}
+.sc .hpb.seg b{position:absolute;left:0;top:0;bottom:0;display:block}
+.sc .hpb.seg b.hp-g{background:#4dff7a}.sc .hpb.seg b.hp-y{background:#ffcc33}.sc .hpb.seg b.hp-r{background:#ff5a5f}
+.sc .uhp{position:relative;display:block;width:30px;height:6px;background:#3a1012;box-shadow:inset 0 0 0 1px #000}
+.sc .uhp b{position:absolute;left:0;top:0;bottom:0;display:block;background:#4dff7a;box-shadow:0 0 4px #4dff7a}
+.sc .uhp b.y{background:#ffcc33;box-shadow:0 0 4px #ffcc33}.sc .uhp b.r{background:#ff5a5f;box-shadow:0 0 4px #ff5a5f}
+.sc .seg{display:grid;gap:3px;padding:3px;background:#05080b;box-shadow:inset 0 0 0 1px #2c3640}
+.sc .seg button{min-height:44px;font-size:14px;font-weight:700;letter-spacing:.1em;color:#8fa3b5;background:linear-gradient(180deg,#1b2128,#0d1115);box-shadow:inset 0 0 0 1px #2c3640}
+.sc .seg button.on{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.6);box-shadow:inset 0 0 0 1px #4dff7a,inset 0 0 12px rgba(77,255,122,.25)}
+.sc .seg.mini{grid-template-columns:repeat(2,auto);gap:2px;padding:2px}
+.sc .seg.mini button{min-height:30px;padding:0 10px;font-size:11.5px;letter-spacing:.06em}
+.sc .army{font-size:13px;font-weight:700;color:#cfe0ee;font-variant-numeric:tabular-nums}
 /* overlays + console */
 .sc .vign{position:absolute;inset:0;pointer-events:none;z-index:8;background:radial-gradient(ellipse 75% 70% at 50% 50%,transparent 60%,rgba(0,0,0,.55) 100%)}
 .sc .edge{position:absolute;z-index:9;display:grid;place-items:center;color:#cfe0ee;font-size:12px;pointer-events:none;text-shadow:0 0 6px #000}
@@ -995,10 +1012,11 @@ body{display:flex;justify-content:center}
           
             <div class="ent" style="left: 440px; top: 412px; transform: translateZ(0px)">
               <span class="dec sqsh"></span>
-              <span class="dec rg-unk"></span>
+              <span class="dec selg"></span>
               <span class="selr" style="left: 0px; top: -11px"></span><span class="selr" style="left: -18px; top: 5px"></span><span class="selr" style="left: 18px; top: 5px"></span>
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 78%"></span></span>
+                <span class="selm"></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 34%"></b></i></span>
                 <span class="chip c-red">🔥×3</span>
                 
                   <span class="fig d0" style="left: 21px; top: 10px">
@@ -1066,7 +1084,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🪓×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1115,7 +1133,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🏹×3</span>
                 
                   <span class="fig d0" style="left: 21px; top: 10px">
@@ -1183,7 +1201,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">✨×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1232,7 +1250,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-red">🪄×1</span>
                 
                   <span class="fig d0" style="left: 21px; top: 24px">
@@ -1262,7 +1280,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 90%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 90%"></b></i></span>
                 <span class="chip c-red">🧿×1</span>
                 
                   <span class="fig d0" style="left: 21px; top: 24px">
@@ -1292,7 +1310,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-g" style="width: 85%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-y" style="width: 40%"></b></i></span>
                 <span class="chip c-red">🗡️×4</span>
                 
                   <span class="fig d0" style="left: 6px; top: 10px">
@@ -1379,7 +1397,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-red"></span>
               
               <div class="bb sqbb tm-red ">
-                <span class="hpb"><span class="hp-y" style="width: 60%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 20%"></b></i></span>
                 <span class="chip c-red">🐎×2</span>
                 
                   <span class="fig d0" style="left: 6px; top: 24px">
@@ -1428,7 +1446,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb"><span class="hp-y" style="width: 70%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-r" style="width: 10%"></b></i></span>
                 <span class="chip c-blue">🗡️×3</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 10px">
@@ -1496,7 +1514,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">👑×1</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 24px">
@@ -1526,7 +1544,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🪃×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1575,7 +1593,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🛠️×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1624,7 +1642,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue ">
-                <span class="hpb"><span class="hp-g" style="width: 90%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 80%"></b></i></span>
                 <span class="chip c-blue">🐴×2</span>
                 
                   <span class="fig d0 flip" style="left: 6px; top: 24px">
@@ -1673,7 +1691,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">🎯×3</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 10px">
@@ -1741,7 +1759,7 @@ body{display:flex;justify-content:center}
               <span class="dec rg-blue"></span>
               
               <div class="bb sqbb tm-blue dim">
-                <span class="hpb"><span class="hp-g" style="width: 100%"></span></span>
+                <span class="hpb seg"><i><b class="hp-g" style="width: 100%"></b></i></span>
                 <span class="chip c-blue">💥×1</span>
                 
                   <span class="fig d0 flip" style="left: 21px; top: 24px">
@@ -1858,20 +1876,21 @@ body{display:flex;justify-content:center}
         </div>
         <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
           <span style="font-size: 12.5px; font-weight: 700; letter-spacing: .08em; color: #fff">BATTLEMAGES ×3</span>
-          <span style="font-size: 10px; color: #cdb8ff">Arcane · plains</span>
-          <div style="display: flex; gap: 3px">
-            <span style="width: 20px; height: 5px; background: #4dff7a; box-shadow: 0 0 4px #4dff7a"></span>
-            <span style="width: 20px; height: 5px; background: #4dff7a; box-shadow: 0 0 4px #4dff7a"></span>
-            <span style="width: 20px; height: 5px; background: #ffcc33; box-shadow: 0 0 4px #ffcc33"></span>
+          <span style="font-size: 10px; color: #cdb8ff">Arcane · plains · 3 selected</span>
+          <div style="display: flex; gap: 4px">
+            <span class="uhp"><b style="width: 100%"></b></span>
+            <span class="uhp"><b style="width: 100%"></b></span>
+            <span class="uhp"><b class="r" style="width: 33%"></b></span>
           </div>
+          <span style="font-size: 9px; color: #8fa3b5; letter-spacing: .04em">HP 24 · 24 · 8 &nbsp;of 24 each</span>
           <span class="grn" style="font-size: 9.5px; letter-spacing: .06em">▸ MOVE → FORD</span>
         </div>
       </div>
     </div>
 
     <div style="display: flex; justify-content: space-between; align-items: center">
-      <span class="lbl">Recruit · Arcane</span>
-      <span style="display: flex; align-items: baseline; gap: 5px"><span class="amb" style="font-size: 17px; font-weight: 700">💰 5</span><span style="font-size: 10px; color: #8fa3b5">of 8 · +3/rd</span></span>
+      <span style="display: flex; align-items: center; gap: 8px"><span class="lbl">Recruit · Arcane</span><span class="seg mini" role="group" aria-label="How many per tap"><button class="on">×1</button><button>×5</button></span></span>
+      <span style="display: flex; align-items: baseline; gap: 5px"><span class="army" title="Your army / unit cap">⚔ 9<span style="font-size: 10px; color: #8fa3b5">/30</span></span><span class="amb" style="font-size: 17px; font-weight: 700; margin-left: 6px">💰 5</span><span style="font-size: 10px; color: #8fa3b5">of 8 · +3/rd</span></span>
     </div>
     <div class="well tm-red" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
       
@@ -1938,9 +1957,9 @@ body{display:flex;justify-content:center}
     </div>
     <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
       <button class="cmd sys on"><span class="ci">➤</span><span class="cn">Move</span></button>
+      <button class="cmd sys"><span class="ci">⛏️</span><span class="cn">Haul</span></button>
       <button class="cmd sys"><span class="ci">🛡️</span><span class="cn">Hold</span></button>
-      <button class="cmd sys"><span class="ci">↶</span><span class="cn">Undo</span></button>
-      <button class="cmd sys"><span class="ci">✕</span><span class="cn">Clear</span></button>
+      <button class="cmd sys"><span class="ci">⊕</span><span class="cn">Select all</span></button>
     </div>
 
     <div style="display: flex; flex-wrap: wrap; gap: 5px">
