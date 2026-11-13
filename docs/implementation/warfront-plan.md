@@ -836,6 +836,47 @@ change height, and the hint shows once. Also checked: a reload mid-match comes b
   HP in the well updates live as it takes damage.
 - **Tests:** none for the DOM gesture; harness check at 360px.
 
+### Free for all (Steps 25–28)
+
+Spec: "Free-for-all mode". Team games must keep working after each step; push each step on its own.
+
+### Step 25: Sides in the engine ✅
+Done 2026-11-13. `SIDES` in `data.js`; bases, combat, build rule, Bombard (aimed at any enemy base
+tile; the client marks every enemy base) and the win check work for 2–4 sides. Tests in
+`engine/sides.test.js`; `makeBattle` also takes `G`/`Y` bases (owners `Green`/`Gold`).
+- **Goal:** the engine handles 2–4 sides instead of exactly red and blue. Nothing visible changes.
+- **Change:** `SIDES` in `engine/data.js`. `createBattleState` builds `bases` from `map.bases` (any
+  sides), checks each player's team is one of them, and gives units `revealedUntil: {}`. Combat
+  lists every base; facilities refuse any base tile; weapons' `enemy` becomes "the targeted enemy
+  base" (Bombard aims at any enemy base tile); victory: a side whose base is at 0 HP is down, the
+  last side standing wins, all remaining falling together is a draw, at the cap the most HP among
+  standing sides wins. `validateMap` still accepts exactly red + blue (FFA maps come in Step 26).
+- **Tests:** a hand-made 3-side battle: targeting ignores own side and hits both others, vision is
+  per side, Bombard on either enemy base, victory with 3 bases (one down = match goes on).
+
+### Step 26: FFA maps
+- **Change:** `validateMap(raw, size, { sides })`: 2 sides as today, or 3–4 FFA sides with one base
+  near each used corner, non-adjacent, each with its supply source/wall and home lighthouse; veins
+  fair by spread of distances. A four-way mirrored fallback generator (`fallbackFfa`). The shell's
+  `battlefield.js` gets an FFA prompt. FFA needs Medium or Large.
+- **Tests:** fallback FFA maps for 3 and 4 sides on Medium and Large validate across seeds, every
+  base reaches every other, the corners get the same land.
+
+### Step 27: FFA winning, elimination, points
+- **Change:** knocked-out sides lose their units and buildings (death events), their lighthouses
+  go neutral, their commands are refused, `view.js` gives them the fog-lifted view. `state.placings`
+  records order of elimination; `loop.js` awards 3/1/0 (2 each for a shared 1st) and history.
+- **Tests:** a 3-side battle: one base falls → that side's units vanish, the match goes on, the
+  player sees everything and can't command; the last base standing wins; points and history.
+
+### Step 28: FFA lobby and visuals
+- **Change:** team select: host-only Teams / Free for all switch (`wfSetMode`), FFA roster (no team
+  buttons/captains, 3–4 players, Small map greyed out), `startBlocker` rules. Client: green and gold
+  side colours for units, castles, structures, minimap, fog-free spectator view, a 4-bar base-HP HUD,
+  FFA game-over (placings 1st–4th, points). Mockup first, then show David.
+- **Tests:** handlers: mode switch is host-only and teamSelect-only, FFA start needs 3–4 players with
+  races, starts with one side each; payloads carry `mode` and every side's base.
+
 ## Testing notes
 
 - **The engine is where the suite earns its keep.** Every rule in the spec should have an engine

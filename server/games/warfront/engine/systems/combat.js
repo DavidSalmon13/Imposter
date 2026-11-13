@@ -37,7 +37,7 @@ function canReach(map, attacker, targetTileId) {
   return d <= attacker.range && isHigh(map, attacker.tileId) === isHigh(map, targetTileId);
 }
 
-/** Every fighter on the field this step: units (by id) and then both bases. */
+/** Every fighter on the field this step: units (by id) and then every standing base. */
 function combatants(state) {
   const out = [];
   const towers = new Set(allUnits(state).filter(({ unit }) => unit.type === 'tower' && unit.hp > 0).map(({ unit }) => unit.id));
@@ -53,8 +53,8 @@ function combatants(state) {
     });
   }
   out.sort((a, b) => a.id - b.id);
-  for (const team of ['red', 'blue']) {
-    const base = state.bases[team];
+  for (const [team, base] of Object.entries(state.bases)) {
+    if (base.hp <= 0) continue;
     out.push({
       kind: 'base', id: Infinity, base, owner: null, team, race: null, cls: 'structure', flags: [],
       tileId: base.tileId, range: TUNING.baseRange, atk: TUNING.baseAtk, attackMs: TUNING.baseAttackMs,
@@ -220,7 +220,7 @@ function stepCombat(state, now, events) {
     // The victim's team sees whoever just hit them for a moment (D14).
     if (attacker.kind === 'unit') {
       const u = attacker.unit;
-      u.revealedUntil = { red: 0, blue: 0, ...u.revealedUntil, [victim.team]: now + WF_REVEAL_MS };
+      u.revealedUntil = { ...u.revealedUntil, [victim.team]: now + WF_REVEAL_MS };
     }
   }
 

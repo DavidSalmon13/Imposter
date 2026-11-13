@@ -172,7 +172,7 @@ function renderFireHints() {
       if (u.team !== myTeam && FACILITY_TYPES.has(u.type) && vis[u.tileId] === '1') mark(u.tileId, 'wf-fh-foe');
     });
   } else if (S.fireMode === 'bombard') {
-    mark(baseOf(myTeam === 'red' ? 'blue' : 'red'), 'wf-fh-foe');
+    map.bases.forEach((b) => { if (b.team !== myTeam) mark(b.tileId, 'wf-fh-foe'); }); // every enemy base (FFA: pick one)
   } else if (S.fireMode === 'aegis') {
     mark(baseOf(myTeam), 'wf-fh-gold');
   }

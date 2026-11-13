@@ -17,7 +17,7 @@ enforces this.
 ```
 engine/
   constants.js            WF_* engine constants and TUNING (balance numbers)
-  data.js                 Races, unit/facility/terrain/weapon/event tables, RPS, map sizes, match lengths
+  data.js                 Races, unit/facility/terrain/weapon/event tables, RPS, SIDES, map sizes, match lengths
   grid.js                 Tile ids/coords, neighbours, terrain lookups, passable, high ground, move cost
   pathing.js              floodFill, bfsPath, findPath (quickest route), pathCost
   mapgen.js               validateMap (AI JSON → normalized map) and the seeded fallback map generator
@@ -30,7 +30,7 @@ engine/
   systems/combat.js       ranges, targeting, damage (RPS, luck, strategy edge, Archmage), base/Tower fire, fall back
   systems/lighthouses.js  lighthouse capture each step
   systems/weapons.js      firing a weapon (artillery, emp, airdrop, bombard, aegis): aim rules + effects (Step 10)
-  systems/victory.js      win check (base at 0 HP, or the match cap → higher base HP)
+  systems/victory.js      win check (last side standing, or the match cap → most base HP)
   commands.js             applyCommand: validates a command and routes it to a system's order* function
   sim.js                  stepSim: calls the systems' step* functions in a fixed order, nothing else
   view.js                 viewForPlayer (fogged live view), own economy, eventsForPlayer, finalView
@@ -112,7 +112,7 @@ Every rule is scoped through a screen id. Selectors and class names are shared w
 
 ```
 engine/<module>.test.js   one per engine module (data, pathing, mapgen, state, movement, economy,
-                          production, facilities, combat, lighthouses, weapons, victory, view, sim, purity)
+                          production, facilities, combat, lighthouses, weapons, victory, view, sim, purity, sides)
 fixtures.js               engine helpers: rawMap, makeBattle, run, fight, lightBattle, plantBuilt,
                           move/produce/haul/build/craft shorthands, SEEDS, spread
 handlers.test.js          team-select handlers, guards, contract

@@ -309,6 +309,35 @@ battlefield event, the match clock) lives in `room.state.warfront`, never in `ro
 - The host or either captain taps **Start Battle** once both teams have ≥ `WF_MIN_TEAM_SIZE` members **and every
   joined player has chosen a race**. This moves to `generating`.
 
+## Free-for-all mode (3–4 players, added 2026-11-13)
+
+A second **mode** next to the team game. The host picks it on the team-select screen
+(`room.state.warfront.mode`: `'teams'` (default) | `'ffa'`). Team games are unchanged.
+
+- **Who:** 3 or 4 players, each on their own. Start Battle in FFA needs 3–4 joined players, each
+  with a race; team buttons, captains and Randomize Teams are hidden (the host starts).
+- **Sides:** the engine knows four sides, `SIDES = ['red', 'blue', 'green', 'gold']`. A team game
+  uses red and blue as today; in FFA each player gets one side (seeded random order at Start). A
+  side is a team of one, so fog, targeting, vision, lighthouses, alerts and "your team" all work
+  per side. Everyone else is an enemy.
+- **Map:** one base in each corner, inset one tile from the edges (3 players leave one corner
+  empty, chosen by the seed). Each base has its supply wall and a home lighthouse beside it. Veins
+  and any contested lighthouses sit in the middle, the same distance from every base. Map size
+  options stay the same, but FFA uses at least **Medium** (Small is not offered). The fallback
+  generator mirrors one quarter onto all four (both axes), so every corner gets the same land.
+- **Elimination:** a base at **0 HP knocks its side out at once**. Its units and buildings crumble
+  (removed with a `death` event each, no Mineral drops) and its held lighthouses go neutral. The
+  player stays in the room and **watches with the fog lifted** (the whole map, like the game-over
+  view) until the match ends. Their commands are refused.
+- **Winning:** the **last side standing** wins at once. If the last bases fall in the same step,
+  it's a draw between those sides. At `WF_MATCH_CAP_MS` the standing side with the **most base HP**
+  wins; equal top HP is a draw.
+- **Placing and points:** sides are ranked by when they were knocked out (later is better); at the
+  match cap the survivors are ranked by base HP. Points: **1st 3, 2nd 1**, the rest 0; a draw for
+  1st gives each of those sides 2. History records `{ name, team: side, won: place === 1, points }`.
+- **Bombard** in FFA is aimed at any enemy base (tap it). **Under attack** alerts, the HUD and the
+  game-over screen list every side's base (up to 4 small HP bars, each in its side's colour).
+
 ## Map generation (`generating`)
 
 Entered on Start Battle (and on Play Again). Sets `phase = 'generating'`, emits the shared

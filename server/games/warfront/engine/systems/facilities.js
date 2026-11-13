@@ -22,7 +22,7 @@ function buildBlocker(state, army, facility, tileId) {
   const { map } = state;
   if (!isPassable(map, tileId)) return "Can't build there";
   if (!visionFor(state, army.team).has(tileId)) return 'Build only where your team can see';
-  if (tileId === state.bases.red.tileId || tileId === state.bases.blue.tileId) return "Can't build on a base";
+  if (Object.values(state.bases).some((b) => b.tileId === tileId)) return "Can't build on a base";
   for (const { unit, team } of allUnits(state)) {
     if (unit.tileId !== tileId || unit.hp <= 0) continue;
     if (unit.class === 'structure') return 'There is already a structure there';

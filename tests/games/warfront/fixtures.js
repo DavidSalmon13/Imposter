@@ -39,36 +39,39 @@ function assertRejects(raw, pattern) {
 
 /**
  * A tiny hand-made battle. `rows` are strings, one char per tile:
- * . plains  f forest  h hills  ~ water  # rock  R red base  B blue base.
- * `units` = [{ owner, type, at: [x, y], hold }]; owners are 'Red' (red) and 'Blue' (blue);
+ * . plains  f forest  h hills  ~ water  # rock  R red base  B blue base  G green base  Y gold base.
+ * `units` = [{ owner, type, at: [x, y], hold }]; owners are 'Red' (red), 'Blue' (blue), and for
+ * free-for-all battles 'Green' (green) and 'Gold' (gold) when their base is on the map;
  * `hold` puts the unit on Hold (it never falls back).
  * Returns { st, at(x, y) -> tileId, unit(owner, i) }.
  */
 function makeBattle({ rows, units = [], weapons = [], sources = [], veins = [], races = {} }) {
   const height = rows.length;
   const width = rows[0].length;
-  const terrain = { '.': 'plains', f: 'forest', h: 'hills', '~': 'water', '#': 'rock', R: 'plains', B: 'plains' };
+  const terrain = { '.': 'plains', f: 'forest', h: 'hills', '~': 'water', '#': 'rock', R: 'plains', B: 'plains', G: 'plains', Y: 'plains' };
+  const baseChars = { R: 'red', B: 'blue', G: 'green', Y: 'gold' };
   const tiles = [];
   const bases = {};
   rows.forEach((row, y) => [...row].forEach((ch, x) => {
     tiles.push(terrain[ch]);
-    if (ch === 'R') bases.red = E.tileId(x, y, width);
-    if (ch === 'B') bases.blue = E.tileId(x, y, width);
+    if (baseChars[ch]) bases[baseChars[ch]] = E.tileId(x, y, width);
   }));
+  const sides = E.SIDES.filter((side) => bases[side] != null);
+  const ownerOf = (side) => side[0].toUpperCase() + side.slice(1);
   const map = {
     theme: 'Test', lore: '', width, height, tiles,
-    bases: [{ team: 'red', tileId: bases.red }, { team: 'blue', tileId: bases.blue }],
+    bases: sides.map((team) => ({ team, tileId: bases[team] })),
     supplySources: sources.map(([x, y, team]) => ({ x, y, tileId: E.tileId(x, y, width), team })),
     veins: veins.map(([x, y, richness, contested]) => ({ x, y, tileId: E.tileId(x, y, width), richness, contested: Boolean(contested) })),
     chokepoints: [],
     weapons: weapons.map(([x, y, weaponId]) => ({ x, y, tileId: E.tileId(x, y, width), weaponId })),
   };
-  const st = E.createBattleState(map, [
-    { name: 'Red', team: 'red', race: races.Red || 'horde' },
-    { name: 'Blue', team: 'blue', race: races.Blue || 'forge' },
-  ], { seed: 7, now: 0 });
-  st.armies.Red.units = [];
-  st.armies.Blue.units = [];
+  const defaultRace = { Red: 'horde', Blue: 'forge', Green: 'arcane', Gold: 'horde' };
+  const st = E.createBattleState(map, sides.map((team) => {
+    const name = ownerOf(team);
+    return { name, team, race: races[name] || defaultRace[name] };
+  }), { seed: 7, now: 0 });
+  for (const army of Object.values(st.armies)) army.units = [];
   for (const { owner, type, at, hold } of units) {
     const u = E.makeUnit(st.nextUnitId++, type, owner, E.tileId(at[0], at[1], width));
     if (hold) u.holding = true;

@@ -31,7 +31,6 @@ function weaponBlocker(state, army, weaponId, targetTileId) {
   if (!WEAPON_EFFECTS[weaponId]) return 'Unknown weapon';
   if (!army.arsenal.includes(weaponId)) return 'That weapon is not in your arsenal';
   if (!onMap(map, targetTileId)) return 'Aim at a tile on the battlefield';
-  const enemy = army.team === 'red' ? 'blue' : 'red';
   if (weaponId === 'emp') {
     // Fogged tiles are refused so an EMP can't be used to probe the fog.
     if (!visionFor(state, army.team).has(targetTileId) || !enemyFacilityAt(state, army.team, targetTileId)) {
@@ -43,7 +42,10 @@ function weaponBlocker(state, army, weaponId, targetTileId) {
     if (!visionFor(state, army.team).has(targetTileId)) return 'Drop only where your team can see';
     if (unitSlotsUsed(army) >= WF_MAX_UNITS_PER_PLAYER) return `Army is at the ${WF_MAX_UNITS_PER_PLAYER}-unit cap`;
   }
-  if (weaponId === 'bombard' && targetTileId !== state.bases[enemy].tileId) return 'Aim the Bombard at the enemy base';
+  if (weaponId === 'bombard') {
+    const side = baseSideAt(state, targetTileId);
+    if (!side || side === army.team || state.bases[side].hp <= 0) return 'Aim the Bombard at an enemy base';
+  }
   if (weaponId === 'aegis' && targetTileId !== state.bases[army.team].tileId) return 'Aim the Aegis at your own base';
   return null;
 }
@@ -93,9 +95,15 @@ function airdrop(state, owner, army, tileId, out) {
   return { spawned: n };
 }
 
-/** Bombard: bombardDmg straight to the enemy base, contested or not; an Aegis still stops it. */
-function bombard(state, army, now, out) {
-  const enemy = army.team === 'red' ? 'blue' : 'red';
+/** The side whose base stands on `tileId`, or null. */
+function baseSideAt(state, tileId) {
+  const hit = Object.entries(state.bases).find(([, b]) => b.tileId === tileId);
+  return hit ? hit[0] : null;
+}
+
+/** Bombard: bombardDmg straight to the targeted enemy base, contested or not; an Aegis still stops it. */
+function bombard(state, army, targetTileId, now, out) {
+  const enemy = baseSideAt(state, targetTileId);
   const base = state.bases[enemy];
   if (base.hp <= 0 || base.shieldUntil > now) return { dmg: 0, shielded: base.shieldUntil > now };
   const before = base.hp;
@@ -128,7 +136,7 @@ function orderWeapon(state, name, army, cmd, now) {
   if (weaponId === 'artillery') result = artillery(state, name, army, targetTileId, out);
   else if (weaponId === 'emp') result = emp(state, army, targetTileId, now, out);
   else if (weaponId === 'airdrop') result = airdrop(state, name, army, targetTileId, out);
-  else if (weaponId === 'bombard') result = bombard(state, army, now, out);
+  else if (weaponId === 'bombard') result = bombard(state, army, targetTileId, now, out);
   else result = aegis(state, army, now);
   const events = state.pendingEvents || (state.pendingEvents = []);
   events.push({ type: 'weapon', weaponId, tileId: targetTileId, owner: name, team: army.team, ...result }, ...out);

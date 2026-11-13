@@ -183,6 +183,9 @@ const TEAM_PHRASES = Object.freeze({
 // ---------------------------------------------------------------------------
 // Host options
 // ---------------------------------------------------------------------------
+// Sides (spec "Free-for-all mode"): a team game uses the first two; FFA gives each player one.
+const SIDES = Object.freeze(['red', 'blue', 'green', 'gold']);
+
 const MAP_SIZES = Object.freeze({
   small: Object.freeze({ id: 'small', label: 'Small', width: 12, height: 8 }),
   medium: Object.freeze({ id: 'medium', label: 'Medium', width: 16, height: 11 }),
@@ -233,6 +236,7 @@ module.exports = {
   WEAPON_EFFECTS,
   EVENT_EFFECTS,
   TEAM_PHRASES,
+  SIDES,
   MAP_SIZES,
   DEFAULT_MAP_SIZE,
   MATCH_LENGTHS,

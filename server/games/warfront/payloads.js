@@ -65,7 +65,7 @@ function gameOverPayload(ctx, room, viewerName) {
     if (s.baseDmg <= 0) continue;
     if (!mvp || s.baseDmg > mvp.baseDmg || (s.baseDmg === mvp.baseDmg && s.kills > mvp.kills)) mvp = s;
   }
-  const destroyed = ['red', 'blue'].filter((t) => wf.bases[t].hp <= 0);
+  const destroyed = Object.keys(wf.bases).filter((t) => wf.bases[t].hp <= 0);
   return {
     serverNow: Date.now(),
     map: wf.map,

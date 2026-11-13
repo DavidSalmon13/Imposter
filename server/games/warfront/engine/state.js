@@ -31,27 +31,25 @@ function makeUnit(id, type, owner, tileId) {
     haul: null,
     holding: false,
     garrison: null, // id of the friendly Tower this unit stands on top of
-    revealedUntil: { red: 0, blue: 0 },
+    revealedUntil: {}, // side -> until when that side sees this unit after it hit them (D14)
   };
 }
 
 /**
  * The full live-match state for a validated `map`. `roster` is
- * [{ name, team: 'red'|'blue', race }]; opts = { seed, now, matchCapMs }.
+ * [{ name, team: a side with a base on the map, race }]; opts = { seed, now, matchCapMs }.
  * Returns the fields the module stores under room.state.warfront.
  */
 function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_MS }) {
   let nextUnitId = 1;
   const baseOf = {};
   for (const b of map.bases) baseOf[b.team] = b.tileId;
-  const bases = {
-    red: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.red, shieldUntil: 0, atkReadyAt: 0 },
-    blue: { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: baseOf.blue, shieldUntil: 0, atkReadyAt: 0 },
-  };
+  const bases = {};
+  for (const b of map.bases) bases[b.team] = { hp: TUNING.baseHp, maxHp: TUNING.baseHp, tileId: b.tileId, shieldUntil: 0, atkReadyAt: 0 };
   const armies = {};
   for (const { name, team, race } of roster) {
     if (!RACES[race]) throw new Error(`unknown race "${race}" for ${name}`);
-    if (team !== 'red' && team !== 'blue') throw new Error(`unknown team "${team}" for ${name}`);
+    if (!bases[team]) throw new Error(`unknown team "${team}" for ${name}`);
     const units = [];
     // The starting Workers go straight to carving 🔩 at their supply wall (the tile beside the base).
     const wall = supplyWallOf(map, team)[0];
