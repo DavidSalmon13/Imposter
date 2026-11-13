@@ -195,7 +195,7 @@ events** (it can't reuse Codenames' `joinTeam`/`claimLeader`, which guard on
 **Engine exports** (`engine/index.js`): `RACES`, `UNIT_TYPES`, `TERRAIN_TYPES`, `TUNING`,
 `WEAPON_EFFECTS`, `EVENT_EFFECTS`, `FACILITIES`, `MAP_SIZES`, `MATCH_LENGTHS`, `TEAM_PHRASES`;
 `tileId(x,y,w)`, `tileXY(id,w)`, `manhattan`, `neighbors`, `bfsPath(map, from, to)`;
-`validateMap(raw, size)`, `buildFallbackMap(size, rng)`; `createBattleState(map, roster, opts)`;
+`validateMap(raw, size, { sides })`, `buildFallbackMap(size, rng)`, `fallbackFfa(size, rng, sides)`; `createBattleState(map, roster, opts)`;
 `applyCommand(state, name, cmd, now)`; `stepSim(state, dtMs, { now })`;
 `viewForPlayer(state, name)`; `winnerByBaseHp(state)`; `rollEvent(state, rng)`.
 
@@ -854,7 +854,14 @@ tile; the client marks every enemy base) and the win check work for 2–4 sides.
 - **Tests:** a hand-made 3-side battle: targeting ignores own side and hits both others, vision is
   per side, Bombard on either enemy base, victory with 3 bases (one down = match goes on).
 
-### Step 26: FFA maps
+### Step 26: FFA maps ✅
+Done 2026-11-13. "Near a corner" = each base in its own **corner quarter** (the odd middle row/column
+belongs to none); home lighthouse in that quarter within 4 tiles; extras fair = distances to every
+base differ by ≤ 2 (no mirrored-pair rule in FFA); veins stay 1–2. Lighthouses: `sides`–4, so a
+4-side map has only home ones and a 3-side fallback adds one contested lighthouse in the middle when
+a fair tile exists. The two-side fallback moved to `engine/fallbackMap.js` (mapgen.js was near the
+cap); the FFA one is `engine/fallbackFfa.js`, and the shell picks between them in `fallbackMapFor`.
+`generateBattle` still builds 2-side maps: the mode that asks for 3–4 comes with Step 28.
 - **Change:** `validateMap(raw, size, { sides })`: 2 sides as today, or 3–4 FFA sides with one base
   near each used corner, non-adjacent, each with its supply source/wall and home lighthouse; veins
   fair by spread of distances. A four-way mirrored fallback generator (`fallbackFfa`). The shell's

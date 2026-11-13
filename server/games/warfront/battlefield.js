@@ -50,8 +50,49 @@ function battlefieldPrompt(size, avoid) {
   );
 }
 
-/** Asks OpenAI for a battlefield and hard-validates it. Throws on any problem. */
-async function generateBattlefield(room, sizeId) {
+// Free for all (spec "Free-for-all mode"): one base in each used corner, the middle fair to all.
+function ffaBattlefieldPrompt(size, avoid, sides) {
+  const { width, height } = size;
+  const teams = engine.SIDES.slice(0, sides);
+  const corners = sides === 4 ? 'all four corners' : 'three of the four corners (leave one corner without a base)';
+  return (
+    `Design a top-down grid battlefield for a ${sides}-player free-for-all strategy game. The grid is ${width} tiles ` +
+    `wide and ${height} tiles tall; x runs 0..${width - 1} left to right, y runs 0..${height - 1} top to bottom. ` +
+    `Terrain types: "plains" (open), "forest", "hills" (both slow but defensive), "water" and "rock" ` +
+    `(both impassable). Mostly plains, with forests and hills for cover, and water/rock shaping a few ` +
+    `lanes and natural chokepoints - but every base, vein and weapon must stay reachable on foot from every base. ` +
+    `Put one base in each of ${corners}, inset one tile from both edges (for example x=1, y=1 and ` +
+    `x=${width - 2}, y=${height - 2}), one base per side: ${teams.map((t) => `"${t}"`).join(', ')}. Put exactly one ` +
+    `supply source on a tile directly next to each base (up, down, left or right). Put 1-2 mineral veins in the ` +
+    `middle of the map, equally far from every base (richness 1-3). Scatter 4-8 weapon tokens, the same in every ` +
+    `corner's quarter. Place ${sides}-${engine.MAX_LIGHTHOUSES} lighthouses (tall watchtowers that give whoever holds ` +
+    `them a wide view): exactly one near each base (in that base's corner quarter, within ` +
+    `${engine.LIGHTHOUSE_HOME_RANGE} tiles of it but not on it)` +
+    (sides < engine.MAX_LIGHTHOUSES
+      ? `, plus at most ${engine.MAX_LIGHTHOUSES - sides} in the contested middle, about equally far from every base ` +
+        `(within 2 tiles) and more than ${engine.LIGHTHOUSE_HOME_RANGE} tiles from each`
+      : '') +
+    `. Keep the layout mirror-symmetric across both the middle column and the middle row so every corner gets the ` +
+    `same land. No two features (base, supply source, vein, weapon, lighthouse) on the same tile, and none on water ` +
+    `or rock. Also give the map an evocative theme name (max 40 characters) and 1-2 sentences of lore.` +
+    (avoid.length ? ` Recent map themes - pick something different from all of them: ${avoid.join('; ')}.` : '') +
+    ` Respond with ONLY compact JSON in exactly this shape: {"theme": "...", "lore": "...", ` +
+    `"width": ${width}, "height": ${height}, "tiles": [{"terrain": "plains"}, ...], ` +
+    `"bases": [${teams.map((t) => `{"team": "${t}", "x": 0, "y": 0}`).join(', ')}], ` +
+    `"supplySources": [${teams.map(() => '{"x": 0, "y": 0}').join(', ')}], ` +
+    `"veins": [{"x": 0, "y": 0, "richness": 2, "contested": true}], ` +
+    `"weapons": [{"x": 0, "y": 0, "weaponId": "artillery|emp|airdrop|bombard|aegis"}], ` +
+    `"lighthouses": [${teams.map(() => '{"x": 0, "y": 0}').join(', ')}], ` +
+    `"chokepoints": [{"x": 0, "y": 0}]}. "tiles" must have exactly ${width * height} entries in ` +
+    `row-major order (all of row y=0 left to right, then row y=1, and so on).`
+  );
+}
+
+/**
+ * Asks OpenAI for a battlefield for `sides` (2 = a team battle, 3-4 = free for all) and
+ * hard-validates it. Throws on any problem.
+ */
+async function generateBattlefield(room, sizeId, sides = 2) {
   const size = engine.MAP_SIZES[sizeId] || engine.MAP_SIZES[engine.DEFAULT_MAP_SIZE];
   const avoid = room.state.warfront.mapHistory.slice(-engine.TUNING.mapHistoryWindow);
   let timer;
@@ -60,13 +101,18 @@ async function generateBattlefield(room, sizeId) {
   });
   try {
     const raw = await Promise.race([
-      chatCompletionJson(battlefieldPrompt(size, avoid), { temperature: 1.1 }),
+      chatCompletionJson(sides > 2 ? ffaBattlefieldPrompt(size, avoid, sides) : battlefieldPrompt(size, avoid), { temperature: 1.1 }),
       timeout,
     ]);
-    return engine.validateMap(raw, size);
+    return engine.validateMap(raw, size, { sides });
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The procedural map for `sides`, used when the AI map fails. */
+function fallbackMapFor(sizeId, rng, sides = 2) {
+  return sides > 2 ? engine.fallbackFfa(sizeId, rng, sides) : engine.buildFallbackMap(sizeId, rng);
 }
 
 /** Team members with a race, as the engine's roster. */
@@ -92,7 +138,7 @@ async function generateBattle(ctx, roomCode, room) {
     map = await generateBattlefield(room, sizeId);
   } catch (err) {
     console.error('Warfront map generation failed, using the fallback map:', err.message);
-    map = engine.buildFallbackMap(sizeId, rngFor(seed, 0));
+    map = fallbackMapFor(sizeId, rngFor(seed, 0));
   }
 
   // The room may have been closed, or sent back to the lobby, while we waited.
@@ -124,4 +170,6 @@ async function generateBattle(ctx, roomCode, room) {
 
 module.exports = {
   generateBattle,
+  generateBattlefield,
+  fallbackMapFor,
 };

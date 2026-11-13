@@ -20,7 +20,9 @@ engine/
   data.js                 Races, unit/facility/terrain/weapon/event tables, RPS, SIDES, map sizes, match lengths
   grid.js                 Tile ids/coords, neighbours, terrain lookups, passable, high ground, move cost
   pathing.js              floodFill, bfsPath, findPath (quickest route), pathCost
-  mapgen.js               validateMap (AI JSON → normalized map) and the seeded fallback map generator
+  mapgen.js               validateMap (AI JSON → normalized map) for 2 sides (team) or 3–4 (free for all)
+  fallbackMap.js          the seeded two-side fallback map (buildFallbackMap) + random helpers the FFA one shares
+  fallbackFfa.js          the seeded four-way mirrored free-for-all fallback map (fallbackFfa, Step 26)
   state.js                createBattleState, makeUnit, unit lookups, step/build times, slots, stats, round3
   vision.js               visionFor: which tiles a team sees (units, base, held lighthouses)
   systems/movement.js     move orders, headFor/nearestTile, stepping along paths, pickups on arrival
@@ -111,7 +113,7 @@ Every rule is scoped through a screen id. Selectors and class names are shared w
 ### Tests: `tests/games/warfront/`
 
 ```
-engine/<module>.test.js   one per engine module (data, pathing, mapgen, state, movement, economy,
+engine/<module>.test.js   one per engine module (data, pathing, mapgen, mapgenFfa, state, movement, economy,
                           production, facilities, combat, lighthouses, weapons, victory, view, sim, purity, sides)
 fixtures.js               engine helpers: rawMap, makeBattle, run, fight, lightBattle, plantBuilt,
                           move/produce/haul/build/craft shorthands, SEEDS, spread
@@ -138,7 +140,7 @@ shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, pla
 | Facilities / build rules | `engine/systems/facilities.js` (+ `FACILITIES` in `engine/data.js`); client: `console/build.js`, `structures.js`, `facilities.css` |
 | A new player command | `engine/data.js` (if it needs data) → `engine/systems/<system>.js` (`orderX`) → `engine/commands.js` (route + validate) → shell `handlers.js` only if it's a new socket event (commands ride `wfCommand`) → client `console/*.js` (button) and/or `input.js` (tap) → tests next to the system |
 | What a player sees in the fog | vision radius: `engine/vision.js`; what's sent: `engine/view.js`; drawing: `fog.js` (+ `minimap.js`) |
-| Map generation / the AI prompt | prompt + OpenAI call: shell `battlefield.js`; validation + fallback map: `engine/mapgen.js` |
+| Map generation / the AI prompt | prompts (team + FFA) + OpenAI call: shell `battlefield.js`; validation: `engine/mapgen.js`; fallback maps: `engine/fallbackMap.js` (team), `engine/fallbackFfa.js` (FFA) |
 | The sim tick (order of systems) | `engine/sim.js`; the interval/timing: shell `loop.js` |
 | A payload field | shell `payloads.js` (wfState/battle/game over) or `engine/view.js` (wfLive); client reader: `battle.js` → the renderer that uses it |
 | Who may start / roster rules | shell `roster.js` (+ `handlers.js` for the socket event) |
@@ -166,7 +168,7 @@ Imports go one way only. There are no circular imports. A lower layer never impo
 2. `data.js`
 3. `grid.js`
 4. `pathing.js`
-5. `mapgen.js`
+5. `mapgen.js`, then `fallbackMap.js` (5b), then `fallbackFfa.js` (5c)
 6. `state.js`, then `vision.js` (6b: it lives here, not in `view.js`, because facilities' build rule needs it)
 7. systems, in this order: `movement` → `facilities` → `economy` → `production` → `combat` →
    `lighthouses` → `weapons` → `victory`. A system imports layers 1–6b and may import an **earlier** system

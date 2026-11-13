@@ -12,7 +12,7 @@ const { SAVED_FIELDS, createState, clearState, onChoose, reconnectPayload, onDis
 const { registerHandlers } = require('./handlers');
 const { wfLoops, startLoop, stopLoop, tickRoom, finishBattle, awardWfScores } = require('./loop');
 const { wfAlertLog } = require('./alerts');
-const { generateBattle } = require('./battlefield');
+const { generateBattle, generateBattlefield, fallbackMapFor } = require('./battlefield');
 const { wfStatePayload } = require('./payloads');
 
 module.exports = {
@@ -42,6 +42,8 @@ module.exports = {
   awardWfScores,
   WF_WIN_POINTS,
   generateBattle,
+  generateBattlefield,
+  fallbackMapFor,
   WF_MIN_TEAM_SIZE,
   WF_MAX_TEAM_SIZE,
   wfStatePayload,

@@ -325,6 +325,10 @@ A second **mode** next to the team game. The host picks it on the team-select sc
   and any contested lighthouses sit in the middle, the same distance from every base. Map size
   options stay the same, but FFA uses at least **Medium** (Small is not offered). The fallback
   generator mirrors one quarter onto all four (both axes), so every corner gets the same land.
+  Validation (2026-11-13, Step 26): each base in its own corner quarter, its home lighthouse in that
+  quarter within 4 tiles, any contested lighthouse within 2 tiles of the same distance from every
+  base, veins (1–2) fair by the spread of their distances to every base, and every base reaching
+  every other. A map has `sides`–4 lighthouses, so a 4-player map has only the home ones.
 - **Elimination:** a base at **0 HP knocks its side out at once**. Its units and buildings crumble
   (removed with a `death` event each, no Mineral drops) and its held lighthouses go neutral. The
   player stays in the room and **watches with the fog lifted** (the whole map, like the game-over

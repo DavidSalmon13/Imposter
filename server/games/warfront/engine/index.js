@@ -20,6 +20,8 @@ const m12 = require('./systems/victory');
 const m13 = require('./vision');
 const m14 = require('./view');
 const m15 = require('./systems/weapons');
+const m16 = require('./fallbackMap');
+const m17 = require('./fallbackFfa');
 
 module.exports = {
   WF_STEP_MS_BASE: m0.WF_STEP_MS_BASE,
@@ -64,7 +66,8 @@ module.exports = {
   findPath: m4.findPath,
   pathCost: m4.pathCost,
   validateMap: m5.validateMap,
-  buildFallbackMap: m5.buildFallbackMap,
+  buildFallbackMap: m16.buildFallbackMap,
+  fallbackFfa: m17.fallbackFfa,
   makeUnit: m6.makeUnit,
   createBattleState: m6.createBattleState,
   stepMs: m6.stepMs,

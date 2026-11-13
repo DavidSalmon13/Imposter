@@ -162,3 +162,39 @@ test('lighthouses: an AI map with no lighthouse near a base falls back to the pr
   assert.ok(wf.lighthouses.length >= 2);
   warfront.stopLoop('WFWF');
 });
+
+test('free for all (Step 26): the FFA prompt asks for corner bases; an AI FFA map is validated for its sides', async () => {
+  const { rngFor } = require('../../../server/lib/rng');
+  const ffa = engine.fallbackFfa('medium', rngFor(5, 0), 4);
+  const raw = {
+    theme: 'Four Cliffs', lore: 'x', width: ffa.width, height: ffa.height,
+    tiles: ffa.tiles.map((terrain) => ({ terrain })),
+    bases: ffa.bases.map(({ team, x, y }) => ({ team, x, y })),
+    supplySources: ffa.supplySources.map(({ x, y }) => ({ x, y })),
+    veins: ffa.veins.map(({ x, y, richness }) => ({ x, y, richness })),
+    weapons: ffa.weapons.map(({ x, y, weaponId }) => ({ x, y, weaponId })),
+    lighthouses: ffa.lighthouses.map(({ x, y }) => ({ x, y })),
+  };
+  const s = readyRoom();
+  let prompt = '';
+  const restore = mockOpenAi(raw);
+  const mocked = global.fetch;
+  global.fetch = async (url, init) => {
+    prompt = JSON.parse(init.body).messages.map((m) => m.content).join('\n');
+    return mocked(url, init);
+  };
+  try {
+    const map = await warfront.generateBattlefield(s.room, 'medium', 4);
+    assert.equal(map.theme, 'Four Cliffs');
+    assert.deepEqual(map.bases.map((b) => b.team), ['red', 'blue', 'green', 'gold']);
+    assert.match(prompt, /4-player free-for-all/);
+    assert.match(prompt, /"team": "gold"/);
+    // The same map is not a valid team battle, and a 3-side game refuses its fourth base.
+    await assert.rejects(warfront.generateBattlefield(s.room, 'medium', 2), /exactly two bases/);
+    await assert.rejects(warfront.generateBattlefield(s.room, 'medium', 3), /exactly three bases/);
+  } finally {
+    restore();
+  }
+  assert.equal(warfront.fallbackMapFor('large', rngFor(1, 0), 3).bases.length, 3);
+  assert.equal(warfront.fallbackMapFor('medium', rngFor(1, 0)).bases.length, 2);
+});
