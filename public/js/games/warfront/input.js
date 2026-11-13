@@ -53,6 +53,20 @@ export function onTileTap(tileId) {
     renderInfo();
     return;
   }
+  // Selected Workers tapped onto a vein or your supply wall start gathering there at once, even when
+  // other units of yours already stand on it (they'd otherwise be picked instead). They then shuttle
+  // between it and the base by themselves. Any non-Workers in the selection just walk there.
+  const sel = selectedUnits();
+  if (vein && workerIds.length && !sel.every((u) => !WORKER_TYPES.has(u.type) || (u.haul && u.haul.veinTileId === tileId))) {
+    sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
+    const others = sel.filter((u) => !WORKER_TYPES.has(u.type)).map((u) => u.id);
+    if (others.length) sendOrder({ kind: 'move', unitIds: others, toTileId: tileId });
+    sfx.click();
+    renderUnits();
+    renderSys();
+    renderInfo();
+    return;
+  }
   const mineHere = S.live.units.filter((u) => u.owner === S.state.you && u.tileId === tileId && !FACILITY_TYPES.has(u.type)).map((u) => u.id);
   const selHere = mineHere.filter((id) => S.selected.has(id));
   const myStruct = S.live.units.find((u) => u.owner === S.state.you && u.tileId === tileId && FACILITY_TYPES.has(u.type));
@@ -93,9 +107,6 @@ export function onTileTap(tileId) {
   } else if (!S.selected.size && (S.selStructure != null || S.selBase)) {
     S.selStructure = null;
     S.selBase = false;
-  } else if (S.selected.size && vein && workerIds.length === S.selected.size) {
-    // Workers sent onto a vein (or your supply wall) start hauling (carving) from it.
-    sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
   } else if (S.selected.size) {
     const unitIds = [...S.selected];
     S.ctx.socket.emit('wfCommand', { kind: 'move', unitIds, toTileId: tileId }, (res) => {

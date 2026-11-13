@@ -175,3 +175,19 @@ test('haul: killing a loaded hauler leaves its load as a drop the enemy can coll
   assert.equal(b.st.armies.Blue.minerals, 3);
   assert.deepEqual(b.st.pickups.mineralDrops, {});
 });
+
+test('haul: once told, Workers keep shuttling on their own, trip after trip, for both resources', () => {
+  const b = makeBattle({ rows: ['R......B'], sources: [[1, 0, 'red'], [6, 0, 'blue']], veins: [[4, 0, 2, false]], units: [
+    { owner: 'Red', type: 'peon', at: [0, 0] },
+    { owner: 'Red', type: 'peon', at: [0, 0] },
+  ] });
+  const [miner, carver] = b.st.armies.Red.units;
+  haul(b.st, 'Red', [miner.id], b.at(4, 0), 0);
+  haul(b.st, 'Red', [carver.id], b.at(1, 0), 0);
+  const events = [];
+  for (let now = 200; now <= 90000; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  const deposits = events.filter((e) => e.type === 'deposit');
+  assert.ok(deposits.filter((e) => e.unitId === miner.id && e.minerals).length >= 4, 'the miner keeps coming back with 💎');
+  assert.ok(deposits.filter((e) => e.unitId === carver.id && e.supply).length >= 8, 'the carver keeps coming back with 🔩');
+  assert.ok(miner.haul && carver.haul, 'still on the job');
+});
