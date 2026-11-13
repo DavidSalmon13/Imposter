@@ -10,7 +10,7 @@ import {
   TREE_SPRITES,
   BUSH_SPRITE,
   BOULDER_SPRITE,
-  SUPPLY_SPRITE,
+  SUPPLY_WALL_SPRITE,
   crystalSprite,
   weaponSprite,
   LIGHTHOUSE_SPRITE,
@@ -41,7 +41,7 @@ export function buildWorld(data, target = { cam, world, minimap: true }) {
 
   const isFeature = new Set([
     ...map.bases.map((b) => b.tileId),
-    ...map.supplySources.map((f) => f.tileId),
+    ...(map.supplyWalls || map.supplySources).map((f) => f.tileId),
     ...map.veins.map((f) => f.tileId),
     ...data.pickups.weapons.map((f) => f.tileId),
     ...(map.lighthouses || []).map((f) => f.tileId),
@@ -147,13 +147,14 @@ export function buildWorld(data, target = { cam, world, minimap: true }) {
     node.appendChild(billboard(crystalSprite(v.richness), 58, 50));
     add(c.y + 8, node, v.tileId);
   });
-  map.supplySources.forEach((src) => {
+  // Supply walls: a slab of amber-seamed rock on each wall tile beside a base; Workers carve 🔩 here.
+  (map.supplyWalls || map.supplySources).forEach((src) => {
     const c = tileCentre(map, src.tileId);
-    const node = ent(c.x, c.y + 10, elevationAt(map, src.tileId), src.team ? `tm-${src.team}` : '');
+    const node = ent(c.x, c.y + 10, elevationAt(map, src.tileId), `wf-swall${src.team ? ` tm-${src.team}` : ''}`);
     const shadow = el('span', 'dec tshadow');
-    Object.assign(shadow.style, { width: '70px', height: '30px' });
+    Object.assign(shadow.style, { width: '74px', height: '30px' });
     node.appendChild(shadow);
-    node.appendChild(billboard(SUPPLY_SPRITE, 60, 56));
+    node.appendChild(billboard(SUPPLY_WALL_SPRITE, 70, 60));
     add(c.y + 10, node, src.tileId);
   });
   data.pickups.weapons.forEach((w) => {

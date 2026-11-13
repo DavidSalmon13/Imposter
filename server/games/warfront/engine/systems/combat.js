@@ -234,11 +234,11 @@ function stepCombat(state, now, events) {
     }
   }
 
-  // Deaths: a loaded Worker leaves its cargo on the tile.
+  // Deaths: a Worker loaded with 💎 leaves its cargo on the tile (carved 🔩 is lost with it).
   for (const [owner, army] of Object.entries(state.armies)) {
     army.units = army.units.filter((u) => {
       if (u.hp > 0) return true;
-      if (u.carrying > 0) {
+      if (u.carrying > 0 && u.carryKind !== 'supply') {
         state.pickups.mineralDrops[u.tileId] = (state.pickups.mineralDrops[u.tileId] || 0) + u.carrying;
       }
       statsOf(army).lost += 1;

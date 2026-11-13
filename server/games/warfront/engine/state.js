@@ -6,7 +6,7 @@
 
 const { WF_STEP_MS_BASE, WF_MATCH_CAP_MS, WF_EVENT_MS, WF_MAX_UNITS_PER_PLAYER, TUNING } = require('./constants');
 const { RACES, UNIT_TYPES, TERRAIN_TYPES, unitStats } = require('./data');
-const { tileId, terrainAt } = require('./grid');
+const { tileId, terrainAt, supplyWallOf } = require('./grid');
 
 // ---------------------------------------------------------------------------
 // Battle state (spec "Map generation" step 4)
@@ -22,6 +22,7 @@ function makeUnit(id, type, owner, tileId) {
     hp: t.hp,
     owner,
     carrying: 0,
+    carryKind: null, // what `carrying` is: 'minerals' | 'supply' (null/absent = minerals)
     path: [],
     stepStartedAt: 0,
     stepEndsAt: 0,
@@ -52,8 +53,12 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
     if (!RACES[race]) throw new Error(`unknown race "${race}" for ${name}`);
     if (team !== 'red' && team !== 'blue') throw new Error(`unknown team "${team}" for ${name}`);
     const units = [];
+    // The starting Workers go straight to carving 🔩 at their supply wall (the tile beside the base).
+    const wall = supplyWallOf(map, team)[0];
     for (let i = 0; i < TUNING.startWorkers; i++) {
-      units.push(makeUnit(nextUnitId++, RACES[race].workerType, name, baseOf[team]));
+      const u = makeUnit(nextUnitId++, RACES[race].workerType, name, baseOf[team]);
+      if (wall) u.haul = { veinTileId: wall.tileId, kind: 'supply', stage: 'toVein', luck: 0 };
+      units.push(u);
     }
     armies[name] = {
       team,

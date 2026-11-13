@@ -59,7 +59,20 @@ function isHigh(map, id) {
   return terrainAt(map, id) === 'hills';
 }
 
+// ---------------------------------------------------------------------------
+// Supply walls (2026-11-13): a short wall of 🔩 rock beside each base that Workers carve
+// ---------------------------------------------------------------------------
+/**
+ * The supply-wall tiles (`{ tileId, team }`) of `team` (or both teams when omitted). Maps saved
+ * before walls existed fall back to their one supply source tile per base.
+ */
+function supplyWallOf(map, team) {
+  const all = map.supplyWalls || map.supplySources || [];
+  return team ? all.filter((w) => w.team === team) : all;
+}
+
 module.exports = {
+  supplyWallOf,
   tileId,
   tileXY,
   manhattan,

@@ -10,12 +10,25 @@ const E = require('../../../../server/games/warfront/engine');
 const { rngFor } = require('../../../../server/lib/rng');
 const { rawMap, SIZE, setTerrain, assertRejects } = require('../fixtures');
 
+test('validateMap: a supply wall leaves out flank tiles that are off the map, impassable or a feature', () => {
+  const raw = rawMap({ lighthouses: [{ x: 1, y: 1 }, { x: 7, y: 1 }, { x: 4, y: 3 }] });
+  setTerrain(raw, 1, 3, 'water');
+  const map = E.validateMap(raw, SIZE);
+  assert.deepEqual(map.supplyWalls.filter((w) => w.team === 'red').map((w) => [w.x, w.y]), [[1, 2]]);
+  const edge = E.validateMap(rawMap({ bases: [{ team: 'red', x: 0, y: 0 }, { team: 'blue', x: 8, y: 0 }], supplySources: [{ x: 0, y: 1 }, { x: 8, y: 1 }], lighthouses: [{ x: 2, y: 1 }, { x: 6, y: 1 }, { x: 4, y: 3 }] }), SIZE);
+  assert.deepEqual(edge.supplyWalls.filter((w) => w.team === 'red').map((w) => [w.x, w.y]), [[0, 1], [1, 1]]);
+});
+
 test('validateMap accepts a good map and normalizes it', () => {
   const map = E.validateMap(rawMap(), SIZE);
   assert.equal(map.tiles.length, 45);
   assert.equal(map.tiles[0], 'plains');
   assert.equal(map.bases[0].tileId, E.tileId(0, 2, 9));
   assert.deepEqual(map.supplySources.map((s) => s.team), ['red', 'blue']);
+  // Each supply source grows into a 3-tile wall across the line from its base.
+  const wall = (team) => map.supplyWalls.filter((w) => w.team === team).map((w) => [w.x, w.y]);
+  assert.deepEqual(wall('red'), [[1, 2], [1, 1], [1, 3]]);
+  assert.deepEqual(wall('blue'), [[7, 2], [7, 1], [7, 3]]);
   assert.equal(map.veins[0].tileId, 4);
   assert.equal(map.weapons[0].weaponId, 'artillery');
   assert.equal(map.chokepoints.length, 1);

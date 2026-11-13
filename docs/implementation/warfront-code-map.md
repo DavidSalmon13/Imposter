@@ -25,7 +25,7 @@ engine/
   vision.js               visionFor: which tiles a team sees (units, base, held lighthouses)
   systems/movement.js     move orders, headFor/nearestTile, stepping along paths, pickups on arrival
   systems/facilities.js   build/craft orders, placement rules (D4/D17), construction, Workshop queue, losing one
-  systems/economy.js      Supply income, Refinery bonus, haul orders, the Worker haul cycle
+  systems/economy.js      the Worker haul cycle (🔩 carved at the supply wall, 💎 from veins), haul orders, Refinery bonus, income rate
   systems/production.js   spawn points, produce orders, per-spawn-point build queue
   systems/combat.js       ranges, targeting, damage (RPS, luck, strategy edge, Archmage), base/Tower fire, fall back
   systems/lighthouses.js  lighthouse capture each step
@@ -134,7 +134,7 @@ shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, pla
 | Add a unit type | `engine/data.js` → art in `sprites.js` (`UNIT_SPRITES`, `UNIT_ICONS`) → `constants.js` names/hotkeys/card names (client) → tests in `engine/production.test.js` |
 | Pathing or a terrain's move cost | cost: `engine/data.js` (`TERRAIN_TYPES`); lookups: `engine/grid.js`; search: `engine/pathing.js` |
 | Combat damage, targeting, ranges, high ground | `engine/systems/combat.js` (+ `isHigh` in `engine/grid.js`); RPS tables in `engine/data.js` |
-| Economy rates (Supply trickle, worker bonus, vein load) | `engine/systems/economy.js` + numbers in `engine/constants.js` |
+| Economy rates (Supply carving, supply wall, vein load) | `engine/systems/economy.js` + numbers in `engine/constants.js` |
 | Facilities / build rules | `engine/systems/facilities.js` (+ `FACILITIES` in `engine/data.js`); client: `console/build.js`, `structures.js`, `facilities.css` |
 | A new player command | `engine/data.js` (if it needs data) → `engine/systems/<system>.js` (`orderX`) → `engine/commands.js` (route + validate) → shell `handlers.js` only if it's a new socket event (commands ride `wfCommand`) → client `console/*.js` (button) and/or `input.js` (tap) → tests next to the system |
 | What a player sees in the fog | vision radius: `engine/vision.js`; what's sent: `engine/view.js`; drawing: `fog.js` (+ `minimap.js`) |
@@ -170,7 +170,7 @@ Imports go one way only. There are no circular imports. A lower layer never impo
 6. `state.js`, then `vision.js` (6b: it lives here, not in `view.js`, because facilities' build rule needs it)
 7. systems, in this order: `movement` → `facilities` → `economy` → `production` → `combat` →
    `lighthouses` → `weapons` → `victory`. A system imports layers 1–6b and may import an **earlier** system
-   in this order, never a later one. Today economy uses movement (`headFor`/`nearestTile`), and combat
+   in this order, never a later one. Today economy uses movement (`headFor`/`nearestTile`), production uses economy (`autoCarve`), and combat
    uses movement (`orderMove`) and facilities (`loseFacility`). Everything else imports layers 1–6b only.
 8. `commands.js` (order* functions only)
 9. `sim.js` (step* functions only)

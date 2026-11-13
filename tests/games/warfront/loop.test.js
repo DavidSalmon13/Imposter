@@ -169,8 +169,6 @@ test('wfLive is fogged per socket: an enemy shows up only within vision', async 
   assert.ok(!ids('Host').includes(wf.armies.Bob.units[0].id));
   assert.ok(!emissionsForRoom(s.io, 'WFWF').some((e) => e.event === 'wfLive'));
   const live = wfLives(s.io, s.room, 'Bob').at(-1).payload;
-  // Supply accrues from the trickle (and Workers by the supply source) since Step 7.
-  assert.ok(live.me.supply > engine.TUNING.startSupply);
   assert.equal(live.me.supply, wf.armies.Bob.supply);
   assert.ok(typeof live.serverNow === 'number');
 });

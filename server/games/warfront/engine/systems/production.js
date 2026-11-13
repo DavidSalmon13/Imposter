@@ -1,11 +1,13 @@
 'use strict';
 
 // Warfront engine system: spawn points, produce orders and the per-spawn-point build queue.
-// Imports layers 1–6 only. Must NOT contain: Supply income (economy.js). Spec: "Production".
+// Imports layers 1–6 and systems/economy.js (autoCarve: fresh Workers start carving). Must NOT contain:
+// the haul cycle (economy.js). Spec: "Production".
 
 const { WF_MAX_UNITS_PER_PLAYER } = require('../constants');
 const { RACES, UNIT_TYPES } = require('../data');
 const { makeUnit, buildMs, slotsFor, unitSlotsUsed, builtFacilities, isDisabled, round3 } = require('../state');
+const { autoCarve } = require('./economy');
 
 /** Tiles where `army` may produce: its base, then every finished Forward Barracks an EMP hasn't switched off. */
 function spawnPoints(state, army, now) {
@@ -57,6 +59,7 @@ function stepProduction(state, dtMs, now, events) {
         for (const [type, at] of spawned) {
           const u = makeUnit(state.nextUnitId++, type, owner, at);
           army.units.push(u);
+          autoCarve(state, army, u, now); // a fresh Worker gets to work on the supply wall by itself
           events.push({ type: 'spawn', tileId: at, owner, team: army.team, unitId: u.id, unitType: type });
         }
       }

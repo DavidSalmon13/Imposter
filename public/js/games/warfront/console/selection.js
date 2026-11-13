@@ -102,13 +102,15 @@ function renderInfoWell() {
   if (hpChanged) renderSelHp(sel, counts.size === 1 ? lead : null);
   const dest = sel.find((u) => u.path && u.path.length);
   const hauler = sel.find((u) => u.haul);
-  const cap = S.state.carryCap || 4;
+  const carving = hauler && hauler.haul.kind === 'supply';
+  const cap = carving ? S.state.supplyCarryCap || 3 : S.state.carryCap || 4;
+  const loadIcon = hauler && hauler.carryKind === 'supply' ? '🔩' : '💎';
   let order;
   if (S.buildMode) order = buildOrderText();
-  else if (S.mode === 'haul') order = '▸ TAP A MINERAL VEIN TO HAUL';
-  else if (hauler && hauler.haul.stage === 'loading') order = `▸ HAULING · LOADING 💎 ${Math.floor(hauler.carrying * 10) / 10}/${cap}`;
-  else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ HAULING · 💎 ${Math.round(hauler.carrying)} → ${S.structureTiles.has(hauler.path && hauler.path.length ? hauler.path[hauler.path.length - 1] : -1) ? 'REFINERY' : 'BASE'}`;
-  else if (hauler) order = '▸ HAULING · TO THE VEIN';
+  else if (S.mode === 'haul') order = '▸ TAP A MINERAL VEIN OR YOUR SUPPLY WALL';
+  else if (hauler && hauler.haul.stage === 'loading') order = carving ? `▸ CARVING 🔩 ${Math.floor(hauler.carrying * 10) / 10}/${cap}` : `▸ HAULING · LOADING 💎 ${Math.floor(hauler.carrying * 10) / 10}/${cap}`;
+  else if (hauler && hauler.haul.stage === 'toDeposit') order = `▸ ${carving ? 'CARVING' : 'HAULING'} · ${loadIcon} ${Math.round(hauler.carrying)} → ${S.structureTiles.has(hauler.path && hauler.path.length ? hauler.path[hauler.path.length - 1] : -1) ? 'REFINERY' : 'BASE'}`;
+  else if (hauler) order = carving ? '▸ CARVING · TO THE SUPPLY WALL' : '▸ HAULING · TO THE VEIN';
   else if (dest) order = `▸ MOVE → ${areaName(map, dest.path[dest.path.length - 1]).toUpperCase()}`;
   else if (sel.every((u) => u.garrison)) {
     order = sel.some((u) => UNIT_STATS[u.type] && UNIT_STATS[u.type].range >= 2)

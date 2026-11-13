@@ -157,9 +157,10 @@ balance) and the shell's `server/games/warfront/constants.js` (timing/roster). A
 | `TUNING.startSupply` | 6 | Each player's **🔩 Supply** at match start |
 | `TUNING.startMinerals` | 0 | Each player's **💎 Minerals** at match start (minerals are earned by hauling) |
 | `TUNING.startWorkers` | 2 | Worker units each player begins with, on their base tile |
-| `TUNING.baseTrickleSec` | 0.3 | Flat Supply **per second** per player (so a worker-less player never hard-stalls) |
-| `TUNING.supplyPerWorkerSec` | 0.5 | Supply **per second** per Worker on a friendly supply source |
-| `TUNING.forgeWorkerBonusSec` | 0.25 | Extra Supply/sec per **Forge** Worker on a friendly supply source |
+| `TUNING.supplyCarveSec` | 0.8 | Supply **per second** a Worker carves while standing on a tile of its own **supply wall** |
+| `TUNING.supplyCarryCap` | 3 | Max Supply a Worker carries before walking it into the base |
+| `TUNING.forgeCarveBonus` | 0.5 | **Forge** Workers carve this much faster (×1.5) |
+| `TUNING.incomeWindowMs` | 20000 | The HUD's +🔩/s is the Supply delivered over this window |
 | `TUNING.forgeStructureDiscount` | 1 | 💎 off every facility and tower a **Forge** player builds |
 | `TUNING.mineLoadSec` | 0.5 | Minerals **per second** a Worker loads on a vein, × the vein's richness |
 | `TUNING.carryCap` | 4 | Max Minerals a Worker carries before the auto-haul loop returns to deposit |
@@ -217,10 +218,10 @@ flow, so losing them starves you — defend yours, hunt theirs.
 
 | Unit | Icon | Class | HP | Atk | 🔩 | 💎 | Move | Rng | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 10 | 1 | 3 | 0 | 1 | 1 | harvests Supply on a supply source; loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
+| Laborer (Forge) / Peon (Horde) / Acolyte (Arcane) | ⛏️ | worker | 10 | 1 | 3 | 0 | 1 | 1 | carves Supply at its supply wall (`supplyCarryCap 3`); loads Minerals on a vein (`carryCap 4`); deposits at base/Refinery; outside the RPS triangle (flat ×1) |
 
-**⚒️ FORGE — the great builders.** Specialty: **defense + economy** (Forge Workers earn
-`+forgeWorkerBonusSec` Supply/sec, every Forge facility and tower costs `forgeStructureDiscount` 💎
+**⚒️ FORGE — the great builders.** Specialty: **defense + economy** (Forge Workers carve
+Supply `forgeCarveBonus` faster, every Forge facility and tower costs `forgeStructureDiscount` 💎
 less, and only Forge fields the Bastion). All races can build, but Forge turtles and out-produces
 best.
 
@@ -348,7 +349,7 @@ same world (modulo its own fog) and tweens between snapshots.
   "width": 9, "height": 7,
   "tiles": [ { "terrain": "plains|forest|hills|water|rock" } ],   // exactly width*height, row-major
   "bases": [ { "team": "red", "x": 0, "y": 3 }, { "team": "blue", "x": 8, "y": 3 } ],
-  "supplySources": [ { "x": 1, "y": 3 }, { "x": 7, "y": 3 } ],     // exactly one adjacent to each base
+  "supplySources": [ { "x": 1, "y": 3 }, { "x": 7, "y": 3 } ],     // exactly one adjacent to each base; grows into a 3-tile supply wall
   "veins":   [ { "x": 4, "y": 1, "richness": 1|2|3, "contested": true } ],  // 1-2 mineral veins to haul from
   "weapons": [ { "x": 4, "y": 5, "weaponId": "artillery|emp|airdrop|bombard|aegis" } ],  // ground pickups
   "lighthouses": [ { "x": 2, "y": 2 }, { "x": 6, "y": 4 }, { "x": 4, "y": 1 } ],  // 2-4: one near each base + up to 2 contested
@@ -480,10 +481,14 @@ Agreed 2026-11-11 so a player never loses units without knowing it, even to an u
 
 ### Economy (accrues continuously)
 
-- **🔩 Supply:** each player accrues `baseTrickleSec` plus `supplyPerWorkerSec` for every Worker on
-  (or orthogonally adjacent to) a friendly **supply source**; **Forge** Workers earn `+forgeWorkerBonusSec` each. It
-  ticks up smoothly and the HUD shows the current rate. No passive node income exists — Supply is
-  **earned by where your Workers stand**.
+- **🔩 Supply via the supply wall (2026-11-13):** there is **no free income**. Each base has a short
+  **supply wall** of rock beside it: the map's supply source plus the free tiles either side of it,
+  across the line from the base (up to 3 tiles; `map.supplyWalls`). A Worker sent to a tile of its own
+  wall (a `haul` command onto that tile) carves `supplyCarveSec` Supply/sec (**Forge** ×(1 +
+  `forgeCarveBonus`)) up to `supplyCarryCap`, walks the load into its **base** (the only Supply
+  deposit), banks it, walks back and repeats until re-ordered. The starting Workers, and every Worker
+  produced later, start carving on their own. A carver killed with a load loses it (no drop). The
+  HUD's rate is the Supply delivered over the last `incomeWindowMs`. Nobody may carve the enemy wall.
 - **💎 Minerals via the auto-haul loop:** a Worker given a `haul` command runs hands-off — mine on
   the vein until `carrying` hits `carryCap` (rate `mineLoadSec × richness`; a **contested** vein's
   rate carries the ± `veinLuckMagnitude` swing), then walk to the **nearest friendly deposit**

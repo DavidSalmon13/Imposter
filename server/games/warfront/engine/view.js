@@ -35,6 +35,7 @@ function viewForPlayer(state, name) {
       v.stepEndsAt = u.stepEndsAt;
       if (u.stepFrom != null) v.stepFrom = u.stepFrom;
       v.carrying = u.carrying;
+      if (u.carryKind) v.carryKind = u.carryKind;
       v.haul = u.haul;
       v.holding = Boolean(u.holding);
       // How long the step after this one takes, so the client can keep the unit
@@ -57,7 +58,10 @@ function viewForPlayer(state, name) {
           v.afterStepMs = stepMs(state.map, u.type, u.path[1]);
         }
       }
-      if (u.class === 'worker') v.carrying = u.carrying;
+      if (u.class === 'worker') {
+        v.carrying = u.carrying;
+        if (u.carryKind) v.carryKind = u.carryKind;
+      }
     }
     units.push(v);
   }

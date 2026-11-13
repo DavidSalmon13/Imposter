@@ -164,6 +164,25 @@ function validateMap(raw, size) {
     }
   }
 
+  // Supply walls (2026-11-13): the supply source plus the free tiles either side of it, across the
+  // line from its base, form a short wall of rock Workers carve 🔩 from. Flank tiles that are off the
+  // map, impassable or already a feature are simply left out (the source itself always stands).
+  const supplyWalls = [];
+  for (const src of supplySources) {
+    const base = bases[src.team];
+    const across = src.x === base.x ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]];
+    supplyWalls.push({ x: src.x, y: src.y, tileId: src.tileId, team: src.team });
+    for (const [dx, dy] of across) {
+      const x = src.x + dx;
+      const y = src.y + dy;
+      if (x < 0 || y < 0 || x >= width || y >= height) continue;
+      const id = tileId(x, y, width);
+      if (used.has(id) || !isPassable(map, id) || !reach.has(id)) continue;
+      used.add(id);
+      supplyWalls.push({ x, y, tileId: id, team: src.team });
+    }
+  }
+
   // Chokepoints are hints only: keep the valid ones, drop the rest quietly.
   const chokepoints = (Array.isArray(raw.chokepoints) ? raw.chokepoints : [])
     .filter((c) => c && Number.isInteger(c.x) && Number.isInteger(c.y)
@@ -182,6 +201,7 @@ function validateMap(raw, size) {
     tiles,
     bases: [bases.red, bases.blue],
     supplySources,
+    supplyWalls,
     veins,
     weapons,
     lighthouses,

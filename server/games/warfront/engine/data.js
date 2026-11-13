@@ -14,7 +14,7 @@ const RACES = Object.freeze({
   forge: {
     id: 'forge',
     name: 'Forge',
-    specialty: 'Defense + economy: Workers earn bonus Supply, structures cost 1 Mineral less, only Forge fields the Bastion.',
+    specialty: 'Defense + economy: Workers carve Supply faster, structures cost 1 Mineral less, only Forge fields the Bastion.',
     workerType: 'laborer',
     airdropUnit: 'militiaman',
   },

@@ -1,42 +1,92 @@
 'use strict';
 
-// Warfront engine tests: Supply income and hauling.
+// Warfront engine tests: carving Supply from the wall and hauling Minerals.
 // Exercises server/games/warfront/engine/systems/economy.js.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const E = require('../../../../server/games/warfront/engine');
-const { makeBattle, run, move, haul } = require('../fixtures');
+const { makeBattle, run, move, haul, produce, rawMap } = require('../fixtures');
 
-test('economy: a player with no Workers still gains the flat trickle', () => {
+test('economy: no Workers on the wall means no Supply at all (no free trickle)', () => {
   const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']] });
   run(b.st, 0, 10000);
-  assert.ok(Math.abs(b.st.armies.Red.supply - (E.TUNING.startSupply + E.TUNING.baseTrickleSec * 10)) < 1e-6);
-  assert.equal(E.supplyRate(b.st, b.st.armies.Red), E.TUNING.baseTrickleSec);
+  assert.equal(b.st.armies.Red.supply, E.TUNING.startSupply);
+  assert.equal(E.supplyRate(b.st, b.st.armies.Red), 0);
 });
 
-test('economy: two Workers on the supply source earn twice one Worker\'s share; Forge Workers earn a bonus', () => {
-  const rows = ['R.......B'];
-  const sources = [[1, 0, 'red'], [7, 0, 'blue']];
-  const one = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
-  const two = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [1, 0] }, { owner: 'Red', type: 'peon', at: [0, 0] }] });
-  const far = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [3, 0] }] });
-  const trickle = E.TUNING.baseTrickleSec;
-  const share1 = E.supplyRate(one.st, one.st.armies.Red) - trickle;
-  const share2 = E.supplyRate(two.st, two.st.armies.Red) - trickle;
-  assert.ok(Math.abs(share1 - E.TUNING.supplyPerWorkerSec) < 1e-9);
-  assert.ok(Math.abs(share2 - 2 * share1) < 1e-9, 'on the source and beside it both count');
-  assert.equal(E.supplyRate(far.st, far.st.armies.Red), trickle, 'two tiles away earns nothing');
-  // Over time the accrual matches the rate.
-  run(two.st, 0, 4000);
-  assert.ok(Math.abs(two.st.armies.Red.supply - (E.TUNING.startSupply + 4 * (trickle + share2))) < 1e-6);
-  // Forge Workers (Blue here) earn forgeWorkerBonusSec on top.
-  const forge = makeBattle({ rows, sources, units: [{ owner: 'Blue', type: 'laborer', at: [7, 0] }] });
-  assert.ok(Math.abs(E.supplyRate(forge.st, forge.st.armies.Blue) - (trickle + E.TUNING.supplyPerWorkerSec + E.TUNING.forgeWorkerBonusSec)) < 1e-9);
-  // An enemy's supply source pays nothing.
-  const enemySrc = makeBattle({ rows, sources, units: [{ owner: 'Red', type: 'peon', at: [7, 0] }] });
-  assert.equal(E.supplyRate(enemySrc.st, enemySrc.st.armies.Red), trickle);
+test('economy: a Worker standing beside the supply wall earns nothing until it carves and delivers', () => {
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
+  run(b.st, 0, 10000);
+  assert.equal(b.st.armies.Red.supply, E.TUNING.startSupply);
+});
+
+test('carve: a Worker walks to its supply wall, carves supplyCarryCap, carries it into the base and goes back', () => {
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], units: [{ owner: 'Red', type: 'peon', at: [0, 0] }] });
+  const red = b.st.armies.Red;
+  const w = b.unit('Red');
+  assert.deepEqual(haul(b.st, 'Red', [w.id], b.at(1, 0), 0), { ok: true, hauling: 1 });
+  assert.equal(w.haul.kind, 'supply');
+  const P = E.WF_STEP_MS_BASE;
+  const carve = (E.TUNING.supplyCarryCap / E.TUNING.supplyCarveSec) * 1000;
+  run(b.st, 0, P + 200);
+  assert.equal(w.tileId, b.at(1, 0));
+  assert.equal(w.haul.stage, 'loading');
+  assert.equal(red.supply, E.TUNING.startSupply, 'nothing banked while carving');
+  const events = [];
+  for (let now = P + 400; now <= 2 * P + carve + 1200; now += 200) events.push(...E.stepSim(b.st, 200, { now }).events);
+  assert.equal(red.supply, E.TUNING.startSupply + E.TUNING.supplyCarryCap);
+  assert.equal(red.minerals, 0, 'carved rock is Supply, not Minerals');
+  assert.equal(w.haul.stage, 'toVein', 'and back to the wall');
+  assert.deepEqual(events.filter((e) => e.type === 'deposit').map((e) => [e.supply, e.tileId]), [[E.TUNING.supplyCarryCap, b.at(0, 0)]]);
+  const now = 2 * P + carve + 1200;
+  assert.ok(Math.abs(E.supplyRate(b.st, red, now) - E.TUNING.supplyCarryCap / (E.TUNING.incomeWindowMs / 1000)) < 1e-9);
+  assert.equal(E.supplyRate(b.st, red, now + E.TUNING.incomeWindowMs + 1), 0, 'the rate is only recent deliveries');
+});
+
+test('carve: Forge Workers carve faster; nobody may carve the enemy wall', () => {
+  const fill = (race) => {
+    const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], races: { Red: race }, units: [{ owner: 'Red', type: 'peon', at: [1, 0] }] });
+    const w = b.unit('Red');
+    haul(b.st, 'Red', [w.id], b.at(1, 0), 0);
+    let now = 0;
+    while (w.carrying < E.TUNING.supplyCarryCap && now < 60000) E.stepSim(b.st, 200, { now: (now += 200) });
+    return now;
+  };
+  assert.ok(fill('forge') < fill('horde'));
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], units: [{ owner: 'Red', type: 'peon', at: [0, 0] }] });
+  assert.equal(haul(b.st, 'Red', [b.unit('Red').id], b.at(5, 0), 0).ok, false);
+});
+
+test('carve: a Worker loaded with Minerals drops them off before carving; a killed carver leaves no Mineral drop', () => {
+  const b = makeBattle({ rows: ['R.....B'], sources: [[1, 0, 'red'], [5, 0, 'blue']], units: [{ owner: 'Red', type: 'peon', at: [2, 0] }] });
+  const w = b.unit('Red');
+  w.carrying = 2;
+  haul(b.st, 'Red', [w.id], b.at(1, 0), 0);
+  assert.equal(w.haul.stage, 'toDeposit');
+  const t = 3 * E.WF_STEP_MS_BASE + 1000;
+  run(b.st, 0, t);
+  assert.equal(b.st.armies.Red.minerals, 2);
+  assert.equal(w.carryKind, 'supply');
+  assert.ok(w.carrying > 0);
+  w.hp = 0;
+  E.stepSim(b.st, 200, { now: t + 200 });
+  assert.deepEqual(b.st.pickups.mineralDrops, {});
+});
+
+test('carve: starting Workers and freshly built Workers go to the supply wall by themselves', () => {
+  const map = E.validateMap(rawMap(), { width: 9, height: 5 });
+  const st = E.createBattleState(map, [{ name: 'Red', team: 'red', race: 'horde' }, { name: 'Blue', team: 'blue', race: 'forge' }], { seed: 1, now: 0 });
+  for (const u of st.armies.Red.units) assert.deepEqual([u.haul.kind, u.haul.veinTileId], ['supply', E.tileId(1, 2, 9)]);
+  run(st, 0, 15000);
+  assert.ok(st.armies.Red.supply > E.TUNING.startSupply, 'they deliver without being told');
+  st.armies.Red.supply = 10;
+  assert.equal(produce(st, 'Red', 'peon', 15000).ok, true);
+  run(st, 15000, 15000 + 3 * E.TUNING.buildMsPerCost + 200);
+  const fresh = st.armies.Red.units.at(-1);
+  assert.equal(fresh.type, 'peon');
+  assert.equal(fresh.haul && fresh.haul.kind, 'supply');
 });
 
 test('haul: a full cycle walks out, loads carryCap, brings it home and goes back', () => {

@@ -32,6 +32,10 @@ export function buildMinimap(map) {
     const c = tileCentre(map, v.tileId);
     minimap.appendChild(miniRect(c.x / 10 - 1.5, c.y / 10 - 1.5, 3, 3, '#5ad8ff'));
   });
+  (map.supplyWalls || map.supplySources || []).forEach((w) => {
+    const c = tileCentre(map, w.tileId);
+    minimap.appendChild(miniRect(c.x / 10 - 1.5, c.y / 10 - 1.5, 3, 3, '#e8a33a'));
+  });
   map.bases.forEach((b) => {
     const c = tileCentre(map, b.tileId);
     minimap.appendChild(miniRect(c.x / 10 - 3.5, c.y / 10 - 3.5, 7, 7, b.team === 'red' ? '#ff5a5f' : '#4f93ff', '1px'));

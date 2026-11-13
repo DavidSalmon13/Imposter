@@ -42,11 +42,12 @@ export function onTileTap(tileId) {
     haptics.tap();
     return;
   }
-  const vein = S.state.map.veins.some((v) => v.tileId === tileId);
+  const wall = (S.state.map.supplyWalls || S.state.map.supplySources).some((w) => w.tileId === tileId && w.team === S.state.myTeam);
+  const vein = wall || S.state.map.veins.some((v) => v.tileId === tileId); // a haul target: 💎 vein or your 🔩 wall
   const workerIds = selectedUnits().filter((u) => WORKER_TYPES.has(u.type)).map((u) => u.id);
   if (S.mode === 'haul') {
     S.mode = 'move';
-    if (!vein) feed('Tap a mineral vein to haul from it', 'amb');
+    if (!vein) feed('Tap a mineral vein or your supply wall', 'amb');
     else if (workerIds.length) sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
     renderSys();
     renderInfo();
@@ -93,7 +94,7 @@ export function onTileTap(tileId) {
     S.selStructure = null;
     S.selBase = false;
   } else if (S.selected.size && vein && workerIds.length === S.selected.size) {
-    // Workers sent onto a vein start hauling from it.
+    // Workers sent onto a vein (or your supply wall) start hauling (carving) from it.
     sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });
   } else if (S.selected.size) {
     const unitIds = [...S.selected];

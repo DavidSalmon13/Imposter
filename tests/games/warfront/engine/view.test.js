@@ -78,7 +78,7 @@ test('view: a player sees only their own Supply rate, Minerals and queues', () =
   produce(b.st, 'Red', 'warrior', 0);
   const me = E.viewForPlayer(b.st, 'Red').me;
   assert.equal(me.supply, 4);
-  assert.equal(me.supplyRate, E.TUNING.baseTrickleSec + E.TUNING.supplyPerWorkerSec);
+  assert.equal(me.supplyRate, 0, 'nothing delivered yet');
   assert.equal(me.units, 3);
   assert.equal(me.unitCap, E.WF_MAX_UNITS_PER_PLAYER);
   const T = 3 * E.TUNING.buildMsPerCost;

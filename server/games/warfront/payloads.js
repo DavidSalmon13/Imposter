@@ -108,6 +108,7 @@ function battlePayload(ctx, room, viewerName) {
     weaponCost: engine.TUNING.workshopWeaponCost,
     weaponMs: engine.TUNING.workshopWeaponMs,
     carryCap: engine.TUNING.carryCap,
+    supplyCarryCap: engine.TUNING.supplyCarryCap,
     roster,
     canCommand: canCommandMatch(room, viewerName),
     ...engine.viewForPlayer(wf, viewerName),

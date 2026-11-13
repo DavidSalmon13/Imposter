@@ -5,7 +5,7 @@
  */
 
 import { S } from './store.js';
-import { UNIT_SPRITES, UNIT_ICONS, LOAD_SPRITE } from './sprites.js';
+import { UNIT_SPRITES, UNIT_ICONS, LOAD_SPRITE, SUPPLY_LOAD_SPRITE } from './sprites.js';
 import { el } from './util.js';
 import { FORMATIONS, FACILITY_TYPES, UNIT_MAX_HP } from './constants.js';
 import { tileCentre, ent, standPoint, stepPoint, roofPoint } from './world/geometry.js';
@@ -122,8 +122,10 @@ function fillStack(node, g, you) {
     fig.appendChild(el('span', 'spw', (UNIT_SPRITES[figTypes[i]] || '').replace('<svg ', '<svg class="sp" ')));
     bb.appendChild(fig);
   });
-  // A hauler with a load (yours, or an enemy's in sight) carries a crystal over the squad.
-  if (g.units.some((u) => u.carrying > 0)) bb.appendChild(el('span', 'wf-load', LOAD_SPRITE));
+  // A hauler with a load (yours, or an enemy's in sight) carries it over the squad: a 💎 crystal,
+  // or an amber chunk of carved 🔩 Supply rock.
+  const loaded = g.units.find((u) => u.carrying > 0);
+  if (loaded) bb.appendChild(el('span', `wf-load${loaded.carryKind === 'supply' ? ' sup' : ''}`, loaded.carryKind === 'supply' ? SUPPLY_LOAD_SPRITE : LOAD_SPRITE));
   node.appendChild(bb);
   resumeAttacks(node, g);
 }

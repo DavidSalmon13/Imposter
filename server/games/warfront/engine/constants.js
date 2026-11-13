@@ -31,9 +31,13 @@ const TUNING = Object.freeze({
   startSupply: 6,
   startMinerals: 0,
   startWorkers: 2,
-  baseTrickleSec: 0.3,
-  supplyPerWorkerSec: 0.5,
-  forgeWorkerBonusSec: 0.25,
+  // 🔩 Supply (2026-11-13): no free income. Workers carve it from the supply wall beside their base
+  // (supplyCarveSec per second, up to supplyCarryCap) and walk each load into the base, like hauling
+  // Minerals. Forge Workers carve forgeCarveBonus faster. Fresh Workers start carving on their own.
+  supplyCarveSec: 0.8,
+  supplyCarryCap: 3,
+  forgeCarveBonus: 0.5,
+  incomeWindowMs: 20000, // the HUD's +🔩/s is what was delivered over this window
   forgeStructureDiscount: 1,
   mineLoadSec: 0.5,
   carryCap: 4,

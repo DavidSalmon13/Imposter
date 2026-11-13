@@ -90,9 +90,9 @@ export const SPEED_NAMES = ['Static', 'Normal', 'Fast', 'Very fast'];
 
 // One line on what each unit is for, shown in the info well and on a card's long press.
 export const UNIT_INFO = {
-  laborer: 'Hauls 💎 from veins and builds. Forge Workers add extra 🔩 Supply.',
-  peon: 'Hauls 💎 from veins and builds. Cheap and tireless.',
-  acolyte: 'Hauls 💎 from veins and builds. Serves the Arcane circle.',
+  laborer: 'Carves 🔩 from the supply wall, hauls 💎 from veins, builds. Forge Workers carve faster.',
+  peon: 'Carves 🔩 from the supply wall, hauls 💎 from veins, builds. Cheap and tireless.',
+  acolyte: 'Carves 🔩 from the supply wall, hauls 💎 from veins, builds. Serves the Arcane circle.',
   militiaman: 'Spear infantry. Holds the line and beats cavalry.',
   crossbow: 'Shoots two tiles. Shreds infantry, but riders run it down.',
   outrider: 'Fast cavalry. Rides down archers and casters.',
