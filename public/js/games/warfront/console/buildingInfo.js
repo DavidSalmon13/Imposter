@@ -10,7 +10,7 @@
 
 import { S } from '../store.js';
 import { haptics } from '../../../fx.js';
-import { FACILITY_SPRITES } from '../sprites.js';
+import { FACILITY_SPRITES, CASTLE_SPRITE } from '../sprites.js';
 import { el, feed } from '../util.js';
 import { RACE_NAMES, FACILITY_NAMES, FACILITY_ORDERS, FACILITY_TYPES, UNIT_MAX_HP, UNIT_INFO, UNIT_STATS } from '../constants.js';
 import { infoPortrait, infoTitle, infoTag, infoSub, infoHp, infoDesc, infoOrder, world } from '../dom.js';
@@ -37,10 +37,26 @@ const PORTRAIT_TEAM = {
 const TEAM_NAMES = { red: 'Red', blue: 'Blue' };
 const theirs = (text) => text.replace(/\bYour\b/g, 'Their').replace(/\byour\b/g, 'their');
 
+const BASE_INFO = "Your team's home. New units step out here unless a Forward Barracks is picked. It strikes enemies beside it. Lose it and you lose the match.";
+const BASE_ORDERS = { mine: '▸ RECRUIT FROM THE CARDS BELOW · KEEP DEFENDERS ON IT', foe: '▸ DESTROY IT TO WIN THE MATCH' };
+
+/**
+ * A team's base drawn as a building for the info well (it isn't a unit: it lives in `S.live.bases`
+ * and the map). Its id is `base:<team>`. Null if that base isn't known.
+ */
+export function baseBuilding(team) {
+  const b = S.live && S.live.bases && S.live.bases[team];
+  if (!b) return null;
+  return { id: `base:${team}`, type: 'base', isBase: true, team, tileId: b.tileId, hp: b.hp, maxHp: b.maxHp, shieldUntil: b.shieldUntil || 0 };
+}
+
 /** The long-pressed building, if it's still fresh and still in view; clears a stale one. */
 export function inspectedBuilding() {
   if (!S.inspect || !S.live) return null;
-  const u = S.inspect.until > Date.now() ? S.live.units.find((x) => x.id === S.inspect.id) : null;
+  const fresh = S.inspect.until > Date.now();
+  const u = !fresh ? null
+    : S.inspect.base ? baseBuilding(S.inspect.base)
+      : S.live.units.find((x) => x.id === S.inspect.id);
   if (!u) S.inspect = null;
   return u || null;
 }
@@ -56,23 +72,27 @@ function buildMsFor(type) {
  * the portrait and the bar's nodes are built once per building and only repainted after that.
  */
 export function renderBuildingInfo(b, changed) {
-  const mine = b.owner === S.state.you;
-  const ally = !mine && b.team === S.state.myTeam;
+  // A base belongs to the whole team: it's "yours" for everyone on it.
+  const mine = b.isBase ? b.team === S.state.myTeam : b.owner === S.state.you;
+  const ally = !mine && !b.isBase && b.team === S.state.myTeam;
   const wip = Boolean(b.buildDoneAt);
-  const max = UNIT_MAX_HP[b.type] || b.hp || 1;
+  const max = b.maxHp || UNIT_MAX_HP[b.type] || b.hp || 1;
   if (changed('portrait', `b:${b.id}:${wip ? 1 : 0}`)) {
-    infoPortrait.innerHTML = FACILITY_SPRITES[b.type].svg
-      .replace('<svg ', `<svg style="width: 44px; height: 58px; overflow: visible; opacity: ${wip ? 0.45 : 1}" `);
+    const svg = b.isBase ? CASTLE_SPRITE : FACILITY_SPRITES[b.type].svg;
+    infoPortrait.innerHTML = svg
+      .replace('<svg ', `<svg style="width: 44px; height: ${b.isBase ? 44 : 58}px; overflow: visible; opacity: ${wip ? 0.45 : 1}" `);
     Object.assign(infoPortrait.style, PORTRAIT_TEAM[b.team] || PORTRAIT_TEAM.red);
   }
   infoPortrait.className = `scan tm-${b.team}`;
-  infoTitle.textContent = FACILITY_NAMES[b.type] || b.type;
+  infoTitle.textContent = b.isBase ? `${TEAM_NAMES[b.team] || ''} Base` : FACILITY_NAMES[b.type] || b.type;
   const [tag, tagCls] = mine && wip ? ['BUILDING', 'wip'] : mine ? ['YOURS', 'mine'] : ally ? ['ALLY', 'mine'] : ['ENEMY', `foe foe-${b.team}`];
   infoTag.textContent = tag;
   infoTag.className = `btag ${tagCls}`;
 
   let sub;
-  if (wip) sub = `Under construction · ${Math.max(0, Math.ceil((b.buildDoneAt - serverNow()) / 1000))}s`;
+  const shieldS = b.isBase ? Math.ceil((b.shieldUntil - serverNow()) / 1000) : 0;
+  if (b.isBase) sub = `${mine ? RACE_NAMES[S.state.myRace] || '' : `${TEAM_NAMES[b.team] || ''} · enemy`}${shieldS > 0 ? ` · 🛡 shielded ${shieldS}s` : ''}`;
+  else if (wip) sub = `Under construction · ${Math.max(0, Math.ceil((b.buildDoneAt - serverNow()) / 1000))}s`;
   else if (!mine) sub = ally ? `${b.owner} · ${TEAM_NAMES[b.team]}` : `${TEAM_NAMES[b.team] || ''} · in sight`;
   else {
     const roof = b.type === 'tower'
@@ -106,9 +126,10 @@ export function renderBuildingInfo(b, changed) {
   }
   fill.style.transform = `scaleX(${f.toFixed(3)})`;
 
-  const desc = UNIT_INFO[b.type] || '';
+  const desc = b.isBase ? BASE_INFO : UNIT_INFO[b.type] || '';
   infoDesc.textContent = mine ? desc : theirs(desc);
-  const order = wip && mine ? '▸ BEING BUILT · IT WORKS ONCE IT STANDS'
+  const order = b.isBase ? BASE_ORDERS[mine ? 'mine' : 'foe']
+    : wip && mine ? '▸ BEING BUILT · IT WORKS ONCE IT STANDS'
     : mine ? FACILITY_ORDERS[b.type] || ''
       : ally ? '' : ENEMY_ORDERS[b.type] || '';
   infoOrder.textContent = order;
@@ -161,9 +182,10 @@ export function enableLongPress(onShow) {
     timer = setTimeout(() => {
       start = null;
       const b = S.live && S.live.units.find((u) => u.tileId === tileId && FACILITY_TYPES.has(u.type));
-      if (!b) return;
+      const base = !b && S.state && S.state.map.bases.find((x) => x.tileId === tileId);
+      if (!b && !base) return;
       S.lore = null;
-      S.inspect = { id: b.id, until: Date.now() + INSPECT_MS };
+      S.inspect = b ? { id: b.id, until: Date.now() + INSPECT_MS } : { id: `base:${base.team}`, base: base.team, until: Date.now() + INSPECT_MS };
       S.suppressClickUntil = Date.now() + 700;
       haptics.tap();
       onShow();

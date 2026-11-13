@@ -9,23 +9,57 @@ const { TUNING } = require('../constants');
 const { unitStats } = require('../data');
 const { allUnits, stepMs, towerAt, garrisonOf } = require('../state');
 
+/** Walking time (ms) along `path` for a unit of `type`: each step's stepMs summed. */
+function walkMs(map, type, path) {
+  let ms = 0;
+  for (const t of path) ms += stepMs(map, type, t);
+  return ms;
+}
+
 /**
- * Sends one unit toward `to`. A unit already mid-step finishes that step first
- * (its next tile is kept and the new path continues from there), so a re-issued
- * order never snaps a unit backwards. Returns false when there's nowhere to go.
+ * Sends one unit toward `to`. A unit that's mid-step either carries on onto the tile
+ * it's stepping to, or turns round on the spot and walks back to the tile it came
+ * from, whichever reaches `to` sooner. Turning round never snaps it: the step back
+ * starts from where it stands now. Returns false when there's nowhere to go.
+ *
+ * A unit stays on `tileId` until a step lands, so a turned-round unit whose step
+ * leads back onto `tileId` remembers where it's walking from in `stepFrom`.
  */
 function orderMove(state, unit, to, now) {
   const { map } = state;
-  // Mid-step (or a finished step the next sim step hasn't applied yet): keep it.
+  // Mid-step (or a finished step the next sim step hasn't applied yet).
   if (unit.path.length) {
     const next = unit.path[0];
-    const rest = next === to ? [] : findPath(map, next, to);
-    if (next !== to && !rest.length) return false;
-    unit.path = [next, ...rest];
+    const from = unit.stepFrom != null ? unit.stepFrom : unit.tileId;
+    const fwdRest = next === to ? [] : findPath(map, next, to);
+    const fwdOk = next === to || fwdRest.length > 0;
+    const dur = Math.max(1, unit.stepEndsAt - unit.stepStartedAt);
+    const done = Math.max(0, Math.min(1, (now - unit.stepStartedAt) / dur)); // share of the step walked
+    let back = null;
+    if (from !== next && done < 1) {
+      const backRest = from === to ? [] : findPath(map, from, to);
+      if (from === to || backRest.length) {
+        const backStep = stepMs(map, unit.type, from);
+        const backMs = done * backStep + walkMs(map, unit.type, backRest);
+        const fwdMs = fwdOk ? Math.max(0, unit.stepEndsAt - now) + walkMs(map, unit.type, fwdRest) : Infinity;
+        if (backMs < fwdMs) back = { rest: backRest, step: backStep };
+      }
+    }
+    if (back) {
+      // Turn round: step from `next` back onto `from`, already (1 - done) of the way there.
+      unit.path = [from, ...back.rest];
+      unit.stepEndsAt = Math.round(now + done * back.step);
+      unit.stepStartedAt = unit.stepEndsAt - back.step;
+      unit.stepFrom = next === unit.tileId ? null : next;
+    } else {
+      if (!fwdOk) return false;
+      unit.path = [next, ...fwdRest];
+    }
   } else {
     const path = findPath(map, unit.tileId, to);
     if (!path.length) return false;
     unit.path = path;
+    unit.stepFrom = null;
     unit.stepStartedAt = now;
     unit.stepEndsAt = now + stepMs(map, unit.type, path[0]);
   }
@@ -100,6 +134,7 @@ function stepMovement(state, dtMs, now, events) {
   for (const { unit, owner } of allUnits(state)) {
     while (unit.path.length && unit.stepEndsAt <= now) {
       unit.tileId = unit.path.shift();
+      unit.stepFrom = null;
       arriveAt(state, owner, unit, events);
       if (unit.path.length) {
         unit.stepStartedAt = Math.max(unit.stepEndsAt, floor);

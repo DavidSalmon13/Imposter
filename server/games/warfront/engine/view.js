@@ -32,6 +32,7 @@ function viewForPlayer(state, name) {
       v.path = u.path.slice();
       v.stepStartedAt = u.stepStartedAt;
       v.stepEndsAt = u.stepEndsAt;
+      if (u.stepFrom != null) v.stepFrom = u.stepFrom;
       v.carrying = u.carrying;
       v.haul = u.haul;
       v.holding = Boolean(u.holding);
@@ -48,6 +49,7 @@ function viewForPlayer(state, name) {
         v.nextTileId = u.path[0];
         v.stepStartedAt = u.stepStartedAt;
         v.stepEndsAt = u.stepEndsAt;
+        if (u.stepFrom != null) v.stepFrom = u.stepFrom; // turned round, walking back onto tileId
         // The step after, only onto a tile this team can already see (never leaks the route into fog).
         if (u.path.length > 1 && vision.has(u.path[1])) {
           v.afterTileId = u.path[1];

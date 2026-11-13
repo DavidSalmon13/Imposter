@@ -21,7 +21,7 @@ import {
 } from '../constants.js';
 import { infoPortrait, infoTitle, infoSub, infoHp, infoOrder, cmdBtn } from '../dom.js';
 import { hpFraction, hpClass } from '../stackSig.js';
-import { inspectedBuilding, renderBuildingInfo, clearBuildingInfo } from './buildingInfo.js';
+import { inspectedBuilding, renderBuildingInfo, clearBuildingInfo, baseBuilding } from './buildingInfo.js';
 
 const plural = (name, n) => (n === 1 ? name : name.endsWith('man') ? `${name.slice(0, -3)}men` : `${name}s`);
 const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1}-${(id % map.width) + 1}`;
@@ -45,7 +45,10 @@ export function renderInfo() {
     return true;
   };
   const inspected = inspectedBuilding();
-  const struct = inspected || (!sel.length && S.selStructure != null ? S.live.units.find((u) => u.id === S.selStructure) : null);
+  if (sel.length) S.selBase = false;
+  const struct = inspected
+    || (!sel.length && S.selBase ? baseBuilding(S.state.myTeam) : null)
+    || (!sel.length && S.selStructure != null ? S.live.units.find((u) => u.id === S.selStructure) : null);
   // A long-pressed Produce card: that unit's description and stats, for a few seconds.
   const lore = !inspected && S.lore && S.lore.until > Date.now() ? S.lore.type : null;
   if (!lore) S.lore = null;

@@ -28,10 +28,11 @@ export function renderOrders() {
   // Enemies in sight: only the step they're taking (the mockup's short .foe arrow).
   S.live.units.forEach((u) => {
     if (u.team === S.state.myTeam || u.nextTileId == null) return;
-    const key = `foe|${u.tileId}|${u.nextTileId}`;
+    const from = u.stepFrom != null ? u.stepFrom : u.tileId; // a turned-round enemy walks back onto its tile
+    const key = `foe|${from}|${u.nextTileId}`;
     if (seen.has(key)) return;
     seen.add(key);
-    lines.push({ foe: true, pts: [{ id: u.tileId }, { id: u.nextTileId }] });
+    lines.push({ foe: true, pts: [{ id: from }, { id: u.nextTileId }] });
   });
   const sig = JSON.stringify(lines.map((l) => [l.mine, l.foe, l.pts.map((p) => p.id)]));
   if (sig !== S.ordersSig) {

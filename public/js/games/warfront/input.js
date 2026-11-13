@@ -50,25 +50,43 @@ export function onTileTap(tileId) {
   const mineHere = S.live.units.filter((u) => u.owner === S.state.you && u.tileId === tileId && !FACILITY_TYPES.has(u.type)).map((u) => u.id);
   const selHere = mineHere.filter((id) => S.selected.has(id));
   const myStruct = S.live.units.find((u) => u.owner === S.state.you && u.tileId === tileId && FACILITY_TYPES.has(u.type));
+  const myBase = S.state.map.bases.some((b) => b.tileId === tileId && b.team === S.state.myTeam);
   // Units picked elsewhere and sent to your Tower climb onto it, even with a garrison already up there.
   const toTower = Boolean(myStruct && myStruct.type === 'tower' && !myStruct.buildDoneAt && S.selected.size
     && [...S.selected].some((id) => !mineHere.includes(id)));
-  if (!toTower && mineHere.length && (!S.selected.size || selHere.length < mineHere.length)) {
+  if (!S.selected.size && S.selBase && myBase) {
+    S.selBase = false; // tapping your picked base again lets go of it
+  } else if (!toTower && mineHere.length && (!S.selected.size || selHere.length < mineHere.length)) {
     // Select (or switch to) the stack on this tile.
     S.selStructure = null;
+    S.selBase = false;
     S.selected.clear();
     mineHere.forEach((id) => S.selected.add(id));
     sfx.click();
     haptics.tap();
   } else if (mineHere.length && selHere.length === mineHere.length && S.selected.size === selHere.length) {
     S.selected.clear(); // tapping your selected stack again lets go of it
+    if (myBase) {
+      // On your base, the second tap picks the base itself (units first, then the base, then nothing).
+      S.selBase = true;
+      sfx.click();
+      haptics.tap();
+    }
+  } else if (!S.selected.size && myBase) {
+    // Pick your base: its HP, shield and what it does show in the info well.
+    S.selStructure = null;
+    S.selBase = true;
+    sfx.click();
+    haptics.tap();
   } else if (!S.selected.size && myStruct) {
     // Pick your facility or tower (a picked Forward Barracks is where new units appear); again lets go.
     S.selStructure = S.selStructure === myStruct.id ? null : myStruct.id;
+    S.selBase = false;
     sfx.click();
     haptics.tap();
-  } else if (!S.selected.size && S.selStructure != null) {
+  } else if (!S.selected.size && (S.selStructure != null || S.selBase)) {
     S.selStructure = null;
+    S.selBase = false;
   } else if (S.selected.size && vein && workerIds.length === S.selected.size) {
     // Workers sent onto a vein start hauling from it.
     sendOrder({ kind: 'haul', workerIds, veinTileId: tileId });

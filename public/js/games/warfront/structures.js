@@ -94,6 +94,24 @@ export function renderStructures() {
     }
   });
   if (S.selStructure != null && !seen.has(S.selStructure)) S.selStructure = null;
+  renderBaseRing();
+}
+
+/** Your picked base gets the same green ring as a picked building, sized to the castle. */
+function renderBaseRing() {
+  const team = S.state && S.state.myTeam;
+  const bb = team && S.castleBoards[team];
+  const node = bb && bb.parentNode;
+  if (!node) return;
+  let ring = node.querySelector(':scope > .selr');
+  if (S.selBase && !ring) {
+    const w = 130; // the castle billboard's width (world/build.js)
+    const h = Math.round(w * 0.5);
+    ring = el('span', 'dec selr');
+    Object.assign(ring.style, { width: `${w}px`, height: `${h}px`, margin: `${-Math.round(h / 2)}px 0 0 ${-Math.round(w / 2)}px` });
+    node.insertBefore(ring, bb);
+  }
+  if (!S.selBase && ring) ring.remove();
 }
 
 /**

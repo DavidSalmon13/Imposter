@@ -33,6 +33,7 @@ export function selectAll() {
   S.selected.clear();
   pick.forEach((u) => S.selected.add(u.id));
   S.selStructure = null;
+  S.selBase = false;
   S.mode = 'move';
   const workers = pick.length - pick.filter((u) => !WORKER_TYPES.has(u.type)).length;
   feed(pick === fighters

@@ -49,6 +49,7 @@ export const S = {
   structureTiles: new Set(), // written by world/build.js, structures.js; tiles a facility or tower stands on (stacks stand at its foot)
   tab: 'produce', // written by battle.js, console/build.js; the console's tab: 'produce' | 'build'
   buildMode: null, // written by battle.js, console/build.js, input.js; the facility armed for placement (next map tap builds it), or null
+  selBase: false, // written by input.js, battle.js, console/bulk.js; your team's base is picked on the map (its info shows in the well)
   selStructure: null, // written by structures.js, battle.js, console/build.js, input.js; id of my facility/tower picked on the map (a Barracks is where units spawn)
   buildCardNodes: new Map(), // written by console/build.js; facility -> { btn, q, bar, info, sig }
   craftCardNodes: new Map(), // written by console/build.js; weaponId -> { btn, q, bar, sig }

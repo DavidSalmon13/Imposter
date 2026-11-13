@@ -29,6 +29,7 @@ export function renderBattle(data) {
     S.mode = 'move';
     S.buildMode = null;
     S.selStructure = null;
+    S.selBase = false;
     S.tab = 'produce';
     S.inspect = null;
     buildWorld(data);

@@ -40,11 +40,13 @@ function groupUnits(units) {
   units.forEach((u) => {
     const next = nextTileOf(u);
     // A Tower's garrison is its own stack, up on the roof.
-    const k = next == null ? `${u.team}|${u.tileId}${u.garrison ? '^' : ''}` : `${u.team}|${u.tileId}>${next}@${u.stepEndsAt}`;
+    // A unit that turned round mid-step walks from `stepFrom` back onto its tile.
+    const from = next != null && u.stepFrom != null ? u.stepFrom : u.tileId;
+    const k = next == null ? `${u.team}|${u.tileId}${u.garrison ? '^' : ''}` : `${u.team}|${from}>${next}@${u.stepEndsAt}`;
     if (!byKey.has(k)) {
       const after = next == null ? null : afterTileOf(u);
       byKey.set(k, {
-        team: u.team, tileId: u.tileId, next, garrison: next == null && Boolean(u.garrison), stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt,
+        team: u.team, tileId: u.tileId, from, next, garrison: next == null && Boolean(u.garrison), stepStartedAt: u.stepStartedAt, stepEndsAt: u.stepEndsAt,
         after, afterStepMs: after == null ? 0 : u.afterStepMs, units: [],
       });
     }
@@ -140,7 +142,7 @@ function placeStack(map, entry, now) {
       p = stepPoint(map, g.team, g.next, g.after, t);
     } else {
       const t = Math.max(0, Math.min(1, (now - g.stepStartedAt) / (g.stepEndsAt - g.stepStartedAt)));
-      p = stepPoint(map, g.team, g.tileId, g.next, t);
+      p = stepPoint(map, g.team, g.from, g.next, t);
     }
   } else if (g.garrison) {
     p = roofPoint(map, g.tileId);

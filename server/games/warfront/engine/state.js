@@ -25,6 +25,7 @@ function makeUnit(id, type, owner, tileId) {
     path: [],
     stepStartedAt: 0,
     stepEndsAt: 0,
+    stepFrom: null, // set while a turned-round unit walks back onto tileId: the tile it's walking from
     atkReadyAt: 0,
     haul: null,
     holding: false,

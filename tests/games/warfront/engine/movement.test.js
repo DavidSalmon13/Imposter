@@ -70,7 +70,51 @@ test('move: a Raider (Move 3) walks twice as fast as a Warrior; an Outrider (Mov
   assert.ok(Math.abs(14 * E.WF_STEP_MS_BASE - 26750) < 1000);
 });
 
-test('move: re-issuing an order repaths; the step in progress finishes first', () => {
+test('move: re-ordered back the way it came, a unit turns round at once (no jump, no finishing the step)', () => {
+  const b = makeBattle({
+    rows: ['R....B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [2, 0] }],
+  });
+  const w = b.unit('Red');
+  const P = E.WF_STEP_MS_BASE;
+  move(b.st, 'Red', [w.id], b.at(4, 0), 0);
+  run(b.st, 0, 400); // 400 ms into the step from (2,0) onto (3,0)
+  assert.equal(w.tileId, b.at(2, 0));
+  assert.equal(w.path[0], b.at(3, 0));
+  assert.deepEqual(move(b.st, 'Red', [w.id], b.at(0, 0), 400), { ok: true, moved: 1 });
+  // Heading back onto (2,0) right away, from where it stands: 400 ms of the way back is left.
+  assert.equal(w.path[0], b.at(2, 0), 'steps back onto the tile it came from');
+  assert.equal(w.stepFrom, b.at(3, 0), 'walking from the tile it was heading to');
+  assert.equal(w.stepEndsAt, 800);
+  assert.equal(w.stepStartedAt, 800 - P, 'the tween resumes at the same point, no snap');
+  assert.equal(w.path[w.path.length - 1], b.at(0, 0));
+  E.stepSim(b.st, 400, { now: 800 });
+  assert.equal(w.tileId, b.at(2, 0));
+  assert.equal(w.stepFrom, null);
+  run(b.st, 800, 800 + 2 * P + 200);
+  assert.equal(w.tileId, b.at(0, 0));
+});
+
+test('move: turned round twice, a unit heads on again from where it stands', () => {
+  const b = makeBattle({
+    rows: ['R....B'],
+    units: [{ owner: 'Red', type: 'warrior', at: [2, 0] }],
+  });
+  const w = b.unit('Red');
+  const P = E.WF_STEP_MS_BASE;
+  move(b.st, 'Red', [w.id], b.at(4, 0), 0);
+  run(b.st, 0, 400);
+  move(b.st, 'Red', [w.id], b.at(0, 0), 400); // back: 400 ms from (2,0)
+  move(b.st, 'Red', [w.id], b.at(4, 0), 600); // forward again: now 200 ms from (2,0)
+  assert.equal(w.path[0], b.at(3, 0));
+  assert.equal(w.stepFrom, null, 'stepping from the tile it stands on');
+  assert.equal(w.stepStartedAt, 400, '200 ms out from (2,0)');
+  assert.equal(w.stepEndsAt, 400 + P);
+  run(b.st, 600, 400 + P + 200);
+  assert.equal(w.tileId, b.at(3, 0));
+});
+
+test('move: re-ordered somewhere the step in progress leads towards, a unit carries on', () => {
   const b = makeBattle({
     rows: [
       '.....',
@@ -80,15 +124,16 @@ test('move: re-issuing an order repaths; the step in progress finishes first', (
     units: [{ owner: 'Red', type: 'warrior', at: [1, 1] }],
   });
   const w = b.unit('Red');
-  move(b.st, 'Red', [w.id], b.at(4, 0), 0);
+  move(b.st, 'Red', [w.id], b.at(4, 1), 0);
   run(b.st, 0, 400);
   const next = w.path[0];
-  assert.equal(w.tileId, b.at(1, 1));
-  assert.deepEqual(move(b.st, 'Red', [w.id], b.at(0, 2), 400), { ok: true, moved: 1 });
+  assert.equal(next, b.at(2, 1));
+  assert.deepEqual(move(b.st, 'Red', [w.id], b.at(4, 2), 400), { ok: true, moved: 1 });
   assert.equal(w.path[0], next, 'keeps the tile it is stepping onto');
-  assert.equal(w.path[w.path.length - 1], b.at(0, 2));
+  assert.equal(w.stepFrom, null);
+  assert.equal(w.path[w.path.length - 1], b.at(4, 2));
   run(b.st, 400, 6 * E.WF_STEP_MS_BASE);
-  assert.equal(w.tileId, b.at(0, 2));
+  assert.equal(w.tileId, b.at(4, 2));
 });
 
 test('move: guards ownership, passability and non-moving units; bad orders change nothing', () => {
