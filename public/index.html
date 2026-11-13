@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="warfront/game-over.css" />
   <link rel="stylesheet" href="warfront/facilities.css" />
   <link rel="stylesheet" href="warfront/weapons.css" />
+  <link rel="stylesheet" href="warfront/ffa.css" />
 </head>
 <body>
   <div id="conn-status" class="conn-status hidden" role="status" aria-live="polite"></div>
@@ -796,7 +797,17 @@
           <div class="wf-vista-fade"></div>
         </div>
 
-        <div class="pnl" style="padding: 12px; margin: 0 10px">
+        <!-- Free for all (5a-ffa-team-select.html): one roster, no teams or captains -->
+        <div class="pnl wf-ffa-roster hidden" id="wf-ffa-roster" style="padding: 12px; margin: 0 10px; display: flex; flex-direction: column; gap: 6px">
+          <div class="wf-team-head wf-ffa-head"><span>FREE FOR ALL</span><span class="lbl" style="color: #fff" id="wf-ffa-count">0/4</span></div>
+          <div id="wf-ffa-slots" style="display: contents"></div>
+          <div class="wf-ffa-note">
+            <span class="wf-dot" style="background: #e5484d; box-shadow: 0 0 5px #e5484d"></span><span class="wf-dot" style="background: #3b82f6; box-shadow: 0 0 5px #3b82f6"></span><span class="wf-dot" style="background: #21b37f; box-shadow: 0 0 5px #21b37f"></span><span class="wf-dot" style="background: #f2c230; box-shadow: 0 0 5px #f2c230"></span>
+            <span class="lbl" style="letter-spacing: .14em">Every player on their own · corners dealt at start</span>
+          </div>
+        </div>
+
+        <div class="pnl" id="wf-teams-panel" style="padding: 12px; margin: 0 10px">
           <div class="wf-teams">
             <div class="wf-team wf-team-red">
               <div class="wf-team-head"><span>RED</span><span class="lbl" style="color: #fff" id="wf-red-count">0/4</span></div>
@@ -820,6 +831,10 @@
 
         <div class="pnl wf-settings" id="wf-settings" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; margin: 0 10px">
           <div class="wf-section-head"><span>GAME SETTINGS</span><span class="amb" style="font-size: 9.5px; letter-spacing: .18em">HOST ONLY</span></div>
+          <div class="wf-field">
+            <span class="lbl">Mode</span>
+            <div class="seg" id="wf-mode-seg" style="grid-template-columns: repeat(2, minmax(0, 1fr))"></div>
+          </div>
           <div class="wf-field">
             <span class="lbl">Match length</span>
             <div class="seg" id="wf-length-seg" style="grid-template-columns: repeat(3, minmax(0, 1fr))"></div>
@@ -845,20 +860,39 @@
          public/js/games/warfront/world/build.js builds the world from the server's map. -->
     <section id="wf-screen" class="screen hidden">
       <div class="wf">
-        <!-- HUD: base HP + match clock (the mockup's round timer) -->
-        <div class="pnl" style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px 9px">
-          <div style="display: flex; flex-direction: column; gap: 4px">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span style="color: #ff7a7e">RED BASE</span><span id="wf-red-hp">120</span></div>
-            <div class="hpseg" id="wf-red-hpseg"></div>
+        <!-- HUD: base HP + match clock (the mockup's round timer). Free for all (5b-ffa-battlefield.html):
+             every side's base, two per column, green under red and gold under blue. -->
+        <div class="pnl wf-hud" id="wf-hud" style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px 9px">
+          <div class="wf-hud-col">
+            <div class="wf-side wf-side-red" id="wf-side-red">
+              <div class="wf-side-hd"><span class="wf-side-name" id="wf-red-name">RED BASE</span><span id="wf-red-hp">120</span></div>
+              <div class="hpseg" id="wf-red-hpseg"></div>
+            </div>
+            <div class="wf-side wf-side-green hidden" id="wf-side-green">
+              <div class="wf-side-hd"><span class="wf-side-name" id="wf-green-name">GREEN BASE</span><span id="wf-green-hp">120</span></div>
+              <div class="hpseg" id="wf-green-hpseg"></div>
+            </div>
           </div>
           <div class="well" style="display: flex; flex-direction: column; align-items: center; padding: 5px 12px; clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%)">
             <span class="amb" id="wf-clock" style="font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1">00:00</span>
-            <span class="lbl" style="font-size: 8px; letter-spacing: .24em">MATCH</span>
+            <span class="lbl" id="wf-clock-label" style="font-size: 8px; letter-spacing: .24em">MATCH</span>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 4px">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span id="wf-blue-hp">120</span><span style="color: #7fb0ff">BLUE BASE</span></div>
-            <div class="hpseg" id="wf-blue-hpseg"></div>
+          <div class="wf-hud-col">
+            <div class="wf-side wf-side-blue" id="wf-side-blue">
+              <div class="wf-side-hd"><span id="wf-blue-hp">120</span><span class="wf-side-name" id="wf-blue-name">BLUE BASE</span></div>
+              <div class="hpseg" id="wf-blue-hpseg"></div>
+            </div>
+            <div class="wf-side wf-side-gold hidden" id="wf-side-gold">
+              <div class="wf-side-hd"><span id="wf-gold-hp">120</span><span class="wf-side-name" id="wf-gold-name">GOLD BASE</span></div>
+              <div class="hpseg" id="wf-gold-hpseg"></div>
+            </div>
           </div>
+        </div>
+
+        <!-- Free for all: the knock-out banner (5b-ffa-battlefield.html), in the mockup's event-strip style. -->
+        <div class="wf-out-banner hidden" id="wf-out-banner">
+          <span class="well scan wf-out-icon" id="wf-out-icon">💥</span>
+          <span class="wf-out-body"><span class="amb wf-out-title" id="wf-out-title"></span><span class="wf-out-text" id="wf-out-text"></span></span>
         </div>
 
         <!-- 2.5D battlefield -->
@@ -878,7 +912,7 @@
         </div>
 
         <!-- Console: minimap, selected stack, resources, command card, Move / Haul / Hold -->
-        <div class="pnl" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 16px; flex: 1">
+        <div class="pnl wf-console" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 16px; flex: 1">
           <div style="display: flex; gap: 8px">
             <div class="well" style="padding: 5px; flex: none; align-self: flex-start">
               <div class="mmap" id="wf-minimap"></div>
@@ -948,23 +982,14 @@
           <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px; z-index: 4; background: linear-gradient(0deg, #020306, transparent); pointer-events: none"></div>
         </div>
 
-        <!-- Final base HP -->
-        <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 0 10px">
-          <div class="well" id="wf-go-red" style="padding: 10px; display: flex; flex-direction: column; gap: 6px">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .16em"><span style="color: #ff7a7e">RED BASE</span><span id="wf-go-red-hp"></span></div>
-            <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"><div class="wf-go-bar" id="wf-go-red-bar"></div></div>
-          </div>
-          <div class="well" id="wf-go-blue" style="padding: 10px; display: flex; flex-direction: column; gap: 6px">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .16em"><span style="color: #7fb0ff">BLUE BASE</span><span id="wf-go-blue-hp"></span></div>
-            <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"><div class="wf-go-bar" id="wf-go-blue-bar"></div></div>
-          </div>
-        </div>
+        <!-- Final base HP: built by gameOver.js (red and blue; free for all: every side by place, 5c-ffa-game-over.html) -->
+        <div id="wf-go-bases" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 0 10px"></div>
 
         <!-- Battle stats: Kills / Lost / Dmg (damage to the enemy base), ★ MVP -->
         <div class="pnl chamf" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 8px; margin: 0 10px">
-          <div class="row lbl" style="min-height: 22px"><span></span><span>Player</span><span>Kills</span><span>Lost</span><span>Dmg</span></div>
+          <div class="row lbl" id="wf-go-head" style="min-height: 22px"><span></span><span>Player</span><span>Kills</span><span>Lost</span><span>Dmg</span><span class="wf-go-pts">Pts</span></div>
           <div id="wf-go-rows" style="display: flex; flex-direction: column; gap: 4px"></div>
-          <div class="lbl" id="wf-go-mvp" style="padding: 6px 10px 0; color: #ffcc33">★ MVP · most base damage</div>
+          <div class="lbl" id="wf-go-mvp" style="padding: 6px 10px 0; color: #ffcc33">★ MVP · most base damage<span class="wf-go-pts"> &nbsp;·&nbsp; Pts: 1st 3 · 2nd 1 · shared 1st 2 each</span></div>
         </div>
 
         <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 0 10px">

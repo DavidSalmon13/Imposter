@@ -51,16 +51,15 @@ const KINDS = {
 };
 
 const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const other = (team) => (team === 'red' ? 'blue' : 'red');
 
 const flying = new Set();
 let raf = 0;
 
 /** Fires one shot of `kind` from tile to tile (from a Tower's roof when `fromRoof`); it lands after `fly` ms. */
-export function launch(map, fromId, toId, kind, fly, team, fromRoof = false) {
+export function launch(map, fromId, toId, kind, fly, team, fromRoof = false, targetTeam = null) {
   if (!S.fxLayer || !SPRITES[kind]) return;
   const a = fromRoof ? roofPoint(map, fromId) : standPoint(map, fromId, team, false);
-  const b = standPoint(map, toId, other(team), false);
+  const b = standPoint(map, toId, targetTeam || (team === 'red' ? 'blue' : 'red'), false);
   const len = Math.hypot(b.x - a.x, b.y - a.y);
   if (len < 1) return;
   const k = KINDS[kind];

@@ -886,11 +886,16 @@ and every unit shown as an enemy (no routes). `finalView` carries `placings`. FF
 - **Tests:** a 3-side battle: one base falls → that side's units vanish, the match goes on, the
   player sees everything and can't command; the last base standing wins; points and history.
 
-### Step 28: FFA lobby and visuals
-In progress 2026-11-13. **Server done** (`mode` + `wfSetMode`, FFA `startBlocker` / host-only
-command, one side per player dealt with `rngFor(seed, 1)`, `mode` in every payload, `placings` and
-each player's `place`/`points` on game over; scoring now keys on `mode`; tests in `ffaLobby.test.js`).
-**Mockups drawn** (`5a`/`5b`/`5c-ffa-*.html`), waiting for David's OK before the client is built.
+### Step 28: FFA lobby and visuals ✅
+Done 2026-11-13; mockups `5a`/`5b`/`5c-ffa-*.html` approved by David first. Server: `mode` +
+`wfSetMode`, FFA `startBlocker` (every connected player plays) / host-only command, one side per
+player dealt with `rngFor(seed, 1)`, `mode` in every payload, `placings` and each player's
+`place`/`points` on game over, scoring keyed on `mode`. Two engine payload additions the client
+needed: hit events carry `byTeam` (who struck, for strike/shot animations with 3+ sides) and
+`wfLive` carries `placings` once a side is out (HUD "OUT · 4TH"). Client: side colours in
+`sides.js` + `ffa.css`, stand-point offsets and facing per side (`facesLeft`), knock-out banner, a
+knocked-out player's console locked (minimap still pans). Tests: `ffaLobby.test.js`, plus `byTeam`
+in `engine/combat.test.js` and `placings` in `ffa.test.js`.
 - **Change:** team select: host-only Teams / Free for all switch (`wfSetMode`), FFA roster (no team
   buttons/captains, 3–4 players, Small map greyed out), `startBlocker` rules. Client: green and gold
   side colours for units, castles, structures, minimap, fog-free spectator view, a 4-bar base-HP HUD,

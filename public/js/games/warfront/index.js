@@ -8,11 +8,12 @@
 import { S } from './store.js';
 import { sfx } from '../../fx.js';
 import { openMenu, closeMenu } from './menu.js';
-import { MATCH_LENGTHS, MAP_SIZES, HOTKEYS, BUILD_HOTKEYS, syncUnitStats } from './constants.js';
+import { MATCH_LENGTHS, MAP_SIZES, MODES, HOTKEYS, BUILD_HOTKEYS, syncUnitStats } from './constants.js';
 import {
   joinBtn,
   captainBtn,
   lengthSeg,
+  modeSeg,
   sizeSeg,
   randomizeBtn,
   startBtn,
@@ -33,7 +34,7 @@ import {
   goError,
 } from './dom.js';
 import { flashError, emit } from './util.js';
-import { buildVista, buildRaceCards, buildSeg, hostOption, applyTeamSelect } from './teamSelect.js';
+import { buildVista, buildRaceCards, buildSeg, hostOption, setMode, applyTeamSelect } from './teamSelect.js';
 import { syncView, lookAt, enableMousePan } from './camera.js';
 import { onAlert } from './fx.js';
 import { renderBattle, applyLive } from './battle.js';
@@ -78,6 +79,7 @@ export const Warfront = {
     buildRaceCards();
     buildSeg(lengthSeg, MATCH_LENGTHS, S.lengthButtons, (id) => hostOption('matchLength', id));
     buildSeg(sizeSeg, MAP_SIZES, S.sizeButtons, (id) => hostOption('mapSize', id));
+    buildSeg(modeSeg, MODES, S.modeButtons, (id) => setMode(id));
 
     ['red', 'blue'].forEach((team) => {
       joinBtn[team].addEventListener('click', () => {

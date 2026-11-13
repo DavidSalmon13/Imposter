@@ -333,3 +333,13 @@ test('under attack: a fogged shooter shows in the victim team\'s view for WF_REV
   E.stepSim(b.st, 200, { now: closes });
   assert.equal(seen(), undefined);
 });
+
+test('combat: hit events name the attacker\'s side (byTeam), so a 3-side client knows who struck', () => {
+  const b = makeBattle({
+    rows: ['R....G....B'],
+    units: [{ owner: 'Green', type: 'warrior', at: [5, 0], hold: true }, { owner: 'Blue', type: 'warrior', at: [6, 0], hold: true }],
+  });
+  const hits = fight(b, 3000).filter((e) => e.type === 'underAttack');
+  assert.ok(hits.some((e) => e.team === 'blue' && e.byTeam === 'green'));
+  assert.ok(hits.some((e) => e.team === 'green' && e.byTeam === 'blue'));
+});

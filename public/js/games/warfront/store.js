@@ -12,6 +12,7 @@ export const S = {
   raceButtons: {}, // written by teamSelect.js
   lengthButtons: {}, // filled by teamSelect.js (buildSeg)
   sizeButtons: {}, // filled by teamSelect.js (buildSeg)
+  modeButtons: {}, // filled by teamSelect.js (buildSeg)
   builtFor: null, // written by battle.js, gameOver.js, index.js; clock.startedAt of the battle the world was built for
   unitLayer: null, // written by world/build.js
   orderLayer: null, // written by world/build.js
@@ -33,7 +34,8 @@ export const S = {
   stripSeen: null, // written by battle.js; whether the strip last showed enemies in sight
   fxLayer: null, // written by world/build.js, index.js; one-shot combat effects (3-resolution.html), removed when they end
   castleBoards: {}, // written by world/build.js; team -> the castle's billboard (for the burning state)
-  lastHp: { red: null, blue: null }, // written by world/build.js
+  outShownUntil: 0, // written by hud.js; when another side's knock-out banner hides (0 = not timed)
+  lastHp: {}, // written by world/build.js; side -> last HP seen
   alertTile: null, // written by fx.js
   alertTimer: null, // written by fx.js
   stepSeen: new Map(), // written by world/build.js, fx.js; stack key -> stepStartedAt we already puffed dust for

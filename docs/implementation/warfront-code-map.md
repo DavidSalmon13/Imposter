@@ -65,6 +65,7 @@ warfront/
   constants.js          menus, world geometry, race/facility/weapon/unit names, card names, hotkeys
   util.js               el, noise, emit, flashError, feed (notice lines over the map)
   clock.js              serverNow, syncClock (skew-smoothed server clock for tweening)
+  sides.js              the four sides' names and colours for JS-set colours (FFA, Step 28), ordinal()
   sprites.js            SVG art (units, castles, terrain, facilities, tokens) lifted from the mockups
   teamSelect.js         the team-select screen
   world/geometry.js     tileCentre, elevationAt, ent, billboard, plateaus, standPoint, stepPoint, compass
@@ -105,6 +106,7 @@ lighthouses.css    lighthouses on map + minimap
 game-over.css      game over (4-game-over.html)
 facilities.css     Step 9: tabs, Build + Workshop cards, structures on the field, build hints
 weapons.css        Step 10: three tabs, weapon cards, fire hints, EMP'd building, Aegis dome, weapon FX
+ffa.css            Step 28: green/gold side colours, FFA team select, 4-side HUD, knock-out banner, FFA game over
 ```
 
 Every rule is scoped through a screen id. Selectors and class names are shared with the markup in
@@ -184,7 +186,7 @@ Imports go one way only. There are no circular imports. A lower layer never impo
 **Shell:** `constants` → `roster` → `payloads` → `alerts` → `loop` → `battlefield` → `lifecycle` →
 `handlers` → `index`. Shell files import the engine only through `engine/index.js`.
 
-**Client:** `store`, `dom`, `constants` and `sprites` are leaves (no imports from Warfront modules
+**Client:** `store`, `dom`, `constants`, `sides` and `sprites` are leaves (no imports from Warfront modules
 except `store`). Next come `util` and `clock`, then `world/geometry`, then the renderers (`fog`,
 `minimap`, `units`, `orders`, `structures`, `map-objects`, `camera`, `fx`, `hud`, `world/build`),
 then `console/*` and `input`, then `battle`/`gameOver`, then `index`. **No module imports `index.js` or

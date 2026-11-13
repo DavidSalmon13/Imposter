@@ -77,6 +77,8 @@ function viewForPlayer(state, name) {
     event: state.event,
     me: army ? ownEconomy(state, army) : null,
     ...(out ? { out: true } : {}),
+    // Free for all: the sides knocked out so far and their places (public news, Step 28 HUD).
+    ...(state.placings && state.placings.length ? { placings: state.placings.slice() } : {}),
     units,
     visible,
     lighthouses: lighthouseView(state),

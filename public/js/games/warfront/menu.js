@@ -49,7 +49,7 @@ export function openMenu(socket) {
   title.textContent = 'Battle menu';
   panel.appendChild(title);
 
-  panel.appendChild(item('↻ Restart battle', canCommand ? 'New map, same teams · no points' : 'Only the host or a captain', async () => {
+  panel.appendChild(item('↻ Restart battle', canCommand ? (S.state.mode === 'ffa' ? 'New map, same players · no points' : 'New map, same teams · no points') : (S.state.mode === 'ffa' ? 'Only the host' : 'Only the host or a captain'), async () => {
     close();
     const ok = await confirmDialog('This battle ends with no winner and a new one starts on a fresh map with the same teams.', {
       title: 'Restart the battle?',

@@ -14,6 +14,11 @@ export const MATCH_LENGTHS = [
   { id: 'standard', label: '12 MIN' },
   { id: 'long', label: '16 MIN' },
 ];
+// Teams / Free for all (spec "Free-for-all mode"); the host's switch on the team-select screen.
+export const MODES = [
+  { id: 'teams', label: 'TEAMS' },
+  { id: 'ffa', label: 'FREE FOR ALL' },
+];
 export const MAP_SIZES = [
   { id: 'small', label: 'SMALL' },
   { id: 'medium', label: 'MEDIUM' },

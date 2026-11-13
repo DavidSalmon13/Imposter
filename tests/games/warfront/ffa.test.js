@@ -49,6 +49,7 @@ test('FFA: a fallen side is out, watches with the fog lifted and cannot command;
   assert.ok(/^1+$/.test(ann.visible), 'the whole map is visible');
   assert.ok(ann.units.some((u) => u.owner === 'Bob') && ann.units.some((u) => u.owner === 'Host'));
   assert.equal(lastLive(s, 'Host').out, undefined);
+  assert.deepEqual(lastLive(s, 'Host').placings, [{ side: 'blue', place: 3 }], 'everyone hears who is out (HUD)');
   assert.ok(!lastLive(s, 'Host').units.some((u) => u.owner === 'Bob'), "Host still can't see Bob's far corner");
 
   const res = await call(s.sockets.Ann, 'wfCommand', { kind: 'hold', unitIds: [annWorker] });

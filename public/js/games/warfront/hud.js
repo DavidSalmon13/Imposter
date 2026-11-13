@@ -6,9 +6,68 @@
 import { S } from './store.js';
 import { el } from './util.js';
 import { RACE_NAMES } from './constants.js';
-import { hpEl, hpSegEl, clockEl, stripEl } from './dom.js';
+import { hpEl, hpSegEl, hpNameEl, sideEl, hudEl, clockEl, clockLabelEl, stripEl, outBanner, outTitle, outText, outIcon } from './dom.js';
+import { SIDE, SIDES, sideOf, ordinal } from './sides.js';
 
 // ---------- HUD ----------
+
+/**
+ * Every side's base bar. Team battles: red and blue as in the mockup. Free for all
+ * (5b-ffa-battlefield.html): every side in the battle, smaller, yours marked YOU, a fallen base
+ * greyed with its place.
+ */
+export function renderBases(view) {
+  const ffa = S.state.mode === 'ffa';
+  hudEl.classList.toggle('wf-ffa', ffa);
+  clockLabelEl.textContent = ffa ? 'FREE FOR ALL' : 'MATCH';
+  SIDES.forEach((team) => {
+    const base = view.bases[team];
+    sideEl[team].classList.toggle('hidden', !base);
+    if (!base) return;
+    const place = ((view.placings || []).find((p) => p.side === team) || {}).place;
+    const out = ffa && base.hp <= 0 && place != null;
+    sideEl[team].classList.toggle('wf-out', out);
+    sideEl[team].classList.toggle('wf-me', ffa && team === S.state.myTeam);
+    hpNameEl[team].textContent = ffa ? SIDE[team].name.toUpperCase() : `${SIDE[team].name.toUpperCase()} BASE`;
+    renderHp(team, out ? { hp: 0, maxHp: base.maxHp } : base);
+    if (out) {
+      hpEl[team].textContent = `OUT · ${ordinal(place)}`;
+      hpEl[team].className = '';
+    }
+  });
+  renderOutBanner(view);
+}
+
+/** Your own knock-out stays up for the rest of the match; someone else's shows for a few seconds. */
+function renderOutBanner(view) {
+  if (view.out) {
+    const mine = (view.placings || []).find((p) => p.side === S.state.myTeam);
+    showOut('👁️', `YOU ARE OUT${mine ? ` · ${ordinal(mine.place)}` : ''}`, 'Your base fell. Watching the whole map until the end.', true);
+  } else if (outBanner.classList.contains('wf-out-mine') || (S.outShownUntil && Date.now() > S.outShownUntil)) {
+    // A new battle (no longer out), or another side's news has had its few seconds.
+    outBanner.classList.remove('wf-out-mine');
+    outBanner.classList.add('hidden');
+    S.outShownUntil = 0;
+  }
+}
+
+function showOut(icon, title, text, mine) {
+  outIcon.textContent = icon;
+  outTitle.textContent = title;
+  outText.textContent = text;
+  outBanner.classList.toggle('wf-out-mine', mine);
+  outBanner.classList.remove('hidden');
+  S.outShownUntil = mine ? 0 : Date.now() + 4000;
+}
+
+/** A `knockedOut` event: another side's base fell (your own is the lasting banner above). */
+export function announceKnockout(e) {
+  if (!S.state || e.team === S.state.myTeam) return;
+  const left = Object.values(S.live ? S.live.bases : {}).filter((b) => b.hp > 0).length;
+  const who = (S.state.roster || []).filter((p) => p.team === e.team).map((p) => p.name).join(', ');
+  showOut('💥', `${sideOf(e.team).name.toUpperCase()} IS OUT · ${ordinal(e.place)}`,
+    `${who ? `${who}’s` : 'Their'} base has fallen.${left > 1 ? ` ${left} sides remain.` : ''}`, false);
+}
 
 export function renderHp(team, base) {
   const pct = base.maxHp ? base.hp / base.maxHp : 0;
@@ -55,15 +114,23 @@ export function renderStrip(data) {
     r.appendChild(s2);
     stripEl.appendChild(r);
   };
-  const teamColour = (t) => (t === 'red' ? '#ff7a7e' : '#7fb0ff');
+  const teamColour = (t) => sideOf(t).label;
   mine.forEach((p) => {
     line(p.connected ? '#4dff7a' : '#4c5b69', p.name === data.you ? 'YOU' : p.name.toUpperCase(), teamColour(p.team),
       p.connected ? RACE_NAMES[p.race].toLowerCase() : 'offline');
   });
-  if (enemies.length) {
-    // The mockup's "hidden" now says whether any of them are inside your vision.
-    const t = enemies[0].team;
+  // One line per enemy side (two sides in a team battle, up to three in free for all). The mockup's
+  // "hidden" now says whether any of them are inside your vision; a knocked-out side says so.
+  const sides = [...new Set(enemies.map((p) => p.team))];
+  sides.forEach((t) => {
+    const n = enemies.filter((p) => p.team === t).length;
+    const base = S.live && S.live.bases[t];
+    if (base && base.hp <= 0) {
+      line('#4c5b69', sides.length > 1 || n === 1 ? t.toUpperCase() : `${t.toUpperCase()} ×${n}`, teamColour(t), 'out');
+      return;
+    }
     const seen = Boolean(S.live && S.live.units.some((u) => u.team === t));
-    line(seen ? '#ffcc33' : '#4c5b69', `${t.toUpperCase()} ×${enemies.length}`, teamColour(t), seen ? 'in sight' : 'hidden');
-  }
+    const label = data.mode === 'ffa' ? enemies.find((p) => p.team === t).name.toUpperCase() : `${t.toUpperCase()} ×${n}`;
+    line(seen ? '#ffcc33' : '#4c5b69', label, teamColour(t), seen ? 'in sight' : 'hidden');
+  });
 }

@@ -48,7 +48,7 @@ export function buildWorld(data, target = { cam, world, minimap: true }) {
   ]);
   S.decor = [];
   S.castleBoards = {};
-  S.lastHp = { red: null, blue: null };
+  S.lastHp = {};
   S.stepSeen.clear();
   S.pickupNodes = new Map();
   S.dropNodes = new Map();

@@ -5,7 +5,7 @@
  */
 
 import { S } from './store.js';
-import { supplyEl, supplyRateEl, mineralsEl, armyEl, armyCapEl } from './dom.js';
+import { wfRoot, supplyEl, supplyRateEl, mineralsEl, armyEl, armyCapEl } from './dom.js';
 import { buildWorld } from './world/build.js';
 import { FACILITY_TYPES } from './constants.js';
 import { syncClock } from './clock.js';
@@ -17,7 +17,7 @@ import { renderBuildHints } from './structures.js';
 import { lookAt } from './camera.js';
 import { playEffects, marchDust } from './fx.js';
 import { playAttacks } from './attacks.js';
-import { renderHp, tickClock, renderStrip } from './hud.js';
+import { renderBases, tickClock, renderStrip, announceKnockout } from './hud.js';
 import { renderInfo, renderSys } from './console/selection.js';
 import { buildCards, renderCards } from './console/cards.js';
 import { renderBuildCards } from './console/build.js';
@@ -63,7 +63,9 @@ export function applyLive(view) {
   [...S.selected].forEach((id) => {
     if (!mine.has(id)) S.selected.delete(id);
   });
-  const seen = view.units.some((u) => u.team !== S.state.myTeam);
+  // Which enemy sides are in sight, and which bases have fallen: the strip changes with either.
+  const seen = [...new Set(view.units.filter((u) => u.team !== S.state.myTeam).map((u) => u.team))].sort().join(',')
+    + `|${Object.keys(view.bases).filter((t) => view.bases[t].hp <= 0).join(',')}`;
   if (seen !== S.stripSeen) {
     S.stripSeen = seen;
     renderStrip(S.state);
@@ -73,8 +75,8 @@ export function applyLive(view) {
   renderLighthouses();
   renderUnits();
   renderOrders();
-  renderHp('red', view.bases.red);
-  renderHp('blue', view.bases.blue);
+  renderBases(view);
+  wfRoot.classList.toggle('wf-out', Boolean(view.out));
   renderCastles(view.bases);
   if (view.events && view.events.length) {
     // Cosmetic only: a bug in the strike animations must never stop the rest of the update.
@@ -84,6 +86,7 @@ export function applyLive(view) {
       console.error('Warfront attack animation failed:', err);
     }
     playEffects(view.events);
+    view.events.filter((e) => e.type === 'knockedOut').forEach(announceKnockout);
   }
   marchDust();
   tickClock();

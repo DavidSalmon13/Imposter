@@ -1,0 +1,100 @@
+/* Warfront styles: Step 28, free for all (docs/design/warfront/5a/5b/5c-ffa-*.html). The two extra
+   sides' colours (green, gold) wherever red and blue have one, the free-for-all team select, the
+   4-side HUD and knock-out banner, a knocked-out player's locked console, and the game over's
+   placings and points. Loaded last. */
+
+/* ---------- Side colours: green and gold, matching every red/blue rule ---------- */
+:is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf .tm-green .tc{fill:#21b37f}
+:is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf .tm-green .tcd{fill:#12704e}
+:is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf .tm-gold .tc{fill:#f2c230}
+:is(#wf-team-screen, #wf-screen, #wf-gameover-screen) .wf .tm-gold .tcd{fill:#a8800f}
+/* The undealt lobby colour: free-for-all corners are dealt at Start. */
+:is(#wf-team-screen) .wf .tm-ffa .tc{fill:#9aa7b4}
+:is(#wf-team-screen) .wf .tm-ffa .tcd{fill:#55606b}
+:is(#wf-team-screen) .wf .aura-green{width:200px;height:200px;background:radial-gradient(circle,rgba(33,179,127,.35),transparent 70%)}
+:is(#wf-team-screen) .wf .aura-gold{width:200px;height:200px;background:radial-gradient(circle,rgba(242,194,48,.35),transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .aura-green{width:230px;height:230px;background:radial-gradient(circle,rgba(33,179,127,.35),rgba(33,179,127,.1) 45%,transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .aura-gold{width:230px;height:230px;background:radial-gradient(circle,rgba(242,194,48,.35),rgba(242,194,48,.1) 45%,transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .c-green{background:linear-gradient(180deg,#3ad09a,#12704e)}
+:is(#wf-screen, #wf-gameover-screen) .wf .c-gold{color:#1a1205;background:linear-gradient(180deg,#ffd95e,#a8800f)}
+:is(#wf-screen, #wf-gameover-screen) .wf .rg-green{width:70px;height:70px;border:1.5px solid rgba(58,208,154,.75);background:radial-gradient(circle,rgba(58,208,154,.14),transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .rg-gold{width:70px;height:70px;border:1.5px solid rgba(242,194,48,.75);background:radial-gradient(circle,rgba(242,194,48,.14),transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .loss.c-green{background:#12704e;box-shadow:inset 0 0 0 1px #7fe6be}
+:is(#wf-screen, #wf-gameover-screen) .wf .loss.c-gold{background:#8a6a0c;box-shadow:inset 0 0 0 1px #ffe08a}
+:is(#wf-screen) .wf .btag.foe.foe-green{background:linear-gradient(180deg,#3ad09a,#12704e)}
+:is(#wf-screen) .wf .btag.foe.foe-gold{color:#1a1205;background:linear-gradient(180deg,#ffd95e,#a8800f)}
+/* Lighthouse lamps, capture flashes and minimap markers. */
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lh.tm-green .wf-lamp{filter:drop-shadow(0 0 4px #21b37f) drop-shadow(0 0 2px #c8f5e2);animation:wfOrb 1.8s ease-in-out infinite}
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lh.tm-gold .wf-lamp{filter:drop-shadow(0 0 4px #f2c230) drop-shadow(0 0 2px #fff0c0);animation:wfOrb 1.8s ease-in-out infinite}
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lh.tm-green .lglow{background:radial-gradient(ellipse,rgba(33,179,127,.5),rgba(33,179,127,.12) 45%,transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lh.tm-gold .lglow{background:radial-gradient(ellipse,rgba(242,194,48,.5),rgba(242,194,48,.12) 45%,transparent 70%)}
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lf-green{border:3px solid #7fe6be;background:radial-gradient(circle,rgba(33,179,127,.55),transparent 65%);box-shadow:0 0 16px #21b37f}
+:is(#wf-screen, #wf-gameover-screen) .wf .wf-lf-gold{border:3px solid #ffe08a;background:radial-gradient(circle,rgba(242,194,48,.55),transparent 65%);box-shadow:0 0 16px #f2c230}
+:is(#wf-screen) .wf .wf-mlh.tm-green{background:#21b37f;box-shadow:0 0 4px #21b37f}
+:is(#wf-screen) .wf .wf-mlh.tm-gold{background:#f2c230;box-shadow:0 0 4px #f2c230}
+
+/* ---------- Team select (5a-ffa-team-select.html) ---------- */
+/* Green and gold castles stand behind the river only in free for all. */
+:is(#wf-team-screen) .wf .wf-ffa-castle{display:none}
+:is(#wf-team-screen) .wf .wf-ffa .wf-ffa-castle{display:block}
+:is(#wf-team-screen) .wf .wf-ffa-roster.hidden{display:none !important}
+:is(#wf-team-screen) .wf .wf-ffa-head{background:linear-gradient(90deg,#1b2a12,#0b0f0a);box-shadow:inset 0 0 0 1px #4dff7a}
+:is(#wf-team-screen) .wf .wf-ffa-note{display:flex;gap:6px;align-items:center;justify-content:center;padding:4px 0 0}
+:is(#wf-team-screen) .wf .wf-ffa-note .wf-dot{width:10px;height:10px;flex:none}
+:is(#wf-team-screen) .wf .wf-host-tag{font-size:9px;letter-spacing:.16em}
+/* Small is teams-only (free for all needs Medium or Large). */
+:is(#wf-team-screen) .wf .seg button:disabled{color:#3a4652;text-shadow:none;background:#0a0d11;box-shadow:inset 0 0 0 1px #1a2028;cursor:not-allowed;opacity:1}
+:is(#wf-team-screen) .wf .seg button:disabled small{display:block;font-size:8px;letter-spacing:.14em;color:#4c5b69;margin-top:1px}
+:is(#wf-team-screen) .wf .seg button{font-size:13px}
+
+/* ---------- HUD (5b-ffa-battlefield.html): every side's base, two per column ---------- */
+:is(#wf-screen) .wf .wf-hud-col{display:flex;flex-direction:column;gap:4px}
+:is(#wf-screen) .wf .wf-side-hd{display:flex;justify-content:space-between;font-size:10px;font-weight:700;letter-spacing:.14em}
+:is(#wf-screen) .wf .wf-side-red .wf-side-name{color:#ff7a7e}
+:is(#wf-screen) .wf .wf-side-blue .wf-side-name{color:#7fb0ff}
+:is(#wf-screen) .wf .wf-side-green .wf-side-name{color:#5fd6a8}
+:is(#wf-screen) .wf .wf-side-gold .wf-side-name{color:#ffd95e}
+:is(#wf-screen) .wf .wf-side.hidden{display:none}
+:is(#wf-screen) .wf .wf-hud.wf-ffa{padding:9px 12px 8px !important}
+:is(#wf-screen) .wf .wf-hud.wf-ffa .wf-hud-col{gap:6px}
+:is(#wf-screen) .wf .wf-hud.wf-ffa .wf-side{display:flex;flex-direction:column;gap:3px}
+:is(#wf-screen) .wf .wf-hud.wf-ffa .wf-side-hd{font-size:9.5px;letter-spacing:.12em}
+:is(#wf-screen) .wf .wf-hud.wf-ffa .hpseg span{height:6px}
+:is(#wf-screen) .wf .wf-side.wf-me .wf-side-name::after{content:' · YOU';color:#4dff7a}
+:is(#wf-screen) .wf .wf-side.wf-out{opacity:.45}
+:is(#wf-screen) .wf .wf-side.wf-out .wf-side-hd span:not(.wf-side-name){color:#8fa3b5}
+
+/* Knock-out banner: the mockup's event-strip style (2-battlefield.html's chance card). */
+:is(#wf-screen) .wf .wf-out-banner{display:flex;align-items:center;gap:10px;padding:7px 12px;background:linear-gradient(90deg,#2a1f05,#0b0c08 70%);box-shadow:inset 0 -1px 0 #8a6a1a,inset 0 1px 0 #8a6a1a}
+:is(#wf-screen) .wf .wf-out-banner.hidden{display:none}
+:is(#wf-screen) .wf .wf-out-icon{width:34px;height:34px;flex:none;display:grid;place-items:center;font-size:20px;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #8a6a1a}
+:is(#wf-screen) .wf .wf-out-body{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+:is(#wf-screen) .wf .wf-out-title{font-size:9px;font-weight:700;letter-spacing:.24em}
+:is(#wf-screen) .wf .wf-out-text{font-size:12.5px;color:#f3ead0}
+:is(#wf-screen) .wf .wf-out-banner.wf-out-mine{background:linear-gradient(90deg,#2a0c0e,#0b0c08 70%);box-shadow:inset 0 -1px 0 #5a2328,inset 0 1px 0 #5a2328}
+:is(#wf-screen) .wf .wf-out-banner.wf-out-mine .wf-out-icon{box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #5a2328}
+:is(#wf-screen) .wf .wf-out-banner.wf-out-mine .wf-out-title{color:#ff9a9d;text-shadow:none}
+/* A knocked-out player watches: the console is locked (the server refuses their commands too). */
+:is(#wf-screen) .wf.wf-out .wf-console > *:not(:first-child){opacity:.45;filter:grayscale(.6)}
+:is(#wf-screen) .wf.wf-out .wf-console *{pointer-events:none}
+/* …but the minimap still pans the camera round the whole map. */
+:is(#wf-screen) .wf.wf-out .wf-console #wf-minimap,:is(#wf-screen) .wf.wf-out .wf-console #wf-minimap *{pointer-events:auto}
+
+/* ---------- Game over (5c-ffa-game-over.html) ---------- */
+#wf-gameover-screen .wf.wf-go-green-won .cam{background:radial-gradient(ellipse 90% 60% at 50% 0%,#0b2219,#000 75%)}
+#wf-gameover-screen .wf.wf-go-gold-won .cam{background:radial-gradient(ellipse 90% 60% at 50% 0%,#2a2208,#000 75%)}
+#wf-gameover-screen .wf.wf-go-green-won .wf-go-title{animation-name:goPulseGreen}
+#wf-gameover-screen .wf.wf-go-gold-won .wf-go-title{animation-name:goPulseGold}
+#wf-gameover-screen .wf.wf-go-green-won .sqbb.tm-green .sp,
+#wf-gameover-screen .wf.wf-go-gold-won .sqbb.tm-gold .sp{animation:wfCheer .9s ease-in-out infinite}
+#wf-gameover-screen .wf .mbtn.wf-go-green{color:#fff;background:linear-gradient(180deg,#3ad09a 0%,#1a9467 55%,#0c4a32 100%);box-shadow:inset 0 0 0 1px #b6f0d8,inset 0 2px 0 1px rgba(255,255,255,.3)}
+#wf-gameover-screen .wf .mbtn.wf-go-gold{color:#1a1205;background:linear-gradient(180deg,#ffd95e 0%,#d9a91c 55%,#8a6a0c 100%);box-shadow:inset 0 0 0 1px #fff0c0,inset 0 2px 0 1px rgba(255,255,255,.3)}
+/* Place tags and the Pts column. */
+#wf-gameover-screen .wf .wf-place{display:inline-block;min-width:26px;margin-right:5px;padding:1px 4px;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-align:center;color:#05080b;background:#8fa3b5}
+#wf-gameover-screen .wf .wf-place.p1{background:#ffcc33;box-shadow:0 0 6px rgba(255,204,51,.6)}
+#wf-gameover-screen .wf .wf-place.p2{background:#cfe0ee}
+#wf-gameover-screen .wf .row.ffa,
+#wf-gameover-screen .wf.wf-go-ffa #wf-go-head{grid-template-columns:42px minmax(0,1.5fr) repeat(4,minmax(0,1fr))}
+#wf-gameover-screen .wf:not(.wf-go-ffa) .wf-go-pts{display:none}
+@keyframes goPulseGreen{0%,100%{text-shadow:0 0 18px rgba(33,179,127,.9),0 0 40px rgba(33,179,127,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(140,240,200,1),0 0 70px rgba(33,179,127,.9),0 3px 0 #000}}
+@keyframes goPulseGold{0%,100%{text-shadow:0 0 18px rgba(242,194,48,.9),0 0 40px rgba(242,194,48,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(255,236,160,1),0 0 70px rgba(242,194,48,.9),0 3px 0 #000}}

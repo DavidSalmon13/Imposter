@@ -8,7 +8,7 @@ import { S } from './store.js';
 import { UNIT_SPRITES, UNIT_ICONS, LOAD_SPRITE, SUPPLY_LOAD_SPRITE } from './sprites.js';
 import { el } from './util.js';
 import { FORMATIONS, FACILITY_TYPES, UNIT_MAX_HP } from './constants.js';
-import { tileCentre, ent, standPoint, stepPoint, roofPoint } from './world/geometry.js';
+import { tileCentre, ent, standPoint, stepPoint, roofPoint, facesLeft } from './world/geometry.js';
 import { serverNow } from './clock.js';
 import { renderStructures } from './structures.js';
 import { renderMiniUnits } from './minimap.js';
@@ -115,7 +115,7 @@ function fillStack(node, g, you) {
   bb.appendChild(el('span', 'hpb sqhp')); // segments painted by paintHp (plan Step 22)
   bb.appendChild(el('span', `chip c-${g.team}`)).textContent = `${UNIT_ICONS[types[0]] || '?'}×${g.units.length}`;
   form.forEach(([fx, fy], i) => {
-    const fig = el('span', `fig d${i}${g.team !== 'red' ? ' flip' : ''}`);
+    const fig = el('span', `fig d${i}${facesLeft(S.state.map, g.team) ? ' flip' : ''}`);
     fig.dataset.type = figTypes[i];
     fig.style.left = `${fx}px`;
     fig.style.top = `${fy}px`;
@@ -167,9 +167,9 @@ export function renderUnits() {
   const you = S.state.you;
   renderStructures();
   const groups = groupUnits(S.live.units.filter((u) => !FACILITY_TYPES.has(u.type)));
-  const still = new Set();
+  const still = new Map(); // tileId -> the sides standing still on it
   groups.forEach((g) => {
-    if (g.next == null && !g.garrison) still.add(`${g.team}|${g.tileId}`);
+    if (g.next == null && !g.garrison) still.set(g.tileId, (still.get(g.tileId) || new Set()).add(g.team));
   });
   S.stackNodes.forEach((entry, key) => {
     if (!groups.has(key)) {
@@ -186,7 +186,7 @@ export function renderUnits() {
       fresh.push({ y: tileCentre(map, g.tileId).y, node: entry.node });
     }
     entry.group = g;
-    entry.shared = g.next == null && !g.garrison && still.has(`${g.team === 'red' ? 'blue' : 'red'}|${g.tileId}`);
+    entry.shared = g.next == null && !g.garrison && [...(still.get(g.tileId) || [])].some((t) => t !== g.team);
     const sig = `${stackSig(g, you)}|${entry.shared ? 1 : 0}`;
     if (sig !== entry.sig) {
       fillStack(entry.node, g, you);

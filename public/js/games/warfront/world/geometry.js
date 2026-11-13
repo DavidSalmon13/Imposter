@@ -69,14 +69,25 @@ export function platEl(x, y, w, h, z, topClass) {
 }
 
 /** Where a stack stands on a tile: in front of a castle's gate or a lighthouse, or beside an enemy stack. */
+// Where each side's stack stands when two or more sides share a still tile: red left, blue right
+// (team battles as before), green and gold a step behind them (free for all).
+const SHARE_OFFSET = { red: [-16, 0], blue: [16, 0], green: [-6, -12], gold: [6, -12] };
+
+/** Whether a side's figures face left: those whose base is on the right half of the map. */
+export function facesLeft(map, team) {
+  const b = map && map.bases.find((x) => x.tileId != null && x.team === team);
+  if (!b) return team !== 'red';
+  return tileCentre(map, b.tileId).x > (map.width * TILE) / 2;
+}
+
 export function standPoint(map, tileId, team, shared) {
   const c = tileCentre(map, tileId);
   const onBase = map.bases.some((b) => b.tileId === tileId);
   // On a lighthouse the stack stands at its foot, in front, so the lamp stays in view.
   const onLight = !onBase && ((map.lighthouses || []).some((l) => l.tileId === tileId) || S.structureTiles.has(tileId));
   return {
-    x: c.x + (shared ? (team === 'red' ? -16 : 16) : 0),
-    y: c.y + (onBase ? 44 : onLight ? 30 : 14),
+    x: c.x + (shared ? (SHARE_OFFSET[team] || SHARE_OFFSET.red)[0] : 0),
+    y: c.y + (onBase ? 44 : onLight ? 30 : 14) + (shared ? (SHARE_OFFSET[team] || SHARE_OFFSET.red)[1] : 0),
     z: elevationAt(map, tileId),
   };
 }

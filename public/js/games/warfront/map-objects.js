@@ -48,7 +48,7 @@ export function renderLighthouses() {
     if (!entry || entry.team === l.team) return;
     entry.team = l.team;
     const cls = l.team ? `tm-${l.team}` : 'tm-none';
-    entry.node.classList.remove('tm-red', 'tm-blue', 'tm-none');
+    entry.node.classList.remove('tm-red', 'tm-blue', 'tm-green', 'tm-gold', 'tm-none');
     entry.node.classList.add(cls);
     if (entry.mini) entry.mini.className = `wf-mlh ${cls}`;
   });
@@ -59,7 +59,7 @@ const BURN = '<span class="wf-burn"><span class="flame" style="left: 107px; top:
 /** Below half HP a castle burns like the siege frame's; under an Aegis (Step 10) a gold dome covers it. */
 export function renderCastles(bases) {
   const now = serverNow();
-  ['red', 'blue'].forEach((team) => {
+  Object.keys(bases).forEach((team) => {
     const bb = S.castleBoards[team];
     const base = bases[team];
     if (!bb || !base) return;

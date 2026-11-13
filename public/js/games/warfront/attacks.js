@@ -46,7 +46,8 @@ const HIT_MS = 300;
 const live = new Map(); // "team|tileId|type" (or "|hit") -> { cls, start, ms, ax, ay }
 
 const nowMs = () => performance.now();
-const other = (team) => (team === 'red' ? 'blue' : 'red');
+// The side that struck: hit events name it (byTeam); older snapshots fall back to "the other one".
+const attackerSide = (e) => e.byTeam || (e.team === 'red' ? 'blue' : 'red');
 
 /** Unit vector from one tile to another in map pixels ({0,0} when they're the same tile). */
 function dir(map, fromId, toId) {
@@ -105,7 +106,7 @@ export function playAttacks(events) {
   events.forEach((e) => {
     if ((e.type !== 'underAttack' && e.type !== 'baseHit') || e.fromTileId == null) return;
     const style = STYLES[e.by];
-    const team = other(e.team);
+    const team = attackerSide(e);
     const d = dir(map, e.fromTileId, e.tileId);
     let impact = 0;
     if (style) {
@@ -119,7 +120,7 @@ export function playAttacks(events) {
         figsAt(team, e.fromTileId, e.by).forEach((f) => playOn(f, a, now));
         if (style.proj) {
           const release = Math.round(style.ms * 0.4);
-          setTimeout(() => S.state && launch(map, e.fromTileId, e.tileId, style.proj, style.fly, team, e.fromTower), release);
+          setTimeout(() => S.state && launch(map, e.fromTileId, e.tileId, style.proj, style.fly, team, e.fromTower, e.team), release);
         }
         if (style.ring) ring(map, style.ring === 'shock' ? e.fromTileId : e.tileId, style.ring, team, impact);
       }

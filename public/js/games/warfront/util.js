@@ -6,6 +6,7 @@
 import { S } from './store.js';
 import { sfx, haptics } from '../../fx.js';
 import { errorEl, feedEl } from './dom.js';
+import { SIDE } from './sides.js';
 
 export function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -43,8 +44,8 @@ export function noise(tileId, k) {
 /** One line in the map's notice overlay (the mockup's "[Team] …" lines); fades by itself. */
 export function feed(text, tone = 'grn') {
   const line = el('span', tone === 'grn' ? 'grn' : '');
-  // 'amb' for warnings; 'red' / 'blue' for a team's news in its HUD colour.
-  if (tone !== 'grn') line.style.color = { red: '#ff7a7e', blue: '#7fb0ff' }[tone] || '#ffcc33';
+  // 'amb' for warnings; a side ('red' … 'gold') for that side's news in its HUD colour.
+  if (tone !== 'grn') line.style.color = SIDE[tone] ? SIDE[tone].label : '#ffcc33';
   line.textContent = text;
   feedEl.appendChild(line);
   while (feedEl.children.length > 3) feedEl.firstChild.remove();

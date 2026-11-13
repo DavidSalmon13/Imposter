@@ -6,7 +6,7 @@
 
 import { S } from './store.js';
 import { UNIT_SPRITES, CASTLE_SPRITE, TREE_SPRITES, RACE_LINEUPS, RACE_PORTRAITS } from './sprites.js';
-import { RACES, MATCH_LENGTHS, MAP_SIZES } from './constants.js';
+import { RACES, MATCH_LENGTHS, MAP_SIZES, MODES } from './constants.js';
 import {
   vista,
   subEl,
@@ -15,6 +15,11 @@ import {
   countEl,
   joinBtn,
   captainBtn,
+  teamsPanel,
+  ffaRoster,
+  ffaSlots,
+  ffaCount,
+  randomizeBtn,
   benchEl,
   raceList,
   settingsEl,
@@ -66,13 +71,15 @@ export function buildVista() {
     vista.appendChild(ent);
   });
 
-  [['red', 115], ['blue', 385]].forEach(([team, x]) => {
-    const ent = el('div', `ent tm-${team}`);
-    Object.assign(ent.style, { left: `${x}px`, top: '300px', transform: 'translateZ(30px)' });
+  // Red and blue on their plateaus; in free for all green and gold appear behind them, across the
+  // river (5a-ffa-team-select.html). Drawn first so the front castles overlap them.
+  [['green', 175, 215, 65, 0], ['gold', 330, 215, 65, 0], ['red', 115, 300, 130, 30], ['blue', 385, 300, 130, 30]].forEach(([team, x, y, size, z]) => {
+    const ent = el('div', `ent tm-${team}${size < 130 ? ' wf-ffa-castle' : ''}`);
+    Object.assign(ent.style, { left: `${x}px`, top: `${y}px`, transform: `translateZ(${z}px)` });
     ent.appendChild(el('span', `dec aura-${team}`));
     const bb = el('div', 'bb', CASTLE_SPRITE);
-    bb.style.width = '130px';
-    bb.style.height = '130px';
+    bb.style.width = `${size}px`;
+    bb.style.height = `${size}px`;
     ent.appendChild(bb);
     vista.appendChild(ent);
   });
@@ -120,6 +127,16 @@ export function buildSeg(container, options, store, onPick) {
   });
 }
 
+/** Teams / Free for all: host only (the server refuses anyone else too). */
+export function setMode(mode) {
+  if (!S.ctx.getIsHost()) {
+    flashError('Only the host can change the mode');
+    return;
+  }
+  if (S.state && S.state.mode === mode) return;
+  emit('wfSetMode', mode);
+}
+
 export function hostOption(key, value) {
   if (!S.ctx.getIsHost()) {
     flashError('Only the host can change the settings');
@@ -138,7 +155,7 @@ function markRace(raceId) {
   });
 }
 
-function playerSlot(player, team, you) {
+function playerSlot(player, team, you, host = null) {
   const slot = el('div', `slot${player.name === you ? ' wf-you' : ''}`);
   const portrait = el('span', `ri tm-${team}`, player.race ? UNIT_SPRITES[RACE_PORTRAITS[player.race]] : '');
   slot.appendChild(portrait);
@@ -148,7 +165,13 @@ function playerSlot(player, team, you) {
   raceLabel.textContent = player.race ? player.race.toUpperCase() : 'PICKING RACE…';
   nameCol.appendChild(raceLabel);
   slot.appendChild(nameCol);
-  if (player.leader) {
+  if (host && player.name === host) {
+    // Free for all has no captains: the host starts, so the host is marked instead.
+    const crown = el('span', 'amb wf-host-tag');
+    crown.title = 'Host';
+    crown.textContent = '👑 HOST';
+    slot.appendChild(crown);
+  } else if (player.leader && !host) {
     const crown = el('span', 'amb');
     crown.title = 'Captain';
     crown.textContent = '👑';
@@ -202,25 +225,65 @@ function renderTeams(data) {
   });
 }
 
+/** Free for all: everyone in the room plays, each on their own (sides are dealt at Start). */
+function renderFfa(data) {
+  const players = data.players || [];
+  const max = data.ffa ? data.ffa.maxPlayers : 4;
+  ffaSlots.innerHTML = '';
+  players.forEach((p) => ffaSlots.appendChild(playerSlot(p, 'ffa', data.you, data.host)));
+  for (let i = players.length; i < max; i++) ffaSlots.appendChild(el('div', 'slot empty')).textContent = '— open —';
+  ffaCount.textContent = `${players.length}/${max}`;
+  RACES.forEach(({ id }) => {
+    const stage = S.raceButtons[id].querySelector('.stage');
+    stage.classList.remove('tm-red', 'tm-blue');
+    stage.classList.add('tm-ffa');
+  });
+}
+
 export function applyTeamSelect(data) {
   const isHost = data.host === data.you;
-  const onTeams = data.red.length + data.blue.length;
-  subEl.textContent = `Lobby · Room ${data.roomCode || ''} · ${onTeams}/${data.maxPlayers}`;
+  const ffa = data.mode === 'ffa';
+  const playing = ffa ? (data.players || []).length : data.red.length + data.blue.length;
+  const max = ffa && data.ffa ? data.ffa.maxPlayers : data.maxPlayers;
+  subEl.textContent = `Lobby · Room ${data.roomCode || ''} · ${playing}/${max}`;
   hostBadge.classList.toggle('hidden', !isHost);
+  vista.classList.toggle('wf-ffa', ffa);
 
-  renderTeams(data);
+  teamsPanel.classList.toggle('hidden', ffa);
+  ffaRoster.classList.toggle('hidden', !ffa);
+  randomizeBtn.classList.toggle('hidden', ffa);
+  if (ffa) renderFfa(data);
+  else {
+    RACES.forEach(({ id }) => S.raceButtons[id].querySelector('.stage').classList.remove('tm-ffa'));
+    renderTeams(data);
+  }
   markRace(data.myRace);
 
   settingsEl.classList.toggle('wf-locked', !isHost);
   MATCH_LENGTHS.forEach(({ id }) => S.lengthButtons[id].classList.toggle('on', data.options.matchLength === id));
-  MAP_SIZES.forEach(({ id }) => S.sizeButtons[id].classList.toggle('on', data.options.mapSize === id));
+  MODES.forEach(({ id }) => S.modeButtons[id].classList.toggle('on', (data.mode || 'teams') === id));
+  // Free for all needs Medium or Large: Small is greyed (5a-ffa-team-select.html).
+  const ffaSizes = (data.ffa && data.ffa.mapSizes) || ['medium', 'large'];
+  MAP_SIZES.forEach(({ id, label }) => {
+    const btn = S.sizeButtons[id];
+    btn.classList.toggle('on', data.options.mapSize === id);
+    const off = ffa && !ffaSizes.includes(id);
+    btn.disabled = off;
+    btn.innerHTML = off ? `${label}<small>TEAMS ONLY</small>` : label;
+  });
 
   startBtn.disabled = !data.canStart || !data.canCommand;
   if (data.canStart) {
     statusEl.className = 'grn wf-status';
-    statusEl.textContent = data.canCommand
-      ? `ALL PLAYERS READY · ${data.red.length} v ${data.blue.length}`
-      : `READY · ${data.red.length} v ${data.blue.length} · WAITING FOR HOST OR CAPTAIN`;
+    if (ffa) {
+      statusEl.textContent = data.canCommand
+        ? `ALL PLAYERS READY · FREE FOR ALL · ${playing} PLAYERS`
+        : `READY · FREE FOR ALL · ${playing} PLAYERS · WAITING FOR HOST`;
+    } else {
+      statusEl.textContent = data.canCommand
+        ? `ALL PLAYERS READY · ${data.red.length} v ${data.blue.length}`
+        : `READY · ${data.red.length} v ${data.blue.length} · WAITING FOR HOST OR CAPTAIN`;
+    }
   } else {
     statusEl.className = 'amb wf-status';
     statusEl.textContent = data.startBlocker || '';

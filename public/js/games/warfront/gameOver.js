@@ -16,6 +16,7 @@ import {
   goWorld,
   goConfetti,
   goReason,
+  goBases,
   goTitle,
   goSub,
   goRows,
@@ -31,17 +32,27 @@ import { buildWorld } from './world/build.js';
 import { renderUnits } from './units.js';
 import { renderFog } from './fog.js';
 import { renderPickups, renderLighthouses, renderCastles } from './map-objects.js';
+import { SIDE, sideOf, ordinal } from './sides.js';
 
-const TEAM_NAME = { red: 'Red', blue: 'Blue' };
+const TEAM_NAME = Object.fromEntries(Object.entries(SIDE).map(([t, x]) => [t, x.name]));
 const fmtMatchTime = (ms) => {
   const secs = Math.round(ms / 1000);
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 };
-// The mockup's confetti, in the winners' colours.
-const CONFETTI = {
-  red: ['#ff5a5f', '#ffcc33', '#ff5a5f', '#fff', '#ffcc33', '#ff5a5f', '#ffcc33', '#ff5a5f', '#fff', '#ff5a5f'],
-  blue: ['#4f93ff', '#ffcc33', '#4f93ff', '#fff', '#ffcc33', '#4f93ff', '#ffcc33', '#4f93ff', '#fff', '#4f93ff'],
-};
+// The mockup's confetti, in the winners' colours (its pattern: side, gold, side, white…).
+const CONFETTI = Object.fromEntries(Object.entries(SIDE).map(([t, x]) => {
+  const c = x.bright;
+  return [t, [c, '#ffcc33', c, '#fff', '#ffcc33', c, '#ffcc33', c, '#fff', c]];
+}));
+/** The side that fell last: the other team in a team battle, 2nd place in free for all. */
+function fallenSide(data) {
+  const { winner } = data;
+  if (data.mode === 'ffa') {
+    const second = (data.placings || []).find((p) => p.place === 2);
+    return winner !== 'draw' && second ? second.side : null;
+  }
+  return winner === 'red' ? 'blue' : winner === 'blue' ? 'red' : null;
+}
 const CONFETTI_AT = [[8, 0], [18, -1.1], [29, -2.3], [41, -0.6], [52, -1.7], [63, -2.8], [74, -0.3], [85, -1.4], [93, -2.1], [35, -2.6]];
 // Banners planted on the ruins' pad and scorch marks on the ground round it: the
 // mockup's scene, scaled from its plateau to the castle's 98px stone pad.
@@ -64,8 +75,8 @@ function buildGameOverScene(data) {
 
   // The loser's castle lies in ruins and burns; the winners plant their banners round it.
   const { winner } = data;
-  const loser = winner === 'red' ? 'blue' : winner === 'blue' ? 'red' : null;
-  if (loser && data.bases[loser].hp <= 0 && S.castleBoards[loser]) {
+  const loser = fallenSide(data);
+  if (loser && data.bases[loser] && data.bases[loser].hp <= 0 && S.castleBoards[loser]) {
     const bb = S.castleBoards[loser];
     const node = bb.parentNode;
     node.insertBefore(el('span', 'dec fireglow'), bb);
@@ -102,7 +113,7 @@ function buildGameOverScene(data) {
   }
 
   // Frame the fallen base (the weaker one at the time cap, the map's centre on a draw).
-  const focus = loser ? data.bases[loser].tileId
+  const focus = loser && data.bases[loser] ? data.bases[loser].tileId
     : Math.floor(data.map.height / 2) * data.map.width + Math.floor(data.map.width / 2);
   requestAnimationFrame(() => {
     // Like the mockup: the fallen castle stands a little below the middle, off-centre
@@ -110,7 +121,8 @@ function buildGameOverScene(data) {
     // transform rather than scrolling, so a base in the top rows can still come down
     // out from under the title (the dark camera background shows above the map).
     const c = tileCentre(data.map, focus);
-    const side = loser === 'blue' ? 0.68 : loser === 'red' ? 0.32 : 0.5;
+    const half = data.map.width * TILE / 2;
+    const side = !loser ? 0.5 : c.x > half ? 0.68 : 0.32;
     const vw = goVp.clientWidth;
     const vh = goVp.clientHeight;
     const x = Math.max(0, Math.min(goCam.offsetWidth - vw, c.x - vw * side));
@@ -119,44 +131,74 @@ function buildGameOverScene(data) {
   });
 }
 
-function renderBaseWell(team, base, winner) {
-  const well = $(`wf-go-${team}`);
-  const hp = Math.max(0, Math.round(base.hp));
-  const hpEl2 = $(`wf-go-${team}-hp`);
-  hpEl2.textContent = `${hp}/${base.maxHp}`;
-  hpEl2.className = hp > 0 ? 'grn' : '';
-  hpEl2.style.color = hp > 0 ? '' : '#ff5a5f';
-  $(`wf-go-${team}-bar`).style.width = `${Math.max(0, Math.min(100, Math.round((base.hp / base.maxHp) * 100)))}%`;
-  // The winner's well glows in its team colour; the other keeps a dim team edge.
-  const glow = { red: 'inset 0 0 0 1px #000, inset 0 0 0 2px #ff5a5f, inset 0 0 20px rgba(229,72,77,.3)', blue: 'inset 0 0 0 1px #000, inset 0 0 0 2px #4f93ff, inset 0 0 20px rgba(59,130,246,.3)' };
-  const dim = { red: 'inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e', blue: 'inset 0 0 0 1px #000, inset 0 0 0 2px #23477e' };
-  well.style.boxShadow = winner === team ? glow[team] : dim[team];
+/** Every side's final base HP: red and blue as in the mockup; free for all by place with its tag. */
+function renderBaseWells(data) {
+  const ffa = data.mode === 'ffa';
+  const placeOf = (t) => ((data.placings || []).find((p) => p.side === t) || {}).place || 9;
+  const sides = Object.keys(data.bases).sort((a, b) => (ffa ? placeOf(a) - placeOf(b) : 0) || (a === 'red' ? -1 : 1));
+  goBases.innerHTML = '';
+  sides.forEach((team) => {
+    const base = data.bases[team];
+    const x = sideOf(team);
+    const hp = Math.max(0, Math.round(base.hp));
+    const won = data.winner === team || (data.winner === 'draw' && ffa && placeOf(team) === 1);
+    const well = el('div', 'well');
+    Object.assign(well.style, { padding: ffa ? '9px 10px' : '10px', display: 'flex', flexDirection: 'column', gap: '6px' });
+    // The winner's well glows in its side's colour; the others keep a dim edge.
+    well.style.boxShadow = won ? `inset 0 0 0 1px #000, inset 0 0 0 2px ${x.bright}, inset 0 0 20px ${x.glow}` : `inset 0 0 0 1px #000, inset 0 0 0 2px ${x.ring}`;
+    const hd = el('div');
+    hd.style.cssText = `display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: ${ffa ? '.14em' : '.16em'}`;
+    const left = el('span');
+    if (ffa && placeOf(team) < 9) left.appendChild(el('span', `wf-place p${placeOf(team)}`)).textContent = ordinal(placeOf(team));
+    const nm = left.appendChild(el('span'));
+    nm.style.color = x.label;
+    nm.textContent = ffa ? x.name.toUpperCase() : `${x.name.toUpperCase()} BASE`;
+    hd.appendChild(left);
+    const hpText = hd.appendChild(el('span', hp > 0 ? 'grn' : ''));
+    hpText.textContent = `${hp}/${base.maxHp}`;
+    if (hp <= 0) hpText.style.color = '#ff5a5f';
+    well.appendChild(hd);
+    const track = el('div');
+    track.style.cssText = 'height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640';
+    const bar = track.appendChild(el('div', 'wf-go-bar'));
+    bar.style.width = `${Math.max(0, Math.min(100, Math.round((base.hp / base.maxHp) * 100)))}%`;
+    if (hp <= 0) bar.style.display = 'none';
+    well.appendChild(track);
+    goBases.appendChild(well);
+  });
 }
 
 function renderStatRows(data) {
   goRows.innerHTML = '';
-  const order = (t) => (t === data.winner ? 0 : t === 'red' ? 1 : 2);
-  const rows = [...data.stats].sort((a, b) => order(a.team) - order(b.team) || b.baseDmg - a.baseDmg || b.kills - a.kills || a.name.localeCompare(b.name));
+  const ffa = data.mode === 'ffa';
+  const order = (t) => (ffa ? 0 : t === data.winner ? 0 : t === 'red' ? 1 : 2);
+  const rows = [...data.stats].sort((a, b) => order(a.team) - order(b.team) || (ffa ? (a.place || 9) - (b.place || 9) : 0) || b.baseDmg - a.baseDmg || b.kills - a.kills || a.name.localeCompare(b.name));
   rows.forEach((s) => {
-    const won = s.team === data.winner;
-    const row = el('div', 'row well');
-    row.style.boxShadow = `inset 0 0 0 1px #000, inset 0 0 0 2px ${s.team === 'red' ? '#7a2a2e' : '#23477e'}`;
+    const won = ffa ? s.place === 1 : s.team === data.winner;
+    const row = el('div', `row well${ffa ? ' ffa' : ''}`);
+    row.style.boxShadow = `inset 0 0 0 1px #000, inset 0 0 0 2px ${sideOf(s.team).ring}`;
     row.appendChild(el('span', `por tm-${s.team}`, UNIT_SPRITES[RACE_PORTRAITS[s.race]] || ''));
     const who = el('span');
     who.style.minWidth = '0';
+    if (ffa && s.place) who.appendChild(el('span', `wf-place p${s.place}`)).textContent = ordinal(s.place);
     if (s.name === data.mvp) who.appendChild(el('span', 'amb')).textContent = '★ ';
     const nm = el('span');
-    Object.assign(nm.style, { fontWeight: '700', color: s.team === 'red' ? '#ff7a7e' : '#7fb0ff' });
+    Object.assign(nm.style, { fontWeight: '700', color: sideOf(s.team).label });
     nm.textContent = s.name === data.you ? 'YOU' : s.name.toUpperCase();
     who.appendChild(nm);
     const race = el('span');
     Object.assign(race.style, { display: 'block', fontSize: '9.5px', color: '#8fa3b5', letterSpacing: '.12em' });
-    race.textContent = `${(RACE_NAMES[s.race] || '').toUpperCase()}${s.connected ? '' : ' · OFFLINE'}`;
+    race.textContent = `${(RACE_NAMES[s.race] || '').toUpperCase()}${ffa ? ` · ${sideOf(s.team).name.toUpperCase()}` : ''}${s.connected ? '' : ' · OFFLINE'}`;
     who.appendChild(race);
     row.appendChild(who);
     row.appendChild(el('span', won ? 'grn' : '')).textContent = s.kills;
     row.appendChild(el('span')).textContent = s.lost;
-    row.appendChild(el('span', won ? 'amb' : '')).textContent = Math.round(s.baseDmg);
+    row.appendChild(el('span', s.name === data.mvp ? 'amb' : '')).textContent = Math.round(s.baseDmg);
+    if (ffa) {
+      const pts = row.appendChild(el('span', s.points ? 'grn' : ''));
+      pts.style.fontWeight = '700';
+      pts.textContent = `+${s.points || 0}`;
+    }
     goRows.appendChild(row);
   });
   goMvp.classList.toggle('hidden', !data.mvp);
@@ -164,9 +206,10 @@ function renderStatRows(data) {
 
 export function renderGameOver(data) {
   const { winner } = data;
-  goRoot.classList.toggle('wf-go-red-won', winner === 'red');
-  goRoot.classList.toggle('wf-go-blue-won', winner === 'blue');
+  const ffa = data.mode === 'ffa';
+  Object.keys(SIDE).forEach((t) => goRoot.classList.toggle(`wf-go-${t}-won`, winner === t));
   goRoot.classList.toggle('wf-go-draw', winner === 'draw');
+  goRoot.classList.toggle('wf-go-ffa', ffa);
   if (S.goBuiltFor !== data.clock.startedAt) {
     buildGameOverScene(data);
     S.goBuiltFor = data.clock.startedAt;
@@ -174,33 +217,37 @@ export function renderGameOver(data) {
 
   // "Blue base destroyed · round 11" -> how it ended, with the match time.
   const time = fmtMatchTime(data.matchMs);
-  const loser = winner === 'red' ? 'blue' : 'red';
-  if (winner === 'draw') {
+  const loser = fallenSide(data) || (winner === 'red' ? 'blue' : 'red');
+  if (ffa) {
+    const shared = (data.placings || []).filter((p) => p.place === 1).map((p) => TEAM_NAME[p.side]);
+    goReason.textContent = winner === 'draw'
+      ? (data.endReason === 'base' && shared.length ? `${shared.join(' & ')} fell together · ${time}` : `Time up · bases level · ${time}`)
+      : data.endReason === 'base' ? `Last side standing · ${time}` : `Time up · ${TEAM_NAME[winner]} base stood strongest · ${time}`;
+  } else if (winner === 'draw') {
     goReason.textContent = data.endReason === 'base' ? `Both bases destroyed · ${time}` : `Time up · bases level · ${time}`;
   } else {
     goReason.textContent = data.endReason === 'base' ? `${TEAM_NAME[loser]} base destroyed · ${time}` : `Time up · ${TEAM_NAME[winner]} base stood stronger · ${time}`;
   }
-  goReason.style.color = winner === 'blue' ? '#9ac0ff' : winner === 'red' ? '#ff9a9d' : '#8fa3b5';
+  goReason.style.color = { red: '#ff9a9d', blue: '#9ac0ff', green: '#8fe8c4', gold: '#ffe08a' }[winner] || '#8fa3b5';
   goTitle.textContent = winner === 'draw' ? 'DRAW' : `${winner.toUpperCase()} WINS!`;
-  // The mockup's 50px fits "RED WINS!" on a 390px phone; "BLUE WINS!" needs a little less.
-  goTitle.style.fontSize = goTitle.textContent.length > 9 ? '44px' : '50px';
+  // The mockup's 50px fits "RED WINS!" on a 390px phone; "BLUE WINS!" needs a little less, "GREEN WINS!" less again.
+  goTitle.style.fontSize = goTitle.textContent.length > 10 ? '42px' : goTitle.textContent.length > 9 ? '44px' : '50px';
   // The mockup shows a winner's phone (◆ VICTORY ◆); the other side reads its defeat.
-  const lost = data.myTeam && winner !== 'draw' && data.myTeam !== winner;
-  goSub.textContent = winner === 'draw' ? '◆ STALEMATE ◆' : lost ? '◆ DEFEAT ◆' : '◆ VICTORY ◆';
+  const lost = !ffa && data.myTeam && winner !== 'draw' && data.myTeam !== winner;
+  goSub.textContent = ffa ? '◆ FREE FOR ALL ◆' : winner === 'draw' ? '◆ STALEMATE ◆' : lost ? '◆ DEFEAT ◆' : '◆ VICTORY ◆';
   goSub.className = lost ? '' : 'amb';
   goSub.style.color = lost ? '#ff5a5f' : '';
   goSub.style.textShadow = lost ? '0 0 6px rgba(255,90,95,.5)' : '';
 
-  renderBaseWell('red', data.bases.red, winner);
-  renderBaseWell('blue', data.bases.blue, winner);
+  renderBaseWells(data);
   renderStatRows(data);
 
   goAgain.disabled = !data.canCommand;
-  goAgain.classList.toggle('wf-go-red', winner !== 'blue');
-  goAgain.classList.toggle('wf-go-blue', winner === 'blue');
+  const againSide = SIDE[winner] ? winner : 'red';
+  Object.keys(SIDE).forEach((t) => goAgain.classList.toggle(`wf-go-${t}`, againSide === t));
   if (!goError.textContent || goError.classList.contains('wf-notice')) {
     goError.classList.toggle('wf-notice', !data.canCommand);
-    goError.textContent = data.canCommand ? '' : 'The host or a captain starts the next battle';
+    goError.textContent = data.canCommand ? '' : ffa ? 'The host starts the next battle' : 'The host or a captain starts the next battle';
   }
   renderScoreboard(goScoreboard, data.scoreboard || []);
   S.ctx.showScreen('warfrontOver');

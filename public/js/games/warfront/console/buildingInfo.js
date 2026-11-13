@@ -16,6 +16,7 @@ import { RACE_NAMES, FACILITY_NAMES, FACILITY_ORDERS, FACILITY_TYPES, UNIT_MAX_H
 import { infoPortrait, infoTitle, infoTag, infoSub, infoHp, infoDesc, infoOrder, world } from '../dom.js';
 import { serverNow } from '../clock.js';
 import { hpClass } from '../stackSig.js';
+import { SIDE } from '../sides.js';
 
 export const INSPECT_MS = 4000; // how long a long-pressed building stays in the info well
 const PRESS_MS = 400; // the same hold as a Produce card's lore
@@ -30,11 +31,8 @@ const ENEMY_ORDERS = {
   tower: '▸ ITS ROOF IS SAFE TILL IT FALLS · BRING IT DOWN',
 };
 // The portrait well in the building owner's colour (mockup); a stack's well keeps the markup's violet.
-const PORTRAIT_TEAM = {
-  red: { backgroundColor: '#1a0c0e', boxShadow: 'inset 0 0 0 1px #8a2a2e, inset 0 0 16px rgba(255,90,95,.35)' },
-  blue: { backgroundColor: '#0b1222', boxShadow: 'inset 0 0 0 1px #2a4f9a, inset 0 0 16px rgba(79,147,255,.35)' },
-};
-const TEAM_NAMES = { red: 'Red', blue: 'Blue' };
+const PORTRAIT_TEAM = Object.fromEntries(Object.entries(SIDE).map(([t, s]) => [t, s.portrait]));
+const TEAM_NAMES = Object.fromEntries(Object.entries(SIDE).map(([t, s]) => [t, s.name]));
 const theirs = (text) => text.replace(/\bYour\b/g, 'Their').replace(/\byour\b/g, 'their');
 
 const BASE_INFO = "Your team's home. New units step out here unless a Forward Barracks is picked. It strikes enemies beside it. Lose it and you lose the match.";

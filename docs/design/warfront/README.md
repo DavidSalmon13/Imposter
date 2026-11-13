@@ -39,6 +39,7 @@ The real game ports these screens into small modules. Full map: `docs/implementa
 | `2c-command-cards.html` | `console/cards.js`, `console/build.js`, `structures.js` | `console.css`, `facilities.css` |
 | `3-resolution.html` | `fx.js` (played once per event, live) | `fx.css` |
 | `4-game-over.html` | `gameOver.js` | `game-over.css` |
+| `5a`/`5b`/`5c-ffa-*.html` | `teamSelect.js`, `hud.js`, `gameOver.js`, colours in `sides.js` | `ffa.css` |
 
 The page shell and how every rule is scoped live in `shell.css`. The markup (screen ids) is in
 `public/index.html`.

@@ -8,6 +8,7 @@ import { el } from './util.js';
 import { TILE } from './constants.js';
 import { minimap } from './dom.js';
 import { tileCentre } from './world/geometry.js';
+import { sideOf } from './sides.js';
 
 // ---------- Minimap (1:10, like the mockup) ----------
 
@@ -38,7 +39,7 @@ export function buildMinimap(map) {
   });
   map.bases.forEach((b) => {
     const c = tileCentre(map, b.tileId);
-    minimap.appendChild(miniRect(c.x / 10 - 3.5, c.y / 10 - 3.5, 7, 7, b.team === 'red' ? '#ff5a5f' : '#4f93ff', '1px'));
+    minimap.appendChild(miniRect(c.x / 10 - 3.5, c.y / 10 - 3.5, 7, 7, sideOf(b.team).bright, '1px'));
   });
   // Lighthouses: a small diamond in the holder's colour (grey while neutral), above the fog.
   const miniLights = [];
@@ -73,7 +74,7 @@ export function renderMiniUnits() {
     if (seen.has(key)) return;
     seen.add(key);
     const c = tileCentre(S.state.map, u.tileId);
-    S.miniUnits.appendChild(miniRect(c.x / 10 - 2, c.y / 10 + 1, 4, 4, u.team === 'red' ? '#ff5a5f' : '#4f93ff', '50%'));
+    S.miniUnits.appendChild(miniRect(c.x / 10 - 2, c.y / 10 + 1, 4, 4, sideOf(u.team).bright, '50%'));
   });
 }
 

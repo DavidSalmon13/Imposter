@@ -12,6 +12,7 @@ import { tileCentre, ent, billboard, standPoint, compass } from './world/geometr
 import { weaponSprite } from './sprites.js';
 import { serverNow } from './clock.js';
 import { FACILITY_NAMES, WEAPON_NAMES, UNIT_NAMES } from './constants.js';
+import { sideOf } from './sides.js';
 
 // ---------- Live combat effects (3-resolution.html, played once on the map) ----------
 
@@ -126,7 +127,7 @@ export function playEffects(events) {
     } else if (e.type === 'lighthouse') {
       // A flip: a flash of the new colour round the lamp, and a notice line.
       fxBoard(e.tileId, `<span class="wf-lflash wf-lf-${e.team}"></span>`, { w: 140, h: 140, dy: -10, z: 30, life: FX_LIFE.boom, team: e.team });
-      const who = e.team === 'red' ? 'Red' : 'Blue';
+      const who = sideOf(e.team).name;
       feed(`${who} took the ${compass(S.state.map, e.tileId)} lighthouse`, e.team);
       if (e.team === S.state.myTeam) haptics.success();
     } else if (e.type === 'death') {

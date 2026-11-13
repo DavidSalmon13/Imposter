@@ -197,7 +197,7 @@ function stepCombat(state, now, events) {
   const hitBy = new Map(); // unit id -> attackers that hit it this step
   for (const { attacker, victim, dmg } of hits) {
     const base = {
-      tileId: victim.tileId, fromTileId: attacker.tileId, dmg,
+      tileId: victim.tileId, fromTileId: attacker.tileId, dmg, byTeam: attacker.team,
       by: attacker.kind === 'unit' ? attacker.unit.type : 'base', ranged: attacker.range >= 2,
       ...(attacker.onTower ? { fromTower: true } : {}), // shot from a Tower's roof
     };
