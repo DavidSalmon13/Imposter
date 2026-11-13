@@ -20,6 +20,9 @@ also a standalone, self-contained HTML file with no external assets:
 | `2c-command-cards.html` | Forge and Horde recruit panels |
 | `3-resolution.html` | Reveal key frames: march, clash, base hit |
 | `4-game-over.html` | Winner banner, final base HP, final map, scoreboard |
+| `5a-ffa-team-select.html` | Free for all (Step 28): Teams / Free for all switch, one roster, Small map greyed |
+| `5b-ffa-battlefield.html` | Free for all: 4-bar base HUD, knock-out banners, green and gold side colours, minimap |
+| `5c-ffa-game-over.html` | Free for all: placings 1st–4th, every base, points |
 
 The battlefield is a 1120×770 world inside a 390px-wide phone viewport. Drag or scroll
 to pan it.
@@ -59,6 +62,10 @@ The page shell and how every rule is scoped live in `shell.css`. The markup (scr
   selection.
 - Billboards stay parallel to the screen, so they lean back slightly in the world. Keep
   units a little in front of cliff edges, or their tops clip into the plateau.
+
+The `5*-ffa-*` screens (Step 28) were not drawn on the design canvas: they are built from the
+static files above (same CSS, markup and SVG, with green `.tm-green` and gold `.tm-gold` side
+colours added), so they have no `source/*.dc.html` original.
 
 `source/` holds the editable originals (`*.dc.html` + `canvas.json`) from the Claude design
 canvas. The static files above were generated from them.

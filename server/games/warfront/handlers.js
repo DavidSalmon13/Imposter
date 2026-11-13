@@ -4,8 +4,8 @@
 // the engine or another shell module, and answers callback({ ok, error }).
 // Must NOT contain: rules (engine) or payload building (payloads.js). Spec: "Commands".
 
-const { WF_MAX_TEAM_SIZE, TEAMS } = require('./constants');
-const { teamMembers, startBlocker, canCommandMatch } = require('./roster');
+const { WF_MAX_TEAM_SIZE, TEAMS, WF_MODES, WF_FFA_MAP_SIZES } = require('./constants');
+const { teamMembers, modeOf, startBlocker, canCommandMatch } = require('./roster');
 const { broadcastWfState } = require('./payloads');
 const { generateBattle } = require('./battlefield');
 const { stopLoop } = require('./loop');
@@ -43,8 +43,11 @@ function teamSelectHandler(ctx, socket, fn) {
   };
 }
 
+const NO_TEAMS_IN_FFA = 'There are no teams in free for all';
+
 function registerHandlers(ctx, io, socket) {
   socket.on('joinWfTeam', teamSelectHandler(ctx, socket, ({ room, p, data }) => {
+    if (modeOf(room) === 'ffa') return NO_TEAMS_IN_FFA;
     if (!TEAMS.includes(data)) return 'Invalid team';
     if (p.team === data) return null;
     if (teamMembers(ctx, room, data).length >= WF_MAX_TEAM_SIZE) return 'That team is full';
@@ -54,6 +57,7 @@ function registerHandlers(ctx, io, socket) {
   }));
 
   socket.on('claimWfCaptain', teamSelectHandler(ctx, socket, ({ room, name, p }) => {
+    if (modeOf(room) === 'ffa') return NO_TEAMS_IN_FFA;
     if (!p.team) return 'Join a team first';
     const current = teamMembers(ctx, room, p.team).find((n) => room.players.get(n).leader);
     if (current && current !== name) return 'This team already has a captain';
@@ -73,14 +77,34 @@ function registerHandlers(ctx, io, socket) {
     const { matchLength, mapSize } = data;
     if (matchLength !== undefined && !engine.MATCH_LENGTHS[matchLength]) return 'Invalid match length';
     if (mapSize !== undefined && !engine.MAP_SIZES[mapSize]) return 'Invalid map size';
+    if (mapSize !== undefined && modeOf(room) === 'ffa' && !WF_FFA_MAP_SIZES.includes(mapSize)) {
+      return 'Free for all needs a Medium or Large map';
+    }
     const cfg = room.state.warfront.phaseConfig;
     if (matchLength !== undefined) cfg.matchCapMs = engine.MATCH_LENGTHS[matchLength].ms;
     if (mapSize !== undefined) cfg.mapSize = mapSize;
     return null;
   }));
 
+  // Teams / Free for all (spec "Free-for-all mode"). Switching clears teams and captains (neither
+  // exists in free for all) and lifts a Small map to Medium, which free for all needs.
+  socket.on('wfSetMode', teamSelectHandler(ctx, socket, ({ room, name, data }) => {
+    if (name !== room.hostName) return 'Only the host can change the mode';
+    if (!WF_MODES.includes(data)) return 'Invalid mode';
+    const wf = room.state.warfront;
+    if (modeOf(room) === data) return null;
+    wf.mode = data;
+    for (const pl of room.players.values()) {
+      pl.team = null;
+      pl.leader = false;
+    }
+    if (data === 'ffa' && !WF_FFA_MAP_SIZES.includes(wf.phaseConfig.mapSize)) wf.phaseConfig.mapSize = WF_FFA_MAP_SIZES[0];
+    return null;
+  }));
+
   socket.on('randomizeWfTeams', teamSelectHandler(ctx, socket, ({ room, name }) => {
     if (name !== room.hostName) return 'Only the host can randomize teams';
+    if (modeOf(room) === 'ffa') return NO_TEAMS_IN_FFA;
     // Alternate over a shuffled roster so sizes differ by at most one; captains are
     // cleared since their teams no longer exist. Races are untouched.
     const first = Math.random() < 0.5 ? 'red' : 'blue';

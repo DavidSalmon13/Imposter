@@ -24,6 +24,7 @@ function ffaRoom() {
   const roster = [['Host', 'red', 'forge'], ['Ann', 'blue', 'horde'], ['Bob', 'green', 'arcane']]
     .map(([name, team, race]) => ({ name, team, race }));
   const map = engine.fallbackFfa('medium', rngFor(4, 0), 3);
+  s.room.state.warfront.mode = 'ffa';
   Object.assign(s.room.state.warfront, engine.createBattleState(map, roster, { seed: 4, now: Date.now() }));
   s.room.phase = 'playing';
   return s;

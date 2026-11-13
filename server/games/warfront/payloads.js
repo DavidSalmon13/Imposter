@@ -5,13 +5,21 @@
 // socket, never roomEmit. Must NOT contain: rules (engine), the loop timer (loop.js) or alerts (alerts.js).
 // Plan: "Event & function naming reference", "Static vs live payloads".
 
-const { WF_MAX_PLAYERS, WF_MAX_TEAM_SIZE } = require('./constants');
-const { roomCodeOf, teamMembers, matchLengthId, startBlocker, canCommandMatch } = require('./roster');
+const {
+  WF_MAX_PLAYERS, WF_MAX_TEAM_SIZE, WF_FFA_MIN_PLAYERS, WF_FFA_MAX_PLAYERS, WF_FFA_MAP_SIZES,
+} = require('./constants');
+const {
+  roomCodeOf, teamMembers, modeOf, ffaPlayers, matchLengthId, startBlocker, canCommandMatch, ffaPoints,
+} = require('./roster');
 const engine = require('./engine');
 
 function teamSelectInfo(ctx, room) {
   const races = room.state.warfront.lobbyRaces;
   const entry = (n) => ({ name: n, leader: !!room.players.get(n).leader, race: races[n] || null });
+  if (modeOf(room) === 'ffa') {
+    // Free for all: one roster, everyone plays, no teams or captains.
+    return { red: [], blue: [], unassigned: [], players: ffaPlayers(ctx, room).map(entry) };
+  }
   return {
     red: teamMembers(ctx, room, 'red').map(entry),
     blue: teamMembers(ctx, room, 'blue').map(entry),
@@ -32,7 +40,9 @@ function wfStatePayload(ctx, room, viewerName) {
     const blocker = startBlocker(ctx, room);
     return {
       ...base,
+      mode: modeOf(room),
       ...teamSelectInfo(ctx, room),
+      ffa: { minPlayers: WF_FFA_MIN_PLAYERS, maxPlayers: WF_FFA_MAX_PLAYERS, mapSizes: WF_FFA_MAP_SIZES },
       myRace: room.state.warfront.lobbyRaces[viewerName] || null,
       options: { matchLength: matchLengthId(room), mapSize: room.state.warfront.phaseConfig.mapSize },
       canStart: !blocker,
@@ -56,9 +66,17 @@ function gameOverPayload(ctx, room, viewerName) {
   const wf = room.state.warfront;
   const army = wf.armies[viewerName] || null;
   const view = engine.finalView(wf);
+  const ffa = modeOf(room) === 'ffa';
   const stats = view.stats.map((s) => {
     const p = room.players.get(s.name);
-    return { ...s, connected: Boolean(p && p.connected) };
+    const row = { ...s, connected: Boolean(p && p.connected) };
+    if (ffa) {
+      // Free for all: each player's place and the points it paid (spec "Placing and points").
+      const entry = view.placings.find((pl) => pl.side === s.team);
+      row.place = entry ? entry.place : null;
+      row.points = row.place ? ffaPoints(row.place, view.placings) : 0;
+    }
+    return row;
   });
   let mvp = null;
   for (const s of stats) {
@@ -68,10 +86,12 @@ function gameOverPayload(ctx, room, viewerName) {
   const destroyed = Object.keys(wf.bases).filter((t) => wf.bases[t].hp <= 0);
   return {
     serverNow: Date.now(),
+    mode: modeOf(room),
     map: wf.map,
     myTeam: army ? army.team : null,
     myRace: army ? army.race : null,
     winner: wf.winner,
+    placings: view.placings,
     endReason: destroyed.length ? 'base' : 'time',
     matchMs: Math.max(0, (wf.clock.endedAt || wf.clock.lastTickAt) - wf.clock.startedAt),
     bases: view.bases,
@@ -99,6 +119,7 @@ function battlePayload(ctx, room, viewerName) {
   });
   return {
     serverNow: Date.now(),
+    mode: modeOf(room),
     map: wf.map,
     myTeam: army ? army.team : null,
     myRace: army ? army.race : null,

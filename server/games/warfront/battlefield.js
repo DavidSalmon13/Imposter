@@ -6,7 +6,7 @@
 
 const { TEAMS, WF_MAP_TIMEOUT_MS } = require('./constants');
 const { devMatchMs, startLoop } = require('./loop');
-const { teamMembers, startBlocker } = require('./roster');
+const { teamMembers, modeOf, ffaPlayers, startBlocker } = require('./roster');
 const { broadcastWfState } = require('./payloads');
 const { chatCompletionJson } = require('../../lib/openai');
 const { rngFor, randomSeed } = require('../../lib/rng');
@@ -115,10 +115,27 @@ function fallbackMapFor(sizeId, rng, sides = 2) {
   return sides > 2 ? engine.fallbackFfa(sizeId, rng, sides) : engine.buildFallbackMap(sizeId, rng);
 }
 
-/** Team members with a race, as the engine's roster. */
-function battleRoster(ctx, room) {
+/**
+ * The engine's roster. Teams: the team members with their race. Free for all: every player on
+ * a side of their own, in a seeded random order (`rngFor(seed, 1)`, so tests can pin it).
+ */
+function battleRoster(ctx, room, seed) {
   const races = room.state.warfront.lobbyRaces;
+  if (modeOf(room) === 'ffa') {
+    const names = ffaPlayers(ctx, room).slice();
+    const rng = rngFor(seed, 1);
+    for (let i = names.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [names[i], names[j]] = [names[j], names[i]];
+    }
+    return names.map((name, i) => ({ name, team: engine.SIDES[i], race: races[name] }));
+  }
   return TEAMS.flatMap((team) => teamMembers(ctx, room, team).map((name) => ({ name, team, race: races[name] })));
+}
+
+/** How many sides the battle has: 2 for teams, one per player in free for all. */
+function sidesFor(ctx, room) {
+  return modeOf(room) === 'ffa' ? ffaPlayers(ctx, room).length : 2;
 }
 
 /**
@@ -133,12 +150,13 @@ async function generateBattle(ctx, roomCode, room) {
 
   const sizeId = room.state.warfront.phaseConfig.mapSize;
   const seed = randomSeed();
+  const sides = sidesFor(ctx, room);
   let map;
   try {
-    map = await generateBattlefield(room, sizeId);
+    map = await generateBattlefield(room, sizeId, sides);
   } catch (err) {
     console.error('Warfront map generation failed, using the fallback map:', err.message);
-    map = fallbackMapFor(sizeId, rngFor(seed, 0));
+    map = fallbackMapFor(sizeId, rngFor(seed, 0), sides);
   }
 
   // The room may have been closed, or sent back to the lobby, while we waited.
@@ -152,8 +170,11 @@ async function generateBattle(ctx, roomCode, room) {
     return;
   }
 
+  // A free-for-all player who left (or arrived) while we waited changes the number of corners.
+  if (map.bases.length !== sidesFor(ctx, room)) map = fallbackMapFor(sizeId, rngFor(seed, 0), sidesFor(ctx, room));
+
   const wf = room.state.warfront;
-  const battle = engine.createBattleState(map, battleRoster(ctx, room), {
+  const battle = engine.createBattleState(map, battleRoster(ctx, room, seed), {
     seed,
     now: Date.now(),
     matchCapMs: devMatchMs() || wf.phaseConfig.matchCapMs,
@@ -172,4 +193,5 @@ module.exports = {
   generateBattle,
   generateBattlefield,
   fallbackMapFor,
+  battleRoster,
 };

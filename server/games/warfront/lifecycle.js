@@ -12,6 +12,7 @@ const engine = require('./engine');
 // Keys within room.state.warfront to persist: all of them (no ephemeral fields in
 // the namespace; the sim-loop interval handles live in a module-local map).
 const SAVED_FIELDS = [
+  'mode',
   'phaseConfig',
   'lobbyRaces',
   'seed',
@@ -33,6 +34,7 @@ const SAVED_FIELDS = [
 
 function createState() {
   return {
+    mode: 'teams', // 'teams' | 'ffa' (free for all, Step 28), the host's pick at team select
     phaseConfig: {
       matchCapMs: engine.MATCH_LENGTHS[engine.DEFAULT_MATCH_LENGTH].ms,
       mapSize: engine.DEFAULT_MAP_SIZE,
@@ -56,12 +58,12 @@ function createState() {
   };
 }
 
-/** Back-to-lobby reset: keep the host's options, race picks and AI avoid-lists. */
+/** Back-to-lobby reset: keep the host's mode and options, race picks and AI avoid-lists. */
 function clearState(room, roomCode) {
   if (roomCode) stopLoop(roomCode); // tickRoom also stops itself once the room isn't playing
-  const { phaseConfig, lobbyRaces, mapHistory, eventHistory } = room.state.warfront;
+  const { mode, phaseConfig, lobbyRaces, mapHistory, eventHistory } = room.state.warfront;
   room.state.warfront = createState();
-  Object.assign(room.state.warfront, { phaseConfig, lobbyRaces, mapHistory, eventHistory });
+  Object.assign(room.state.warfront, { mode: mode || 'teams', phaseConfig, lobbyRaces, mapHistory, eventHistory });
 }
 
 // ---------------------------------------------------------------------------

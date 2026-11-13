@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WARFRONT — Free for all: game over</title>
+<style>
+
+body{margin:0;background:#020306}
+a{color:#4dff7a}a:hover{color:#b6ffc9}
+.sc button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.sc .lbl{font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#8fa3b5}
+.sc .grn{color:#4dff7a;text-shadow:0 0 6px rgba(77,255,122,.55)}
+.sc .amb{color:#ffcc33;text-shadow:0 0 6px rgba(255,204,51,.5)}
+.sc .pnl{position:relative;background:linear-gradient(180deg,#2e3640 0%,#1a1f26 40%,#0f1318 100%);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px #9fb0c0,inset 0 0 0 3px #0b0e12,inset 0 0 0 4px #2a323b;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.sc .well{background:#05080b;box-shadow:inset 0 0 0 1px #000,inset 0 0 0 2px #2c3640,inset 0 0 18px rgba(0,0,0,.95)}
+.sc .mbtn{min-height:56px;padding:0 12px;font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#cfe0ee;background:linear-gradient(180deg,#2b333d,#141920);box-shadow:inset 0 0 0 1px #4f5c69,inset 0 1px 0 1px rgba(255,255,255,.08);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+/* 2.5D scene */
+.sc .cam{position:relative;overflow:hidden;perspective:900px;perspective-origin:50% 30%;background:radial-gradient(ellipse 90% 60% at 50% 0%,#2a0d10,#000 75%)}
+.sc .world{position:absolute;transform-origin:50% 100%;transform:rotateX(40deg);transform-style:preserve-3d}
+.sc .world sc-for,.sc .world sc-if{display:contents}
+.sc .terrain{position:absolute;inset:0;overflow:hidden;background-color:#4f6a2a;background-image:radial-gradient(ellipse 260px 200px at 380px 240px,rgba(255,120,40,.22),transparent 70%),radial-gradient(ellipse 300px 220px at 120px 120px,rgba(255,236,170,.14),transparent 70%),radial-gradient(rgba(0,0,0,.2) 1px,transparent 1.7px),radial-gradient(rgba(190,230,120,.12) 1px,transparent 1.7px),radial-gradient(rgba(30,50,15,.35) 2px,transparent 3.2px),radial-gradient(rgba(150,120,70,.25) 3px,transparent 5px);background-size:auto,auto,4px 4px,7px 7px,17px 13px,41px 37px;background-position:0 0,0 0,0 0,2px 3px,5px 1px,11px 7px}
+.sc .shore{position:absolute;width:108px;height:100px;border-radius:50%;background:radial-gradient(ellipse,#c2ad78 0 40%,rgba(194,173,120,0) 70%)}
+.sc .water{position:absolute;width:88px;height:82px;background-color:#135a80;background-image:repeating-linear-gradient(165deg,rgba(170,230,255,.24) 0 1px,transparent 1px 8px),radial-gradient(ellipse,#08324f 0%,#0f4a6e 40%,#1b7096 75%);-webkit-mask-image:radial-gradient(ellipse,#000 50%,transparent 70%);mask-image:radial-gradient(ellipse,#000 50%,transparent 70%);animation:wfRipple 3s linear infinite}
+.sc .ford{position:absolute;width:96px;height:76px;background:radial-gradient(ellipse,rgba(120,200,220,.55) 0 30%,rgba(120,200,220,.2) 55%,transparent 70%)}
+.sc .floor{position:absolute;border-radius:50%;background:radial-gradient(ellipse,rgba(20,38,14,.9) 0 45%,rgba(20,38,14,0) 70%)}
+.sc .scorch{position:absolute;width:80px;height:60px;border-radius:50%;background:radial-gradient(ellipse,#120c08 0 20%,rgba(40,25,12,.85) 35%,rgba(60,40,20,.4) 55%,transparent 72%)}
+.sc .plat{position:absolute;transform-style:preserve-3d}
+.sc .ptop{position:absolute;inset:0;border-radius:4px;box-shadow:inset 0 0 0 2px rgba(25,35,12,.55),inset 0 0 22px rgba(0,0,0,.35)}
+.sc .pt-stone{background-color:#6d7a4a;background-image:radial-gradient(ellipse 46% 44% at 50% 50%,rgba(150,150,128,.95) 0 92%,transparent 100%),radial-gradient(ellipse 40% 40% at 50% 60%,rgba(20,12,6,.75),transparent 70%),repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 22px),repeating-linear-gradient(90deg,rgba(0,0,0,.25) 0 1px,transparent 1px 22px)}
+.sc .pw{position:absolute;background-color:#5a4a36}
+.sc .pw-f{left:0;top:100%;width:100%;transform-origin:50% 0;transform:rotateX(-90deg);background-image:linear-gradient(180deg,#58772f 0 3px,rgba(0,0,0,0) 3px),repeating-linear-gradient(90deg,rgba(0,0,0,.3) 0 2px,transparent 2px 7px,rgba(255,255,255,.07) 7px 8px,transparent 8px 13px),linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.5));filter:brightness(.82)}
+.sc .pw-l,.sc .pw-r{top:0;height:100%;transform-origin:0 50%;transform:rotateY(90deg);background-image:linear-gradient(90deg,#58772f 0 3px,rgba(0,0,0,0) 3px),repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 2px,transparent 2px 7px,rgba(255,255,255,.07) 7px 8px,transparent 8px 13px),linear-gradient(90deg,rgba(255,255,255,.06),rgba(0,0,0,.5))}
+.sc .pw-l{left:0;filter:brightness(1.05)}
+.sc .pw-r{left:100%;filter:brightness(.6)}
+.sc .ramp{position:absolute;background-color:#8f8a70;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.28) 0 2px,transparent 2px 10px);box-shadow:inset 0 0 0 2px rgba(0,0,0,.3)}
+.sc .ent{position:absolute;width:0;height:0;transform-style:preserve-3d}
+.sc .dec{position:absolute;left:0;top:0;transform:translate(-50%,-50%) translateZ(1px);border-radius:50%;pointer-events:none}
+.sc .bb{position:absolute;left:0;bottom:0;transform-origin:50% 100%;transform:translateX(-50%) rotateX(-40deg)}
+.sc .bb > svg{display:block;width:100%;height:100%;overflow:visible}
+.sc .tshadow{width:46px;height:24px;margin-left:12px;margin-top:3px;background:radial-gradient(ellipse,rgba(0,0,0,.55),transparent 70%)}
+.sc .cglow{width:110px;height:80px;background:radial-gradient(ellipse,rgba(90,216,255,.55),rgba(90,216,255,.12) 45%,transparent 70%)}
+.sc .glowc{filter:drop-shadow(0 0 6px rgba(90,216,255,.9))}
+.sc .fireglow{width:260px;height:220px;background:radial-gradient(ellipse,rgba(255,120,30,.45),rgba(255,80,20,.12) 45%,transparent 70%);animation:wfOrb 1.2s ease-in-out infinite}
+.sc .smoke{position:absolute;left:50%;bottom:0;width:0;height:0}
+.sc .smoke span{position:absolute;left:-12px;bottom:0;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,rgba(70,66,64,.85),rgba(50,48,46,0) 70%);animation:wfSmoke 3s linear infinite}
+.sc .smoke span:nth-child(2){animation-delay:-1s}.sc .smoke span:nth-child(3){animation-delay:-2s}
+.sc .flame{position:absolute;width:18px;height:30px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:radial-gradient(ellipse at 50% 72%,#fff3b0 0 14%,#ffb347 34%,#ff5a1f 58%,rgba(255,60,0,0) 74%);transform-origin:50% 100%;animation:wfFlame .38s ease-in-out infinite alternate}
+.sc .confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3}
+.sc .confetti i{position:absolute;top:-10px;width:5px;height:9px;animation:wfFall 3.2s linear infinite}
+/* sprites */
+.sc .tm-red .tc{fill:#e5484d}.sc .tm-red .tcd{fill:#9e2328}
+.sc .tm-blue .tc{fill:#3b82f6}.sc .tm-blue .tcd{fill:#1d4fb0}
+.sc .ln{fill:none;stroke-width:1.8px;stroke-linecap:round}
+.sc .str{fill:none;stroke:#f2ecff;stroke-width:.6px}
+.sc .orb{filter:drop-shadow(0 0 3px #c084fc);animation:wfOrb 1.4s ease-in-out infinite}
+.sc .fire{filter:drop-shadow(0 0 4px #ff8a00);animation:wfOrb .9s ease-in-out infinite}
+.sc .aura{fill:rgba(192,132,252,.28);filter:drop-shadow(0 0 4px #c084fc);animation:wfOrb 1.8s ease-in-out infinite}
+.sc .axe{transform-box:fill-box;transform-origin:50% 100%;animation:wfSway 1.6s ease-in-out infinite}
+.sc .flag{transform-box:fill-box;transform-origin:0 50%;animation:wfFlag 1.1s ease-in-out infinite}
+.sc .sqbb{width:76px;height:74px;transform:translateX(-50%) rotateX(-40deg) scale(1.1)}
+.sc .fig{position:absolute;width:34px;height:42px}
+.sc .spw{position:absolute;inset:0}
+.sc .sp{width:34px;height:42px;display:block;overflow:visible;animation:wfCheer .9s ease-in-out infinite}
+.sc .d1 .sp{animation-delay:-.25s}.sc .d2 .sp{animation-delay:-.5s}.sc .d3 .sp{animation-delay:-.7s}
+.sc .chip{position:absolute;top:-5px;right:-14px;font-size:10px;font-weight:800;padding:1px 6px 1px 4px;color:#fff;white-space:nowrap;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);background:linear-gradient(180deg,#ff5a5f,#a8262b)}
+.sc .sqsh{width:84px;height:46px;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%)}
+.sc .rg-red{width:70px;height:70px;border:1.5px solid rgba(255,90,95,.75);background:radial-gradient(circle,rgba(255,90,95,.14),transparent 70%)}
+.sc .row{display:grid;grid-template-columns:42px minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:4px;align-items:center;min-height:50px;padding:0 10px 0 4px;font-size:13px}
+.sc .row > span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
+.sc .por{width:38px;height:44px;display:grid;place-items:center;background:#0b0f14;box-shadow:inset 0 0 0 1px #2c3640}
+.sc .por svg{width:32px;height:40px;overflow:visible}
+@keyframes wfOrb{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes wfSway{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+@keyframes wfFlag{0%,100%{transform:scaleX(1) skewY(0)}50%{transform:scaleX(.82) skewY(8deg)}}
+@keyframes wfRipple{to{background-position:48px 0,0 0}}
+@keyframes wfCheer{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes wfSmoke{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-110px) translateX(18px) scale(3);opacity:0}}
+@keyframes wfFlame{0%{transform:scaleY(.82) scaleX(1.05)}100%{transform:scaleY(1.18) scaleX(.92)}}
+@keyframes wfFall{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(280px) rotate(540deg);opacity:.2}}
+@keyframes goPulse{0%,100%{text-shadow:0 0 18px rgba(255,90,95,.9),0 0 40px rgba(229,72,77,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(255,150,150,1),0 0 70px rgba(229,72,77,.9),0 3px 0 #000}}
+
+body{display:flex;justify-content:center}
+
+/* free for all: the two extra sides (Step 28) + the undealt lobby colour */
+.sc .tm-green .tc{fill:#21b37f}.sc .tm-green .tcd{fill:#12704e}
+.sc .tm-gold .tc{fill:#f2c230}.sc .tm-gold .tcd{fill:#a8800f}
+.sc .tm-ffa .tc{fill:#9aa7b4}.sc .tm-ffa .tcd{fill:#55606b}
+.sc .aura-green{width:200px;height:200px;background:radial-gradient(circle,rgba(33,179,127,.35),transparent 70%)}
+.sc .aura-gold{width:200px;height:200px;background:radial-gradient(circle,rgba(242,194,48,.35),transparent 70%)}
+
+.sc .row.ffa{grid-template-columns:42px minmax(0,1.5fr) repeat(4,minmax(0,1fr))}
+.sc .place{display:inline-block;min-width:26px;margin-right:5px;padding:1px 4px;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-align:center;color:#05080b;background:#8fa3b5}
+.sc .place.p1{background:#ffcc33;box-shadow:0 0 6px rgba(255,204,51,.6)}.sc .place.p2{background:#cfe0ee}
+.sc .tm-green .chip{background:linear-gradient(180deg,#3ad09a,#12704e)}
+.sc .rg-green{width:70px;height:70px;border:1.5px solid rgba(58,208,154,.75);background:radial-gradient(circle,rgba(58,208,154,.14),transparent 70%)}
+@keyframes goPulseG{0%,100%{text-shadow:0 0 18px rgba(33,179,127,.9),0 0 40px rgba(33,179,127,.6),0 3px 0 #000}50%{text-shadow:0 0 28px rgba(140,240,200,1),0 0 70px rgba(33,179,127,.9),0 3px 0 #000}}
+
+</style>
+</head>
+<body>
+
+
+<div class="sc" style="width: 390px; min-height: 780px; box-sizing: border-box; background: #020306; color: #d6e2ec; font-family: Bahnschrift, 'DIN Alternate', 'Arial Narrow', 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; gap: 10px; padding: 0 0 12px">
+
+  <!-- Victory scene -->
+  <div style="position: relative">
+    <div class="cam" style="width: 390px; height: 330px">
+      <div class="world" style="left: -45px; top: -90px; width: 480px; height: 420px">
+        <div class="terrain">
+          <span class="shore" style="left: 116px; top: -50px"></span><span class="shore" style="left: 112px; top: 20px"></span><span class="shore" style="left: 108px; top: 90px"></span><span class="shore" style="left: 104px; top: 150px"></span><span class="shore" style="left: 96px; top: 280px"></span><span class="shore" style="left: 92px; top: 350px"></span><span class="shore" style="left: 90px; top: 410px"></span>
+          <span class="water" style="left: 126px; top: -41px"></span><span class="water" style="left: 122px; top: 29px"></span><span class="water" style="left: 118px; top: 99px"></span><span class="water" style="left: 114px; top: 159px"></span><span class="water" style="left: 106px; top: 289px"></span><span class="water" style="left: 102px; top: 359px"></span><span class="water" style="left: 100px; top: 419px"></span>
+          <span class="ford" style="left: 104px; top: 248px"></span>
+          <span class="floor" style="left: -40px; top: 120px; width: 170px; height: 170px"></span>
+          <span class="scorch" style="left: 300px; top: 345px"></span>
+          <span class="scorch" style="left: 190px; top: 300px"></span>
+          <span class="scorch" style="left: 410px; top: 370px"></span>
+        </div>
+        <div class="plat" style="left: 270px; top: 130px; width: 210px; height: 200px; transform: translateZ(36px)">
+          <div class="pw pw-f" style="height: 36px"></div>
+          <div class="pw pw-l" style="width: 36px"></div>
+          <div class="pw pw-r" style="width: 36px"></div>
+          <div class="ptop pt-stone"></div>
+        </div>
+        <div class="ramp" style="left: 200px; top: 220px; width: 70px; height: 64px; transform-origin: 100% 50%; transform: translateZ(36px) rotateY(-31deg)"></div>
+
+        
+          <div class="ent" style="left: 40px; top: 210px">
+            <span class="dec tshadow"></span>
+            <div class="bb" style="width: 51px; height: 70px">
+              <svg viewBox="0 0 46 64" aria-hidden="true"><rect fill="#3b2a1a" x="21" y="48" width="4" height="15"></rect><path fill="#173a1b" d="M23 18 L41 51 L5 51 Z"></path><path fill="#22552a" d="M23 9 L37 39 L9 39 Z"></path><path fill="#2f7334" d="M23 1 L33 27 L13 27 Z"></path><path fill="#000" opacity=".25" d="M23 1 L33 27 L23 27 Z M23 9 L37 39 L23 39 Z M23 18 L41 51 L23 51 Z"></path></svg>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 84px; top: 180px">
+            <span class="dec tshadow"></span>
+            <div class="bb" style="width: 46px; height: 64px">
+              
+              <svg viewBox="0 0 46 64" aria-hidden="true"><path fill="#4a3220" d="M20 63 L21.5 38 L24.5 38 L26 63 Z"></path><circle fill="#1d4419" cx="23" cy="32" r="17"></circle><circle fill="#2b6425" cx="15" cy="27" r="11"></circle><circle fill="#306e29" cx="31" cy="25" r="11"></circle><circle fill="#3f8a33" cx="22" cy="19" r="11"></circle><circle fill="#5aa843" cx="19" cy="14" r="7"></circle><circle fill="#88c964" cx="17" cy="11" r="3.4"></circle></svg>
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 20px; top: 260px">
+            <span class="dec tshadow"></span>
+            <div class="bb" style="width: 51px; height: 70px">
+              
+              <svg viewBox="0 0 46 64" aria-hidden="true"><path fill="#4a3220" d="M20 63 L21.5 38 L24.5 38 L26 63 Z"></path><circle fill="#1d4419" cx="23" cy="32" r="17"></circle><circle fill="#2b6425" cx="15" cy="27" r="11"></circle><circle fill="#306e29" cx="31" cy="25" r="11"></circle><circle fill="#3f8a33" cx="22" cy="19" r="11"></circle><circle fill="#5aa843" cx="19" cy="14" r="7"></circle><circle fill="#88c964" cx="17" cy="11" r="3.4"></circle></svg>
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 70px; top: 240px">
+            <span class="dec tshadow"></span>
+            <div class="bb" style="width: 41px; height: 58px">
+              <svg viewBox="0 0 46 64" aria-hidden="true"><rect fill="#3b2a1a" x="21" y="48" width="4" height="15"></rect><path fill="#173a1b" d="M23 18 L41 51 L5 51 Z"></path><path fill="#22552a" d="M23 9 L37 39 L9 39 Z"></path><path fill="#2f7334" d="M23 1 L33 27 L13 27 Z"></path><path fill="#000" opacity=".25" d="M23 1 L33 27 L23 27 Z M23 9 L37 39 L23 39 Z M23 18 L41 51 L23 51 Z"></path></svg>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 250px; top: 150px">
+            <span class="dec tshadow"></span>
+            <div class="bb" style="width: 44px; height: 61px">
+              
+              <svg viewBox="0 0 46 64" aria-hidden="true"><path fill="#4a3220" d="M20 63 L21.5 38 L24.5 38 L26 63 Z"></path><circle fill="#1d4419" cx="23" cy="32" r="17"></circle><circle fill="#2b6425" cx="15" cy="27" r="11"></circle><circle fill="#306e29" cx="31" cy="25" r="11"></circle><circle fill="#3f8a33" cx="22" cy="19" r="11"></circle><circle fill="#5aa843" cx="19" cy="14" r="7"></circle><circle fill="#88c964" cx="17" cy="11" r="3.4"></circle></svg>
+            </div>
+          </div>
+        
+        
+          <div class="ent" style="left: 110px; top: 330px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+          <div class="ent" style="left: 230px; top: 300px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+          <div class="ent" style="left: 60px; top: 390px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+          <div class="ent" style="left: 250px; top: 410px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+          <div class="ent" style="left: 190px; top: 250px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+          <div class="ent" style="left: 460px; top: 410px"><div class="bb" style="width: 24px; height: 16px"><svg viewBox="0 0 24 16" aria-hidden="true"><ellipse fill="rgba(0,0,0,.35)" cx="13" cy="15" rx="11" ry="2"></ellipse><ellipse fill="#2c5a22" cx="7" cy="10" rx="6" ry="5"></ellipse><ellipse fill="#3d7a2c" cx="16" cy="9" rx="7" ry="6"></ellipse><ellipse fill="#5ea43d" cx="13" cy="6" rx="5" ry="4"></ellipse></svg></div></div>
+        
+        <div class="ent" style="left: 215px; top: 205px">
+          <span class="dec cglow"></span>
+          <div class="bb" style="width: 58px; height: 50px"><svg class="glowc" viewBox="0 0 54 46" aria-hidden="true"><path fill="#2a8fc0" d="M13 14 L18 21 L17 45 L10 45 L8 22 Z"></path><path fill="#2a8fc0" d="M41 9 L46 18 L44 45 L37 45 L36 18 Z"></path><path fill="#38b6e8" d="M27 1 L34 14 L31 45 L23 45 L20 14 Z"></path><path fill="#d6f8ff" opacity=".75" d="M27 1 L27 45 L23 45 L20 14 Z"></path></svg></div>
+        </div>
+
+        <!-- ruined Blue castle -->
+        <div class="ent tm-blue" style="left: 375px; top: 300px; transform: translateZ(36px)">
+          <span class="dec fireglow"></span>
+          <div class="bb" style="width: 170px; height: 150px; transform: translateX(-50%) rotateX(-40deg) scale(.9)">
+            <svg viewBox="0 0 100 88" aria-hidden="true">
+              <path fill="#6b717b" d="M6 88 V46 L12 40 L16 47 L20 41 L24 48 V88 Z"></path>
+              <path fill="#4a4f58" d="M76 88 V52 L81 45 L86 52 L90 46 L94 50 V88 Z"></path>
+              <path fill="#5d636d" d="M16 88 V58 L22 54 L26 60 L30 52 L34 62 V88 Z"></path>
+              <path fill="#7d8592" d="M36 88 V40 L42 30 L46 42 L52 28 L58 44 L64 38 V88 Z"></path>
+              <path fill="#000" opacity=".28" d="M52 88 V28 L58 44 L64 38 V88 Z"></path>
+              <path fill="#4f555e" d="M64 88 V60 L70 55 L74 62 L76 58 V88 Z"></path>
+              <path fill="#14171c" d="M44 88 V74 Q50 66 56 74 V88 Z"></path>
+              <path fill="#000" opacity=".45" d="M38 46 L60 46 L62 66 L36 66 Z"></path>
+              <path class="tc" d="M46 52 L52 52 L52 64 L49 61 L46 66 Z" opacity=".85"></path>
+              <path fill="#3a3e46" d="M2 88 L10 82 L22 85 L34 79 L48 86 L60 80 L72 86 L84 81 L98 88 Z"></path>
+              <path fill="#2a2e35" d="M24 88 L28 84 L33 86 L30 88 Z M66 88 L70 83 L75 86 L73 88 Z"></path>
+            </svg>
+            <span class="flame" style="left: 64px; top: 30px"></span>
+            <span class="flame" style="left: 80px; top: 24px; animation-delay: -.15s; transform: scale(1.2)"></span>
+            <span class="flame" style="left: 22px; top: 62px; animation-delay: -.25s"></span>
+            <span class="flame" style="left: 140px; top: 66px; animation-delay: -.1s; transform: scale(.85)"></span>
+            <span class="flame" style="left: 112px; top: 74px; animation-delay: -.3s; transform: scale(.7)"></span>
+            <span class="smoke" style="left: 48%; bottom: 120px"><span></span><span></span><span></span></span>
+            <span class="smoke" style="left: 20%; bottom: 80px"><span></span><span></span><span></span></span>
+            <span class="smoke" style="left: 84%; bottom: 84px"><span></span><span></span><span></span></span>
+          </div>
+        </div>
+
+        <!-- planted Green banners -->
+        
+          <div class="ent tm-green" style="left: 296px; top: 150px; transform: translateZ(36px)">
+            <span class="dec tshadow" style="width: 30px; height: 14px"></span>
+            <div class="bb" style="width: 34px; height: 64px"><svg viewBox="0 0 34 64" aria-hidden="true"><path class="ln" stroke="#3b2a1e" d="M4 2 L4 63"></path><circle fill="#f5c542" cx="4" cy="2" r="2.2"></circle><path class="tc flag" d="M5 5 L32 9 L26 18 L32 27 L5 27 Z"></path><path fill="#f5c542" d="M13 12 L15 16 L19 16 L16 19 L17 23 L13 21 L9 23 L10 19 L7 16 L11 16 Z"></path></svg></div>
+          </div>
+        
+          <div class="ent tm-green" style="left: 462px; top: 320px; transform: translateZ(36px)">
+            <span class="dec tshadow" style="width: 30px; height: 14px"></span>
+            <div class="bb" style="width: 34px; height: 64px"><svg viewBox="0 0 34 64" aria-hidden="true"><path class="ln" stroke="#3b2a1e" d="M4 2 L4 63"></path><circle fill="#f5c542" cx="4" cy="2" r="2.2"></circle><path class="tc flag" d="M5 5 L32 9 L26 18 L32 27 L5 27 Z"></path><path fill="#f5c542" d="M13 12 L15 16 L19 16 L16 19 L17 23 L13 21 L9 23 L10 19 L7 16 L11 16 Z"></path></svg></div>
+          </div>
+        
+          <div class="ent tm-green" style="left: 290px; top: 318px; transform: translateZ(36px)">
+            <span class="dec tshadow" style="width: 30px; height: 14px"></span>
+            <div class="bb" style="width: 34px; height: 64px"><svg viewBox="0 0 34 64" aria-hidden="true"><path class="ln" stroke="#3b2a1e" d="M4 2 L4 63"></path><circle fill="#f5c542" cx="4" cy="2" r="2.2"></circle><path class="tc flag" d="M5 5 L32 9 L26 18 L32 27 L5 27 Z"></path><path fill="#f5c542" d="M13 12 L15 16 L19 16 L16 19 L17 23 L13 21 L9 23 L10 19 L7 16 L11 16 Z"></path></svg></div>
+          </div>
+        
+
+        <!-- victorious Red army -->
+        
+          <div class="ent" style="left: 220px; top: 300px; transform: translateZ(0px)">
+            <span class="dec sqsh"></span><span class="dec rg-green"></span>
+            <div class="bb sqbb tm-green">
+              <span class="chip">🏹×3</span>
+              
+                <span class="fig d0" style="left: 21px; top: 10px"><span class="spw">
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#2a1748" x="12" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#1f1036" x="16.8" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#5a3b22" x="8.5" y="12" width="3.2" height="11" rx="1"></rect><path class="tc" d="M11.5 16 L20.5 16 L21.6 31 L10.4 31 Z"></path><path fill="#4a2a8a" d="M10 17 Q16 3 22 17 Q16 20.6 10 17 Z"></path><ellipse fill="#120a1e" cx="16" cy="14.4" rx="3.2" ry="2.8"></ellipse><circle fill="#e9d5ff" cx="14.8" cy="14.2" r=".7"></circle><circle fill="#e9d5ff" cx="17.2" cy="14.2" r=".7"></circle><path class="ln" stroke="#b58cff" d="M26.5 9 Q31 21 26.5 33"></path><path class="str" d="M26.5 9 L26.5 33"></path></svg>
+                  
+                  
+                </span></span>
+              
+                <span class="fig d1" style="left: 3px; top: 28px"><span class="spw">
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#2a1748" x="12" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#1f1036" x="16.8" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#5a3b22" x="8.5" y="12" width="3.2" height="11" rx="1"></rect><path class="tc" d="M11.5 16 L20.5 16 L21.6 31 L10.4 31 Z"></path><path fill="#4a2a8a" d="M10 17 Q16 3 22 17 Q16 20.6 10 17 Z"></path><ellipse fill="#120a1e" cx="16" cy="14.4" rx="3.2" ry="2.8"></ellipse><circle fill="#e9d5ff" cx="14.8" cy="14.2" r=".7"></circle><circle fill="#e9d5ff" cx="17.2" cy="14.2" r=".7"></circle><path class="ln" stroke="#b58cff" d="M26.5 9 Q31 21 26.5 33"></path><path class="str" d="M26.5 9 L26.5 33"></path></svg>
+                  
+                  
+                </span></span>
+              
+                <span class="fig d2" style="left: 39px; top: 28px"><span class="spw">
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#2a1748" x="12" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#1f1036" x="16.8" y="29" width="3.4" height="8" rx="1.2"></rect><rect fill="#5a3b22" x="8.5" y="12" width="3.2" height="11" rx="1"></rect><path class="tc" d="M11.5 16 L20.5 16 L21.6 31 L10.4 31 Z"></path><path fill="#4a2a8a" d="M10 17 Q16 3 22 17 Q16 20.6 10 17 Z"></path><ellipse fill="#120a1e" cx="16" cy="14.4" rx="3.2" ry="2.8"></ellipse><circle fill="#e9d5ff" cx="14.8" cy="14.2" r=".7"></circle><circle fill="#e9d5ff" cx="17.2" cy="14.2" r=".7"></circle><path class="ln" stroke="#b58cff" d="M26.5 9 Q31 21 26.5 33"></path><path class="str" d="M26.5 9 L26.5 33"></path></svg>
+                  
+                  
+                </span></span>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 210px; top: 360px; transform: translateZ(0px)">
+            <span class="dec sqsh"></span><span class="dec rg-green"></span>
+            <div class="bb sqbb tm-green">
+              <span class="chip">🪄×1</span>
+              
+                <span class="fig d0" style="left: 21px; top: 24px"><span class="spw">
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><ellipse class="aura" cx="16" cy="36.5" rx="13.5" ry="4.2"></ellipse><path class="tcd" d="M16 12 L4.5 37 Q16 40 27.5 37 Z"></path><path class="tc" d="M16 13 L8.5 36.5 Q16 39 23.5 36.5 Z"></path><path fill="#000" opacity=".22" d="M16 13 L16 38.6 Q20 38.5 23.5 36.5 Z"></path><path fill="#f5c542" d="M15.2 14 L16.8 14 L17.4 38.6 L14.6 38.6 Z"></path><circle fill="#e8c39e" cx="16" cy="10.8" r="3.2"></circle><path fill="#eef0f3" d="M12.8 11 Q16 23 19.2 11 Q16 13.6 12.8 11 Z"></path><ellipse fill="#331a63" cx="16" cy="8.4" rx="7.4" ry="1.9"></ellipse><path fill="#4a2a8a" d="M11.4 8.4 Q14 0 18.5 -6.5 Q18.6 1 20.6 8.4 Z"></path><circle fill="#f5c542" cx="16" cy="3.6" r="1"></circle><path class="ln" stroke="#7a5a3a" d="M27.4 2 L25.4 38"></path><path class="orb" fill="#e2c6ff" d="M27.6 -5 L30 -0.6 L27.6 3.6 L25.2 -0.6 Z"></path></svg>
+                  
+                  
+                  
+                  
+                </span></span>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 75px; top: 370px; transform: translateZ(0px)">
+            <span class="dec sqsh"></span><span class="dec rg-green"></span>
+            <div class="bb sqbb tm-green">
+              <span class="chip">🗡️×4</span>
+              
+                <span class="fig d0" style="left: 6px; top: 10px"><span class="spw">
+                  
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="11" y="29" width="4.2" height="8" rx="1.5"></rect><rect fill="#2e2017" x="17" y="29" width="4.2" height="8" rx="1.5"></rect><path class="tc" d="M10.4 26 L21.6 26 L20.8 32 L11.2 32 Z"></path><path fill="#6f7d3e" d="M9 16 Q16 11.5 23 16 L21.8 27 Q16 29 10.2 27 Z"></path><path fill="#000" opacity=".2" d="M16 13.2 Q19.6 13.6 23 16 L21.8 27 Q19 28.2 16 28.4 Z"></path><circle fill="#6f7d3e" cx="16" cy="11" r="4.2"></circle><path fill="#5a3b22" d="M11.7 10.2 Q16 4.8 20.3 10.2 Z"></path><circle fill="#ff3b3b" cx="14.6" cy="11.6" r=".7"></circle><circle fill="#ff3b3b" cx="17.4" cy="11.6" r=".7"></circle><rect fill="#5f6c33" x="21.8" y="10" width="4" height="9" rx="2"></rect><path fill="#c9ccd2" d="M24.2 12 L27.8 -2 L29 -1.6 L25.6 12.4 Z"></path><circle fill="#6b4a2a" cx="7.6" cy="22" r="5.6"></circle><circle class="tc" cx="7.6" cy="22" r="3.5"></circle><circle fill="#c9ccd2" cx="7.6" cy="22" r="1.2"></circle></svg>
+                </span></span>
+              
+                <span class="fig d1" style="left: 36px; top: 10px"><span class="spw">
+                  
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="11" y="29" width="4.2" height="8" rx="1.5"></rect><rect fill="#2e2017" x="17" y="29" width="4.2" height="8" rx="1.5"></rect><path class="tc" d="M10.4 26 L21.6 26 L20.8 32 L11.2 32 Z"></path><path fill="#6f7d3e" d="M9 16 Q16 11.5 23 16 L21.8 27 Q16 29 10.2 27 Z"></path><path fill="#000" opacity=".2" d="M16 13.2 Q19.6 13.6 23 16 L21.8 27 Q19 28.2 16 28.4 Z"></path><circle fill="#6f7d3e" cx="16" cy="11" r="4.2"></circle><path fill="#5a3b22" d="M11.7 10.2 Q16 4.8 20.3 10.2 Z"></path><circle fill="#ff3b3b" cx="14.6" cy="11.6" r=".7"></circle><circle fill="#ff3b3b" cx="17.4" cy="11.6" r=".7"></circle><rect fill="#5f6c33" x="21.8" y="10" width="4" height="9" rx="2"></rect><path fill="#c9ccd2" d="M24.2 12 L27.8 -2 L29 -1.6 L25.6 12.4 Z"></path><circle fill="#6b4a2a" cx="7.6" cy="22" r="5.6"></circle><circle class="tc" cx="7.6" cy="22" r="3.5"></circle><circle fill="#c9ccd2" cx="7.6" cy="22" r="1.2"></circle></svg>
+                </span></span>
+              
+                <span class="fig d2" style="left: 6px; top: 28px"><span class="spw">
+                  
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="11" y="29" width="4.2" height="8" rx="1.5"></rect><rect fill="#2e2017" x="17" y="29" width="4.2" height="8" rx="1.5"></rect><path class="tc" d="M10.4 26 L21.6 26 L20.8 32 L11.2 32 Z"></path><path fill="#6f7d3e" d="M9 16 Q16 11.5 23 16 L21.8 27 Q16 29 10.2 27 Z"></path><path fill="#000" opacity=".2" d="M16 13.2 Q19.6 13.6 23 16 L21.8 27 Q19 28.2 16 28.4 Z"></path><circle fill="#6f7d3e" cx="16" cy="11" r="4.2"></circle><path fill="#5a3b22" d="M11.7 10.2 Q16 4.8 20.3 10.2 Z"></path><circle fill="#ff3b3b" cx="14.6" cy="11.6" r=".7"></circle><circle fill="#ff3b3b" cx="17.4" cy="11.6" r=".7"></circle><rect fill="#5f6c33" x="21.8" y="10" width="4" height="9" rx="2"></rect><path fill="#c9ccd2" d="M24.2 12 L27.8 -2 L29 -1.6 L25.6 12.4 Z"></path><circle fill="#6b4a2a" cx="7.6" cy="22" r="5.6"></circle><circle class="tc" cx="7.6" cy="22" r="3.5"></circle><circle fill="#c9ccd2" cx="7.6" cy="22" r="1.2"></circle></svg>
+                </span></span>
+              
+                <span class="fig d3" style="left: 36px; top: 28px"><span class="spw">
+                  
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="11" y="29" width="4.2" height="8" rx="1.5"></rect><rect fill="#2e2017" x="17" y="29" width="4.2" height="8" rx="1.5"></rect><path class="tc" d="M10.4 26 L21.6 26 L20.8 32 L11.2 32 Z"></path><path fill="#6f7d3e" d="M9 16 Q16 11.5 23 16 L21.8 27 Q16 29 10.2 27 Z"></path><path fill="#000" opacity=".2" d="M16 13.2 Q19.6 13.6 23 16 L21.8 27 Q19 28.2 16 28.4 Z"></path><circle fill="#6f7d3e" cx="16" cy="11" r="4.2"></circle><path fill="#5a3b22" d="M11.7 10.2 Q16 4.8 20.3 10.2 Z"></path><circle fill="#ff3b3b" cx="14.6" cy="11.6" r=".7"></circle><circle fill="#ff3b3b" cx="17.4" cy="11.6" r=".7"></circle><rect fill="#5f6c33" x="21.8" y="10" width="4" height="9" rx="2"></rect><path fill="#c9ccd2" d="M24.2 12 L27.8 -2 L29 -1.6 L25.6 12.4 Z"></path><circle fill="#6b4a2a" cx="7.6" cy="22" r="5.6"></circle><circle class="tc" cx="7.6" cy="22" r="3.5"></circle><circle fill="#c9ccd2" cx="7.6" cy="22" r="1.2"></circle></svg>
+                </span></span>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 310px; top: 405px; transform: translateZ(0px)">
+            <span class="dec sqsh"></span><span class="dec rg-green"></span>
+            <div class="bb sqbb tm-green">
+              <span class="chip">🔥×3</span>
+              
+                <span class="fig d0" style="left: 21px; top: 10px"><span class="spw">
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M16 15 L8 36 Q16 39 24 36 Z"></path><path fill="#000" opacity=".28" d="M16 15 L16 38.4 Q20.5 38.2 24 36 Z"></path><path fill="#9aa2ae" d="M11 15 L21 15 L20 24.5 L12 24.5 Z"></path><path fill="#c084fc" d="M15 18 L17 18 L16.6 22 L15.4 22 Z"></path><circle fill="#b7bec8" cx="10.4" cy="16.2" r="3.1"></circle><circle fill="#7d8592" cx="21.6" cy="16.2" r="3.1"></circle><path fill="#a7afbb" d="M12 12.8 Q16 4.6 20 12.8 L20 14.8 L12 14.8 Z"></path><rect fill="#c084fc" x="13.2" y="10.8" width="5.6" height="1.4"></rect><path fill="#7c3aed" d="M16 5.2 Q18.6 1.8 21.4 3.4 Q18.2 4.4 16.9 6.6 Z"></path><path class="ln" stroke="#7d8592" d="M21.8 18.5 L26 15"></path><circle class="fire" fill="#ff9a3c" cx="27" cy="13.6" r="3.3"></circle><circle fill="#fff1b8" cx="27" cy="13.6" r="1.5"></circle></svg>
+                  
+                  
+                  
+                </span></span>
+              
+                <span class="fig d1" style="left: 3px; top: 28px"><span class="spw">
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M16 15 L8 36 Q16 39 24 36 Z"></path><path fill="#000" opacity=".28" d="M16 15 L16 38.4 Q20.5 38.2 24 36 Z"></path><path fill="#9aa2ae" d="M11 15 L21 15 L20 24.5 L12 24.5 Z"></path><path fill="#c084fc" d="M15 18 L17 18 L16.6 22 L15.4 22 Z"></path><circle fill="#b7bec8" cx="10.4" cy="16.2" r="3.1"></circle><circle fill="#7d8592" cx="21.6" cy="16.2" r="3.1"></circle><path fill="#a7afbb" d="M12 12.8 Q16 4.6 20 12.8 L20 14.8 L12 14.8 Z"></path><rect fill="#c084fc" x="13.2" y="10.8" width="5.6" height="1.4"></rect><path fill="#7c3aed" d="M16 5.2 Q18.6 1.8 21.4 3.4 Q18.2 4.4 16.9 6.6 Z"></path><path class="ln" stroke="#7d8592" d="M21.8 18.5 L26 15"></path><circle class="fire" fill="#ff9a3c" cx="27" cy="13.6" r="3.3"></circle><circle fill="#fff1b8" cx="27" cy="13.6" r="1.5"></circle></svg>
+                  
+                  
+                  
+                </span></span>
+              
+                <span class="fig d2" style="left: 39px; top: 28px"><span class="spw">
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M16 15 L8 36 Q16 39 24 36 Z"></path><path fill="#000" opacity=".28" d="M16 15 L16 38.4 Q20.5 38.2 24 36 Z"></path><path fill="#9aa2ae" d="M11 15 L21 15 L20 24.5 L12 24.5 Z"></path><path fill="#c084fc" d="M15 18 L17 18 L16.6 22 L15.4 22 Z"></path><circle fill="#b7bec8" cx="10.4" cy="16.2" r="3.1"></circle><circle fill="#7d8592" cx="21.6" cy="16.2" r="3.1"></circle><path fill="#a7afbb" d="M12 12.8 Q16 4.6 20 12.8 L20 14.8 L12 14.8 Z"></path><rect fill="#c084fc" x="13.2" y="10.8" width="5.6" height="1.4"></rect><path fill="#7c3aed" d="M16 5.2 Q18.6 1.8 21.4 3.4 Q18.2 4.4 16.9 6.6 Z"></path><path class="ln" stroke="#7d8592" d="M21.8 18.5 L26 15"></path><circle class="fire" fill="#ff9a3c" cx="27" cy="13.6" r="3.3"></circle><circle fill="#fff1b8" cx="27" cy="13.6" r="1.5"></circle></svg>
+                  
+                  
+                  
+                </span></span>
+              
+            </div>
+          </div>
+        
+          <div class="ent" style="left: 410px; top: 400px; transform: translateZ(0px)">
+            <span class="dec sqsh"></span><span class="dec rg-green"></span>
+            <div class="bb sqbb tm-green">
+              <span class="chip">🪓×2</span>
+              
+                <span class="fig d0" style="left: 6px; top: 24px"><span class="spw">
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="10.5" y="29" width="4.4" height="8" rx="1.6"></rect><rect fill="#2e2017" x="17.2" y="29" width="4.4" height="8" rx="1.6"></rect><path class="tc" d="M10 26 L22 26 L21 32.5 L11 32.5 Z"></path><rect fill="#6f7d3e" x="4.6" y="17" width="4.2" height="10" rx="2"></rect><path fill="#6f7d3e" d="M8 16 Q16 11 24 16 L22.5 27 Q16 29.5 9.5 27 Z"></path><path fill="#000" opacity=".22" d="M16 13 Q20 13.5 24 16 L22.5 27 Q19 28.5 16 28.5 Z"></path><circle class="tc" cx="8" cy="16.5" r="3.7"></circle><circle class="tcd" cx="24" cy="16.5" r="3.7"></circle><circle fill="#6f7d3e" cx="16" cy="11" r="4.3"></circle><path fill="#e8dcc4" d="M11.7 10 Q16 4.6 20.3 10 Z"></path><path fill="#e8dcc4" d="M11.9 8.6 Q8 6 8.6 2.4 Q10.6 6 13.1 7.2 Z"></path><path fill="#e8dcc4" d="M20.1 8.6 Q24 6 23.4 2.4 Q21.4 6 18.9 7.2 Z"></path><rect fill="#c0262c" x="13" y="10.6" width="6" height="1"></rect><circle fill="#ffdd55" cx="14.6" cy="11.9" r=".75"></circle><circle fill="#ffdd55" cx="17.4" cy="11.9" r=".75"></circle><g class="axe"><path class="ln" stroke="#5a3b22" d="M26.4 6 L25.4 30"></path><path fill="#c9ccd2" d="M26.4 5.5 Q32.5 7.5 31.5 14 Q28.5 12 26 12.2 Z"></path></g></svg>
+                  
+                </span></span>
+              
+                <span class="fig d1" style="left: 36px; top: 24px"><span class="spw">
+                  
+                  
+                  
+                  <svg class="sp" viewBox="0 0 32 40" aria-hidden="true"><rect fill="#3b2a1e" x="10.5" y="29" width="4.4" height="8" rx="1.6"></rect><rect fill="#2e2017" x="17.2" y="29" width="4.4" height="8" rx="1.6"></rect><path class="tc" d="M10 26 L22 26 L21 32.5 L11 32.5 Z"></path><rect fill="#6f7d3e" x="4.6" y="17" width="4.2" height="10" rx="2"></rect><path fill="#6f7d3e" d="M8 16 Q16 11 24 16 L22.5 27 Q16 29.5 9.5 27 Z"></path><path fill="#000" opacity=".22" d="M16 13 Q20 13.5 24 16 L22.5 27 Q19 28.5 16 28.5 Z"></path><circle class="tc" cx="8" cy="16.5" r="3.7"></circle><circle class="tcd" cx="24" cy="16.5" r="3.7"></circle><circle fill="#6f7d3e" cx="16" cy="11" r="4.3"></circle><path fill="#e8dcc4" d="M11.7 10 Q16 4.6 20.3 10 Z"></path><path fill="#e8dcc4" d="M11.9 8.6 Q8 6 8.6 2.4 Q10.6 6 13.1 7.2 Z"></path><path fill="#e8dcc4" d="M20.1 8.6 Q24 6 23.4 2.4 Q21.4 6 18.9 7.2 Z"></path><rect fill="#c0262c" x="13" y="10.6" width="6" height="1"></rect><circle fill="#ffdd55" cx="14.6" cy="11.9" r=".75"></circle><circle fill="#ffdd55" cx="17.4" cy="11.9" r=".75"></circle><g class="axe"><path class="ln" stroke="#5a3b22" d="M26.4 6 L25.4 30"></path><path fill="#c9ccd2" d="M26.4 5.5 Q32.5 7.5 31.5 14 Q28.5 12 26 12.2 Z"></path></g></svg>
+                  
+                </span></span>
+              
+            </div>
+          </div>
+        
+      </div>
+      <div class="confetti">
+        <i style="left: 8%; background: #21b37f; animation-delay: 0s"></i><i style="left: 18%; background: #ffcc33; animation-delay: -1.1s"></i>
+        <i style="left: 29%; background: #21b37f; animation-delay: -2.3s"></i><i style="left: 41%; background: #fff; animation-delay: -.6s"></i>
+        <i style="left: 52%; background: #ffcc33; animation-delay: -1.7s"></i><i style="left: 63%; background: #21b37f; animation-delay: -2.8s"></i>
+        <i style="left: 74%; background: #ffcc33; animation-delay: -.3s"></i><i style="left: 85%; background: #21b37f; animation-delay: -1.4s"></i>
+        <i style="left: 93%; background: #fff; animation-delay: -2.1s"></i><i style="left: 35%; background: #21b37f; animation-delay: -2.6s"></i>
+      </div>
+    </div>
+    <div style="position: absolute; left: 0; right: 0; top: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 12px 40px; background: linear-gradient(180deg, rgba(2,3,6,.9), rgba(2,3,6,.55) 60%, transparent)">
+      <span class="lbl" style="color: #8fe8c4">Last side standing · 9:42</span>
+      <span style="font-size: 50px; font-weight: 700; letter-spacing: .14em; color: #fff; line-height: 1; animation: goPulseG 2s ease-in-out infinite; font-size: 42px">GREEN WINS!</span>
+      <span class="amb" style="font-size: 12px; letter-spacing: .3em">◆ FREE FOR ALL ◆</span>
+    </div>
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px; z-index: 4; background: linear-gradient(0deg, #020306, transparent)"></div>
+  </div>
+
+    <!-- Final base HP: every side, by place -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 0 10px">
+    <div class="well" style="padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #21b37f, inset 0 0 20px rgba(33,179,127,.3)">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span><span class="place p1">1ST</span><span style="color: #5fd6a8">GREEN</span></span><span class="grn">58/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"><div style="width: 48%; height: 100%; background: repeating-linear-gradient(90deg, #4dff7a 0 6px, #0a2a12 6px 7px); box-shadow: 0 0 8px #4dff7a"></div></div>
+    </div>
+    <div class="well" style="padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span><span class="place p2">2ND</span><span style="color: #ff7a7e">RED</span></span><span class="" style="color: #ff5a5f">0/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"></div>
+    </div>
+    <div class="well" style="padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #6e5512">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span><span class="place p3">3RD</span><span style="color: #ffd95e">GOLD</span></span><span class="" style="color: #ff5a5f">0/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"></div>
+    </div>
+    <div class="well" style="padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #23477e">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em"><span><span class="place p4">4TH</span><span style="color: #7fb0ff">BLUE</span></span><span class="" style="color: #ff5a5f">0/120</span></div>
+      <div style="height: 8px; background: #000; box-shadow: 0 0 0 1px #2c3640"></div>
+    </div>
+  </div>
+  <!-- Scoreboard -->
+  <div class="pnl" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 8px; margin: 0 10px">
+    <div class="row ffa lbl" style="min-height: 22px"><span></span><span>Player</span><span>Kills</span><span>Lost</span><span>Dmg</span><span>Pts</span></div>
+      <div class="row ffa well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #1c5a44">
+        <span class="por tm-green">
+          
+          
+          
+          <svg viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M10.4 26 L21.6 26 L20.8 32 L11.2 32 Z"></path><path fill="#6f7d3e" d="M9 16 Q16 11.5 23 16 L21.8 27 Q16 29 10.2 27 Z"></path><circle fill="#6f7d3e" cx="16" cy="11" r="4.2"></circle><path fill="#5a3b22" d="M11.7 10.2 Q16 4.8 20.3 10.2 Z"></path><circle fill="#ff3b3b" cx="14.6" cy="11.6" r=".7"></circle><circle fill="#ff3b3b" cx="17.4" cy="11.6" r=".7"></circle><path fill="#c9ccd2" d="M24.2 21.6 L27.8 7.6 L29 8 L25.6 22 Z"></path><circle fill="#6b4a2a" cx="7.6" cy="22" r="5.6"></circle><circle class="tc" cx="7.6" cy="22" r="3.5"></circle></svg>
+        </span>
+        <span style="min-width: 0"><span class="place p1">1ST</span><span class="amb">★ </span><span style="font-weight: 700; color: #5fd6a8">ELI</span><span style="display: block; font-size: 9.5px; color: #8fa3b5; letter-spacing: .12em">HORDE · GREEN</span></span>
+        <span class="grn">16</span><span>5</span><span class="amb">84</span><span class="grn" style="font-weight: 700">+3</span>
+      </div>
+      <div class="row ffa well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #7a2a2e">
+        <span class="por tm-red">
+          
+          <svg viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M16 13 L8.5 36.5 Q16 39 23.5 36.5 Z"></path><path fill="#f5c542" d="M15.2 14 L16.8 14 L17.4 38.6 L14.6 38.6 Z"></path><circle fill="#e8c39e" cx="16" cy="10.8" r="3.2"></circle><path fill="#eef0f3" d="M12.8 11 Q16 23 19.2 11 Q16 13.6 12.8 11 Z"></path><ellipse fill="#331a63" cx="16" cy="8.4" rx="7.4" ry="1.9"></ellipse><path fill="#4a2a8a" d="M11.4 8.4 Q14 0 18.5 -6.5 Q18.6 1 20.6 8.4 Z"></path><path class="ln" stroke="#7a5a3a" d="M27.4 2 L25.4 38"></path><path class="orb" fill="#e2c6ff" d="M27.6 -5 L30 -0.6 L27.6 3.6 L25.2 -0.6 Z"></path></svg>
+          
+          
+        </span>
+        <span style="min-width: 0"><span class="place p2">2ND</span><span style="font-weight: 700; color: #ff7a7e">YOU</span><span style="display: block; font-size: 9.5px; color: #8fa3b5; letter-spacing: .12em">ARCANE · RED</span></span>
+        <span class="">11</span><span>9</span><span class="">48</span><span class="grn" style="font-weight: 700">+1</span>
+      </div>
+      <div class="row ffa well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #6e5512">
+        <span class="por tm-gold">
+          
+          
+          <svg viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M11 15.5 L21 15.5 L22 30 L10 30 Z"></path><rect fill="#5a3b22" x="10.6" y="23.6" width="10.8" height="2"></rect><circle fill="#e8c39e" cx="16" cy="12.4" r="3.4"></circle><path fill="#9aa2ae" d="M10.2 11.4 L21.8 11.4 L20 9.6 Q16 5.2 12 9.6 Z"></path><path class="ln" stroke="#8b6b3a" d="M24 4.5 L23.2 37"></path><path fill="#c9ccd2" d="M24.1 0.4 L25.8 5.2 L22.6 5.2 Z"></path></svg>
+          
+        </span>
+        <span style="min-width: 0"><span class="place p3">3RD</span><span style="font-weight: 700; color: #ffd95e">NOA</span><span style="display: block; font-size: 9.5px; color: #8fa3b5; letter-spacing: .12em">FORGE · GOLD</span></span>
+        <span class="">7</span><span>14</span><span class="">30</span><span class="" style="font-weight: 700">+0</span>
+      </div>
+      <div class="row ffa well" style="box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px #23477e">
+        <span class="por tm-blue">
+          <svg viewBox="0 0 32 40" aria-hidden="true"><path class="tc" d="M10 26 L22 26 L21 32.5 L11 32.5 Z"></path><path fill="#6f7d3e" d="M8 16 Q16 11 24 16 L22.5 27 Q16 29.5 9.5 27 Z"></path><circle class="tc" cx="8" cy="16.5" r="3.7"></circle><circle class="tcd" cx="24" cy="16.5" r="3.7"></circle><circle fill="#6f7d3e" cx="16" cy="11" r="4.3"></circle><path fill="#e8dcc4" d="M11.7 10 Q16 4.6 20.3 10 Z"></path><path fill="#e8dcc4" d="M11.9 8.6 Q8 6 8.6 2.4 Q10.6 6 13.1 7.2 Z"></path><path fill="#e8dcc4" d="M20.1 8.6 Q24 6 23.4 2.4 Q21.4 6 18.9 7.2 Z"></path><circle fill="#ffdd55" cx="14.6" cy="11.9" r=".75"></circle><circle fill="#ffdd55" cx="17.4" cy="11.9" r=".75"></circle></svg>
+          
+          
+          
+        </span>
+        <span style="min-width: 0"><span class="place p4">4TH</span><span style="font-weight: 700; color: #7fb0ff">KAI</span><span style="display: block; font-size: 9.5px; color: #8fa3b5; letter-spacing: .12em">HORDE · BLUE</span></span>
+        <span class="">5</span><span>13</span><span class="">12</span><span class="" style="font-weight: 700">+0</span>
+      </div>
+    <div class="lbl" style="padding: 6px 10px 0; color: #ffcc33">★ MVP · most base damage &nbsp;·&nbsp; Pts: 1st 3 · 2nd 1 · shared 1st 2 each</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 0 10px">
+    <button class="mbtn" style="color: #fff; background: linear-gradient(180deg, #ff5a5f 0%, #c4262c 55%, #7c1418 100%); box-shadow: inset 0 0 0 1px #ffb3b6, inset 0 2px 0 1px rgba(255,255,255,.3)">⚔️ Play Again</button>
+    <button class="mbtn">Back to Lobby</button>
+  </div>
+</div>
+
+
+</body>
+</html>

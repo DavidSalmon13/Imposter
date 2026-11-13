@@ -176,7 +176,8 @@ events** (it can't reuse Codenames' `joinTeam`/`claimLeader`, which guard on
 | `claimWfCaptain` | team member · `teamSelect` | sets `p.leader` if the team has none |
 | `setWfRace` `(race)` | anyone · `teamSelect` | `lobbyRaces[name] = race` |
 | `setWfOptions` `({ matchLength, mapSize })` | host · `teamSelect` | stores into `phaseConfig` |
-| `randomizeWfTeams` | host · `teamSelect` | even split, races untouched |
+| `randomizeWfTeams` | host · `teamSelect` | even split, races untouched (refused in free for all) |
+| `wfSetMode` `('teams' \| 'ffa')` | host · `teamSelect` | `mode`; clears teams/captains, Small → Medium for FFA (Step 28) |
 | `startWarfront` | host or captain (D1) · `teamSelect` | validates teams + races → `generateBattle` |
 | `wfCommand` `(cmd)` | army owner · `playing` | `engine.applyCommand`; ack `{ ok }`; **no broadcast** (the next tick shows it) |
 | `wfPing` `({ tileId })` | team member · `playing` | fan-out to same-team sockets only; rate-limited |
@@ -886,6 +887,10 @@ and every unit shown as an enemy (no routes). `finalView` carries `placings`. FF
   player sees everything and can't command; the last base standing wins; points and history.
 
 ### Step 28: FFA lobby and visuals
+In progress 2026-11-13. **Server done** (`mode` + `wfSetMode`, FFA `startBlocker` / host-only
+command, one side per player dealt with `rngFor(seed, 1)`, `mode` in every payload, `placings` and
+each player's `place`/`points` on game over; scoring now keys on `mode`; tests in `ffaLobby.test.js`).
+**Mockups drawn** (`5a`/`5b`/`5c-ffa-*.html`), waiting for David's OK before the client is built.
 - **Change:** team select: host-only Teams / Free for all switch (`wfSetMode`), FFA roster (no team
   buttons/captains, 3–4 players, Small map greyed out), `startBlocker` rules. Client: green and gold
   side colours for units, castles, structures, minimap, fog-free spectator view, a 4-bar base-HP HUD,

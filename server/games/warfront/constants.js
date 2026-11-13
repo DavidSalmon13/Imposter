@@ -9,6 +9,11 @@ const WF_MAX_PLAYERS = 8;
 const WF_MIN_TEAM_SIZE = 1;
 const WF_MAX_TEAM_SIZE = 4;
 const TEAMS = ['red', 'blue'];
+// Free for all (spec "Free-for-all mode"): 3-4 players, one side each, Medium map or larger.
+const WF_MODES = ['teams', 'ffa'];
+const WF_FFA_MIN_PLAYERS = 3;
+const WF_FFA_MAX_PLAYERS = 4;
+const WF_FFA_MAP_SIZES = ['medium', 'large'];
 // Give up on OpenAI after this long and use the procedural map instead.
 const WF_MAP_TIMEOUT_MS = 25000;
 // The sim loop: advance the world, then push each player their fogged view.
@@ -30,6 +35,10 @@ module.exports = {
   WF_MIN_TEAM_SIZE,
   WF_MAX_TEAM_SIZE,
   TEAMS,
+  WF_MODES,
+  WF_FFA_MIN_PLAYERS,
+  WF_FFA_MAX_PLAYERS,
+  WF_FFA_MAP_SIZES,
   WF_MAP_TIMEOUT_MS,
   WF_TICK_MS,
   WF_BROADCAST_MS,

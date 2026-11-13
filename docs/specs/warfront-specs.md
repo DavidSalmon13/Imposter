@@ -316,6 +316,9 @@ A second **mode** next to the team game. The host picks it on the team-select sc
 
 - **Who:** 3 or 4 players, each on their own. Start Battle in FFA needs 3–4 joined players, each
   with a race; team buttons, captains and Randomize Teams are hidden (the host starts).
+  (Step 28: there is no join button in FFA, so every connected player in the room plays; a 5th
+  player in the room blocks the start. The host's `wfSetMode` switch clears everyone's team and
+  captaincy and lifts a Small map to Medium. Only the host may start, Play Again or Restart.)
 - **Sides:** the engine knows four sides, `SIDES = ['red', 'blue', 'green', 'gold']`. A team game
   uses red and blue as today; in FFA each player gets one side (seeded random order at Start). A
   side is a team of one, so fog, targeting, vision, lighthouses, alerts and "your team" all work
@@ -832,7 +835,7 @@ Team membership is **not** duplicated here — it's sourced from `p.team`/`p.lea
 - **No real-token/currency betting** — "gambling" here is purely in-game (battlefield events,
   per-hit combat luck, contested-vein load variance, a live-aimed weapon that may whiff); the
   `server/betting.js` wallet is **not** used.
-- **No free-for-all mode** — exactly two teams, `red`/`blue`.
+- **Free for all is 3–4 players on their own** — no FFA teams (2v2v2), and no more than four sides.
 - **No free-text team chat** — the private channel is pings + a fixed preset-phrase enum only.
 - **No canvas rendering** — the map is DOM (a CSS grid of tiles + absolutely-positioned army
   stacks); units render as **one stack per occupied tile** (count badge), not one node per unit,

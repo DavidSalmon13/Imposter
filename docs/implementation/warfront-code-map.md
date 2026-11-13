@@ -122,6 +122,7 @@ battlefield.test.js       AI map, fallback, timeout, cancel, lighthouses on AI m
 loop.test.js              sim loop, wfCommand, fogged wfLive, alerts, economy, facilities, persistence
 gameOver.test.js          win, game over, points, Play Again
 ffa.test.js               free for all through the shell: knock-out, out player's wfLive, refused commands, FFA points
+ffaLobby.test.js          free-for-all lobby: wfSetMode, FFA start rules, one side each, mode/placings in payloads
 client/*.test.mjs         pure client helpers (DOM-free modules only, e.g. stackSig.js), imported as ES modules
 shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, playingRoom, plant, …
 ```
