@@ -32,7 +32,7 @@ engine/
   systems/combat.js       ranges, targeting, damage (RPS, luck, strategy edge, Archmage), base/Tower fire, fall back
   systems/lighthouses.js  lighthouse capture each step
   systems/weapons.js      firing a weapon (artillery, emp, airdrop, bombard, aegis): aim rules + effects (Step 10)
-  systems/victory.js      win check (last side standing, or the match cap → most base HP)
+  systems/victory.js      win check (last side standing, or the match cap → most base HP), FFA knock-outs + placings
   commands.js             applyCommand: validates a command and routes it to a system's order* function
   sim.js                  stepSim: calls the systems' step* functions in a fixed order, nothing else
   view.js                 viewForPlayer (fogged live view), own economy, eventsForPlayer, finalView
@@ -114,13 +114,14 @@ Every rule is scoped through a screen id. Selectors and class names are shared w
 
 ```
 engine/<module>.test.js   one per engine module (data, pathing, mapgen, mapgenFfa, state, movement, economy,
-                          production, facilities, combat, lighthouses, weapons, victory, view, sim, purity, sides)
+                          production, facilities, combat, lighthouses, weapons, victory, elimination, view, sim, purity, sides)
 fixtures.js               engine helpers: rawMap, makeBattle, run, fight, lightBattle, plantBuilt,
                           move/produce/haul/build/craft shorthands, SEEDS, spread
 handlers.test.js          team-select handlers, guards, contract
 battlefield.test.js       AI map, fallback, timeout, cancel, lighthouses on AI maps
 loop.test.js              sim loop, wfCommand, fogged wfLive, alerts, economy, facilities, persistence
 gameOver.test.js          win, game over, points, Play Again
+ffa.test.js               free for all through the shell: knock-out, out player's wfLive, refused commands, FFA points
 client/*.test.mjs         pure client helpers (DOM-free modules only, e.g. stackSig.js), imported as ES modules
 shellFixtures.js          shell helpers: setup, readyRoom, aiMap, startWith, playingRoom, plant, …
 ```

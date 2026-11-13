@@ -4,7 +4,7 @@
 // finishing a battle and awarding scoreboard points. Owns wfLoops.
 // Must NOT contain: rules (engine/sim.js) or payload shapes (payloads.js). Plan "Architecture".
 
-const { WF_TICK_MS, WF_WIN_POINTS } = require('./constants');
+const { WF_TICK_MS, WF_WIN_POINTS, WF_FFA_POINTS } = require('./constants');
 const { wfAlertLog, sendAlerts } = require('./alerts');
 const { broadcastWfState, broadcastLive } = require('./payloads');
 const engine = require('./engine');
@@ -78,9 +78,32 @@ function finishBattle(ctx, roomCode, room, winner) {
   broadcastWfState(ctx, roomCode, room);
 }
 
-/** +2 to every player on the winning team, 0 to the losers and to everyone on a draw. */
+/** A free-for-all place's points: 1st 3 (2 each when shared), 2nd 1, the rest 0. */
+function ffaPoints(place, placings) {
+  if (place === 1) return placings.filter((p) => p.place === 1).length > 1 ? WF_FFA_POINTS.sharedFirst : WF_FFA_POINTS.first;
+  return place === 2 ? WF_FFA_POINTS.second : 0;
+}
+
+/**
+ * Team battle: +2 to every player on the winning team, 0 to the losers and to everyone on a draw.
+ * Free for all (more than two sides): points by place (`placings`), and history records each
+ * player's side as `team` with `won` for 1st place.
+ */
 function awardWfScores(ctx, room, winner) {
-  const participants = Object.entries(room.state.warfront.armies).map(([name, army]) => {
+  const wf = room.state.warfront;
+  if (wf.bases && Object.keys(wf.bases).length > 2) {
+    const placings = wf.placings || [];
+    const participants = Object.entries(wf.armies).map(([name, army]) => {
+      const entry = placings.find((p) => p.side === army.team);
+      const place = entry ? entry.place : null;
+      const points = place ? ffaPoints(place, placings) : 0;
+      if (points) ctx.addScore(room, name, points);
+      return { name, team: army.team, won: place === 1, points };
+    });
+    ctx.recordGameResult(room, 'warfront', participants);
+    return;
+  }
+  const participants = Object.entries(wf.armies).map(([name, army]) => {
     const won = army.team === winner;
     if (won) ctx.addScore(room, name, WF_WIN_POINTS);
     return { name, team: army.team, won, points: won ? WF_WIN_POINTS : 0 };

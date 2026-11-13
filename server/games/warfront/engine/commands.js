@@ -6,7 +6,7 @@
 
 const { unitStats } = require('./data');
 const { isPassable } = require('./grid');
-const { MAX_UNITS_PER_COMMAND } = require('./state');
+const { MAX_UNITS_PER_COMMAND, isKnockedOut } = require('./state');
 const { orderMove, climbTower } = require('./systems/movement');
 const { orderProduce } = require('./systems/production');
 const { orderHaul } = require('./systems/economy');
@@ -21,6 +21,8 @@ const { orderWeapon } = require('./systems/weapons');
 function applyCommand(state, name, cmd, now) {
   const army = state.armies[name];
   if (!army) return { ok: false, error: 'You have no army in this battle' };
+  // Free for all: a knocked-out player watches; their commands are refused.
+  if (isKnockedOut(state, army.team)) return { ok: false, error: 'Your base has fallen: you are out of this battle' };
   if (!cmd || typeof cmd !== 'object') return { ok: false, error: 'Invalid command' };
   if (cmd.kind === 'move') {
     const { unitIds, toTileId } = cmd;

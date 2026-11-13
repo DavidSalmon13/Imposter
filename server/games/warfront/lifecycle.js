@@ -18,6 +18,7 @@ const SAVED_FIELDS = [
   'tick',
   'nextUnitId',
   'winner',
+  'placings',
   'map',
   'bases',
   'armies',
@@ -40,7 +41,8 @@ function createState() {
     seed: 0,
     tick: 0,
     nextUnitId: 1,
-    winner: null, // 'red' | 'blue' | 'draw' | null
+    winner: null, // a side ('red' | 'blue' | 'green' | 'gold') | 'draw' | null
+    placings: [], // [{ side, place }] (free for all, Step 27)
     map: null,
     bases: null,
     armies: {},

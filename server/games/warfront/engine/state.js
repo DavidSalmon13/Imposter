@@ -76,6 +76,8 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
     tick: 0,
     nextUnitId,
     winner: null,
+    // Free for all (Step 27): [{ side, place }] as sides are knocked out, then the survivors at the end.
+    placings: [],
     map,
     bases,
     armies,
@@ -97,6 +99,11 @@ function createBattleState(map, roster, { seed, now, matchCapMs = WF_MATCH_CAP_M
 function teamOf(state, name) {
   const a = state.armies[name];
   return a ? a.team : null;
+}
+
+/** A side whose base has fallen is out of the battle (free for all; a team battle ends right then). */
+function isKnockedOut(state, team) {
+  return Boolean(team && state.bases && state.bases[team] && state.bases[team].hp <= 0);
 }
 
 /** Every unit on the field, with its army's team: [{ unit, owner, team }]. */
@@ -183,6 +190,7 @@ module.exports = {
   makeUnit,
   createBattleState,
   teamOf,
+  isKnockedOut,
   allUnits,
   stepMs,
   MAX_UNITS_PER_COMMAND,

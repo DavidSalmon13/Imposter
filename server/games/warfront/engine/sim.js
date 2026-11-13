@@ -10,7 +10,7 @@ const { stepEconomy } = require('./systems/economy');
 const { stepMovement } = require('./systems/movement');
 const { stepCombat } = require('./systems/combat');
 const { stepLighthouses } = require('./systems/lighthouses');
-const { checkWinner } = require('./systems/victory');
+const { checkWinner, stepKnockouts, placeSurvivors } = require('./systems/victory');
 
 /**
  * Advances the world by one sim step ending at `now` (`dtMs` long, already
@@ -36,7 +36,9 @@ function stepSim(state, dtMs, { now }) {
   state.tick += 1;
   state.clock.lastTickAt = now;
   const result = checkWinner(state, now);
+  stepKnockouts(state, events, Boolean(result));
   if (result) {
+    placeSurvivors(state);
     state.winner = result.winner;
     state.clock.endedAt = Math.min(now, state.clock.matchEndsAt);
     events.push({ type: 'gameOver', winner: result.winner, reason: result.reason });

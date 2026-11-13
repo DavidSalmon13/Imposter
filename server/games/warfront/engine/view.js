@@ -5,7 +5,7 @@
 // Spec: "Fog of war", "Hidden information".
 
 const { WF_MAX_UNITS_PER_PLAYER, TUNING } = require('./constants');
-const { teamOf, allUnits, stepMs, buildMs, unitSlotsUsed, round3 } = require('./state');
+const { teamOf, isKnockedOut, allUnits, stepMs, buildMs, unitSlotsUsed, round3 } = require('./state');
 const { supplyRate } = require('./systems/economy');
 const { visionFor, lighthouseView } = require('./vision');
 
@@ -20,7 +20,10 @@ const { visionFor, lighthouseView } = require('./vision');
 function viewForPlayer(state, name) {
   const army = state.armies[name] || null;
   const team = army ? army.team : null;
-  const vision = visionFor(state, team);
+  // Free for all: a knocked-out player watches the rest of the match with the fog lifted. Every
+  // unit is shown as an enemy (where it is and the tile it steps onto, never its destination).
+  const out = isKnockedOut(state, team);
+  const vision = out ? allTiles(state) : visionFor(state, team);
   const now = state.clock.lastTickAt;
   const units = [];
   for (const { unit: u, owner, team: t } of allUnits(state)) {
@@ -73,6 +76,7 @@ function viewForPlayer(state, name) {
     clock: state.clock,
     event: state.event,
     me: army ? ownEconomy(state, army) : null,
+    ...(out ? { out: true } : {}),
     units,
     visible,
     lighthouses: lighthouseView(state),
@@ -81,6 +85,11 @@ function viewForPlayer(state, name) {
       mineralDrops: { ...state.pickups.mineralDrops },
     },
   };
+}
+
+/** Every tile on the map, as a vision set (the fog lifted). */
+function allTiles(state) {
+  return new Set(Array.from({ length: state.map.width * state.map.height }, (_, i) => i));
 }
 
 /**
@@ -109,9 +118,11 @@ function ownEconomy(state, army) {
 function eventsForPlayer(state, name, events) {
   const team = teamOf(state, name);
   if (!team || !events.length) return [];
+  // A knocked-out player watches everything.
+  if (isKnockedOut(state, team)) return events.slice();
   const vision = visionFor(state, team);
-  // A lighthouse flip is news to everyone: its owner is never hidden (D15).
-  return events.filter((e) => e.team === team || e.type === 'lighthouse' || vision.has(e.tileId));
+  // A lighthouse flip and a side being knocked out are news to everyone (D15; free for all).
+  return events.filter((e) => e.team === team || e.type === 'lighthouse' || e.type === 'knockedOut' || vision.has(e.tileId));
 }
 
 /**
@@ -128,6 +139,7 @@ function finalView(state) {
   }));
   return {
     winner: state.winner,
+    placings: (state.placings || []).slice(),
     bases: state.bases,
     clock: state.clock,
     units,

@@ -333,6 +333,8 @@ A second **mode** next to the team game. The host picks it on the team-select sc
   (removed with a `death` event each, no Mineral drops) and its held lighthouses go neutral. The
   player stays in the room and **watches with the fog lifted** (the whole map, like the game-over
   view) until the match ends. Their commands are refused.
+  (Step 27: crumbling isn't counted as **Lost**; the step that ends the match leaves the final board
+  as it stands. Every player gets a `knockedOut { team, place }` event.)
 - **Winning:** the **last side standing** wins at once. If the last bases fall in the same step,
   it's a draw between those sides. At `WF_MATCH_CAP_MS` the standing side with the **most base HP**
   wins; equal top HP is a draw.
@@ -762,7 +764,9 @@ because every timestamp below is **absolute epoch-ms**, a reloaded match resumes
 - `seed`, `tick` — the match's RNG seed (set at battle start) and the step counter; step N's
   randomness is `rngFor(seed, tick)`, so a restarted match continues the same random stream.
 - `nextUnitId` — monotonically increasing unit-id counter (persisted so ids stay unique).
-- `winner` — `'red' | 'blue' | 'draw' | null`.
+- `winner` — a side (`'red' | 'blue' | 'green' | 'gold'`) `| 'draw' | null`.
+- `placings` — `[{ side, place }]`: sides as they are knocked out, then the survivors when the match
+  ends (free for all; a team battle fills it too).
 - `lighthouses` — `[{ tileId, team: 'red'|'blue'|null }]`, the map's lighthouses and who controls each.
 - `map` — the battlefield (theme, lore, width, height, tiles, **supplySources**, **veins**, **lighthouses**,
   **weapons** (spawn list), bases, chokepoints).

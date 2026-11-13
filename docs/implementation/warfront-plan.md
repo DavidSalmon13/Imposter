@@ -869,7 +869,16 @@ cap); the FFA one is `engine/fallbackFfa.js`, and the shell picks between them i
 - **Tests:** fallback FFA maps for 3 and 4 sides on Medium and Large validate across seeds, every
   base reaches every other, the corners get the same land.
 
-### Step 27: FFA winning, elimination, points
+### Step 27: FFA winning, elimination, points ✅
+Done 2026-11-13. `stepKnockouts` / `placeSurvivors` in `systems/victory.js` (run from `stepSim` after
+the win check). Sides falling in one step share a place (`s − m + 1` with `s` still in and `m`
+falling), so the last bases falling together share 1st. A side crumbles only while the match goes on;
+the step that ends the match leaves the final board as it stands (a team battle's game-over map is
+unchanged). Crumbling emits `death { crumbled: true }` and doesn't count toward **Lost**; lighthouses
+going neutral emit no `lighthouse` event (the client would announce it as a capture), but every player
+gets a new `knockedOut { team, place }`. An out player's `wfLive` has `out: true`, every tile visible,
+and every unit shown as an enemy (no routes). `finalView` carries `placings`. FFA scoring in
+`awardWfScores` is chosen by "more than two bases" until Step 28 adds `mode`.
 - **Change:** knocked-out sides lose their units and buildings (death events), their lighthouses
   go neutral, their commands are refused, `view.js` gives them the fog-lifted view. `state.placings`
   records order of elimination; `loop.js` awards 3/1/0 (2 each for a shared 1st) and history.

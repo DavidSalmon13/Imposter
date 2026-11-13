@@ -21,6 +21,8 @@ const WF_ALERT_COOLDOWN_MS = 10000;
 const WF_ALERT_AREA = 4;
 // Scoreboard points for each player on the winning team (spec "Ending the match").
 const WF_WIN_POINTS = 2;
+// Free for all (spec "Placing and points"): 1st 3, 2nd 1, the rest 0; a shared 1st gives each 2.
+const WF_FFA_POINTS = Object.freeze({ first: 3, sharedFirst: 2, second: 1 });
 
 module.exports = {
   WF_MIN_PLAYERS,
@@ -34,4 +36,5 @@ module.exports = {
   WF_ALERT_COOLDOWN_MS,
   WF_ALERT_AREA,
   WF_WIN_POINTS,
+  WF_FFA_POINTS,
 };
