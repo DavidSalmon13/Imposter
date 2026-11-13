@@ -24,13 +24,15 @@ function stepSim(state, dtMs, { now }) {
   const events = [];
   if (state.winner) return { state, events };
   const dt = Math.max(0, Math.min(dtMs, WF_MAX_DT_MS));
+  // What fired weapons did since the last step (commands land between steps).
+  if (state.pendingEvents && state.pendingEvents.length) events.push(...state.pendingEvents.splice(0));
   stepMovement(state, dt, now, events);
-  stepConstruction(state, now, events);
+  stepConstruction(state, dt, now, events);
   stepCombat(state, now, events);
   stepLighthouses(state, events);
   stepEconomy(state, dt, now, events);
-  stepProduction(state, now, events);
-  stepWorkshop(state, now, events);
+  stepProduction(state, dt, now, events);
+  stepWorkshop(state, dt, now, events);
   state.tick += 1;
   state.clock.lastTickAt = now;
   const result = checkWinner(state, now);

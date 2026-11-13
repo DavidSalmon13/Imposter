@@ -8,7 +8,7 @@
 const { WF_REVEAL_MS, TUNING } = require('../constants');
 const { RPS_CLASSES, RPS_BEATS, TERRAIN_TYPES, FACILITIES, unitStats, rpsMultiplier } = require('../data');
 const { tileId, manhattan, neighbors, terrainAt, isPassable, isHigh } = require('../grid');
-const { allUnits, statsOf, garrisonOf } = require('../state');
+const { allUnits, statsOf, garrisonOf, isDisabled } = require('../state');
 const { orderMove } = require('./movement');
 const { loseFacility } = require('./facilities');
 const { rngFor } = require('../../../../lib/rng');
@@ -183,6 +183,7 @@ function stepCombat(state, now, events) {
     if (holder.atkReadyAt > now) continue;
     // Facilities other than the Tower never attack, and a construction site waits until it's done.
     if (attacker.atk <= 0 || (attacker.kind === 'unit' && attacker.unit.buildDoneAt)) continue;
+    if (attacker.kind === 'unit' && isDisabled(attacker.unit, now)) continue; // switched off by an EMP
     if (attacker.kind === 'base' && attacker.base.hp <= 0) continue;
     const target = pickTarget(state, attacker, fighters, now);
     if (!target) continue;

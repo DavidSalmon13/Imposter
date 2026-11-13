@@ -38,6 +38,7 @@ import { syncView, lookAt, enableMousePan } from './camera.js';
 import { onAlert } from './fx.js';
 import { renderBattle, applyLive } from './battle.js';
 import { setTab, armBuild } from './console/build.js';
+import { armWeapon } from './console/weapons.js';
 import { produceUnit } from './console/cards.js';
 import { onSysButton, renderInfo } from './console/selection.js';
 import { enableLongPress } from './console/buildingInfo.js';
@@ -124,7 +125,7 @@ export const Warfront = {
     });
     ['move', 'haul', 'hold'].forEach((kind) => cmdBtn[kind].addEventListener('click', () => onSysButton(kind)));
     cmdBtn.all.addEventListener('click', selectAll);
-    ['produce', 'build'].forEach((t) => tabBtn[t].addEventListener('click', () => {
+    ['produce', 'build', 'weapons'].forEach((t) => tabBtn[t].addEventListener('click', () => {
       sfx.click();
       setTab(t);
     }));
@@ -134,6 +135,10 @@ export const Warfront = {
       const key = e.key.toUpperCase();
       if (e.key === 'Escape' && S.buildMode) {
         armBuild(S.buildMode);
+        return;
+      }
+      if (e.key === 'Escape' && S.fireMode) {
+        armWeapon(S.fireMode);
         return;
       }
       if (S.tab === 'build') {

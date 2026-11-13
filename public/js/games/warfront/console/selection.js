@@ -17,6 +17,7 @@ import {
   WORKER_TYPES,
   UNIT_INFO,
   UNIT_STATS,
+  WEAPON_AIM,
   statLine,
 } from '../constants.js';
 import { infoPortrait, infoTitle, infoSub, infoHp, infoOrder, cmdBtn } from '../dom.js';
@@ -31,6 +32,15 @@ const areaName = (map, id) => `${map.tiles[id]} ${Math.floor(id / map.width) + 1
  * lore, your picked building, the selected stack (mockup), or the battlefield's name and lore.
  */
 export function renderInfo() {
+  renderInfoWell();
+  // An armed weapon says where to tap, whatever the well shows.
+  if (S.fireMode) {
+    infoOrder.textContent = WEAPON_AIM[S.fireMode] || '';
+    infoOrder.classList.remove('amb');
+  }
+}
+
+function renderInfoWell() {
   const { map } = S.state;
   const team = S.state.myTeam || 'red';
   const sel = S.live.units.filter((u) => u.owner === S.state.you && S.selected.has(u.id));

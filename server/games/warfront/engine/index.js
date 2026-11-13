@@ -19,6 +19,7 @@ const m11 = require('./systems/production');
 const m12 = require('./systems/victory');
 const m13 = require('./vision');
 const m14 = require('./view');
+const m15 = require('./systems/weapons');
 
 module.exports = {
   WF_STEP_MS_BASE: m0.WF_STEP_MS_BASE,
@@ -82,4 +83,5 @@ module.exports = {
   viewForPlayer: m14.viewForPlayer,
   eventsForPlayer: m14.eventsForPlayer,
   finalView: m14.finalView,
+  weaponBlocker: m15.weaponBlocker,
 };

@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="warfront/lighthouses.css" />
   <link rel="stylesheet" href="warfront/game-over.css" />
   <link rel="stylesheet" href="warfront/facilities.css" />
+  <link rel="stylesheet" href="warfront/weapons.css" />
 </head>
 <body>
   <div id="conn-status" class="conn-status hidden" role="status" aria-live="polite"></div>
@@ -895,10 +896,11 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center">
             <span class="lbl hidden" id="wf-army-label">Recruit</span>
-            <!-- Produce / Build tabs (spec swap table: the console's tabs, in the team-select segmented-control style; Weapons comes with Step 10) -->
+            <!-- Produce / Build / Weapons tabs (spec swap table: the console's tabs, in the team-select segmented-control style) -->
             <div class="seg wf-tabs" id="wf-tabs">
               <button type="button" class="on" id="wf-tab-produce">Produce</button>
               <button type="button" id="wf-tab-build">Build</button>
+              <button type="button" id="wf-tab-weapons">Weapons<span class="wf-tabn" id="wf-weapon-count"></span></button>
             </div>
             <span style="display: flex; align-items: baseline; gap: 5px">
               <span class="amb" style="font-size: 17px; font-weight: 700">🔩 <span id="wf-supply">0</span></span>
@@ -910,6 +912,8 @@
           </div>
           <div class="well tm-red" id="wf-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px"></div>
           <div class="well tm-red hidden" id="wf-build-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px"></div>
+          <!-- Weapons tab (Step 10): your arsenal, tap one to aim it, then tap the map -->
+          <div class="well hidden" id="wf-weapon-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px"></div>
           <!-- A picked Workshop's command card: its five weapons, in place of the tab's cards -->
           <div class="well hidden" id="wf-craft-cards" style="padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px"></div>
           <!-- Move / Haul / Hold, plus Select all (plan Step 23) -->

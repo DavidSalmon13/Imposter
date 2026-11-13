@@ -8,7 +8,7 @@ import { S } from '../store.js';
 import { sfx, haptics } from '../../../fx.js';
 import { weaponSprite, FACILITY_SPRITES } from '../sprites.js';
 import { el, feed } from '../util.js';
-import { cardsEl, tabBtn, buildCardsEl, craftCardsEl } from '../dom.js';
+import { cardsEl, tabBtn, buildCardsEl, craftCardsEl, weaponCardsEl } from '../dom.js';
 import { serverNow } from '../clock.js';
 import { renderUnits } from '../units.js';
 import {
@@ -73,15 +73,18 @@ function syncWells() {
   const shop = hasArmy && Boolean(pickedWorkshop());
   tabBtn.produce.classList.toggle('on', !shop && S.tab === 'produce');
   tabBtn.build.classList.toggle('on', !shop && S.tab === 'build');
+  tabBtn.weapons.classList.toggle('on', !shop && S.tab === 'weapons');
   cardsEl.classList.toggle('hidden', !hasArmy || shop || S.tab !== 'produce');
   buildCardsEl.classList.toggle('hidden', !hasArmy || shop || S.tab !== 'build');
+  weaponCardsEl.classList.toggle('hidden', !hasArmy || shop || S.tab !== 'weapons');
   craftCardsEl.classList.toggle('hidden', !shop);
 }
 
-/** Produce or Build. Picking a tab also lets go of a picked Workshop. */
+/** Produce, Build or Weapons. Picking a tab also lets go of a picked Workshop; leaving one stands its mode down. */
 export function setTab(next) {
   S.tab = next;
   if (S.tab !== 'build') S.buildMode = null;
+  if (S.tab !== 'weapons') S.fireMode = null;
   if (pickedWorkshop()) S.selStructure = null;
   syncWells();
   renderBuildCards();
@@ -97,6 +100,7 @@ export function armBuild(facility) {
   if (!S.state || S.state.phase !== 'playing' || !S.state.myTeam) return;
   if (S.tab !== 'build') setTab('build');
   S.buildMode = S.buildMode === facility ? null : facility;
+  S.fireMode = null;
   S.mode = 'move';
   sfx.click();
   haptics.tap();

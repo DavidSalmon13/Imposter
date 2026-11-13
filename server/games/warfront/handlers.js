@@ -151,7 +151,7 @@ function registerHandlers(ctx, io, socket) {
     generateBattle(ctx, roomCode, room);
   });
 
-  // Live orders (move, hold, produce, haul, build, craft). Applied the instant they arrive; the next tick shows the result,
+  // Live orders (move, hold, produce, haul, build, craft, weapon). Applied the instant they arrive; the next tick shows the result,
   // so there's no broadcast here.
   socket.on('wfCommand', (cmd, callback) => {
     callback = typeof callback === 'function' ? callback : () => {};

@@ -27,6 +27,7 @@ function viewForPlayer(state, name) {
     if (!team) break;
     const v = { id: u.id, type: u.type, tileId: u.tileId, hp: u.hp, owner, team: t };
     if (u.buildDoneAt) v.buildDoneAt = u.buildDoneAt;
+    if (u.disabledUntil && u.disabledUntil > now) v.disabledUntil = u.disabledUntil; // switched off by an EMP
     if (u.garrison) v.garrison = u.garrison; // on a Tower's roof (everyone who sees it sees that)
     if (t === team) {
       v.path = u.path.slice();

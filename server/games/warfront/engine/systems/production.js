@@ -5,11 +5,11 @@
 
 const { WF_MAX_UNITS_PER_PLAYER } = require('../constants');
 const { RACES, UNIT_TYPES } = require('../data');
-const { makeUnit, buildMs, slotsFor, unitSlotsUsed, builtFacilities, round3 } = require('../state');
+const { makeUnit, buildMs, slotsFor, unitSlotsUsed, builtFacilities, isDisabled, round3 } = require('../state');
 
-/** Tiles where `army` may produce: its base, then every finished Forward Barracks. */
-function spawnPoints(state, army) {
-  return [state.bases[army.team].tileId, ...builtFacilities(army, 'barracks').map((u) => u.tileId)];
+/** Tiles where `army` may produce: its base, then every finished Forward Barracks an EMP hasn't switched off. */
+function spawnPoints(state, army, now) {
+  return [state.bases[army.team].tileId, ...builtFacilities(army, 'barracks', now).map((u) => u.tileId)];
 }
 
 /**
@@ -21,7 +21,7 @@ function orderProduce(state, name, army, cmd, now) {
   const t = UNIT_TYPES[cmd.unitType];
   if (!t || !t.producible) return { ok: false, error: 'Unknown unit' };
   if (t.race !== army.race) return { ok: false, error: `Only ${RACES[t.race].name} can produce that` };
-  const points = spawnPoints(state, army);
+  const points = spawnPoints(state, army, now);
   const at = cmd.atTileId == null ? points[0] : cmd.atTileId;
   if (!points.includes(at)) return { ok: false, error: 'Units can only be produced at your base or a Forward Barracks' };
   if (unitSlotsUsed(army) + slotsFor(t.id) > WF_MAX_UNITS_PER_PLAYER) {
@@ -37,11 +37,19 @@ function orderProduce(state, name, army, cmd, now) {
   return { ok: true };
 }
 
-/** Finished queue items step onto their spawn tile; a Summoner brings a Golem to the base. */
-function stepProduction(state, now, events) {
+/**
+ * Finished queue items step onto their spawn tile; a Summoner brings a Golem to the base.
+ * A Forward Barracks switched off by an EMP holds its queue: every item waits `dtMs` longer.
+ */
+function stepProduction(state, dtMs, now, events) {
   for (const [owner, army] of Object.entries(state.armies)) {
     for (const [key, queue] of Object.entries(army.queues)) {
       const tile = Number(key);
+      const barracks = army.units.find((u) => u.type === 'barracks' && u.tileId === tile && u.hp > 0);
+      if (barracks && isDisabled(barracks, now)) {
+        for (const item of queue) item.doneAt += dtMs;
+        continue;
+      }
       while (queue.length && queue[0].doneAt <= now) {
         const { unitType } = queue.shift();
         const spawned = [[unitType, tile]];

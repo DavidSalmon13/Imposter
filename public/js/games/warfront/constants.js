@@ -49,6 +49,21 @@ export const FACILITY_ORDERS = {
 };
 export const WEAPON_NAMES = { artillery: 'Artillery', emp: 'EMP', airdrop: 'Airdrop', bombard: 'Bombard', aegis: 'Aegis' };
 export const WEAPON_IDS = Object.keys(WEAPON_NAMES);
+// What each weapon does (card tooltip) and, while it's armed, where to tap (the info well's order line).
+export const WEAPON_INFO = {
+  artillery: 'Shells one tile: damage to every enemy on it. Fire into the fog if you dare.',
+  emp: 'Switches off an enemy building you can see for 15 s: no shots, no bonus, no production.',
+  airdrop: 'Drops three of your basic soldiers on any tile your team can see.',
+  bombard: 'Strikes the enemy base directly, even with defenders on it. An Aegis stops it.',
+  aegis: 'Your base takes no damage at all for 10 s.',
+};
+export const WEAPON_AIM = {
+  artillery: '▸ TAP ANY TILE TO SHELL IT · FOG TOO',
+  emp: '▸ TAP AN ENEMY BUILDING YOU CAN SEE',
+  airdrop: '▸ TAP A GREEN TILE TO DROP YOUR SQUAD',
+  bombard: '▸ TAP THE ENEMY BASE TO BOMBARD IT',
+  aegis: '▸ TAP YOUR BASE TO SHIELD IT',
+};
 
 // Per-type numbers (power, max HP, speed, range, class), synced from the server's wfState
 // `unitStats` by syncUnitStats; the values below are only the fallback until it arrives.

@@ -139,9 +139,17 @@ function unitSlotsUsed(army) {
   return n;
 }
 
-/** `army`'s finished facilities of `type` (construction sites don't count). */
-function builtFacilities(army, type) {
-  return army.units.filter((u) => u.type === type && !u.buildDoneAt && u.hp > 0);
+/** Whether an EMP has `u` switched off at `now` (it does nothing until disabledUntil). */
+function isDisabled(u, now) {
+  return Boolean(u.disabledUntil) && u.disabledUntil > now;
+}
+
+/**
+ * `army`'s finished facilities of `type` (construction sites don't count). With `now`,
+ * only the working ones: a building an EMP switched off is left out until it recovers.
+ */
+function builtFacilities(army, type, now) {
+  return army.units.filter((u) => u.type === type && !u.buildDoneAt && u.hp > 0 && (now == null || !isDisabled(u, now)));
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +187,7 @@ module.exports = {
   slotsFor,
   unitSlotsUsed,
   builtFacilities,
+  isDisabled,
   round3,
   statsOf,
   towerAt,

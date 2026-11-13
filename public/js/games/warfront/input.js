@@ -14,10 +14,15 @@ import { feed } from './util.js';
 import { renderBuildCards } from './console/build.js';
 import { renderCards } from './console/cards.js';
 import { hintInspectOnce } from './console/buildingInfo.js';
+import { fireAt } from './console/weapons.js';
 
 /** Tap on the battlefield: pick up your stack on that tile, or send the selection there. */
 export function onTileTap(tileId) {
   if (!S.state || S.state.phase !== 'playing' || !S.live || !S.state.myTeam) return;
+  if (S.fireMode) {
+    fireAt(tileId); // an armed weapon: this tap is its target
+    return;
+  }
   if (S.buildMode) {
     const facility = S.buildMode;
     S.ctx.socket.emit('wfCommand', { kind: 'build', facility, tileId }, (res) => {

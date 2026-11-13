@@ -7,7 +7,7 @@
 const { WF_MAX_UNITS_PER_PLAYER, TUNING } = require('../constants');
 const { FACILITIES, facilityCost, WEAPON_EFFECTS } = require('../data');
 const { tileId, manhattan, isPassable } = require('../grid');
-const { makeUnit, allUnits, unitSlotsUsed, builtFacilities, round3 } = require('../state');
+const { makeUnit, allUnits, unitSlotsUsed, builtFacilities, isDisabled, round3 } = require('../state');
 const { visionFor } = require('../vision');
 
 // ---------------------------------------------------------------------------
@@ -72,10 +72,11 @@ function orderCraft(state, army, cmd, now) {
   return { ok: true };
 }
 
-/** Construction sites whose time is up become working structures. */
-function stepConstruction(state, now, events) {
+/** Construction sites whose time is up become working structures; an EMP'd site waits it out. */
+function stepConstruction(state, dtMs, now, events) {
   for (const [owner, army] of Object.entries(state.armies)) {
     for (const u of army.units) {
+      if (u.buildDoneAt && isDisabled(u, now)) u.buildDoneAt += dtMs;
       if (!u.buildDoneAt || u.buildDoneAt > now || u.hp <= 0) continue;
       u.buildDoneAt = 0;
       events.push({ type: 'built', tileId: u.tileId, owner, team: army.team, unitId: u.id, unitType: u.type });
@@ -83,12 +84,19 @@ function stepConstruction(state, now, events) {
   }
 }
 
-/** Finished Workshop weapons join the arsenal, one at a time. */
-function stepWorkshop(state, now, events) {
+/**
+ * Finished Workshop weapons join the arsenal, one at a time. While an EMP has every one of
+ * the player's Workshops switched off, the queue waits (each item `dtMs` later).
+ */
+function stepWorkshop(state, dtMs, now, events) {
   for (const [owner, army] of Object.entries(state.armies)) {
     const queue = army.workshop;
     if (!queue || !queue.length) continue;
-    const shop = builtFacilities(army, 'workshop')[0];
+    const shop = builtFacilities(army, 'workshop', now)[0];
+    if (!shop && builtFacilities(army, 'workshop').length) {
+      for (const item of queue) item.doneAt += dtMs;
+      continue;
+    }
     while (queue.length && queue[0].doneAt <= now) {
       const { weaponId } = queue.shift();
       army.arsenal.push(weaponId);

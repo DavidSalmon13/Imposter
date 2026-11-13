@@ -11,6 +11,7 @@ const { orderMove, climbTower } = require('./systems/movement');
 const { orderProduce } = require('./systems/production');
 const { orderHaul } = require('./systems/economy');
 const { orderBuild, orderCraft } = require('./systems/facilities');
+const { orderWeapon } = require('./systems/weapons');
 
 /**
  * Applies one player command instantly (spec "Commands"). Pure apart from
@@ -49,6 +50,7 @@ function applyCommand(state, name, cmd, now) {
   if (cmd.kind === 'haul') return orderHaul(state, army, cmd, now);
   if (cmd.kind === 'build') return orderBuild(state, name, army, cmd, now);
   if (cmd.kind === 'craft') return orderCraft(state, army, cmd, now);
+  if (cmd.kind === 'weapon') return orderWeapon(state, name, army, cmd, now);
   if (cmd.kind === 'hold') {
     const { unitIds } = cmd;
     if (!Array.isArray(unitIds) || !unitIds.length || unitIds.length > MAX_UNITS_PER_COMMAND) {

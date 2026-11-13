@@ -8,6 +8,7 @@ import { S } from './store.js';
 import { DROP_SPRITE } from './sprites.js';
 import { el } from './util.js';
 import { tileCentre, elevationAt, ent, billboard } from './world/geometry.js';
+import { serverNow } from './clock.js';
 
 /** Weapon tokens disappear once someone walks over them; dropped loads come and go. */
 export function renderPickups() {
@@ -55,8 +56,9 @@ export function renderLighthouses() {
 
 const BURN = '<span class="wf-burn"><span class="flame" style="left: 107px; top: 35px"></span><span class="flame" style="left: 115px; top: 40px; animation-delay: -.2s; transform: scale(.8)"></span><span class="flame" style="left: 73px; top: 30px; animation-delay: -.1s"></span><span class="flame" style="left: 23px; top: 44px; animation-delay: -.25s; transform: scale(.7)"></span><span class="smoke" style="left: 86%; bottom: 92px"><span></span><span></span><span></span></span><span class="smoke" style="left: 58%; bottom: 98px"><span></span><span></span><span></span></span></span>';
 
-/** Below half HP a castle burns like the siege frame's. */
+/** Below half HP a castle burns like the siege frame's; under an Aegis (Step 10) a gold dome covers it. */
 export function renderCastles(bases) {
+  const now = serverNow();
   ['red', 'blue'].forEach((team) => {
     const bb = S.castleBoards[team];
     const base = bases[team];
@@ -65,5 +67,9 @@ export function renderCastles(bases) {
     const flames = bb.querySelector('.wf-burn');
     if (burning && !flames) bb.insertAdjacentHTML('beforeend', BURN);
     if (!burning && flames) flames.remove();
+    const shielded = base.hp > 0 && base.shieldUntil > now;
+    const dome = bb.querySelector(':scope > .wf-aegis');
+    if (shielded && !dome) bb.insertAdjacentHTML('beforeend', '<span class="wf-aegis"></span>');
+    if (!shielded && dome) dome.remove();
   });
 }

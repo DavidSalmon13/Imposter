@@ -12,6 +12,7 @@ import { armyLabel, cardsEl, tabsEl } from '../dom.js';
 import { serverNow } from '../clock.js';
 import { HOTKEYS, CARD_NAMES, RACE_CARD_CLASS, UNIT_STATS, UNIT_MAX_HP, UNIT_INFO } from '../constants.js';
 import { buildBuildCards, setTab } from './build.js';
+import { buildWeaponCards } from './weapons.js';
 import { renderInfo } from './selection.js';
 
 const LORE_MS = 5000; // how long a long-pressed card's description stays in the info well
@@ -61,6 +62,7 @@ export function buildCards(data) {
   armyLabel.classList.toggle('hidden', hasArmy);
   tabsEl.classList.toggle('hidden', !hasArmy);
   buildBuildCards(data);
+  buildWeaponCards(data);
   setTab(S.tab);
   (data.catalog || []).forEach((c) => {
     const btn = el('button', `cmd${c.structure ? ' struct' : ''}`);

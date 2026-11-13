@@ -609,6 +609,27 @@ weapon, it only places ids from this list):
 (Damage/spawn magnitudes and durations live in `TUNING`; weapon mix and spawn counts are a
 balance-pass dial.)
 
+Agreed with David 2026-11-13 (Step 10):
+- **Aiming.** Artillery may land on **any** tile, fogged or not; on a tile with no enemy it whiffs
+  and is still used up. It hits every enemy unit and structure on the tile, but not a Tower's roof
+  garrison (like other area damage); a Tower it knocks down drops its garrison as in combat. An
+  **EMP** must target an enemy facility or Tower on a tile your team **can see** (so it can't be
+  used to probe the fog). **Bombard** targets the enemy base tile, **Aegis** your own base tile,
+  and **Airdrop** a passable tile your team can see. A refused aim keeps the weapon.
+- **EMP switches off everything** the building does for `empMs`: a Tower doesn't shoot, a Refinery
+  gives no load bonus and isn't a deposit point, a Forward Barracks isn't a spawn point and its
+  queue waits, a Workshop's crafting waits (while all of that player's Workshops are off), and a
+  construction site stops building. Waiting timers shift by the time lost.
+- **Aegis blocks everything**, a Bombard included (the Bombard is still used up).
+- **Airdrop at the cap** lands as many of the `airdropCount` units as fit under
+  `WF_MAX_UNITS_PER_PLAYER`, and is refused (kept) when none fit.
+- **Stats.** Artillery kills count as **Kills** and Bombard damage as base **Dmg** (so toward MVP).
+- **UI.** The console's **Weapons** tab shows one card per weapon id with how many you hold. Tap a
+  card to arm it (the info well says where to tap, and the valid target tiles glow), tap the map
+  to fire; tap the card again or press Escape to stand down. An EMP'd building turns grey with a
+  blue spark, a shielded castle gets a gold dome, and each shot plays its effect for whoever can
+  see the tile, with a notice line for the firer and the team it was aimed at.
+
 ## Battlefield events (periodic luck everyone reacts to)
 
 Every `WF_EVENT_MS` the sim rolls a **battlefield event** into

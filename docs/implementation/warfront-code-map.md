@@ -29,6 +29,7 @@ engine/
   systems/production.js   spawn points, produce orders, per-spawn-point build queue
   systems/combat.js       ranges, targeting, damage (RPS, luck, strategy edge, Archmage), base/Tower fire, fall back
   systems/lighthouses.js  lighthouse capture each step
+  systems/weapons.js      firing a weapon (artillery, emp, airdrop, bombard, aegis): aim rules + effects (Step 10)
   systems/victory.js      win check (base at 0 HP, or the match cap → higher base HP)
   commands.js             applyCommand: validates a command and routes it to a system's order* function
   sim.js                  stepSim: calls the systems' step* functions in a fixed order, nothing else
@@ -83,6 +84,7 @@ warfront/
   console/build.js      Produce/Build tabs, Build cards (arm a facility), Workshop weapon cards (craft)
   console/selection.js  info well (stack/structure/lore), Move/Haul/Hold/All button state, sendOrder
   console/bulk.js       Select all (fighters, again: + Workers)
+  console/weapons.js    Weapons tab: arsenal cards, firing mode (arm → tap a tile), fireAt
   console/buildingInfo.js  a building in the info well (picked or long-pressed, Step 24) + the long-press gesture
   input.js              onTileTap: select, pick a facility, move, haul, place an armed build
   gameOver.js           the game-over screen
@@ -100,6 +102,7 @@ console.css        command cards (2c-command-cards.html) + console real-time par
 lighthouses.css    lighthouses on map + minimap
 game-over.css      game over (4-game-over.html)
 facilities.css     Step 9: tabs, Build + Workshop cards, structures on the field, build hints
+weapons.css        Step 10: three tabs, weapon cards, fire hints, EMP'd building, Aegis dome, weapon FX
 ```
 
 Every rule is scoped through a screen id. Selectors and class names are shared with the markup in
@@ -109,7 +112,7 @@ Every rule is scoped through a screen id. Selectors and class names are shared w
 
 ```
 engine/<module>.test.js   one per engine module (data, pathing, mapgen, state, movement, economy,
-                          production, facilities, combat, lighthouses, victory, view, sim, purity)
+                          production, facilities, combat, lighthouses, weapons, victory, view, sim, purity)
 fixtures.js               engine helpers: rawMap, makeBattle, run, fight, lightBattle, plantBuilt,
                           move/produce/haul/build/craft shorthands, SEEDS, spread
 handlers.test.js          team-select handlers, guards, contract
@@ -166,7 +169,7 @@ Imports go one way only. There are no circular imports. A lower layer never impo
 5. `mapgen.js`
 6. `state.js`, then `vision.js` (6b: it lives here, not in `view.js`, because facilities' build rule needs it)
 7. systems, in this order: `movement` → `facilities` → `economy` → `production` → `combat` →
-   `lighthouses` → `victory`. A system imports layers 1–6b and may import an **earlier** system
+   `lighthouses` → `weapons` → `victory`. A system imports layers 1–6b and may import an **earlier** system
    in this order, never a later one. Today economy uses movement (`headFor`/`nearestTile`), and combat
    uses movement (`orderMove`) and facilities (`loseFacility`). Everything else imports layers 1–6b only.
 8. `commands.js` (order* functions only)
@@ -189,7 +192,7 @@ each field commented with which module writes it. Don't add a module-level `let`
 | Step | Server | Client |
 | --- | --- | --- |
 | 9 Facilities + towers (done) | `engine/systems/facilities.js`, Tower fire in `systems/combat.js` | `structures.js`, `console/build.js`, `facilities.css` |
-| 10 Special weapons | new `engine/systems/weapons.js` (`orderWeapon`, effects; aegis/emp state), route in `commands.js`, any step in `sim.js`; numbers in `data.js` (`WEAPON_EFFECTS`) | new `console/weapons.js` (Weapons tab + firing mode), FX per id in `fx.js` (split to `fx/weapons.js` if it passes 400), styles in a new `public/warfront/weapons.css` linked after `facilities.css` |
+| 10 Special weapons (done) | new `engine/systems/weapons.js` (`orderWeapon`, effects; aegis/emp state), route in `commands.js`, any step in `sim.js`; numbers in `data.js` (`WEAPON_EFFECTS`) | new `console/weapons.js` (Weapons tab + firing mode), FX per id in `fx.js` (split to `fx/weapons.js` if it passes 400), styles in a new `public/warfront/weapons.css` linked after `facilities.css` |
 | 11 Battlefield events | new `engine/systems/events.js` (`rollEvent`, effects), called from `sim.js`; shell `battlefield.js`-style async flavour in a new `eventFlavor.js` (OpenAI), never awaited in `loop.js` | event banner in a new `eventBanner.js`, called from `battle.js`; styles in a new `events.css` |
 | 12 Private team channel | new shell `teamChannel.js` (handlers + per-socket fan-out + rate limit), registered from `handlers.js`; `TEAM_PHRASES` in `engine/data.js` | new `teamChannel.js` (+ css) |
 | 13 Reconnect / restart hardening | shell `lifecycle.js` (`reconnectPayload`, `repairOnLoad`), `loop.js` | `index.js` (`applyJoin`), `battle.js` |

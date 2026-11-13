@@ -47,6 +47,7 @@ spec**; change anything there first.
 | D15 | Lighthouses (added 2026-11-11 with David) | 2–4 per map: one near each base (starts owned by that team) + up to 2 contested (start neutral). Stand on it with only your team's units to capture it instantly; both teams or nobody = no change; can't be destroyed. Owner sees Manhattan `WF_LIGHTHOUSE_VISION = 5` around it. Built in **Step 8b**. |
 | D16 | Walking speed (changed 2026-11-11 with David) | Much slower than first specced: `WF_STEP_MS_BASE` 900 → **4300** ms, and Move 1/2/3 = speed ×1/×1.5/×2 (`(1 + Move) ÷ 2`) instead of ×1/×2/×3. Medium-map crossing on plains: Warrior ~60 s, Outrider ~40 s, Raider ~30 s. **Then ×1.5 faster (2026-11-11, David): 4300 → 2867 ms** — Warrior ~40 s, Outrider ~27 s, Raider ~20 s. **Then ×1.5 faster again (2026-11-12, David): 2867 → 1911 ms** — Warrior ~27 s, Outrider ~18 s, Raider ~13 s. Movement orders path with A* weighted by terrain move cost (`findPath`), not unweighted BFS. |
 | D17 | Facilities (agreed 2026-11-12 with David) | A build places a **construction site** at once (full HP, attackable, no effect or attack until done; destroyed = Minerals lost; counts toward the unit cap). Refinery = owner's Workers load **+1 💎/sec** on that vein (no stacking, enemies get nothing). Workshop command `{ kind:'craft', weaponId }`, **one at a time per player** (sequential `armies[].workshop`). A destroyed facility's work in progress is **lost, no refund** (Barracks queue; Workshop queue when the last Workshop falls). |
+| D18 | Weapons (agreed 2026-11-13 with David) | Artillery anywhere, fog included (whiffs are used up; skips roof garrisons). EMP only on an enemy facility/Tower in sight, and it switches off **everything** (Tower fire, Refinery bonus + deposit, Barracks spawn + queue, Workshop crafting, construction) for `empMs`. Bombard on the enemy base, blocked by Aegis. Airdrop on a seen passable tile, as many as fit under the cap (refused at the cap). Artillery kills and Bombard damage count in battle stats. |
 | D12 | Unit cap (not in spec) | **New: `WF_MAX_UNITS_PER_PLAYER = 30`** (structures included, Golems included). Produce is a no-op at the cap. Needed to bound payload size and DOM count on phones. |
 
 **Numbers the spec references but doesn't give** (all live in `TUNING` and get revisited in the balance pass, Step 15)
@@ -530,7 +531,15 @@ screen. Systems may import an earlier system (movement → facilities → econom
 → lighthouses → victory) because some order/step functions are shared. `visionFor` sits in
 `engine/vision.js` below the systems because the build rule (D4) needs it.
 
-### Step 10: Special weapons
+### Step 10: Special weapons ✅
+Done 2026-11-13. New `engine/systems/weapons.js` (`orderWeapon`, `weaponBlocker`); events wait in
+`state.pendingEvents` (not persisted) for the next `stepSim`. EMP pauses via `isDisabled` /
+`builtFacilities(army, type, now)`, so the step functions for construction, production and the
+Workshop now take `dt`. Client: `console/weapons.js` (Weapons tab, firing mode), fire hints in
+`structures.js`, FX in `fx.js`, styles in `weapons.css`. Rules agreed with David (D18). Checked in
+headless Chrome at 390px and 360px: every weapon fired from the tab, the refusals, notices on both
+phones, and a server restart mid-match. **Deviation:** at 360px the arsenal count beside the
+"Weapons" tab label is clipped; the cards show their own counts.
 - Engine: `weapon` command for each id per the spec + numbers table; aegis via
   `bases[team].shieldUntil`; emp via a `disabledUntil` on the structure unit.
 - Client: Weapons tab and firing mode (tap weapon → tap target tile) in the console's panel style;

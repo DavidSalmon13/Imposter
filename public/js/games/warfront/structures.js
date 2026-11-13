@@ -52,11 +52,13 @@ export function renderStructures() {
     const site = Boolean(u.buildDoneAt);
     const pct = Math.max(0, Math.min(100, Math.round((u.hp / (UNIT_MAX_HP[u.type] || u.hp)) * 100)));
     const picked = S.selStructure === u.id;
-    const sig = `${site ? 1 : 0}|${pct}|${picked ? 1 : 0}`;
+    const off = Boolean(u.disabledUntil && u.disabledUntil > now); // switched off by an EMP (Step 10)
+    const sig = `${site ? 1 : 0}|${pct}|${picked ? 1 : 0}|${off ? 1 : 0}`;
     if (sig !== entry.sig) {
       entry.sig = sig;
       const { node, bb } = entry;
       bb.classList.toggle('wf-site', site);
+      bb.classList.toggle('wf-emp', off);
       // Smoke only rises from a working smithy.
       bb.querySelectorAll(':scope > .smoke').forEach((sm) => sm.classList.toggle('hidden', site));
       let hpb = bb.querySelector(':scope > .hpb');
@@ -122,6 +124,10 @@ function renderBaseRing() {
 export function renderBuildHints() {
   if (!S.hintLayer) return;
   S.hintLayer.innerHTML = '';
+  if (S.fireMode) {
+    renderFireHints();
+    return;
+  }
   if (!S.buildMode || !S.live || !S.state || !S.state.map) return;
   const { map } = S.state;
   const vis = S.live.visible || '';
@@ -139,4 +145,35 @@ export function renderBuildHints() {
     Object.assign(hint.style, { left: `${c.x}px`, top: `${c.y}px`, transform: `translateZ(${elevationAt(map, id) + 2}px)` });
     S.hintLayer.appendChild(hint);
   });
+}
+
+/**
+ * Firing mode (Step 10): where the armed weapon may land. Airdrop: every passable tile your team
+ * sees (green); EMP: enemy buildings in sight; Bombard / Aegis: the enemy / your base (red ring
+ * for a strike, gold for the shield). Artillery may land anywhere, so it marks nothing.
+ */
+function renderFireHints() {
+  if (!S.live || !S.state || !S.state.map) return;
+  const { map, myTeam } = S.state;
+  const vis = S.live.visible || '';
+  const mark = (id, kind) => {
+    const c = tileCentre(map, id);
+    const hint = el('span', `wf-bhint wf-fhint ${kind}`);
+    Object.assign(hint.style, { left: `${c.x}px`, top: `${c.y}px`, transform: `translateZ(${elevationAt(map, id) + 2}px)` });
+    S.hintLayer.appendChild(hint);
+  };
+  const baseOf = (team) => (map.bases.find((b) => b.team === team) || {}).tileId;
+  if (S.fireMode === 'airdrop') {
+    map.tiles.forEach((t, id) => {
+      if (vis[id] === '1' && t !== 'water' && t !== 'rock') mark(id, '');
+    });
+  } else if (S.fireMode === 'emp') {
+    S.live.units.forEach((u) => {
+      if (u.team !== myTeam && FACILITY_TYPES.has(u.type) && vis[u.tileId] === '1') mark(u.tileId, 'wf-fh-foe');
+    });
+  } else if (S.fireMode === 'bombard') {
+    mark(baseOf(myTeam === 'red' ? 'blue' : 'red'), 'wf-fh-foe');
+  } else if (S.fireMode === 'aegis') {
+    mark(baseOf(myTeam), 'wf-fh-gold');
+  }
 }

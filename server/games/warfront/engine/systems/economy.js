@@ -10,9 +10,9 @@ const { MAX_UNITS_PER_COMMAND, builtFacilities, round3 } = require('../state');
 const { headFor, nearestTile } = require('./movement');
 const { rngFor } = require('../../../../lib/rng');
 
-/** Tiles where `army`'s haulers may unload: its base, then every finished Refinery. */
-function depositTiles(state, army) {
-  return [state.bases[army.team].tileId, ...builtFacilities(army, 'refinery').map((u) => u.tileId)];
+/** Tiles where `army`'s haulers may unload: its base, then every finished Refinery an EMP hasn't switched off. */
+function depositTiles(state, army, now) {
+  return [state.bases[army.team].tileId, ...builtFacilities(army, 'refinery', now).map((u) => u.tileId)];
 }
 
 /**
@@ -31,7 +31,7 @@ function orderHaul(state, army, cmd, now) {
   for (const u of workers) {
     if (u.carrying >= TUNING.carryCap) {
       u.haul = { veinTileId, stage: 'toDeposit', luck: 0 };
-      headFor(state, army, u, nearestTile(state, u, depositTiles(state, army)), now);
+      headFor(state, army, u, nearestTile(state, u, depositTiles(state, army, now)), now);
     } else {
       u.haul = { veinTileId, stage: 'toVein', luck: 0 };
       headFor(state, army, u, veinTileId, now);
@@ -58,9 +58,9 @@ function supplyRate(state, army) {
  * army has a finished Refinery on or beside it. Several Refineries don't stack,
  * and an enemy's Refinery gives nothing.
  */
-function refineryBonus(state, army, veinTileId) {
+function refineryBonus(state, army, veinTileId, now) {
   const { width } = state.map;
-  return builtFacilities(army, 'refinery').some((r) => manhattan(r.tileId, veinTileId, width) <= 1) ? TUNING.refineryVeinBonus : 0;
+  return builtFacilities(army, 'refinery', now).some((r) => manhattan(r.tileId, veinTileId, width) <= 1) ? TUNING.refineryVeinBonus : 0;
 }
 
 /**
@@ -91,15 +91,15 @@ function stepEconomy(state, dtMs, now, events) {
         h.luck = vein.contested ? (rng() * 2 - 1) * TUNING.veinLuckMagnitude : 0;
       }
       if (h.stage === 'loading') {
-        const rate = TUNING.mineLoadSec * vein.richness * (1 + (h.luck || 0)) + refineryBonus(state, army, vein.tileId);
+        const rate = TUNING.mineLoadSec * vein.richness * (1 + (h.luck || 0)) + refineryBonus(state, army, vein.tileId, now);
         u.carrying = Math.min(TUNING.carryCap, round3(u.carrying + rate * secs));
         if (u.carrying < TUNING.carryCap) continue;
         h.stage = 'toDeposit';
-        headFor(state, army, u, nearestTile(state, u, depositTiles(state, army)), now);
+        headFor(state, army, u, nearestTile(state, u, depositTiles(state, army, now)), now);
         continue;
       }
       if (h.stage === 'toDeposit') {
-        const deposits = depositTiles(state, army);
+        const deposits = depositTiles(state, army, now);
         if (!deposits.includes(u.tileId)) {
           headFor(state, army, u, nearestTile(state, u, deposits), now);
           continue;

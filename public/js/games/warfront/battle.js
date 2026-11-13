@@ -21,6 +21,7 @@ import { renderHp, tickClock, renderStrip } from './hud.js';
 import { renderInfo, renderSys } from './console/selection.js';
 import { buildCards, renderCards } from './console/cards.js';
 import { renderBuildCards } from './console/build.js';
+import { renderWeaponCards } from './console/weapons.js';
 
 export function renderBattle(data) {
   const fresh = S.builtFor !== data.clock.startedAt;
@@ -28,6 +29,7 @@ export function renderBattle(data) {
     S.selected.clear();
     S.mode = 'move';
     S.buildMode = null;
+    S.fireMode = null;
     S.selStructure = null;
     S.selBase = false;
     S.tab = 'produce';
@@ -105,5 +107,6 @@ export function applyLive(view) {
   }
   renderCards();
   renderBuildCards();
-  if (S.buildMode) renderBuildHints();
+  renderWeaponCards();
+  if (S.buildMode || S.fireMode) renderBuildHints();
 }

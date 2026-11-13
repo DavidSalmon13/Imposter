@@ -47,7 +47,9 @@ export const S = {
   hintLayer: null, // written by world/build.js, structures.js; build mode: the tiles you may build on
   structNodes: new Map(), // written by world/build.js, structures.js; unit id -> { node, bb, sig }: a facility/tower billboard
   structureTiles: new Set(), // written by world/build.js, structures.js; tiles a facility or tower stands on (stacks stand at its foot)
-  tab: 'produce', // written by battle.js, console/build.js; the console's tab: 'produce' | 'build'
+  tab: 'produce', // written by battle.js, console/build.js; the console's tab: 'produce' | 'build' | 'weapons'
+  fireMode: null, // written by battle.js, console/weapons.js, console/build.js, input.js; the weapon armed to fire (next map tap fires it), or null
+  weaponCardNodes: new Map(), // written by console/weapons.js; weaponId -> { btn, q, sig }
   buildMode: null, // written by battle.js, console/build.js, input.js; the facility armed for placement (next map tap builds it), or null
   selBase: false, // written by input.js, battle.js, console/bulk.js; your team's base is picked on the map (its info shows in the well)
   selStructure: null, // written by structures.js, battle.js, console/build.js, input.js; id of my facility/tower picked on the map (a Barracks is where units spawn)

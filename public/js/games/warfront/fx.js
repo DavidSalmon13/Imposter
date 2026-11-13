@@ -9,6 +9,8 @@ import { sfx, haptics, haptic } from '../../fx.js';
 import { el, feed } from './util.js';
 import { hpSegEl, minimap, alertEl, alertText } from './dom.js';
 import { tileCentre, ent, billboard, standPoint, compass } from './world/geometry.js';
+import { weaponSprite } from './sprites.js';
+import { serverNow } from './clock.js';
 import { FACILITY_NAMES, WEAPON_NAMES, UNIT_NAMES } from './constants.js';
 
 // ---------- Live combat effects (3-resolution.html, played once on the map) ----------
@@ -53,6 +55,41 @@ function fxBolt(fromTileId, toTileId, arcane) {
   setTimeout(() => bolt.remove(), FX_LIFE.bolt);
 }
 
+/**
+ * One fired weapon (Step 10), in the 3-resolution effect style: artillery's shell burst, the
+ * EMP's blue pulse, the airdrop's falling crate, the Aegis's gold flash (a Bombard's own blast
+ * comes from its baseHit). Your weapons and the ones aimed at you get a notice line.
+ */
+function playWeapon(e) {
+  const mine = e.owner === S.state.you;
+  const ours = e.team === S.state.myTeam;
+  const name = WEAPON_NAMES[e.weaponId] || 'Weapon';
+  const life = FX_LIFE.boom + 300;
+  if (e.weaponId === 'artillery') {
+    fxBoard(e.tileId, '<span class="wf-shell"></span><span class="boom" style="left: 12px; top: 22px; width: 96px; height: 96px"></span><span class="shock" style="left: 22px; top: 32px; width: 76px; height: 76px"></span>',
+      { w: 120, h: 130, z: 20, life });
+    if (mine) feed(e.hits ? `${name} hit ${e.hits} ${e.hits === 1 ? 'enemy' : 'enemies'}` : `${name} missed · nothing there`, e.hits ? 'grn' : 'amb');
+    else if (!ours) feed(`Enemy ${name.toLowerCase()} incoming!`, 'amb');
+  } else if (e.weaponId === 'emp') {
+    fxBoard(e.tileId, '<span class="wf-empring"></span><span class="wf-empring" style="animation-delay: .18s"></span>', { w: 130, h: 130, dy: -20, z: 26, life });
+    if (mine) feed(`${name}: building switched off for ${Math.max(1, Math.round((e.until - serverNow()) / 1000))}s`);
+    else if (!ours) feed(`Enemy ${name} switched off your building!`, 'amb');
+  } else if (e.weaponId === 'airdrop') {
+    fxBoard(e.tileId, `<span class="wf-chute">${weaponSprite('airdrop')}</span>`, { w: 80, h: 140, dy: -40, z: 40, life, team: e.team });
+    if (mine) feed(`${name} landed · ${e.spawned} ${e.spawned === 1 ? 'soldier' : 'soldiers'}`);
+    else if (!ours) feed(`Enemy ${name.toLowerCase()} behind your lines!`, 'amb');
+  } else if (e.weaponId === 'bombard') {
+    if (e.shielded) fxBoard(e.tileId, '<span class="wf-aegisflash"></span>', { w: 150, h: 150, dy: -30, z: 30, life });
+    if (mine) feed(e.shielded ? `${name} blocked by their Aegis` : `${name} hit their base · −${Math.round(e.dmg)}`, e.shielded ? 'amb' : 'grn');
+    else if (!ours) feed(e.shielded ? `Your Aegis stopped a ${name.toLowerCase()}` : `Enemy ${name.toLowerCase()} hit your base!`, e.shielded ? 'grn' : 'amb');
+  } else if (e.weaponId === 'aegis') {
+    fxBoard(e.tileId, '<span class="wf-aegisflash"></span>', { w: 150, h: 150, dy: -30, z: 30, life });
+    if (ours) feed(`${mine ? '' : `${e.owner}'s `}${name} up · your base is shielded`);
+    else feed(`Enemy ${name}: their base is shielded`, 'amb');
+  }
+  if (mine) haptics.success();
+}
+
 const SPARKS = [20, 80, 140, -40, -100, 200]
   .map((r, i) => `<span class="spk" style="top: 50px; transform: rotate(${r}deg)"><i style="animation-delay: -${(i % 3) * 0.1}s"></i></span>`)
   .join('');
@@ -76,7 +113,9 @@ export function playEffects(events) {
       }
     } else if (e.type === 'deposit' && e.owner === S.state.you) {
       gains.set(e.tileId, (gains.get(e.tileId) || 0) + e.minerals);
-    } else if (e.type === 'spawn' && e.owner === S.state.you) {
+    } else if (e.type === 'weapon') {
+      playWeapon(e);
+    } else if (e.type === 'spawn' && e.owner === S.state.you && !e.airdrop) {
       feed(`${UNIT_NAMES[e.unitType] || 'Unit'} ready`);
     } else if (e.type === 'built' && e.owner === S.state.you) {
       feed(`${FACILITY_NAMES[e.unitType] || 'Building'} ready`);
